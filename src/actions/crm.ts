@@ -166,16 +166,23 @@ export async function getClientPanel(clientId: string, userId: string) {
     where: { id: clientId, userId },
     include: {
       interactions: { orderBy: { date: "desc" }, take: 3 },
-      reminders: { where: { isDone: false }, orderBy: { dueDate: "asc" }, take: 5 },
+      reminders: { where: { isDone: false }, orderBy: { dueDate: "asc" }, take: 3 },
       projects: {
-        where: { status: { in: ["ACTIVE", "PAUSED"] } },
-        take: 3,
+        orderBy: { createdAt: "desc" },
+        take: 5,
         select: { id: true, name: true, status: true },
       },
       invoices: {
-        select: { totalHT: true, depositDeducted: true, status: true },
+        orderBy: { createdAt: "desc" },
+        take: 5,
+        select: { id: true, number: true, status: true, totalHT: true, depositDeducted: true, createdAt: true },
       },
-      _count: { select: { interactions: true, projects: true } },
+      quotes: {
+        orderBy: { createdAt: "desc" },
+        take: 5,
+        select: { id: true, number: true, status: true, totalHT: true, createdAt: true },
+      },
+      _count: { select: { interactions: true, projects: true, invoices: true, quotes: true } },
     },
   })
 }

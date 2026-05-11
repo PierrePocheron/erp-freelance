@@ -3,7 +3,7 @@
 import Link from "next/link"
 import {
   Mail, Phone, ExternalLink, Building2,
-  MessageSquare, Bell, FolderKanban,
+  MessageSquare, Bell, FolderKanban, FileText, Receipt,
   Phone as PhoneIcon, Mail as MailIcon, Video, Users,
 } from "lucide-react"
 
@@ -30,17 +30,33 @@ const channelIcon: Record<string, React.ReactNode> = {
   OTHER: <MessageSquare className="h-3 w-3" />,
 }
 
-const projectStatusLabel: Record<string, string> = {
-  ACTIVE: "Actif",
-  PAUSED: "Pausé",
-  COMPLETED: "Terminé",
-  ARCHIVED: "Archivé",
+const projectStatusConfig: Record<string, { label: string; className: string }> = {
+  ACTIVE: { label: "Actif", className: "bg-emerald-500/15 text-emerald-600 border-emerald-500/20" },
+  PAUSED: { label: "Pausé", className: "bg-amber-500/15 text-amber-600 border-amber-500/20" },
+  COMPLETED: { label: "Terminé", className: "bg-blue-500/15 text-blue-600 border-blue-500/20" },
+  ARCHIVED: { label: "Archivé", className: "bg-muted text-muted-foreground border-border" },
+}
+
+const invoiceStatusConfig: Record<string, { label: string; className: string }> = {
+  DRAFT: { label: "Brouillon", className: "text-muted-foreground" },
+  SENT: { label: "Envoyée", className: "text-blue-600" },
+  PAID: { label: "Payée", className: "text-emerald-600" },
+  LATE: { label: "En retard", className: "text-red-500" },
+  CANCELLED: { label: "Annulée", className: "text-muted-foreground" },
+}
+
+const quoteStatusConfig: Record<string, { label: string; className: string }> = {
+  DRAFT: { label: "Brouillon", className: "text-muted-foreground" },
+  SENT: { label: "Envoyé", className: "text-blue-600" },
+  ACCEPTED: { label: "Accepté", className: "text-emerald-600" },
+  REJECTED: { label: "Refusé", className: "text-red-500" },
 }
 
 type Interaction = { id: string; date: Date | string; channel: string; summary: string }
 type Reminder = { id: string; dueDate: Date | string; note: string | null }
 type Project = { id: string; name: string; status: string }
-type Invoice = { totalHT: number; depositDeducted: number; status: string }
+type Invoice = { id: string; number: string; status: string; totalHT: number; depositDeducted: number; createdAt: Date | string }
+type Quote = { id: string; number: string; status: string; totalHT: number; createdAt: Date | string }
 
 type ClientPanelData = {
   id: string
@@ -56,7 +72,8 @@ type ClientPanelData = {
   reminders: Reminder[]
   projects: Project[]
   invoices: Invoice[]
-  _count: { interactions: number; projects: number }
+  quotes: Quote[]
+  _count: { interactions: number; projects: number; invoices: number; quotes: number }
 }
 
 export function ClientPanel({
@@ -80,21 +97,23 @@ export function ClientPanel({
 
   const temp = tempConfig[client.temperature as keyof typeof tempConfig]
   const type = typeConfig[client.type as keyof typeof typeConfig]
+
   const billed = client.invoices
     .filter((i) => i.status === "PAID")
     .reduce((s, i) => s + i.totalHT - i.depositDeducted, 0)
   const pending = client.invoices
-    .filter((i) => ["SENT", "DRAFT"].includes(i.status))
+    .filter((i) => ["SENT", "LATE"].includes(i.status))
     .reduce((s, i) => s + i.totalHT - i.depositDeducted, 0)
 
   return (
     <div className="flex flex-col h-full overflow-y-auto">
+
       {/* Header */}
-      <div className="p-5 border-b border-border/50 space-y-2">
+      <div className="p-5 border-b border-border/50 space-y-3">
         <div className="flex items-start justify-between gap-3">
           <div>
             <div className="flex items-center gap-2 mb-1">
-              <span className={`h-2.5 w-2.5 rounded-full ${temp.dot}`} title={temp.label} />
+              <span className={`h-2 w-2 rounded-full ${temp.dot}`} title={temp.label} />
               {client.company && (
                 <span className="text-xs text-muted-foreground flex items-center gap-1">
                   <Building2 className="h-3 w-3" />
@@ -133,6 +152,26 @@ export function ClientPanel({
             </a>
           )}
         </div>
+
+        {/* Quick actions */}
+        <div className="flex gap-2">
+          {client.email && (
+            <a
+              href={`mailto:${client.email}`}
+              className="flex items-center gap-1.5 rounded-lg border border-border/50 px-3 py-1.5 text-xs font-medium hover:bg-muted/50 transition-colors"
+            >
+              <Mail className="h-3.5 w-3.5" /> E-mail
+            </a>
+          )}
+          {client.phone && (
+            <a
+              href={`tel:${client.phone}`}
+              className="flex items-center gap-1.5 rounded-lg border border-border/50 px-3 py-1.5 text-xs font-medium hover:bg-muted/50 transition-colors"
+            >
+              <Phone className="h-3.5 w-3.5" /> Appeler
+            </a>
+          )}
+        </div>
       </div>
 
       {/* Stats */}
@@ -154,15 +193,11 @@ export function ClientPanel({
       </div>
 
       <div className="flex-1 p-4 space-y-5">
+
         {/* Reminders */}
         {client.reminders.length > 0 && (
           <section className="space-y-2">
-            <div className="flex items-center justify-between">
-              <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1.5">
-                <Bell className="h-3 w-3" /> Rappels
-              </h3>
-              <Link href={`/crm/${client.id}/rappels`} className="text-xs text-primary hover:underline">Voir tout</Link>
-            </div>
+            <SectionHeader icon={<Bell className="h-3 w-3" />} label="Rappels" href={`/crm/${client.id}/rappels`} />
             <div className="space-y-1.5">
               {client.reminders.map((r) => {
                 const isLate = new Date(r.dueDate) < new Date()
@@ -182,12 +217,7 @@ export function ClientPanel({
         {/* Interactions */}
         {client.interactions.length > 0 && (
           <section className="space-y-2">
-            <div className="flex items-center justify-between">
-              <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1.5">
-                <MessageSquare className="h-3 w-3" /> Interactions
-              </h3>
-              <Link href={`/crm/${client.id}/interactions`} className="text-xs text-primary hover:underline">Voir tout</Link>
-            </div>
+            <SectionHeader icon={<MessageSquare className="h-3 w-3" />} label="Interactions" count={client._count.interactions} href={`/crm/${client.id}/interactions`} />
             <div className="space-y-1.5">
               {client.interactions.map((i) => (
                 <div key={i.id} className="flex items-start gap-2 rounded-lg border border-border/50 p-2">
@@ -204,22 +234,78 @@ export function ClientPanel({
           </section>
         )}
 
-        {/* Active projects */}
+        {/* Projects */}
         {client.projects.length > 0 && (
           <section className="space-y-2">
-            <div className="flex items-center justify-between">
-              <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1.5">
-                <FolderKanban className="h-3 w-3" /> Projets
-              </h3>
-              <Link href={`/crm/${client.id}/projets`} className="text-xs text-primary hover:underline">Voir tout</Link>
-            </div>
+            <SectionHeader icon={<FolderKanban className="h-3 w-3" />} label="Projets" count={client._count.projects} href={`/crm/${client.id}/projets`} />
             <div className="space-y-1.5">
-              {client.projects.map((p) => (
-                <Link key={p.id} href={`/projets/${p.id}`} className="flex items-center justify-between rounded-lg border border-border/50 px-3 py-2 hover:bg-muted/50 transition-colors">
-                  <span className="text-sm font-medium truncate">{p.name}</span>
-                  <span className="text-xs text-muted-foreground shrink-0 ml-2">{projectStatusLabel[p.status] ?? p.status}</span>
-                </Link>
-              ))}
+              {client.projects.map((p) => {
+                const ps = projectStatusConfig[p.status] ?? { label: p.status, className: "text-muted-foreground" }
+                return (
+                  <Link
+                    key={p.id}
+                    href={`/projets/${p.id}`}
+                    className="flex items-center justify-between rounded-lg border border-border/50 px-3 py-2 hover:bg-muted/50 transition-colors group"
+                  >
+                    <span className="text-sm font-medium truncate group-hover:text-primary transition-colors">{p.name}</span>
+                    <span className={`shrink-0 ml-2 rounded-full border px-2 py-0.5 text-xs font-medium ${ps.className}`}>
+                      {ps.label}
+                    </span>
+                  </Link>
+                )
+              })}
+            </div>
+          </section>
+        )}
+
+        {/* Invoices */}
+        {client.invoices.length > 0 && (
+          <section className="space-y-2">
+            <SectionHeader icon={<Receipt className="h-3 w-3" />} label="Factures" count={client._count.invoices} href="/facturation/factures" />
+            <div className="rounded-lg border border-border/50 overflow-hidden">
+              {client.invoices.map((inv, i) => {
+                const is = invoiceStatusConfig[inv.status] ?? { label: inv.status, className: "text-muted-foreground" }
+                return (
+                  <Link
+                    key={inv.id}
+                    href={`/facturation/factures/${inv.id}`}
+                    className={`flex items-center gap-3 px-3 py-2 hover:bg-muted/50 transition-colors group ${i !== 0 ? "border-t border-border/50" : ""}`}
+                  >
+                    <span className="font-mono text-xs text-muted-foreground shrink-0">{inv.number}</span>
+                    <span className={`text-xs font-medium shrink-0 ${is.className}`}>{is.label}</span>
+                    <span className="flex-1 text-right text-sm font-semibold group-hover:text-primary transition-colors">
+                      {inv.totalHT.toLocaleString("fr-FR")} €
+                    </span>
+                    <span className="text-xs text-muted-foreground shrink-0">{fmt(inv.createdAt)}</span>
+                  </Link>
+                )
+              })}
+            </div>
+          </section>
+        )}
+
+        {/* Quotes */}
+        {client.quotes.length > 0 && (
+          <section className="space-y-2">
+            <SectionHeader icon={<FileText className="h-3 w-3" />} label="Devis" count={client._count.quotes} href="/facturation/devis" />
+            <div className="rounded-lg border border-border/50 overflow-hidden">
+              {client.quotes.map((q, i) => {
+                const qs = quoteStatusConfig[q.status] ?? { label: q.status, className: "text-muted-foreground" }
+                return (
+                  <Link
+                    key={q.id}
+                    href={`/facturation/devis/${q.id}`}
+                    className={`flex items-center gap-3 px-3 py-2 hover:bg-muted/50 transition-colors group ${i !== 0 ? "border-t border-border/50" : ""}`}
+                  >
+                    <span className="font-mono text-xs text-muted-foreground shrink-0">{q.number}</span>
+                    <span className={`text-xs font-medium shrink-0 ${qs.className}`}>{qs.label}</span>
+                    <span className="flex-1 text-right text-sm font-semibold group-hover:text-primary transition-colors">
+                      {q.totalHT.toLocaleString("fr-FR")} €
+                    </span>
+                    <span className="text-xs text-muted-foreground shrink-0">{fmt(q.createdAt)}</span>
+                  </Link>
+                )
+              })}
             </div>
           </section>
         )}
@@ -233,7 +319,7 @@ export function ClientPanel({
         )}
       </div>
 
-      {/* Footer actions */}
+      {/* Footer */}
       <div className="p-4 border-t border-border/50">
         <Link
           href={`/crm/${client.id}`}
@@ -243,6 +329,30 @@ export function ClientPanel({
           <ExternalLink className="h-3.5 w-3.5" />
         </Link>
       </div>
+    </div>
+  )
+}
+
+function SectionHeader({
+  icon,
+  label,
+  count,
+  href,
+}: {
+  icon: React.ReactNode
+  label: string
+  count?: number
+  href: string
+}) {
+  return (
+    <div className="flex items-center justify-between">
+      <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1.5">
+        {icon} {label}
+        {count !== undefined && count > 0 && (
+          <span className="ml-1 text-muted-foreground/60 font-normal normal-case tracking-normal">({count})</span>
+        )}
+      </h3>
+      <Link href={href} className="text-xs text-primary hover:underline">Voir tout</Link>
     </div>
   )
 }

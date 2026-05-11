@@ -41,6 +41,7 @@ export function ProjectDateBadge({ projectId, field, value, label }: Props) {
           type="date"
           defaultValue={toInputValue(value)}
           autoFocus
+          onBlur={handleSave}
           className="h-6 rounded border border-input bg-background px-2 text-xs focus:outline-none focus:ring-1 focus:ring-ring"
         />
         <button onClick={handleSave} disabled={isPending} className="text-emerald-500 hover:text-emerald-600">

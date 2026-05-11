@@ -34,6 +34,7 @@ export function ProjectNameEdit({ projectId, value }: { projectId: string; value
           defaultValue={value}
           onKeyDown={onKeyDown}
           autoFocus
+          onBlur={save}
           className="text-2xl font-bold tracking-tight bg-transparent border-b-2 border-primary outline-none w-full"
         />
         <button onClick={save} disabled={isPending} className="text-emerald-500 hover:text-emerald-600 shrink-0">
@@ -87,6 +88,7 @@ export function ProjectDescriptionEdit({
           autoFocus
           rows={2}
           placeholder="Ajouter une description..."
+          onBlur={save}
           className="flex-1 resize-none bg-transparent border border-input rounded-md px-2 py-1 text-sm text-muted-foreground outline-none focus:ring-1 focus:ring-ring"
         />
         <div className="flex flex-col gap-1">
@@ -153,6 +155,7 @@ export function ProjectHoursEdit({
           min="0"
           step="0.5"
           placeholder="0"
+          onBlur={save}
           className="w-14 bg-transparent text-xs outline-none"
         />
         <span className="text-xs text-muted-foreground">h</span>

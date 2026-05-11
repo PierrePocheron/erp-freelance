@@ -22,8 +22,8 @@ export function ThemeToggle({ expanded }: { expanded: boolean }) {
     <button
       onClick={toggle}
       className={cn(
-        "flex h-9 items-center gap-2.5 rounded-lg px-2.5 text-foreground/40 transition-colors hover:bg-accent hover:text-foreground",
-        expanded ? "w-full" : "w-9 justify-center"
+        "flex h-9 items-center gap-3 rounded-xl px-2.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground",
+        expanded ? "w-full" : "w-10 justify-center"
       )}
       title={dark ? "Mode clair" : "Mode sombre"}
     >
@@ -31,7 +31,7 @@ export function ThemeToggle({ expanded }: { expanded: boolean }) {
         ? <Sun className="h-4 w-4 shrink-0" />
         : <Moon className="h-4 w-4 shrink-0" />
       }
-      {expanded && <span className="text-[13px] font-medium tracking-tight truncate">{dark ? "Mode clair" : "Mode sombre"}</span>}
+      {expanded && <span className="text-sm truncate">{dark ? "Mode clair" : "Mode sombre"}</span>}
     </button>
   )
 }

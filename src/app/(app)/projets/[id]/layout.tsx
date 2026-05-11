@@ -2,10 +2,11 @@ import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { notFound } from "next/navigation"
 import Link from "next/link"
-import { ChevronLeft, Clock } from "lucide-react"
+import { ChevronLeft } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { ProjectTabs } from "@/components/modules/projet/ProjectTabs"
 import { ProjectDateBadge } from "@/components/modules/projet/ProjectDateBadge"
+import { ProjectNameEdit, ProjectDescriptionEdit, ProjectHoursEdit } from "@/components/modules/projet/ProjectInlineEdit"
 
 const statusConfig = {
   ACTIVE:    { label: "Actif",    className: "bg-emerald-500/15 text-emerald-600 border-emerald-500/20" },
@@ -50,31 +51,14 @@ export default async function ProjectLayout({
         <div className="flex items-start justify-between gap-4">
           <div className="space-y-2">
             <p className="text-sm text-muted-foreground">{clientLabel}</p>
-            <h1 className="text-2xl font-bold tracking-tight">{project.name}</h1>
-            {project.description && (
-              <p className="text-sm text-muted-foreground">{project.description}</p>
-            )}
+            <ProjectNameEdit projectId={id} value={project.name} />
+            <ProjectDescriptionEdit projectId={id} value={project.description} />
 
-            {/* Badges dates + heures — éditables au clic */}
+            {/* Badges dates + heures — tous éditables au clic */}
             <div className="flex flex-wrap items-center gap-2 pt-1">
-              <ProjectDateBadge
-                projectId={id}
-                field="startDate"
-                value={project.startDate}
-                label="Début"
-              />
-              <ProjectDateBadge
-                projectId={id}
-                field="endDate"
-                value={project.endDate}
-                label="Fin estimée"
-              />
-              {project.estimatedHours && (
-                <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-muted/50 px-2.5 py-0.5 text-xs">
-                  <Clock className="h-3 w-3" />
-                  {project.estimatedHours}h estimées
-                </span>
-              )}
+              <ProjectDateBadge projectId={id} field="startDate" value={project.startDate} label="Début" />
+              <ProjectDateBadge projectId={id} field="endDate" value={project.endDate} label="Fin estimée" />
+              <ProjectHoursEdit projectId={id} value={project.estimatedHours} />
             </div>
           </div>
 

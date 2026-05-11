@@ -1,0 +1,550 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ─── Auth (NextAuth.js) ───────────────────────────────────────────────────────
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String    @unique
+  emailVerified DateTime?
+  image         String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  accounts          Account[]
+  sessions          Session[]
+  clients           Client[]
+  projects          Project[]
+  products          Product[]
+  quotes            Quote[]
+  invoices          Invoice[]
+  recurringInvoices RecurringInvoice[]
+  emailLogs         EmailLog[]
+  calendarEvents    CalendarEvent[]
+  timeEntries       TimeEntry[]
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// ─── CRM ─────────────────────────────────────────────────────────────────────
+
+enum ClientType {
+  PROSPECT
+  CLIENT
+  SELF
+  INACTIVE
+}
+
+enum ClientSource {
+  WORD_OF_MOUTH
+  LINKEDIN
+  WEBSITE
+  INBOUND
+  OTHER
+}
+
+enum Temperature {
+  COLD
+  WARM
+  HOT
+}
+
+enum InteractionChannel {
+  EMAIL
+  CALL
+  LINKEDIN
+  MEETING
+  SMS
+  OTHER
+}
+
+enum ClientFileType {
+  BRIEF
+  CONTRACT
+  LOGO
+  OTHER
+}
+
+model Client {
+  id            String       @id @default(cuid())
+  userId        String
+  type          ClientType   @default(PROSPECT)
+  name          String
+  company       String?
+  email         String?
+  phone         String?
+  source        ClientSource @default(OTHER)
+  temperature   Temperature  @default(COLD)
+  priorityScore Int          @default(1)
+  notes         String?
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  interactions Interaction[]
+  reminders    Reminder[]
+  files        ClientFile[]
+  projects     Project[]
+  quotes       Quote[]
+  invoices     Invoice[]
+  recurringInvoices RecurringInvoice[]
+}
+
+model Interaction {
+  id        String             @id @default(cuid())
+  clientId  String
+  date      DateTime
+  channel   InteractionChannel
+  summary   String
+  response  String?
+  createdAt DateTime           @default(now())
+
+  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+}
+
+model Reminder {
+  id          String   @id @default(cuid())
+  clientId    String
+  dueDate     DateTime
+  note        String?
+  isDone      Boolean  @default(false)
+  doneAt      DateTime?
+  emailSent   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+}
+
+model ClientFile {
+  id        String         @id @default(cuid())
+  clientId  String
+  name      String
+  fileUrl   String
+  type      ClientFileType @default(OTHER)
+  createdAt DateTime       @default(now())
+
+  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+}
+
+// ─── Projects ────────────────────────────────────────────────────────────────
+
+enum ProjectStatus {
+  ACTIVE
+  PAUSED
+  COMPLETED
+  ARCHIVED
+}
+
+enum MilestoneStatus {
+  UPCOMING
+  IN_PROGRESS
+  DONE
+}
+
+enum TaskStatus {
+  TODO
+  IN_PROGRESS
+  DONE
+}
+
+enum DeliverableStatus {
+  TO_DELIVER
+  DELIVERED
+  VALIDATED
+}
+
+enum LinkCategory {
+  GITHUB
+  LOCAL
+  PROD
+  STAGING
+  DOCS
+  OTHER
+}
+
+model Project {
+  id             String        @id @default(cuid())
+  userId         String
+  clientId       String
+  name           String
+  description    String?
+  status         ProjectStatus @default(ACTIVE)
+  startDate      DateTime?
+  endDate        DateTime?
+  estimatedHours Float?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  client        Client         @relation(fields: [clientId], references: [id])
+  milestones    Milestone[]
+  tasks         Task[]
+  journalEntries JournalEntry[]
+  deliverables  Deliverable[]
+  usefulLinks   UsefulLink[]
+  postDev       PostDev?
+  quotes        Quote[]
+  invoices      Invoice[]
+  recurringInvoices RecurringInvoice[]
+}
+
+model Milestone {
+  id        String          @id @default(cuid())
+  projectId String
+  name      String
+  date      DateTime
+  status    MilestoneStatus @default(UPCOMING)
+  createdAt DateTime        @default(now())
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  tasks   Task[]
+}
+
+model Task {
+  id             String     @id @default(cuid())
+  projectId      String
+  milestoneId    String?
+  parentTaskId   String?
+  title          String
+  description    String?
+  status         TaskStatus @default(TODO)
+  estimatedHours Float?
+  dueDate        DateTime?
+  completedAt    DateTime?
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+
+  project     Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  milestone   Milestone?   @relation(fields: [milestoneId], references: [id])
+  parentTask  Task?        @relation("SubTasks", fields: [parentTaskId], references: [id])
+  subTasks    Task[]       @relation("SubTasks")
+  timeEntries TimeEntry[]
+}
+
+model TimeEntry {
+  id        String   @id @default(cuid())
+  taskId    String
+  userId    String
+  startedAt DateTime
+  endedAt   DateTime?
+  duration  Int?
+  note      String?
+  createdAt DateTime @default(now())
+
+  task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model JournalEntry {
+  id        String   @id @default(cuid())
+  projectId String
+  content   String
+  createdAt DateTime @default(now())
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+}
+
+model Deliverable {
+  id        String            @id @default(cuid())
+  projectId String
+  name      String
+  status    DeliverableStatus @default(TO_DELIVER)
+  dueDate   DateTime?
+  createdAt DateTime          @default(now())
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+}
+
+model UsefulLink {
+  id        String       @id @default(cuid())
+  projectId String
+  label     String
+  url       String
+  category  LinkCategory @default(OTHER)
+  createdAt DateTime     @default(now())
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+}
+
+// ─── Post-Dev ─────────────────────────────────────────────────────────────────
+
+enum RenewalType {
+  DOMAIN
+  HOSTING
+  OTHER
+}
+
+model PostDev {
+  id           String   @id @default(cuid())
+  projectId    String   @unique
+  prodUrl      String?
+  adminUrl     String?
+  hostingUrl   String?
+  registrarUrl String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  project         Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  renewals        Renewal[]
+  monitoringChecks MonitoringCheck[]
+}
+
+model Renewal {
+  id              String      @id @default(cuid())
+  postDevId       String
+  type            RenewalType @default(OTHER)
+  name            String
+  expiresAt       DateTime
+  reminderSent30  Boolean     @default(false)
+  reminderSent7   Boolean     @default(false)
+  createdAt       DateTime    @default(now())
+
+  postDev PostDev @relation(fields: [postDevId], references: [id], onDelete: Cascade)
+}
+
+model MonitoringCheck {
+  id             String   @id @default(cuid())
+  postDevId      String
+  checkedAt      DateTime @default(now())
+  isUp           Boolean
+  statusCode     Int?
+  responseTimeMs Int?
+
+  postDev PostDev @relation(fields: [postDevId], references: [id], onDelete: Cascade)
+}
+
+// ─── Facturation ─────────────────────────────────────────────────────────────
+
+enum ProductUnit {
+  HOUR
+  DAY
+  MONTH
+  YEAR
+  UNIT
+}
+
+enum QuoteStatus {
+  DRAFT
+  SENT
+  ACCEPTED
+  REJECTED
+}
+
+enum InvoiceType {
+  DEPOSIT
+  FINAL
+  RECURRING
+  STANDALONE
+}
+
+enum InvoiceStatus {
+  DRAFT
+  SENT
+  PAID
+  LATE
+}
+
+enum RecurringFrequency {
+  MONTHLY
+  QUARTERLY
+  YEARLY
+  CUSTOM
+}
+
+enum EmailLogStatus {
+  SENT
+  DELIVERED
+  OPENED
+  BOUNCED
+}
+
+model Product {
+  id          String      @id @default(cuid())
+  userId      String
+  name        String
+  description String?
+  unitPrice   Float
+  unit        ProductUnit @default(UNIT)
+  isActive    Boolean     @default(true)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  quoteLines  QuoteLine[]
+  invoiceLines InvoiceLine[]
+}
+
+model Quote {
+  id             String      @id @default(cuid())
+  userId         String
+  clientId       String
+  projectId      String?
+  number         String
+  status         QuoteStatus @default(DRAFT)
+  depositPercent Float       @default(0)
+  totalHT        Float       @default(0)
+  notes          String?
+  sentAt         DateTime?
+  acceptedAt     DateTime?
+  signedFileUrl  String?
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  user     User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  client   Client      @relation(fields: [clientId], references: [id])
+  project  Project?    @relation(fields: [projectId], references: [id])
+  lines    QuoteLine[]
+  invoices Invoice[]
+}
+
+model QuoteLine {
+  id          String   @id @default(cuid())
+  quoteId     String
+  productId   String?
+  description String
+  quantity    Float    @default(1)
+  unitPrice   Float
+  total       Float
+
+  quote   Quote    @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+  product Product? @relation(fields: [productId], references: [id])
+}
+
+model Invoice {
+  id               String        @id @default(cuid())
+  userId           String
+  clientId         String
+  projectId        String?
+  quoteId          String?
+  number           String
+  type             InvoiceType   @default(STANDALONE)
+  status           InvoiceStatus @default(DRAFT)
+  totalHT          Float         @default(0)
+  depositDeducted  Float         @default(0)
+  dueDate          DateTime?
+  paidAt           DateTime?
+  sentAt           DateTime?
+  notes            String?
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+
+  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  client    Client        @relation(fields: [clientId], references: [id])
+  project   Project?      @relation(fields: [projectId], references: [id])
+  quote     Quote?        @relation(fields: [quoteId], references: [id])
+  lines     InvoiceLine[]
+  emailLogs EmailLog[]
+}
+
+model InvoiceLine {
+  id          String   @id @default(cuid())
+  invoiceId   String
+  productId   String?
+  description String
+  quantity    Float    @default(1)
+  unitPrice   Float
+  total       Float
+
+  invoice Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  product Product? @relation(fields: [productId], references: [id])
+}
+
+model RecurringInvoice {
+  id                   String             @id @default(cuid())
+  userId               String
+  clientId             String
+  projectId            String?
+  name                 String
+  frequency            RecurringFrequency @default(MONTHLY)
+  nextGenerationDate   DateTime
+  isActive             Boolean            @default(true)
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
+
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  client  Client   @relation(fields: [clientId], references: [id])
+  project Project? @relation(fields: [projectId], references: [id])
+}
+
+model EmailLog {
+  id              String         @id @default(cuid())
+  userId          String
+  invoiceId       String?
+  to              String
+  subject         String
+  resendMessageId String?
+  status          EmailLogStatus @default(SENT)
+  sentAt          DateTime       @default(now())
+
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  invoice Invoice? @relation(fields: [invoiceId], references: [id])
+}
+
+// ─── Calendar ─────────────────────────────────────────────────────────────────
+
+enum CalendarSourceType {
+  MANUAL
+  INVOICE
+  TASK
+  MILESTONE
+  INTERACTION
+  RENEWAL
+  REMINDER
+}
+
+model CalendarEvent {
+  id          String             @id @default(cuid())
+  userId      String
+  title       String
+  description String?
+  startDate   DateTime
+  endDate     DateTime?
+  allDay      Boolean            @default(false)
+  sourceType  CalendarSourceType @default(MANUAL)
+  sourceId    String?
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}

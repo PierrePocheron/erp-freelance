@@ -49,7 +49,7 @@ const styles = StyleSheet.create({
   },
   metaRow: {
     flexDirection: "row",
-    gap: 32,
+    gap: 24,
     marginBottom: 24,
   },
   metaBlock: {
@@ -78,8 +78,10 @@ const styles = StyleSheet.create({
     borderBottom: 1,
     borderColor: "#f1f5f9",
   },
-  col6: { flex: 6 },
+  col5: { flex: 5 },
+  col1h: { flex: 1.5, textAlign: "right" },
   col2: { flex: 2, textAlign: "right" },
+  col1: { flex: 1, textAlign: "center" },
   headerText: {
     fontSize: 8,
     color: "#64748b",
@@ -93,7 +95,7 @@ const styles = StyleSheet.create({
   totalRow: {
     flexDirection: "row",
     justifyContent: "space-between",
-    width: 200,
+    width: 220,
     paddingVertical: 3,
   },
   totalLabel: {
@@ -107,21 +109,33 @@ const styles = StyleSheet.create({
     fontFamily: "Helvetica-Bold",
     color: "#6366f1",
   },
-  tva: {
+  tvaNote: {
     fontSize: 8,
     color: "#94a3b8",
     marginTop: 4,
     textAlign: "right",
   },
-  notes: {
-    marginTop: 32,
+  conditions: {
+    marginTop: 24,
     padding: 12,
     backgroundColor: "#f8fafc",
     borderRadius: 4,
   },
-  notesLabel: {
+  conditionsLabel: {
     fontSize: 8,
     color: "#64748b",
+    marginBottom: 4,
+    textTransform: "uppercase",
+  },
+  notes: {
+    marginTop: 12,
+    padding: 10,
+    backgroundColor: "#fffbeb",
+    borderRadius: 4,
+  },
+  notesLabel: {
+    fontSize: 8,
+    color: "#92400e",
     marginBottom: 4,
     textTransform: "uppercase",
   },
@@ -138,8 +152,10 @@ const styles = StyleSheet.create({
 
 type Line = {
   description: string
+  detail?: string | null
   quantity: number
   unitPrice: number
+  taxRate: number
   total: number
 }
 
@@ -147,6 +163,7 @@ type DocProps = {
   type: "DEVIS" | "FACTURE"
   number: string
   createdAt: Date
+  expiresAt?: Date | null
   dueDate?: Date | null
   sentAt?: Date | null
   acceptedAt?: Date | null
@@ -165,16 +182,32 @@ type DocProps = {
     iban?: string | null
     bic?: string | null
   }
-  client: { name: string; company?: string | null; email?: string | null }
+  client: { name: string; company?: string | null; email?: string | null; address?: string | null }
   lines: Line[]
   notes?: string | null
+  generalConditions?: string | null
   totalHT: number
+}
+
+function fmtDate(d: Date | null | undefined) {
+  return d
+    ? new Date(d).toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" })
+    : "—"
+}
+
+function fmtMoney(n: number) {
+  return n.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " €"
+}
+
+function fmtTaxLabel(rate: number) {
+  return rate === 0 ? "0%" : `${String(rate).replace(".", ",")}%`
 }
 
 export function InvoicePDF({
   type,
   number,
   createdAt,
+  expiresAt,
   dueDate,
   depositPercent,
   depositDeducted,
@@ -182,15 +215,22 @@ export function InvoicePDF({
   client,
   lines,
   notes,
+  generalConditions,
   totalHT,
 }: DocProps) {
-  const fmt = (d: Date | null | undefined) =>
-    d
-      ? new Date(d).toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" })
-      : "—"
+  const displayName = emitter.companyName || emitter.name
+
+  // Compute TVA breakdown
+  const byRate: Record<number, number> = {}
+  for (const l of lines) {
+    byRate[l.taxRate] = (byRate[l.taxRate] ?? 0) + l.total * (l.taxRate / 100)
+  }
+  const totalTVA = Object.values(byRate).reduce((s, v) => s + v, 0)
+  const totalTTC = totalHT + totalTVA
+  const allZeroTax = totalTVA === 0
 
   const netAmount = totalHT - (depositDeducted ?? 0)
-  const displayName = emitter.companyName || emitter.name
+  const isFacture = type === "FACTURE"
 
   return (
     <Document>
@@ -206,7 +246,10 @@ export function InvoicePDF({
             {emitter.phone && <Text style={{ color: "#64748b", fontSize: 9 }}>{emitter.phone}</Text>}
             {emitter.address && (
               <Text style={{ color: "#64748b", fontSize: 9 }}>
-                {emitter.address}{emitter.postalCode || emitter.city ? `, ${emitter.postalCode ?? ""} ${emitter.city ?? ""}`.trim() : ""}
+                {emitter.address}
+                {emitter.postalCode || emitter.city
+                  ? `, ${emitter.postalCode ?? ""} ${emitter.city ?? ""}`.trim()
+                  : ""}
               </Text>
             )}
             {emitter.siret && (
@@ -228,15 +271,22 @@ export function InvoicePDF({
             <Text style={styles.metaValue}>{client.company ?? client.name}</Text>
             {client.company && <Text style={{ fontSize: 9, color: "#64748b" }}>{client.name}</Text>}
             {client.email && <Text style={{ fontSize: 9, color: "#64748b" }}>{client.email}</Text>}
+            {client.address && <Text style={{ fontSize: 9, color: "#64748b" }}>{client.address}</Text>}
           </View>
           <View style={styles.metaBlock}>
             <Text style={styles.metaLabel}>Date d'émission</Text>
-            <Text style={styles.metaValue}>{fmt(createdAt)}</Text>
+            <Text style={styles.metaValue}>{fmtDate(createdAt)}</Text>
           </View>
-          {dueDate && (
+          {expiresAt && !isFacture && (
+            <View style={styles.metaBlock}>
+              <Text style={styles.metaLabel}>Valable jusqu'au</Text>
+              <Text style={styles.metaValue}>{fmtDate(expiresAt)}</Text>
+            </View>
+          )}
+          {dueDate && isFacture && (
             <View style={styles.metaBlock}>
               <Text style={styles.metaLabel}>Échéance</Text>
-              <Text style={styles.metaValue}>{fmt(dueDate)}</Text>
+              <Text style={styles.metaValue}>{fmtDate(dueDate)}</Text>
             </View>
           )}
           {depositPercent && depositPercent > 0 && (
@@ -247,20 +297,27 @@ export function InvoicePDF({
           )}
         </View>
 
-        {/* Tableau lignes */}
+        {/* Tableau */}
         <View style={styles.tableHeader}>
-          <Text style={[styles.headerText, styles.col6]}>Description</Text>
-          <Text style={[styles.headerText, styles.col2]}>Qté</Text>
-          <Text style={[styles.headerText, styles.col2]}>Prix unitaire</Text>
+          <Text style={[styles.headerText, styles.col5]}>Prestation</Text>
+          <Text style={[styles.headerText, styles.col1h]}>Qté</Text>
+          <Text style={[styles.headerText, styles.col2]}>Prix unit. HT</Text>
+          <Text style={[styles.headerText, styles.col1]}>TVA</Text>
           <Text style={[styles.headerText, styles.col2]}>Total HT</Text>
         </View>
 
         {lines.map((line, i) => (
           <View key={i} style={styles.tableRow}>
-            <Text style={styles.col6}>{line.description}</Text>
-            <Text style={[styles.col2, { color: "#64748b" }]}>{line.quantity}</Text>
-            <Text style={[styles.col2, { color: "#64748b" }]}>{line.unitPrice.toLocaleString("fr-FR")} €</Text>
-            <Text style={[styles.col2, { fontFamily: "Helvetica-Bold" }]}>{line.total.toLocaleString("fr-FR")} €</Text>
+            <View style={styles.col5}>
+              <Text>{line.description}</Text>
+              {line.detail ? (
+                <Text style={{ fontSize: 8, color: "#64748b", marginTop: 2 }}>{line.detail}</Text>
+              ) : null}
+            </View>
+            <Text style={[styles.col1h, { color: "#64748b" }]}>{line.quantity}</Text>
+            <Text style={[styles.col2, { color: "#64748b" }]}>{fmtMoney(line.unitPrice)}</Text>
+            <Text style={[styles.col1, { color: "#64748b" }]}>{fmtTaxLabel(line.taxRate)}</Text>
+            <Text style={[styles.col2, { fontFamily: "Helvetica-Bold" }]}>{fmtMoney(line.total)}</Text>
           </View>
         ))}
 
@@ -268,41 +325,72 @@ export function InvoicePDF({
         <View style={styles.totalSection}>
           <View style={styles.totalRow}>
             <Text style={styles.totalLabel}>Total HT</Text>
-            <Text style={styles.totalValue}>{totalHT.toLocaleString("fr-FR")} €</Text>
+            <Text style={styles.totalValue}>{fmtMoney(totalHT)}</Text>
           </View>
-          {(depositDeducted ?? 0) > 0 && (
-            <View style={styles.totalRow}>
-              <Text style={styles.totalLabel}>Acompte déduit</Text>
-              <Text style={styles.totalValue}>- {depositDeducted!.toLocaleString("fr-FR")} €</Text>
-            </View>
+
+          {allZeroTax ? (
+            <Text style={styles.tvaNote}>TVA non applicable — art. 293B du CGI</Text>
+          ) : (
+            <>
+              {Object.entries(byRate)
+                .filter(([, v]) => v > 0)
+                .sort(([a], [b]) => Number(a) - Number(b))
+                .map(([rate, amount]) => (
+                  <View key={rate} style={styles.totalRow}>
+                    <Text style={styles.totalLabel}>TVA {fmtTaxLabel(Number(rate))}</Text>
+                    <Text style={styles.totalLabel}>{fmtMoney(amount)}</Text>
+                  </View>
+                ))}
+              <View style={[styles.totalRow, { borderTop: 1, borderColor: "#e2e8f0", paddingTop: 6, marginTop: 2 }]}>
+                <Text style={{ ...styles.totalLabel, fontFamily: "Helvetica-Bold" }}>
+                  {isFacture && (depositDeducted ?? 0) > 0 ? "Total TTC" : "Total TTC"}
+                </Text>
+                <Text style={styles.totalNet}>{fmtMoney(totalTTC)}</Text>
+              </View>
+            </>
           )}
-          <View style={[styles.totalRow, { borderTop: 1, borderColor: "#e2e8f0", paddingTop: 6, marginTop: 2 }]}>
-            <Text style={{ ...styles.totalLabel, fontFamily: "Helvetica-Bold" }}>Net à payer</Text>
-            <Text style={styles.totalNet}>{netAmount.toLocaleString("fr-FR")} €</Text>
-          </View>
-          <Text style={styles.tva}>TVA non applicable — art. 293B du CGI</Text>
+
+          {/* Acompte déduit (factures) */}
+          {isFacture && (depositDeducted ?? 0) > 0 && (
+            <>
+              <View style={styles.totalRow}>
+                <Text style={styles.totalLabel}>Acompte déduit</Text>
+                <Text style={styles.totalLabel}>- {fmtMoney(depositDeducted!)}</Text>
+              </View>
+              <View style={[styles.totalRow, { borderTop: 1, borderColor: "#e2e8f0", paddingTop: 6, marginTop: 2 }]}>
+                <Text style={{ fontFamily: "Helvetica-Bold" }}>Net à payer</Text>
+                <Text style={styles.totalNet}>{fmtMoney(netAmount + totalTVA)}</Text>
+              </View>
+            </>
+          )}
         </View>
 
         {/* IBAN */}
-        {emitter.iban && type === "FACTURE" && (
+        {emitter.iban && isFacture && (
           <View style={{ marginTop: 16, padding: 10, backgroundColor: "#f8fafc", borderRadius: 4 }}>
-            <Text style={{ fontSize: 8, color: "#64748b", textTransform: "uppercase", marginBottom: 4 }}>Coordonnées bancaires</Text>
+            <Text style={{ fontSize: 8, color: "#64748b", textTransform: "uppercase", marginBottom: 4 }}>
+              Coordonnées bancaires
+            </Text>
             <Text style={{ fontSize: 9 }}>IBAN : {emitter.iban}</Text>
             {emitter.bic && <Text style={{ fontSize: 9 }}>BIC : {emitter.bic}</Text>}
           </View>
         )}
 
-        {/* Notes */}
-        {notes && (
-          <View style={styles.notes}>
-            <Text style={styles.notesLabel}>Notes & conditions</Text>
-            <Text style={{ fontSize: 9, color: "#374151" }}>{notes}</Text>
+        {/* Conditions générales */}
+        {generalConditions && (
+          <View style={styles.conditions}>
+            <Text style={styles.conditionsLabel}>Conditions générales</Text>
+            <Text style={{ fontSize: 8.5, color: "#374151", lineHeight: 1.4 }}>{generalConditions}</Text>
           </View>
         )}
 
+        {/* Notes internes → non affichées dans le PDF (uniquement conditions générales) */}
+
         {/* Footer */}
         <Text style={styles.footer}>
-          {displayName} · {emitter.email}{emitter.siret ? ` · SIRET ${emitter.siret}` : ""} · Auto-entrepreneur
+          {displayName} · {emitter.email}
+          {emitter.siret ? ` · SIRET ${emitter.siret}` : ""}
+          {" · Auto-entrepreneur"}
         </Text>
       </Page>
     </Document>

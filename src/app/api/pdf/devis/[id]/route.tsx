@@ -34,9 +34,11 @@ export async function GET(
     type: "DEVIS",
     number: quote.number,
     createdAt: quote.createdAt,
+    expiresAt: quote.expiresAt,
     sentAt: quote.sentAt,
     acceptedAt: quote.acceptedAt,
     depositPercent: quote.depositPercent,
+    generalConditions: quote.generalConditions,
     emitter: {
       name: quote.user.name ?? "Freelance",
       email: quote.user.email,
@@ -52,8 +54,14 @@ export async function GET(
       company: quote.client.company,
       email: quote.client.email,
     },
-    lines: quote.lines,
-    notes: quote.notes,
+    lines: quote.lines.map((l) => ({
+      description: l.description,
+      detail: l.detail,
+      quantity: l.quantity,
+      unitPrice: l.unitPrice,
+      taxRate: l.taxRate,
+      total: l.total,
+    })),
     totalHT: quote.totalHT,
   })
 

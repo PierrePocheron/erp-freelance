@@ -413,6 +413,7 @@ enum ProductUnit {
 
 enum QuoteStatus {
   DRAFT
+  VALIDATED
   SENT
   ACCEPTED
   REJECTED
@@ -463,20 +464,23 @@ model Product {
 }
 
 model Quote {
-  id             String      @id @default(cuid())
-  userId         String
-  clientId       String
-  projectId      String?
-  number         String
-  status         QuoteStatus @default(DRAFT)
-  depositPercent Float       @default(0)
-  totalHT        Float       @default(0)
-  notes          String?
-  sentAt         DateTime?
-  acceptedAt     DateTime?
-  signedFileUrl  String?
-  createdAt      DateTime    @default(now())
-  updatedAt      DateTime    @updatedAt
+  id                String      @id @default(cuid())
+  userId            String
+  clientId          String
+  projectId         String?
+  number            String
+  status            QuoteStatus @default(DRAFT)
+  depositPercent    Float       @default(0)
+  totalHT           Float       @default(0)
+  notes             String?
+  generalConditions String?
+  expiresAt         DateTime?
+  validatedAt       DateTime?
+  sentAt            DateTime?
+  acceptedAt        DateTime?
+  signedFileUrl     String?
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
 
   user     User        @relation(fields: [userId], references: [id], onDelete: Cascade)
   client   Client      @relation(fields: [clientId], references: [id])
@@ -490,8 +494,10 @@ model QuoteLine {
   quoteId     String
   productId   String?
   description String
+  detail      String?
   quantity    Float    @default(1)
   unitPrice   Float
+  taxRate     Float    @default(0)
   total       Float
 
   quote   Quote    @relation(fields: [quoteId], references: [id], onDelete: Cascade)
@@ -529,8 +535,10 @@ model InvoiceLine {
   invoiceId   String
   productId   String?
   description String
+  detail      String?
   quantity    Float    @default(1)
   unitPrice   Float
+  taxRate     Float    @default(0)
   total       Float
 
   invoice Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)

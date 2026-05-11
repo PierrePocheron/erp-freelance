@@ -54,7 +54,14 @@ export async function GET(
       company: invoice.client.company,
       email: invoice.client.email,
     },
-    lines: invoice.lines,
+    lines: invoice.lines.map((l) => ({
+      description: l.description,
+      detail: l.detail,
+      quantity: l.quantity,
+      unitPrice: l.unitPrice,
+      taxRate: l.taxRate,
+      total: l.total,
+    })),
     notes: invoice.notes,
     totalHT: invoice.totalHT,
   })

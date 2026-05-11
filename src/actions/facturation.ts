@@ -29,9 +29,18 @@ async function nextInvoiceNumber(userId: string) {
 
 export async function createQuote(
   userId: string,
-  data: { clientId: string; projectId?: string; depositPercent?: number; notes?: string }
+  data: {
+    clientId: string
+    projectId?: string
+    depositPercent?: number
+    notes?: string
+    expiresAtDays?: number
+  }
 ) {
   const number = await nextQuoteNumber(userId)
+  const expiresAt = data.expiresAtDays
+    ? new Date(Date.now() + data.expiresAtDays * 24 * 60 * 60 * 1000)
+    : null
   const quote = await prisma.quote.create({
     data: {
       userId,
@@ -40,6 +49,7 @@ export async function createQuote(
       number,
       depositPercent: data.depositPercent ?? 0,
       notes: data.notes || null,
+      expiresAt,
     },
   })
   revalidatePath("/facturation/devis")
@@ -48,12 +58,35 @@ export async function createQuote(
 }
 
 export async function updateQuoteStatus(quoteId: string, userId: string, status: string) {
-  const data: any = { status }
+  const data: Record<string, unknown> = { status }
+  if (status === "VALIDATED") data.validatedAt = new Date()
   if (status === "SENT") data.sentAt = new Date()
   if (status === "ACCEPTED") data.acceptedAt = new Date()
   await prisma.quote.update({ where: { id: quoteId, userId }, data })
   revalidatePath(`/facturation/devis/${quoteId}`)
   revalidatePath("/facturation/devis")
+}
+
+export async function updateQuoteSettings(
+  quoteId: string,
+  userId: string,
+  data: {
+    generalConditions?: string | null
+    expiresAt?: string | null
+    depositPercent?: number
+    notes?: string | null
+  }
+) {
+  await prisma.quote.update({
+    where: { id: quoteId, userId },
+    data: {
+      ...(data.generalConditions !== undefined && { generalConditions: data.generalConditions }),
+      ...(data.expiresAt !== undefined && { expiresAt: data.expiresAt ? new Date(data.expiresAt) : null }),
+      ...(data.depositPercent !== undefined && { depositPercent: data.depositPercent }),
+      ...(data.notes !== undefined && { notes: data.notes }),
+    },
+  })
+  revalidatePath(`/facturation/devis/${quoteId}`)
 }
 
 export async function updateQuoteNotes(quoteId: string, userId: string, notes: string | null, depositPercent?: number) {
@@ -81,15 +114,24 @@ async function recalcQuoteTotal(quoteId: string) {
 export async function addQuoteLine(
   quoteId: string,
   _userId: string,
-  data: { description: string; quantity: number; unitPrice: number; productId?: string }
+  data: {
+    description: string
+    detail?: string
+    quantity: number
+    unitPrice: number
+    taxRate?: number
+    productId?: string
+  }
 ) {
   const total = data.quantity * data.unitPrice
   await prisma.quoteLine.create({
     data: {
       quoteId,
       description: data.description,
+      detail: data.detail || null,
       quantity: data.quantity,
       unitPrice: data.unitPrice,
+      taxRate: data.taxRate ?? 0,
       total,
       productId: data.productId || null,
     },
@@ -100,12 +142,25 @@ export async function addQuoteLine(
 
 export async function updateQuoteLine(
   lineId: string,
-  data: { description: string; quantity: number; unitPrice: number }
+  data: {
+    description: string
+    detail?: string
+    quantity: number
+    unitPrice: number
+    taxRate?: number
+  }
 ) {
   const total = data.quantity * data.unitPrice
   const line = await prisma.quoteLine.update({
     where: { id: lineId },
-    data: { description: data.description, quantity: data.quantity, unitPrice: data.unitPrice, total },
+    data: {
+      description: data.description,
+      detail: data.detail ?? null,
+      quantity: data.quantity,
+      unitPrice: data.unitPrice,
+      taxRate: data.taxRate ?? 0,
+      total,
+    },
     select: { quoteId: true },
   })
   await recalcQuoteTotal(line.quoteId)
@@ -140,7 +195,7 @@ export async function createInvoice(
       projectId: data.projectId || null,
       quoteId: data.quoteId || null,
       number,
-      type: (data.type as any) || "STANDALONE",
+      type: (data.type as never) || "STANDALONE",
       dueDate: data.dueDate ? new Date(data.dueDate) : null,
       notes: data.notes || null,
       depositDeducted: data.depositDeducted ?? 0,
@@ -161,9 +216,8 @@ export async function createInvoiceFromQuote(quoteId: string, userId: string, ty
   const number = await nextInvoiceNumber(userId)
   const isDeposit = type === "DEPOSIT"
   const depositAmount = isDeposit ? quote.totalHT * (quote.depositPercent / 100) : quote.totalHT
-  const depositDeducted = type === "FINAL" && quote.depositPercent > 0
-    ? quote.totalHT * (quote.depositPercent / 100)
-    : 0
+  const depositDeducted =
+    type === "FINAL" && quote.depositPercent > 0 ? quote.totalHT * (quote.depositPercent / 100) : 0
 
   const invoice = await prisma.invoice.create({
     data: {
@@ -178,8 +232,10 @@ export async function createInvoiceFromQuote(quoteId: string, userId: string, ty
       lines: {
         create: quote.lines.map((l) => ({
           description: l.description,
+          detail: l.detail,
           quantity: isDeposit ? 1 : l.quantity,
           unitPrice: isDeposit ? depositAmount : l.unitPrice,
+          taxRate: l.taxRate,
           total: isDeposit ? depositAmount : l.total,
           productId: l.productId,
         })),
@@ -192,7 +248,7 @@ export async function createInvoiceFromQuote(quoteId: string, userId: string, ty
 }
 
 export async function updateInvoiceStatus(invoiceId: string, userId: string, status: string) {
-  const data: any = { status }
+  const data: Record<string, unknown> = { status }
   if (status === "SENT") data.sentAt = new Date()
   if (status === "PAID") data.paidAt = new Date()
   await prisma.invoice.update({ where: { id: invoiceId, userId }, data })
@@ -231,15 +287,24 @@ async function recalcInvoiceTotal(invoiceId: string) {
 export async function addInvoiceLine(
   invoiceId: string,
   _userId: string,
-  data: { description: string; quantity: number; unitPrice: number; productId?: string }
+  data: {
+    description: string
+    detail?: string
+    quantity: number
+    unitPrice: number
+    taxRate?: number
+    productId?: string
+  }
 ) {
   const total = data.quantity * data.unitPrice
   await prisma.invoiceLine.create({
     data: {
       invoiceId,
       description: data.description,
+      detail: data.detail || null,
       quantity: data.quantity,
       unitPrice: data.unitPrice,
+      taxRate: data.taxRate ?? 0,
       total,
       productId: data.productId || null,
     },
@@ -250,12 +315,25 @@ export async function addInvoiceLine(
 
 export async function updateInvoiceLine(
   lineId: string,
-  data: { description: string; quantity: number; unitPrice: number }
+  data: {
+    description: string
+    detail?: string
+    quantity: number
+    unitPrice: number
+    taxRate?: number
+  }
 ) {
   const total = data.quantity * data.unitPrice
   const line = await prisma.invoiceLine.update({
     where: { id: lineId },
-    data: { description: data.description, quantity: data.quantity, unitPrice: data.unitPrice, total },
+    data: {
+      description: data.description,
+      detail: data.detail ?? null,
+      quantity: data.quantity,
+      unitPrice: data.unitPrice,
+      taxRate: data.taxRate ?? 0,
+      total,
+    },
     select: { invoiceId: true },
   })
   await recalcInvoiceTotal(line.invoiceId)
@@ -280,7 +358,7 @@ export async function createProduct(
       name: data.name,
       description: data.description || null,
       unitPrice: data.unitPrice,
-      unit: (data.unit as any) || "UNIT",
+      unit: (data.unit as never) || "UNIT",
     },
   })
   revalidatePath("/facturation/produits")
@@ -294,7 +372,7 @@ export async function updateProduct(
 ) {
   await prisma.product.update({
     where: { id: productId, userId },
-    data: data as any,
+    data: data as never,
   })
   revalidatePath("/facturation/produits")
 }

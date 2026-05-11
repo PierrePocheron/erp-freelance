@@ -24,7 +24,7 @@ export async function GET(
         user: { select: { name: true, email: true } },
       },
     }),
-    prisma.userProfile.findUnique({ where: { userId } }).catch(() => null),
+    prisma.userProfile?.findUnique({ where: { userId } }).catch(() => null),
   ])
 
   if (!quote) return new Response("Not found", { status: 404 })

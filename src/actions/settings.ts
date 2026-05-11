@@ -19,7 +19,7 @@ export type ProfileData = {
 }
 
 export async function saveProfile(userId: string, data: ProfileData) {
-  await prisma.userProfile.upsert({
+  await prisma.userProfile?.upsert({
     where: { userId },
     create: {
       userId,

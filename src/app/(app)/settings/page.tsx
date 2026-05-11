@@ -10,7 +10,7 @@ export default async function SettingsPage() {
   const userId = session!.user.id
 
   const [profile, user] = await Promise.all([
-    prisma.userProfile.findUnique({ where: { userId } }).catch(() => null),
+    prisma.userProfile?.findUnique({ where: { userId } }).catch(() => null) ?? null,
     prisma.user.findUnique({ where: { id: userId }, select: { name: true, email: true, image: true } }),
   ])
 

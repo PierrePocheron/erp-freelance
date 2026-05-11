@@ -43,15 +43,20 @@ export default async function ProjectDevPage({
 }) {
   const { id } = await params
   const session = await auth()
+  const userId = session!.user.id
 
   const project = await prisma.project.findFirst({
-    where: { id, userId: session!.user.id },
+    where: { id, userId },
     include: {
       tasks: {
         where: { parentTaskId: null },
         orderBy: [{ order: "asc" }, { createdAt: "asc" }],
         include: {
           subTasks: { orderBy: [{ order: "asc" }, { createdAt: "asc" }] },
+          timeEntries: {
+            where: { userId },
+            select: { id: true, startedAt: true, endedAt: true, duration: true },
+          },
         },
       },
       milestones: { orderBy: { date: "asc" } },
@@ -86,21 +91,21 @@ export default async function ProjectDevPage({
           {inProgress.length > 0 && (
             <div className="space-y-0.5">
               <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide mb-2">En cours</p>
-              {inProgress.map((t, i) => <TaskItem key={t.id} task={t} projectId={id} isFirst={i === 0} isLast={i === inProgress.length - 1} />)}
+              {inProgress.map((t, i) => <TaskItem key={t.id} task={t} projectId={id} userId={userId} isFirst={i === 0} isLast={i === inProgress.length - 1} />)}
             </div>
           )}
 
           {todo.length > 0 && (
             <div className="space-y-0.5">
               <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide mb-2">À faire</p>
-              {todo.map((t, i) => <TaskItem key={t.id} task={t} projectId={id} isFirst={i === 0} isLast={i === todo.length - 1} />)}
+              {todo.map((t, i) => <TaskItem key={t.id} task={t} projectId={id} userId={userId} isFirst={i === 0} isLast={i === todo.length - 1} />)}
             </div>
           )}
 
           {done.length > 0 && (
             <div className="space-y-0.5 opacity-70">
               <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide mb-2">Terminées</p>
-              {done.map((t, i) => <TaskItem key={t.id} task={t} projectId={id} isFirst={i === 0} isLast={i === done.length - 1} />)}
+              {done.map((t, i) => <TaskItem key={t.id} task={t} projectId={id} userId={userId} isFirst={i === 0} isLast={i === done.length - 1} />)}
             </div>
           )}
 

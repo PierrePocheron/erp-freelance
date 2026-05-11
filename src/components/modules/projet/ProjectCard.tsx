@@ -1,6 +1,7 @@
 import Link from "next/link"
 import { Badge } from "@/components/ui/badge"
 import { Calendar, Clock, CheckSquare } from "lucide-react"
+import { TagBadge } from "./TagBadge"
 
 const statusConfig = {
   ACTIVE: { label: "Actif", className: "bg-emerald-500/15 text-emerald-600 border-emerald-500/20" },
@@ -20,6 +21,7 @@ type Props = {
     client: { name: string; company: string | null; type: string }
     _count: { tasks: number }
     tasksDone: number
+    tags: { id: string; name: string; color: string }[]
   }
 }
 
@@ -49,6 +51,14 @@ export function ProjectCard({ project }: Props) {
             {label}
           </Badge>
         </div>
+
+        {(project.tags?.length ?? 0) > 0 && (
+          <div className="flex flex-wrap gap-1">
+            {(project.tags ?? []).map((tag) => (
+              <TagBadge key={tag.id} tag={tag} />
+            ))}
+          </div>
+        )}
 
         <div className="flex items-center gap-4 text-xs text-muted-foreground">
           {project.endDate && (

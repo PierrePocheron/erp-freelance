@@ -1,0 +1,310 @@
+import {
+  Document,
+  Page,
+  Text,
+  View,
+  StyleSheet,
+} from "@react-pdf/renderer"
+
+
+const styles = StyleSheet.create({
+  page: {
+    fontFamily: "Helvetica",
+    fontSize: 10,
+    padding: 40,
+    color: "#1a1a1a",
+    backgroundColor: "#ffffff",
+  },
+  header: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 32,
+  },
+  emitterBlock: {
+    flex: 1,
+  },
+  emitterName: {
+    fontSize: 16,
+    fontFamily: "Helvetica-Bold",
+    marginBottom: 4,
+  },
+  recipientBlock: {
+    flex: 1,
+    alignItems: "flex-end",
+  },
+  docTitle: {
+    fontSize: 24,
+    fontFamily: "Helvetica-Bold",
+    color: "#6366f1",
+    marginBottom: 4,
+  },
+  docNumber: {
+    fontSize: 11,
+    color: "#64748b",
+  },
+  divider: {
+    borderBottom: 1,
+    borderColor: "#e2e8f0",
+    marginVertical: 16,
+  },
+  metaRow: {
+    flexDirection: "row",
+    gap: 32,
+    marginBottom: 24,
+  },
+  metaBlock: {
+    flex: 1,
+  },
+  metaLabel: {
+    fontSize: 8,
+    color: "#94a3b8",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+    marginBottom: 3,
+  },
+  metaValue: {
+    fontSize: 10,
+  },
+  tableHeader: {
+    flexDirection: "row",
+    backgroundColor: "#f8fafc",
+    padding: "8 10",
+    borderRadius: 4,
+    marginBottom: 2,
+  },
+  tableRow: {
+    flexDirection: "row",
+    padding: "7 10",
+    borderBottom: 1,
+    borderColor: "#f1f5f9",
+  },
+  col6: { flex: 6 },
+  col2: { flex: 2, textAlign: "right" },
+  headerText: {
+    fontSize: 8,
+    color: "#64748b",
+    textTransform: "uppercase",
+    letterSpacing: 0.3,
+  },
+  totalSection: {
+    alignItems: "flex-end",
+    marginTop: 16,
+  },
+  totalRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    width: 200,
+    paddingVertical: 3,
+  },
+  totalLabel: {
+    color: "#64748b",
+  },
+  totalValue: {
+    fontFamily: "Helvetica-Bold",
+  },
+  totalNet: {
+    fontSize: 14,
+    fontFamily: "Helvetica-Bold",
+    color: "#6366f1",
+  },
+  tva: {
+    fontSize: 8,
+    color: "#94a3b8",
+    marginTop: 4,
+    textAlign: "right",
+  },
+  notes: {
+    marginTop: 32,
+    padding: 12,
+    backgroundColor: "#f8fafc",
+    borderRadius: 4,
+  },
+  notesLabel: {
+    fontSize: 8,
+    color: "#64748b",
+    marginBottom: 4,
+    textTransform: "uppercase",
+  },
+  footer: {
+    position: "absolute",
+    bottom: 30,
+    left: 40,
+    right: 40,
+    textAlign: "center",
+    fontSize: 8,
+    color: "#94a3b8",
+  },
+})
+
+type Line = {
+  description: string
+  quantity: number
+  unitPrice: number
+  total: number
+}
+
+type DocProps = {
+  type: "DEVIS" | "FACTURE"
+  number: string
+  createdAt: Date
+  dueDate?: Date | null
+  sentAt?: Date | null
+  acceptedAt?: Date | null
+  depositPercent?: number
+  depositDeducted?: number
+  emitter: {
+    name: string
+    email: string
+    companyName?: string | null
+    address?: string | null
+    postalCode?: string | null
+    city?: string | null
+    siret?: string | null
+    phone?: string | null
+    website?: string | null
+    iban?: string | null
+    bic?: string | null
+  }
+  client: { name: string; company?: string | null; email?: string | null }
+  lines: Line[]
+  notes?: string | null
+  totalHT: number
+}
+
+export function InvoicePDF({
+  type,
+  number,
+  createdAt,
+  dueDate,
+  depositPercent,
+  depositDeducted,
+  emitter,
+  client,
+  lines,
+  notes,
+  totalHT,
+}: DocProps) {
+  const fmt = (d: Date | null | undefined) =>
+    d
+      ? new Date(d).toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" })
+      : "—"
+
+  const netAmount = totalHT - (depositDeducted ?? 0)
+  const displayName = emitter.companyName || emitter.name
+
+  return (
+    <Document>
+      <Page size="A4" style={styles.page}>
+        {/* En-tête */}
+        <View style={styles.header}>
+          <View style={styles.emitterBlock}>
+            <Text style={styles.emitterName}>{displayName}</Text>
+            {emitter.companyName && (
+              <Text style={{ color: "#64748b", fontSize: 9 }}>{emitter.name}</Text>
+            )}
+            <Text style={{ color: "#64748b", fontSize: 9 }}>{emitter.email}</Text>
+            {emitter.phone && <Text style={{ color: "#64748b", fontSize: 9 }}>{emitter.phone}</Text>}
+            {emitter.address && (
+              <Text style={{ color: "#64748b", fontSize: 9 }}>
+                {emitter.address}{emitter.postalCode || emitter.city ? `, ${emitter.postalCode ?? ""} ${emitter.city ?? ""}`.trim() : ""}
+              </Text>
+            )}
+            {emitter.siret && (
+              <Text style={{ color: "#94a3b8", fontSize: 8 }}>SIRET : {emitter.siret}</Text>
+            )}
+          </View>
+          <View style={styles.recipientBlock}>
+            <Text style={styles.docTitle}>{type}</Text>
+            <Text style={styles.docNumber}>{number}</Text>
+          </View>
+        </View>
+
+        <View style={styles.divider} />
+
+        {/* Meta */}
+        <View style={styles.metaRow}>
+          <View style={styles.metaBlock}>
+            <Text style={styles.metaLabel}>Client</Text>
+            <Text style={styles.metaValue}>{client.company ?? client.name}</Text>
+            {client.company && <Text style={{ fontSize: 9, color: "#64748b" }}>{client.name}</Text>}
+            {client.email && <Text style={{ fontSize: 9, color: "#64748b" }}>{client.email}</Text>}
+          </View>
+          <View style={styles.metaBlock}>
+            <Text style={styles.metaLabel}>Date d'émission</Text>
+            <Text style={styles.metaValue}>{fmt(createdAt)}</Text>
+          </View>
+          {dueDate && (
+            <View style={styles.metaBlock}>
+              <Text style={styles.metaLabel}>Échéance</Text>
+              <Text style={styles.metaValue}>{fmt(dueDate)}</Text>
+            </View>
+          )}
+          {depositPercent && depositPercent > 0 && (
+            <View style={styles.metaBlock}>
+              <Text style={styles.metaLabel}>Acompte</Text>
+              <Text style={styles.metaValue}>{depositPercent}%</Text>
+            </View>
+          )}
+        </View>
+
+        {/* Tableau lignes */}
+        <View style={styles.tableHeader}>
+          <Text style={[styles.headerText, styles.col6]}>Description</Text>
+          <Text style={[styles.headerText, styles.col2]}>Qté</Text>
+          <Text style={[styles.headerText, styles.col2]}>Prix unitaire</Text>
+          <Text style={[styles.headerText, styles.col2]}>Total HT</Text>
+        </View>
+
+        {lines.map((line, i) => (
+          <View key={i} style={styles.tableRow}>
+            <Text style={styles.col6}>{line.description}</Text>
+            <Text style={[styles.col2, { color: "#64748b" }]}>{line.quantity}</Text>
+            <Text style={[styles.col2, { color: "#64748b" }]}>{line.unitPrice.toLocaleString("fr-FR")} €</Text>
+            <Text style={[styles.col2, { fontFamily: "Helvetica-Bold" }]}>{line.total.toLocaleString("fr-FR")} €</Text>
+          </View>
+        ))}
+
+        {/* Totaux */}
+        <View style={styles.totalSection}>
+          <View style={styles.totalRow}>
+            <Text style={styles.totalLabel}>Total HT</Text>
+            <Text style={styles.totalValue}>{totalHT.toLocaleString("fr-FR")} €</Text>
+          </View>
+          {(depositDeducted ?? 0) > 0 && (
+            <View style={styles.totalRow}>
+              <Text style={styles.totalLabel}>Acompte déduit</Text>
+              <Text style={styles.totalValue}>- {depositDeducted!.toLocaleString("fr-FR")} €</Text>
+            </View>
+          )}
+          <View style={[styles.totalRow, { borderTop: 1, borderColor: "#e2e8f0", paddingTop: 6, marginTop: 2 }]}>
+            <Text style={{ ...styles.totalLabel, fontFamily: "Helvetica-Bold" }}>Net à payer</Text>
+            <Text style={styles.totalNet}>{netAmount.toLocaleString("fr-FR")} €</Text>
+          </View>
+          <Text style={styles.tva}>TVA non applicable — art. 293B du CGI</Text>
+        </View>
+
+        {/* IBAN */}
+        {emitter.iban && type === "FACTURE" && (
+          <View style={{ marginTop: 16, padding: 10, backgroundColor: "#f8fafc", borderRadius: 4 }}>
+            <Text style={{ fontSize: 8, color: "#64748b", textTransform: "uppercase", marginBottom: 4 }}>Coordonnées bancaires</Text>
+            <Text style={{ fontSize: 9 }}>IBAN : {emitter.iban}</Text>
+            {emitter.bic && <Text style={{ fontSize: 9 }}>BIC : {emitter.bic}</Text>}
+          </View>
+        )}
+
+        {/* Notes */}
+        {notes && (
+          <View style={styles.notes}>
+            <Text style={styles.notesLabel}>Notes & conditions</Text>
+            <Text style={{ fontSize: 9, color: "#374151" }}>{notes}</Text>
+          </View>
+        )}
+
+        {/* Footer */}
+        <Text style={styles.footer}>
+          {displayName} · {emitter.email}{emitter.siret ? ` · SIRET ${emitter.siret}` : ""} · Auto-entrepreneur
+        </Text>
+      </Page>
+    </Document>
+  )
+}

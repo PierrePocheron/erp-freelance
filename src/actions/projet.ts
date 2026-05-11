@@ -1,0 +1,165 @@
+"use server"
+
+import { prisma } from "@/lib/prisma"
+import { revalidatePath } from "next/cache"
+import { z } from "zod"
+
+const CreateProjectSchema = z.object({
+  name: z.string().min(1),
+  description: z.string().optional(),
+  clientId: z.string().min(1),
+  startDate: z.string().optional(),
+  endDate: z.string().optional(),
+  estimatedHours: z.coerce.number().optional(),
+})
+
+export async function createProject(userId: string, formData: FormData) {
+  const parsed = CreateProjectSchema.parse(Object.fromEntries(formData))
+  const project = await prisma.project.create({
+    data: {
+      userId,
+      clientId: parsed.clientId,
+      name: parsed.name,
+      description: parsed.description,
+      startDate: parsed.startDate ? new Date(parsed.startDate) : undefined,
+      endDate: parsed.endDate ? new Date(parsed.endDate) : undefined,
+      estimatedHours: parsed.estimatedHours,
+    },
+  })
+  revalidatePath("/projets")
+  return project
+}
+
+export async function updateProjectStatus(
+  projectId: string,
+  status: "ACTIVE" | "PAUSED" | "COMPLETED" | "ARCHIVED"
+) {
+  await prisma.project.update({ where: { id: projectId }, data: { status } })
+  revalidatePath("/projets")
+  revalidatePath(`/projets/${projectId}`)
+}
+
+export async function deleteProject(projectId: string) {
+  await prisma.project.delete({ where: { id: projectId } })
+  revalidatePath("/projets")
+}
+
+// ── Tasks ──────────────────────────────────────────────────────────────────
+
+const TaskSchema = z.object({
+  title: z.string().min(1),
+  description: z.string().optional(),
+  milestoneId: z.string().optional(),
+  parentTaskId: z.string().optional(),
+  estimatedHours: z.coerce.number().optional(),
+  dueDate: z.string().optional(),
+})
+
+export async function createTask(projectId: string, formData: FormData) {
+  const parsed = TaskSchema.parse(Object.fromEntries(formData))
+  const task = await prisma.task.create({
+    data: {
+      projectId,
+      title: parsed.title,
+      description: parsed.description,
+      milestoneId: parsed.milestoneId || null,
+      parentTaskId: parsed.parentTaskId || null,
+      estimatedHours: parsed.estimatedHours,
+      dueDate: parsed.dueDate ? new Date(parsed.dueDate) : undefined,
+    },
+  })
+  revalidatePath(`/projets/${projectId}`)
+  return task
+}
+
+export async function updateTaskStatus(
+  taskId: string,
+  projectId: string,
+  status: "TODO" | "IN_PROGRESS" | "DONE"
+) {
+  await prisma.task.update({
+    where: { id: taskId },
+    data: { status, completedAt: status === "DONE" ? new Date() : null },
+  })
+  revalidatePath(`/projets/${projectId}`)
+}
+
+export async function deleteTask(taskId: string, projectId: string) {
+  await prisma.task.delete({ where: { id: taskId } })
+  revalidatePath(`/projets/${projectId}`)
+}
+
+// ── Milestones ─────────────────────────────────────────────────────────────
+
+export async function createMilestone(projectId: string, formData: FormData) {
+  const milestone = await prisma.milestone.create({
+    data: {
+      projectId,
+      name: formData.get("name") as string,
+      date: new Date(formData.get("date") as string),
+    },
+  })
+  revalidatePath(`/projets/${projectId}`)
+  return milestone
+}
+
+export async function updateMilestoneStatus(
+  milestoneId: string,
+  projectId: string,
+  status: "UPCOMING" | "IN_PROGRESS" | "DONE"
+) {
+  await prisma.milestone.update({ where: { id: milestoneId }, data: { status } })
+  revalidatePath(`/projets/${projectId}`)
+}
+
+// ── Useful Links ───────────────────────────────────────────────────────────
+
+export async function createUsefulLink(projectId: string, formData: FormData) {
+  await prisma.usefulLink.create({
+    data: {
+      projectId,
+      label: formData.get("label") as string,
+      url: formData.get("url") as string,
+      category: ((formData.get("category") as string) || "OTHER") as import("@/generated/prisma/client").LinkCategory,
+    },
+  })
+  revalidatePath(`/projets/${projectId}`)
+}
+
+export async function deleteUsefulLink(linkId: string, projectId: string) {
+  await prisma.usefulLink.delete({ where: { id: linkId } })
+  revalidatePath(`/projets/${projectId}`)
+}
+
+// ── Journal ────────────────────────────────────────────────────────────────
+
+export async function createJournalEntry(projectId: string, formData: FormData) {
+  await prisma.journalEntry.create({
+    data: { projectId, content: formData.get("content") as string },
+  })
+  revalidatePath(`/projets/${projectId}`)
+}
+
+// ── Deliverables ───────────────────────────────────────────────────────────
+
+export async function createDeliverable(projectId: string, formData: FormData) {
+  await prisma.deliverable.create({
+    data: {
+      projectId,
+      name: formData.get("name") as string,
+      dueDate: formData.get("dueDate")
+        ? new Date(formData.get("dueDate") as string)
+        : undefined,
+    },
+  })
+  revalidatePath(`/projets/${projectId}`)
+}
+
+export async function updateDeliverableStatus(
+  deliverableId: string,
+  projectId: string,
+  status: "TO_DELIVER" | "DELIVERED" | "VALIDATED"
+) {
+  await prisma.deliverable.update({ where: { id: deliverableId }, data: { status } })
+  revalidatePath(`/projets/${projectId}`)
+}

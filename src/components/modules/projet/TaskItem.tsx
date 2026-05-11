@@ -7,6 +7,7 @@ import {
 } from "lucide-react"
 import { startTask, completeTask, reopenTask, deleteTask, updateTaskPriority, reorderTask } from "@/actions/projet"
 import { AddTaskForm } from "./AddTaskForm"
+import { TimeTracker } from "./TimeTracker"
 import { cn } from "@/lib/utils"
 
 const priorityConfig = {
@@ -36,16 +37,19 @@ type Task = {
   startedAt: Date | null
   completedAt: Date | null
   subTasks: SubTask[]
+  timeEntries?: { id: string; startedAt: Date; endedAt: Date | null; duration: number | null }[]
 }
 
 export function TaskItem({
   task,
   projectId,
+  userId,
   isFirst,
   isLast,
 }: {
   task: Task
   projectId: string
+  userId?: string
   isFirst?: boolean
   isLast?: boolean
 }) {
@@ -101,6 +105,16 @@ export function TaskItem({
         <span className={cn("flex-1 text-sm", task.status === "DONE" && "line-through text-muted-foreground")}>
           {task.title}
         </span>
+
+        {/* Time tracker */}
+        {userId && task.status !== "DONE" && (
+          <TimeTracker
+            taskId={task.id}
+            userId={userId}
+            projectId={projectId}
+            timeEntries={task.timeEntries ?? []}
+          />
+        )}
 
         {/* Infos */}
         <div className="flex items-center gap-2 text-xs text-muted-foreground">

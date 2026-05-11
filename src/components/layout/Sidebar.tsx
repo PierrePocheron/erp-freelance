@@ -10,10 +10,12 @@ import {
   Code2,
   Calendar,
   Server,
+  Settings,
   PanelLeftClose,
   PanelLeftOpen,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { ThemeToggle } from "./ThemeToggle"
 
 const navItems = [
   { href: "/", icon: LayoutDashboard, label: "Dashboard" },
@@ -21,6 +23,7 @@ const navItems = [
   { href: "/facturation", icon: FileText, label: "Facturation" },
   { href: "/projets", icon: Code2, label: "Projets" },
   { href: "/calendrier", icon: Calendar, label: "Calendrier" },
+  { href: "/settings", icon: Settings, label: "Paramètres" },
 ]
 
 const STORAGE_KEY = "erp-sidebar-expanded"
@@ -96,7 +99,8 @@ export function Sidebar() {
       </nav>
 
       {/* Toggle */}
-      <div className={cn("px-2 pb-5", expanded ? "" : "flex justify-center")}>
+      <div className={cn("px-2 pb-5 space-y-1", expanded ? "" : "flex flex-col items-center")}>
+        <ThemeToggle expanded={expanded} />
         <button
           onClick={toggle}
           className={cn(

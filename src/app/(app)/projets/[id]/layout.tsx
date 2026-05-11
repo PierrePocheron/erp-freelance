@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge"
 import { ProjectTabs } from "@/components/modules/projet/ProjectTabs"
 import { ProjectDateBadge } from "@/components/modules/projet/ProjectDateBadge"
 import { ProjectNameEdit, ProjectDescriptionEdit, ProjectHoursEdit } from "@/components/modules/projet/ProjectInlineEdit"
+import { TagSelector } from "@/components/modules/projet/TagSelector"
 
 const statusConfig = {
   ACTIVE:    { label: "Actif",    className: "bg-emerald-500/15 text-emerald-600 border-emerald-500/20" },
@@ -25,10 +26,25 @@ export default async function ProjectLayout({
   const { id } = await params
   const session = await auth()
 
-  const project = await prisma.project.findFirst({
-    where: { id, userId: session!.user.id },
-    include: { client: { select: { name: true, company: true, type: true } } },
-  })
+  const userId = session!.user.id
+
+  const [project, allTags, projectTagIds] = await Promise.all([
+    prisma.project.findFirst({
+      where: { id, userId },
+      include: {
+        client: { select: { name: true, company: true, type: true } },
+      },
+    }),
+    prisma.tag.findMany({
+      where: { userId },
+      orderBy: { name: "asc" },
+      select: { id: true, name: true, color: true },
+    }).catch(() => [] as { id: string; name: string; color: string }[]),
+    prisma.project.findFirst({
+      where: { id, userId },
+      select: { tags: { select: { id: true } } },
+    }).catch(() => null),
+  ])
 
   if (!project) notFound()
 
@@ -37,6 +53,7 @@ export default async function ProjectLayout({
     project.client.type === "SELF"
       ? "Perso"
       : project.client.company || project.client.name
+  const selectedTagIds = projectTagIds?.tags?.map((t) => t.id) ?? []
 
   return (
     <div className="space-y-5">
@@ -60,6 +77,14 @@ export default async function ProjectLayout({
               <ProjectDateBadge projectId={id} field="endDate" value={project.endDate} label="Fin estimée" />
               <ProjectHoursEdit projectId={id} value={project.estimatedHours} />
             </div>
+
+            {/* Tags */}
+            <TagSelector
+              projectId={id}
+              userId={userId}
+              availableTags={allTags}
+              selectedTagIds={selectedTagIds}
+            />
           </div>
 
           <Badge variant="outline" className={`shrink-0 ${className}`}>

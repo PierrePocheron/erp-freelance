@@ -2,6 +2,7 @@
 
 import { prisma } from "@/lib/prisma"
 import { revalidatePath } from "next/cache"
+import { redirect } from "next/navigation"
 
 export type ProfileData = {
   companyName?: string | null
@@ -52,4 +53,19 @@ export async function saveProfile(userId: string, data: ProfileData) {
     },
   })
   revalidatePath("/settings")
+}
+
+export async function deleteAllUserData(userId: string) {
+  // Delete in dependency order to avoid FK conflicts
+  await prisma.timeEntry.deleteMany({ where: { userId } })
+  await prisma.calendarEvent.deleteMany({ where: { userId } })
+  await prisma.emailLog.deleteMany({ where: { userId } })
+  await prisma.quote.deleteMany({ where: { userId } })
+  await prisma.invoice.deleteMany({ where: { userId } })
+  await prisma.product.deleteMany({ where: { userId } })
+  // Cascade: client → interactions, reminders, projects → tasks, milestones, postDev, etc.
+  await prisma.client.deleteMany({ where: { userId } })
+  await prisma.tag.deleteMany({ where: { userId } })
+  await prisma.userProfile?.deleteMany({ where: { userId } })
+  redirect("/")
 }

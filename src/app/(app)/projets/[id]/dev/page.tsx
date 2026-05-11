@@ -49,9 +49,9 @@ export default async function ProjectDevPage({
     include: {
       tasks: {
         where: { parentTaskId: null },
-        orderBy: { createdAt: "asc" },
+        orderBy: [{ order: "asc" }, { createdAt: "asc" }],
         include: {
-          subTasks: { orderBy: { createdAt: "asc" } },
+          subTasks: { orderBy: [{ order: "asc" }, { createdAt: "asc" }] },
         },
       },
       milestones: { orderBy: { date: "asc" } },
@@ -86,21 +86,21 @@ export default async function ProjectDevPage({
           {inProgress.length > 0 && (
             <div className="space-y-0.5">
               <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide mb-2">En cours</p>
-              {inProgress.map((t) => <TaskItem key={t.id} task={t} projectId={id} />)}
+              {inProgress.map((t, i) => <TaskItem key={t.id} task={t} projectId={id} isFirst={i === 0} isLast={i === inProgress.length - 1} />)}
             </div>
           )}
 
           {todo.length > 0 && (
             <div className="space-y-0.5">
               <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide mb-2">À faire</p>
-              {todo.map((t) => <TaskItem key={t.id} task={t} projectId={id} />)}
+              {todo.map((t, i) => <TaskItem key={t.id} task={t} projectId={id} isFirst={i === 0} isLast={i === todo.length - 1} />)}
             </div>
           )}
 
           {done.length > 0 && (
             <div className="space-y-0.5 opacity-70">
               <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide mb-2">Terminées</p>
-              {done.map((t) => <TaskItem key={t.id} task={t} projectId={id} />)}
+              {done.map((t, i) => <TaskItem key={t.id} task={t} projectId={id} isFirst={i === 0} isLast={i === done.length - 1} />)}
             </div>
           )}
 

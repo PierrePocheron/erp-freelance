@@ -85,32 +85,6 @@ export default async function ProjectOverviewPage({
         </div>
       </div>
 
-      {/* Dates */}
-      {(project.startDate || project.endDate) && (
-        <div className="rounded-xl border border-border/50 bg-card p-5 flex gap-8">
-          {project.startDate && (
-            <div>
-              <p className="text-xs text-muted-foreground mb-1">Début</p>
-              <p className="text-sm font-medium">
-                {new Date(project.startDate).toLocaleDateString("fr-FR", {
-                  day: "numeric", month: "long", year: "numeric",
-                })}
-              </p>
-            </div>
-          )}
-          {project.endDate && (
-            <div>
-              <p className="text-xs text-muted-foreground mb-1">Fin estimée</p>
-              <p className="text-sm font-medium">
-                {new Date(project.endDate).toLocaleDateString("fr-FR", {
-                  day: "numeric", month: "long", year: "numeric",
-                })}
-              </p>
-            </div>
-          )}
-        </div>
-      )}
-
       {/* Journal récent */}
       {project.journalEntries.length > 0 && (
         <div className="rounded-xl border border-border/50 bg-card p-5 space-y-3">

@@ -188,6 +188,13 @@ enum TaskStatus {
   DONE
 }
 
+enum TaskPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
 enum DeliverableStatus {
   TO_DELIVER
   DELIVERED
@@ -242,18 +249,21 @@ model Milestone {
 }
 
 model Task {
-  id             String     @id @default(cuid())
+  id             String       @id @default(cuid())
   projectId      String
   milestoneId    String?
   parentTaskId   String?
   title          String
   description    String?
-  status         TaskStatus @default(TODO)
+  status         TaskStatus   @default(TODO)
+  priority       TaskPriority @default(MEDIUM)
+  order          Int          @default(0)
   estimatedHours Float?
+  startedAt      DateTime?
   dueDate        DateTime?
   completedAt    DateTime?
-  createdAt      DateTime   @default(now())
-  updatedAt      DateTime   @updatedAt
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
 
   project     Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
   milestone   Milestone?   @relation(fields: [milestoneId], references: [id])

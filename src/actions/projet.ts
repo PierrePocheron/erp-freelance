@@ -44,6 +44,21 @@ export async function deleteProject(projectId: string) {
   revalidatePath("/projets")
 }
 
+export async function updateProjectDates(
+  projectId: string,
+  data: { startDate?: string; endDate?: string; estimatedHours?: number }
+) {
+  await prisma.project.update({
+    where: { id: projectId },
+    data: {
+      startDate: data.startDate ? new Date(data.startDate) : undefined,
+      endDate: data.endDate ? new Date(data.endDate) : undefined,
+      estimatedHours: data.estimatedHours,
+    },
+  })
+  revalidatePath(`/projets/${projectId}`)
+}
+
 // ── Tasks ──────────────────────────────────────────────────────────────────
 
 const TaskSchema = z.object({
@@ -72,15 +87,53 @@ export async function createTask(projectId: string, formData: FormData) {
   return task
 }
 
-export async function updateTaskStatus(
-  taskId: string,
-  projectId: string,
-  status: "TODO" | "IN_PROGRESS" | "DONE"
-) {
+export async function startTask(taskId: string, projectId: string) {
   await prisma.task.update({
     where: { id: taskId },
-    data: { status, completedAt: status === "DONE" ? new Date() : null },
+    data: { status: "IN_PROGRESS", startedAt: new Date(), completedAt: null },
   })
+  revalidatePath(`/projets/${projectId}`)
+}
+
+export async function completeTask(taskId: string, projectId: string) {
+  await prisma.task.update({
+    where: { id: taskId },
+    data: { status: "DONE", completedAt: new Date() },
+  })
+  revalidatePath(`/projets/${projectId}`)
+}
+
+export async function reopenTask(taskId: string, projectId: string) {
+  await prisma.task.update({
+    where: { id: taskId },
+    data: { status: "TODO", startedAt: null, completedAt: null },
+  })
+  revalidatePath(`/projets/${projectId}`)
+}
+
+export async function updateTaskPriority(
+  taskId: string,
+  projectId: string,
+  priority: "LOW" | "MEDIUM" | "HIGH" | "URGENT"
+) {
+  await prisma.task.update({ where: { id: taskId }, data: { priority } })
+  revalidatePath(`/projets/${projectId}`)
+}
+
+export async function reorderTask(taskId: string, projectId: string, direction: "up" | "down") {
+  const task = await prisma.task.findUnique({ where: { id: taskId } })
+  if (!task) return
+  const siblings = await prisma.task.findMany({
+    where: { projectId, parentTaskId: task.parentTaskId },
+    orderBy: { order: "asc" },
+  })
+  const idx = siblings.findIndex((t) => t.id === taskId)
+  const swapIdx = direction === "up" ? idx - 1 : idx + 1
+  if (swapIdx < 0 || swapIdx >= siblings.length) return
+  await Promise.all([
+    prisma.task.update({ where: { id: task.id }, data: { order: siblings[swapIdx].order } }),
+    prisma.task.update({ where: { id: siblings[swapIdx].id }, data: { order: task.order } }),
+  ])
   revalidatePath(`/projets/${projectId}`)
 }
 

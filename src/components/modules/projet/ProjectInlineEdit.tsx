@@ -1,0 +1,182 @@
+"use client"
+
+import { useState, useTransition, useRef } from "react"
+import { Pencil, Check, X } from "lucide-react"
+import { updateProjectInfo } from "@/actions/projet"
+import { cn } from "@/lib/utils"
+
+// ── Nom du projet ─────────────────────────────────────────────────────────────
+
+export function ProjectNameEdit({ projectId, value }: { projectId: string; value: string }) {
+  const [editing, setEditing] = useState(false)
+  const [isPending, startTransition] = useTransition()
+  const ref = useRef<HTMLInputElement>(null)
+
+  function save() {
+    const name = ref.current?.value.trim()
+    if (!name) return
+    startTransition(async () => {
+      await updateProjectInfo(projectId, { name })
+      setEditing(false)
+    })
+  }
+
+  function onKeyDown(e: React.KeyboardEvent) {
+    if (e.key === "Enter") save()
+    if (e.key === "Escape") setEditing(false)
+  }
+
+  if (editing) {
+    return (
+      <div className="flex items-center gap-2">
+        <input
+          ref={ref}
+          defaultValue={value}
+          onKeyDown={onKeyDown}
+          autoFocus
+          className="text-2xl font-bold tracking-tight bg-transparent border-b-2 border-primary outline-none w-full"
+        />
+        <button onClick={save} disabled={isPending} className="text-emerald-500 hover:text-emerald-600 shrink-0">
+          <Check className="h-4 w-4" />
+        </button>
+        <button onClick={() => setEditing(false)} className="text-muted-foreground hover:text-foreground shrink-0">
+          <X className="h-4 w-4" />
+        </button>
+      </div>
+    )
+  }
+
+  return (
+    <button
+      onClick={() => setEditing(true)}
+      className="group flex items-center gap-2 text-left"
+    >
+      <h1 className="text-2xl font-bold tracking-tight">{value}</h1>
+      <Pencil className="h-3.5 w-3.5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+    </button>
+  )
+}
+
+// ── Description ───────────────────────────────────────────────────────────────
+
+export function ProjectDescriptionEdit({
+  projectId,
+  value,
+}: {
+  projectId: string
+  value: string | null
+}) {
+  const [editing, setEditing] = useState(false)
+  const [isPending, startTransition] = useTransition()
+  const ref = useRef<HTMLTextAreaElement>(null)
+
+  function save() {
+    const description = ref.current?.value.trim() || null
+    startTransition(async () => {
+      await updateProjectInfo(projectId, { description })
+      setEditing(false)
+    })
+  }
+
+  if (editing) {
+    return (
+      <div className="flex items-start gap-2">
+        <textarea
+          ref={ref}
+          defaultValue={value ?? ""}
+          autoFocus
+          rows={2}
+          placeholder="Ajouter une description..."
+          className="flex-1 resize-none bg-transparent border border-input rounded-md px-2 py-1 text-sm text-muted-foreground outline-none focus:ring-1 focus:ring-ring"
+        />
+        <div className="flex flex-col gap-1">
+          <button onClick={save} disabled={isPending} className="text-emerald-500 hover:text-emerald-600">
+            <Check className="h-3.5 w-3.5" />
+          </button>
+          <button onClick={() => setEditing(false)} className="text-muted-foreground hover:text-foreground">
+            <X className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <button
+      onClick={() => setEditing(true)}
+      className="group flex items-center gap-2 text-left"
+    >
+      <p className={cn("text-sm", value ? "text-muted-foreground" : "text-muted-foreground/50 italic")}>
+        {value ?? "Ajouter une description..."}
+      </p>
+      <Pencil className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
+    </button>
+  )
+}
+
+// ── Heures estimées ───────────────────────────────────────────────────────────
+
+export function ProjectHoursEdit({
+  projectId,
+  value,
+}: {
+  projectId: string
+  value: number | null
+}) {
+  const [editing, setEditing] = useState(false)
+  const [isPending, startTransition] = useTransition()
+  const ref = useRef<HTMLInputElement>(null)
+
+  function save() {
+    const raw = ref.current?.value
+    const estimatedHours = raw ? parseFloat(raw) : null
+    startTransition(async () => {
+      await updateProjectInfo(projectId, { estimatedHours })
+      setEditing(false)
+    })
+  }
+
+  function onKeyDown(e: React.KeyboardEvent) {
+    if (e.key === "Enter") save()
+    if (e.key === "Escape") setEditing(false)
+  }
+
+  if (editing) {
+    return (
+      <div className="inline-flex items-center gap-1.5 rounded-full border border-primary bg-primary/5 px-2.5 py-0.5">
+        <input
+          ref={ref}
+          type="number"
+          defaultValue={value ?? ""}
+          onKeyDown={onKeyDown}
+          autoFocus
+          min="0"
+          step="0.5"
+          placeholder="0"
+          className="w-14 bg-transparent text-xs outline-none"
+        />
+        <span className="text-xs text-muted-foreground">h</span>
+        <button onClick={save} disabled={isPending} className="text-emerald-500 hover:text-emerald-600">
+          <Check className="h-3 w-3" />
+        </button>
+        <button onClick={() => setEditing(false)} className="text-muted-foreground hover:text-foreground">
+          <X className="h-3 w-3" />
+        </button>
+      </div>
+    )
+  }
+
+  return (
+    <button
+      onClick={() => setEditing(true)}
+      className={cn(
+        "group inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs transition-colors hover:border-primary/50 hover:bg-primary/5",
+        value ? "border-border bg-muted/50 text-foreground" : "border-dashed border-border text-muted-foreground"
+      )}
+    >
+      <span>⏱</span>
+      {value ? `${value}h estimées` : "Heures estimées"}
+      <Pencil className="h-2.5 w-2.5 opacity-0 group-hover:opacity-100 transition-opacity" />
+    </button>
+  )
+}

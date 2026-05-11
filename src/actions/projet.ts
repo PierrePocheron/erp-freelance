@@ -44,6 +44,15 @@ export async function deleteProject(projectId: string) {
   revalidatePath("/projets")
 }
 
+export async function updateProjectInfo(
+  projectId: string,
+  data: { name?: string; description?: string | null; estimatedHours?: number | null }
+) {
+  await prisma.project.update({ where: { id: projectId }, data })
+  revalidatePath(`/projets/${projectId}`)
+  revalidatePath("/projets")
+}
+
 export async function updateProjectDates(
   projectId: string,
   data: { startDate?: string; endDate?: string; estimatedHours?: number }

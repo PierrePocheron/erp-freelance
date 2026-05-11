@@ -57,14 +57,17 @@ export function Sidebar() {
       )}
     >
       {/* Logo */}
-      <div className={cn("flex items-center gap-3 px-3 py-6", expanded ? "justify-start" : "justify-center")}>
+      <button
+        onClick={toggle}
+        className={cn("flex items-center gap-3 px-3 py-6 cursor-pointer", expanded ? "justify-start" : "justify-center")}
+      >
         <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary">
           <Server className="h-5 w-5 text-primary-foreground" />
         </div>
         {expanded && (
           <span className="font-semibold text-sm truncate">ERP Freelance</span>
         )}
-      </div>
+      </button>
 
       {/* Nav */}
       <nav className="flex flex-1 flex-col gap-1 px-2">

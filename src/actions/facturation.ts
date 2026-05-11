@@ -7,7 +7,7 @@ import { revalidatePath } from "next/cache"
 
 async function nextQuoteNumber(userId: string) {
   const year = new Date().getFullYear()
-  const profile = await prisma.userProfile.findUnique({ where: { userId }, select: { quotePrefix: true } }).catch(() => null)
+  const profile = await prisma.userProfile?.findUnique({ where: { userId }, select: { quotePrefix: true } }).catch(() => null)
   const prefix = profile?.quotePrefix ?? "DEV"
   const count = await prisma.quote.count({
     where: { userId, number: { startsWith: `${prefix}-${year}-` } },
@@ -17,7 +17,7 @@ async function nextQuoteNumber(userId: string) {
 
 async function nextInvoiceNumber(userId: string) {
   const year = new Date().getFullYear()
-  const profile = await prisma.userProfile.findUnique({ where: { userId }, select: { invoicePrefix: true } }).catch(() => null)
+  const profile = await prisma.userProfile?.findUnique({ where: { userId }, select: { invoicePrefix: true } }).catch(() => null)
   const prefix = profile?.invoicePrefix ?? "FAC"
   const count = await prisma.invoice.count({
     where: { userId, number: { startsWith: `${prefix}-${year}-` } },

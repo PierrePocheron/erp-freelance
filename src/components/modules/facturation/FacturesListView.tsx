@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import Link from "next/link"
-import { Receipt, LayoutGrid, List } from "lucide-react"
+import { Receipt, LayoutGrid, List, Download } from "lucide-react"
 import { CreateInvoiceDialog } from "./CreateInvoiceDialog"
 
 type Invoice = {
@@ -104,6 +104,15 @@ export function FacturesListView({
               <LayoutGrid className="h-4 w-4" />
             </button>
           </div>
+          <a
+            href={`/api/export/factures${statusFilter !== "ALL" ? `?status=${statusFilter}` : ""}`}
+            download
+            className="inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1.5 text-xs text-muted-foreground hover:bg-muted transition-colors"
+            title="Exporter en CSV"
+          >
+            <Download className="h-3.5 w-3.5" />
+            CSV
+          </a>
           <CreateInvoiceDialog userId={userId} clients={clients} projects={projects} />
         </div>
       </div>

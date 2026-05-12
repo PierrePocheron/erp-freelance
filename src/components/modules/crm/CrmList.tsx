@@ -4,7 +4,7 @@ import { useState, useTransition } from "react"
 import { getClientPanel } from "@/actions/crm"
 import { ClientPanel } from "./ClientPanel"
 import { Sheet, SheetContent } from "@/components/ui/sheet"
-import { LayoutGrid, List } from "lucide-react"
+import { LayoutGrid, List, Search } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 const tempConfig = {
@@ -57,6 +57,7 @@ export function CrmList({ groups, userId }: { groups: Group[]; userId: string })
   const [panelData, setPanelData] = useState<PanelData>(null)
   const [isPending, startTransition] = useTransition()
   const [view, setView] = useState<View>("cards")
+  const [search, setSearch] = useState("")
 
   function openClient(clientId: string) {
     setOpen(true)
@@ -67,7 +68,21 @@ export function CrmList({ groups, userId }: { groups: Group[]; userId: string })
     })
   }
 
+  const q = search.toLowerCase().trim()
+  const filteredGroups = groups.map((g) => ({
+    ...g,
+    items: q
+      ? g.items.filter(
+          (c) =>
+            c.name.toLowerCase().includes(q) ||
+            (c.company ?? "").toLowerCase().includes(q) ||
+            (c.email ?? "").toLowerCase().includes(q)
+        )
+      : g.items,
+  }))
+
   const hasClients = groups.some((g) => g.items.length > 0)
+  const hasResults = filteredGroups.some((g) => g.items.length > 0)
 
   return (
     <>
@@ -78,35 +93,50 @@ export function CrmList({ groups, userId }: { groups: Group[]; userId: string })
         </div>
       ) : (
         <div className="space-y-6">
-          {/* View toggle */}
-          <div className="flex items-center justify-end gap-1">
-            <button
-              onClick={() => setView("cards")}
-              className={cn(
-                "flex items-center justify-center h-8 w-8 rounded-lg transition-colors",
-                view === "cards"
-                  ? "bg-accent text-foreground"
-                  : "text-muted-foreground hover:bg-accent hover:text-foreground"
-              )}
-              title="Vue cartes"
-            >
-              <LayoutGrid className="h-4 w-4" />
-            </button>
-            <button
-              onClick={() => setView("list")}
-              className={cn(
-                "flex items-center justify-center h-8 w-8 rounded-lg transition-colors",
-                view === "list"
-                  ? "bg-accent text-foreground"
-                  : "text-muted-foreground hover:bg-accent hover:text-foreground"
-              )}
-              title="Vue liste"
-            >
-              <List className="h-4 w-4" />
-            </button>
+          {/* Search + View toggle */}
+          <div className="flex items-center gap-3">
+            <div className="relative flex-1 max-w-xs">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+              <input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Rechercher..."
+                className="h-8 w-full rounded-lg border border-input bg-transparent pl-8 pr-3 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+              />
+            </div>
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => setView("cards")}
+                className={cn(
+                  "flex items-center justify-center h-8 w-8 rounded-lg transition-colors",
+                  view === "cards"
+                    ? "bg-accent text-foreground"
+                    : "text-muted-foreground hover:bg-accent hover:text-foreground"
+                )}
+                title="Vue cartes"
+              >
+                <LayoutGrid className="h-4 w-4" />
+              </button>
+              <button
+                onClick={() => setView("list")}
+                className={cn(
+                  "flex items-center justify-center h-8 w-8 rounded-lg transition-colors",
+                  view === "list"
+                    ? "bg-accent text-foreground"
+                    : "text-muted-foreground hover:bg-accent hover:text-foreground"
+                )}
+                title="Vue liste"
+              >
+                <List className="h-4 w-4" />
+              </button>
+            </div>
           </div>
 
-          {groups.map(({ key, label, items }) =>
+          {!hasResults && q && (
+            <p className="text-sm text-muted-foreground italic">Aucun résultat pour « {q} »</p>
+          )}
+
+          {filteredGroups.map(({ key, label, items }) =>
             items.length === 0 ? null : (
               <section key={key} className="space-y-3">
                 <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">

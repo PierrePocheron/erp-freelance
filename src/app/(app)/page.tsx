@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma"
 import Link from "next/link"
 import {
   CheckSquare, AlertCircle, Clock, Users,
-  TrendingUp, Bell, Code2, Calendar,
+  TrendingUp, Bell, Code2, Calendar, Circle,
 } from "lucide-react"
 import { QuickActionsBar } from "@/components/modules/dashboard/QuickActionsBar"
 
@@ -233,17 +233,25 @@ export default async function DashboardPage() {
                 {upcomingReminders.map((r) => {
                   const isLate = new Date(r.dueDate) < new Date()
                   return (
-                    <Link key={r.id} href={`/crm/${r.client.id}/rappels`} className="flex items-start gap-3 rounded-lg px-3 py-2 hover:bg-muted/50 transition-colors">
-                      <span className={`h-2 w-2 rounded-full mt-1.5 shrink-0 ${isLate ? "bg-red-500" : "bg-amber-500"}`} />
-                      <div className="flex-1 min-w-0">
+                    <div key={r.id} className="flex items-start gap-2 rounded-lg px-3 py-2 hover:bg-muted/50 transition-colors group">
+                      <form action={async () => {
+                        "use server"
+                        const { toggleReminder } = await import("@/actions/crm")
+                        await toggleReminder(r.id, r.client.id, true)
+                      }}>
+                        <button type="submit" title="Marquer comme fait" className="mt-0.5 text-muted-foreground hover:text-emerald-500 transition-colors shrink-0">
+                          <Circle className="h-3.5 w-3.5" />
+                        </button>
+                      </form>
+                      <Link href={`/crm/${r.client.id}/rappels`} className="flex-1 min-w-0">
                         <p className="text-sm font-medium">{r.client.name}</p>
                         {r.note && <p className="text-xs text-muted-foreground truncate">{r.note}</p>}
                         <p className={`text-xs ${isLate ? "text-red-500 font-medium" : "text-muted-foreground"}`}>
                           {new Date(r.dueDate).toLocaleDateString("fr-FR", { day: "numeric", month: "short" })}
                           {isLate && " · En retard"}
                         </p>
-                      </div>
-                    </Link>
+                      </Link>
+                    </div>
                   )
                 })}
               </div>

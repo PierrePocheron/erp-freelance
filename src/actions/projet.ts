@@ -126,6 +126,16 @@ export async function updateTaskTitle(taskId: string, projectId: string, title: 
   revalidatePath(`/projets/${projectId}`)
 }
 
+export async function updateTaskDescription(taskId: string, projectId: string, description: string | null) {
+  await prisma.task.update({ where: { id: taskId }, data: { description: description?.trim() || null } })
+  revalidatePath(`/projets/${projectId}`)
+}
+
+export async function updateTaskEstimatedHours(taskId: string, projectId: string, hours: number | null) {
+  await prisma.task.update({ where: { id: taskId }, data: { estimatedHours: hours } })
+  revalidatePath(`/projets/${projectId}`)
+}
+
 export async function updateTaskDueDate(taskId: string, projectId: string, dueDate: string | null) {
   await prisma.task.update({
     where: { id: taskId },

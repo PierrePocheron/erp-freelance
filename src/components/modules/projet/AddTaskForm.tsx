@@ -43,8 +43,11 @@ export function AddTaskForm({
   }
 
   return (
-    <form ref={ref} onSubmit={handleSubmit} className="flex gap-2">
-      <Input name="title" placeholder={placeholder} autoFocus className="h-8 text-sm" required />
+    <form ref={ref} onSubmit={handleSubmit} className="flex gap-2 items-center">
+      <Input name="title" placeholder={placeholder} autoFocus className="h-8 text-sm flex-1" required />
+      {!parentTaskId && (
+        <Input name="estimatedHours" type="number" min="0" step="0.5" placeholder="~h" className="h-8 text-sm w-16" />
+      )}
       <Button type="submit" size="sm" disabled={isPending}>
         {isPending ? "..." : "Ajouter"}
       </Button>

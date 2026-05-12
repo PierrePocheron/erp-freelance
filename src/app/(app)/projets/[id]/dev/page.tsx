@@ -19,7 +19,7 @@ import {
   CheckSquare, Flag, Link2, BookOpen, Package,
   ExternalLink, Trash2, CheckCircle2, Circle, Clock
 } from "lucide-react"
-import { LINK_CATEGORY_CONFIG } from "@/lib/link-categories"
+import { LINK_CATEGORY_CONFIG, normalizeUrl } from "@/lib/link-categories"
 
 const milestoneColors = {
   UPCOMING: "bg-muted text-muted-foreground border-border",
@@ -213,7 +213,7 @@ export default async function ProjectDevPage({
                 return (
                   <div key={l.id} className="flex items-center gap-2 group">
                     <a
-                      href={l.url}
+                      href={normalizeUrl(l.url)}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="flex-1 flex items-center gap-1.5 text-sm hover:text-primary transition-colors min-w-0"

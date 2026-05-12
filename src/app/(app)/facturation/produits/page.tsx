@@ -13,7 +13,10 @@ export default async function ProduitsPage() {
   const products = await prisma.product.findMany({
     where: { userId },
     orderBy: { name: "asc" },
-  })
+  }) as unknown as Array<{
+    id: string; name: string; description: string | null; unitPrice: number;
+    unit: string; isActive: boolean; billingType: string; defaultTaxRate: number;
+  }>
 
   return (
     <div className="space-y-6">
@@ -35,6 +38,8 @@ export default async function ProduitsPage() {
                   description: (fd.get("description") as string) || undefined,
                   unitPrice: Number(fd.get("unitPrice")),
                   unit: (fd.get("unit") as string) || "UNIT",
+                  billingType: (fd.get("billingType") as string) || "ONE_SHOT",
+                  defaultTaxRate: Number(fd.get("defaultTaxRate")) || 0,
                 })
               }}
               className="space-y-3"
@@ -60,6 +65,27 @@ export default async function ProduitsPage() {
                     <option value="DAY">Jour</option>
                     <option value="MONTH">Mois</option>
                     <option value="YEAR">An</option>
+                    <option value="FLAT">Forfait</option>
+                  </select>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs text-muted-foreground">TVA par défaut</label>
+                  <select name="defaultTaxRate" defaultValue="0" className="flex h-8 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-ring">
+                    <option value="0">0%</option>
+                    <option value="2.1">2,1%</option>
+                    <option value="5.5">5,5%</option>
+                    <option value="8.5">8,5%</option>
+                    <option value="10">10%</option>
+                    <option value="20">20%</option>
+                  </select>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs text-muted-foreground">Facturation</label>
+                  <select name="billingType" defaultValue="ONE_SHOT" className="flex h-8 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-ring">
+                    <option value="ONE_SHOT">Unique</option>
+                    <option value="MONTHLY">Mensuel</option>
+                    <option value="QUARTERLY">Trimestriel</option>
+                    <option value="YEARLY">Annuel</option>
                   </select>
                 </div>
               </div>

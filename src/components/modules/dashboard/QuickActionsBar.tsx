@@ -19,7 +19,7 @@ import { CreateInvoiceDialog } from "@/components/modules/facturation/CreateInvo
 
 type Client = { id: string; name: string; company: string | null; type: string }
 type Project = { id: string; name: string; clientId: string }
-type Product = { id: string; name: string; description: string | null; unitPrice: number; unit: string; isActive: boolean }
+type Product = { id: string; name: string; description: string | null; unitPrice: number; unit: string; isActive: boolean; billingType: string; defaultTaxRate: number }
 
 const UNIT_OPTIONS = [
   { value: "UNIT", label: "Unité" },
@@ -43,6 +43,8 @@ function CreateProductDialog({ userId }: { userId: string }) {
         description: (fd.get("description") as string) || undefined,
         unitPrice: parseFloat(fd.get("unitPrice") as string) || 0,
         unit: (fd.get("unit") as string) || "UNIT",
+        billingType: (fd.get("billingType") as string) || "ONE_SHOT",
+        defaultTaxRate: parseFloat(fd.get("defaultTaxRate") as string) || 0,
       })
       setOpen(false)
       router.push("/facturation/produits")
@@ -90,6 +92,40 @@ function CreateProductDialog({ userId }: { userId: string }) {
                   {UNIT_OPTIONS.map((o) => (
                     <option key={o.value} value={o.value}>{o.label}</option>
                   ))}
+                </select>
+                <ChevronDown className="absolute right-2.5 top-2.5 h-4 w-4 text-muted-foreground pointer-events-none" />
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label>TVA par défaut</Label>
+              <div className="relative">
+                <select
+                  name="defaultTaxRate"
+                  defaultValue="0"
+                  className="flex h-9 w-full appearance-none rounded-md border border-input bg-transparent px-3 pr-8 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+                >
+                  <option value="0">0%</option>
+                  <option value="2.1">2,1%</option>
+                  <option value="5.5">5,5%</option>
+                  <option value="8.5">8,5%</option>
+                  <option value="10">10%</option>
+                  <option value="20">20%</option>
+                </select>
+                <ChevronDown className="absolute right-2.5 top-2.5 h-4 w-4 text-muted-foreground pointer-events-none" />
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Facturation</Label>
+              <div className="relative">
+                <select
+                  name="billingType"
+                  defaultValue="ONE_SHOT"
+                  className="flex h-9 w-full appearance-none rounded-md border border-input bg-transparent px-3 pr-8 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+                >
+                  <option value="ONE_SHOT">Unique</option>
+                  <option value="MONTHLY">Mensuel</option>
+                  <option value="QUARTERLY">Trimestriel</option>
+                  <option value="YEARLY">Annuel</option>
                 </select>
                 <ChevronDown className="absolute right-2.5 top-2.5 h-4 w-4 text-muted-foreground pointer-events-none" />
               </div>

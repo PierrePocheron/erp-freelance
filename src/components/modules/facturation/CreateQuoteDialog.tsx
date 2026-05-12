@@ -24,6 +24,8 @@ type Product = {
   unitPrice: number
   unit: string
   isActive: boolean
+  billingType: string
+  defaultTaxRate: number
 }
 
 type DraftLine = {
@@ -34,6 +36,7 @@ type DraftLine = {
   quantity: number
   unitPrice: number
   taxRate: number
+  billingType: string
 }
 
 type LineFormState = {
@@ -43,6 +46,7 @@ type LineFormState = {
   quantity: string
   unitPrice: string
   taxRate: string
+  billingType: string
 }
 
 const TAX_RATES = [
@@ -72,8 +76,22 @@ const UNIT_LABELS: Record<string, string> = {
   FLAT: "forfait",
 }
 
+const BILLING_TYPE_OPTIONS = [
+  { value: "ONE_SHOT", label: "Unique" },
+  { value: "MONTHLY", label: "Mensuel" },
+  { value: "QUARTERLY", label: "Trimestriel" },
+  { value: "YEARLY", label: "Annuel" },
+]
+
+const BILLING_TYPE_LABELS: Record<string, string> = {
+  ONE_SHOT: "Unique",
+  MONTHLY: "Mensuel",
+  QUARTERLY: "Trimestriel",
+  YEARLY: "Annuel",
+}
+
 function emptyLineForm(): LineFormState {
-  return { productId: "", description: "", detail: "", quantity: "1", unitPrice: "0", taxRate: "20" }
+  return { productId: "", description: "", detail: "", quantity: "1", unitPrice: "0", taxRate: "0", billingType: "ONE_SHOT" }
 }
 
 function fmtEur(n: number) {
@@ -128,6 +146,8 @@ function LineForm({
       description: p.name,
       detail: p.description ?? f.detail,
       unitPrice: String(p.unitPrice),
+      taxRate: String(p.defaultTaxRate),
+      billingType: p.billingType,
     }))
   }
 
@@ -221,6 +241,21 @@ function LineForm({
             <ChevronDown className="absolute right-2 top-2 h-4 w-4 text-muted-foreground pointer-events-none" />
           </div>
         </div>
+        <div className="flex items-center gap-1.5">
+          <label className="text-xs text-muted-foreground shrink-0">Facturation</label>
+          <div className="relative">
+            <select
+              value={form.billingType}
+              onChange={(e) => set("billingType", e.target.value)}
+              className="appearance-none h-8 pr-7 pl-3 text-sm bg-background border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring"
+            >
+              {BILLING_TYPE_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>{o.label}</option>
+              ))}
+            </select>
+            <ChevronDown className="absolute right-2 top-2 h-4 w-4 text-muted-foreground pointer-events-none" />
+          </div>
+        </div>
         <div className="ml-auto text-sm font-medium text-right">
           <span className="text-muted-foreground text-xs mr-1">Sous-total HT</span>
           {fmtEur(subtotal)}
@@ -253,11 +288,13 @@ export function CreateQuoteDialog({
   clients,
   projects,
   products = [],
+  defaultConditions = "",
 }: {
   userId: string
   clients: Client[]
   projects: Project[]
   products?: Product[]
+  defaultConditions?: string
 }) {
   const [open, setOpen] = useState(false)
   const [selectedClientId, setSelectedClientId] = useState("")
@@ -266,7 +303,7 @@ export function CreateQuoteDialog({
   const [editingLocalId, setEditingLocalId] = useState<string | null>(null)
   const [expiresAtDays, setExpiresAtDays] = useState("30")
   const [depositPercent, setDepositPercent] = useState("30")
-  const [generalConditions, setGeneralConditions] = useState("")
+  const [generalConditions, setGeneralConditions] = useState(defaultConditions)
   const [isPending, startTransition] = useTransition()
   const router = useRouter()
 
@@ -281,7 +318,7 @@ export function CreateQuoteDialog({
     setEditingLocalId(null)
     setExpiresAtDays("30")
     setDepositPercent("30")
-    setGeneralConditions("")
+    setGeneralConditions(defaultConditions)
   }
 
   function handleOpenChange(v: boolean) {
@@ -300,6 +337,7 @@ export function CreateQuoteDialog({
         quantity: parseFloat(data.quantity) || 1,
         unitPrice: parseFloat(data.unitPrice) || 0,
         taxRate: parseFloat(data.taxRate) || 0,
+        billingType: data.billingType || "ONE_SHOT",
       },
     ])
     setShowAddForm(false)
@@ -317,6 +355,7 @@ export function CreateQuoteDialog({
               quantity: parseFloat(data.quantity) || 1,
               unitPrice: parseFloat(data.unitPrice) || 0,
               taxRate: parseFloat(data.taxRate) || 0,
+              billingType: data.billingType || "ONE_SHOT",
             }
           : l
       )
@@ -352,6 +391,7 @@ export function CreateQuoteDialog({
           quantity: l.quantity,
           unitPrice: l.unitPrice,
           taxRate: l.taxRate,
+          billingType: l.billingType,
         })),
       })
       setOpen(false)
@@ -430,6 +470,11 @@ export function CreateQuoteDialog({
                   onChange={(e) => setDepositPercent(e.target.value)}
                   className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
                 />
+                {parseFloat(depositPercent) > 0 && totalHT > 0 && (
+                  <p className="text-xs text-muted-foreground">
+                    = <span className="font-medium text-foreground">{fmtEur(totalHT * parseFloat(depositPercent) / 100)}</span>
+                  </p>
+                )}
               </div>
             </div>
 
@@ -460,6 +505,7 @@ export function CreateQuoteDialog({
                             quantity: String(line.quantity),
                             unitPrice: String(line.unitPrice),
                             taxRate: String(line.taxRate),
+                            billingType: line.billingType,
                           }}
                           products={products}
                           onSubmit={(data) => handleUpdateLine(line.localId, data)}
@@ -476,6 +522,11 @@ export function CreateQuoteDialog({
                           <p className="font-medium leading-tight">{line.description}</p>
                           {line.detail && (
                             <p className="text-xs text-muted-foreground mt-0.5">{line.detail}</p>
+                          )}
+                          {line.billingType !== "ONE_SHOT" && (
+                            <span className="text-xs rounded-full px-1.5 py-0.5 bg-blue-500/10 text-blue-600 border border-blue-500/20 mt-0.5 inline-block">
+                              {BILLING_TYPE_LABELS[line.billingType]}
+                            </span>
                           )}
                         </div>
                         <div className="col-span-1 text-right text-muted-foreground">{line.quantity}</div>

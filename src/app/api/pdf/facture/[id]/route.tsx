@@ -37,6 +37,7 @@ export async function GET(
     dueDate: invoice.dueDate,
     sentAt: invoice.sentAt,
     depositDeducted: invoice.depositDeducted,
+    accentColor: profile?.pdfAccentColor,
     emitter: {
       name: invoice.user.name ?? "Freelance",
       email: invoice.user.email,

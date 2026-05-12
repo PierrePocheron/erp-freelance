@@ -41,6 +41,8 @@ export async function createQuoteWithLines(
       quantity: number
       unitPrice: number
       taxRate: number
+      billingType?: string
+      productId?: string
     }>
   }
 ) {
@@ -67,6 +69,8 @@ export async function createQuoteWithLines(
           unitPrice: l.unitPrice,
           taxRate: l.taxRate,
           total: l.quantity * l.unitPrice,
+          billingType: (l.billingType as never) || "ONE_SHOT",
+          productId: l.productId || null,
         })),
       },
     },
@@ -325,6 +329,15 @@ export async function deleteInvoice(invoiceId: string, userId: string) {
   revalidatePath("/facturation")
 }
 
+export async function signQuoteWithFile(quoteId: string, userId: string, fileUrl: string) {
+  await prisma.quote.update({
+    where: { id: quoteId, userId },
+    data: { signedFileUrl: fileUrl, status: "SIGNED" as never },
+  })
+  revalidatePath(`/facturation/devis/${quoteId}`)
+  revalidatePath("/facturation/devis")
+}
+
 // ── Lignes de facture ─────────────────────────────────────────────────────────
 
 async function recalcInvoiceTotal(invoiceId: string) {
@@ -399,7 +412,7 @@ export async function deleteInvoiceLine(lineId: string) {
 
 export async function createProduct(
   userId: string,
-  data: { name: string; description?: string; unitPrice: number; unit?: string }
+  data: { name: string; description?: string; unitPrice: number; unit?: string; billingType?: string; defaultTaxRate?: number }
 ) {
   const product = await prisma.product.create({
     data: {
@@ -407,8 +420,10 @@ export async function createProduct(
       name: data.name,
       description: data.description || null,
       unitPrice: data.unitPrice,
-      unit: (data.unit as never) || "UNIT",
-    },
+      unit: (data.unit || "UNIT") as never,
+      billingType: (data.billingType || "ONE_SHOT") as never,
+      defaultTaxRate: (data.defaultTaxRate ?? 0) as never,
+    } as never,
   })
   revalidatePath("/facturation/produits")
   return product
@@ -417,7 +432,7 @@ export async function createProduct(
 export async function updateProduct(
   productId: string,
   userId: string,
-  data: { name?: string; description?: string | null; unitPrice?: number; unit?: string; isActive?: boolean }
+  data: { name?: string; description?: string | null; unitPrice?: number; unit?: string; isActive?: boolean; billingType?: string; defaultTaxRate?: number }
 ) {
   await prisma.product.update({
     where: { id: productId, userId },
@@ -429,6 +444,110 @@ export async function updateProduct(
 export async function deleteProduct(productId: string, userId: string) {
   await prisma.product.delete({ where: { id: productId, userId } })
   revalidatePath("/facturation/produits")
+}
+
+// ── Récurrentes ───────────────────────────────────────────────────────────────
+
+export async function createRecurringInvoice(
+  userId: string,
+  data: {
+    clientId: string
+    projectId?: string
+    name: string
+    frequency: string
+    nextGenerationDate: string
+  }
+) {
+  const rec = await (prisma as never as { recurringInvoice: { create: (args: unknown) => Promise<{ id: string }> } }).recurringInvoice.create({
+    data: {
+      userId,
+      clientId: data.clientId,
+      projectId: data.projectId || null,
+      name: data.name,
+      frequency: data.frequency,
+      nextGenerationDate: new Date(data.nextGenerationDate),
+      isActive: true,
+    },
+  })
+  revalidatePath("/facturation/recurrentes")
+  return rec
+}
+
+export async function updateRecurringInvoice(
+  id: string,
+  userId: string,
+  data: {
+    name?: string
+    frequency?: string
+    nextGenerationDate?: string
+    isActive?: boolean
+    projectId?: string | null
+  }
+) {
+  await (prisma as never as { recurringInvoice: { update: (args: unknown) => Promise<unknown> } }).recurringInvoice.update({
+    where: { id, userId } as never,
+    data: {
+      ...(data.name !== undefined && { name: data.name }),
+      ...(data.frequency !== undefined && { frequency: data.frequency }),
+      ...(data.nextGenerationDate !== undefined && { nextGenerationDate: new Date(data.nextGenerationDate) }),
+      ...(data.isActive !== undefined && { isActive: data.isActive }),
+      ...(data.projectId !== undefined && { projectId: data.projectId }),
+    },
+  })
+  revalidatePath("/facturation/recurrentes")
+}
+
+export async function deleteRecurringInvoice(id: string, userId: string) {
+  await (prisma as never as { recurringInvoice: { delete: (args: unknown) => Promise<unknown> } }).recurringInvoice.delete({
+    where: { id, userId } as never,
+  })
+  revalidatePath("/facturation/recurrentes")
+}
+
+type RecurringLine = {
+  description: string
+  quantity: number
+  unitPrice: number
+  taxRate: number
+  productId?: string | null
+}
+
+export async function setRecurringInvoiceLines(
+  recurringInvoiceId: string,
+  userId: string,
+  lines: RecurringLine[]
+) {
+  // RecurringInvoiceLine is not in Prisma schema (raw SQL migration) — use $executeRawUnsafe
+  await prisma.$executeRawUnsafe(
+    `DELETE FROM "RecurringInvoiceLine" WHERE "recurringInvoiceId" = $1`,
+    recurringInvoiceId
+  )
+
+  const totalHT = lines.reduce((s, l) => s + l.quantity * l.unitPrice, 0)
+
+  for (const l of lines) {
+    await prisma.$executeRawUnsafe(
+      `INSERT INTO "RecurringInvoiceLine" (id, "recurringInvoiceId", "productId", description, detail, quantity, "unitPrice", "taxRate", total)
+       VALUES (gen_random_uuid()::text, $1, $2, $3, NULL, $4, $5, $6, $7)`,
+      recurringInvoiceId,
+      l.productId || null,
+      l.description,
+      l.quantity,
+      l.unitPrice,
+      l.taxRate,
+      l.quantity * l.unitPrice
+    )
+  }
+
+  // Update totalHT on RecurringInvoice (column added via raw SQL migration)
+  await prisma.$executeRawUnsafe(
+    `UPDATE "RecurringInvoice" SET "totalHT" = $1 WHERE id = $2 AND "userId" = $3`,
+    totalHT,
+    recurringInvoiceId,
+    userId
+  )
+
+  revalidatePath("/facturation/recurrentes")
 }
 
 // ── Email ─────────────────────────────────────────────────────────────────────

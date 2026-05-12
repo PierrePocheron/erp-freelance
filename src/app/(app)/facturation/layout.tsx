@@ -8,6 +8,7 @@ const tabs = [
   { label: "Aperçu", href: "/facturation" },
   { label: "Devis", href: "/facturation/devis" },
   { label: "Factures", href: "/facturation/factures" },
+  { label: "Récurrentes", href: "/facturation/recurrentes" },
   { label: "Produits", href: "/facturation/produits" },
 ]
 

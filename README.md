@@ -1,36 +1,92 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# ERP Freelance
 
-## Getting Started
+ERP personnel pour freelances — devis, facturation, CRM, projets, time tracking et suivi post-livraison dans une seule application.
 
-First, run the development server:
+## Stack
+
+- **Framework** — Next.js 16 (App Router, Server Actions, Turbopack)
+- **UI** — Tailwind CSS v4 + composants Radix / Base UI
+- **Base de données** — PostgreSQL + Prisma 7 (output custom `src/generated/prisma`)
+- **Auth** — NextAuth.js v5 (Google OAuth + PrismaAdapter)
+- **PDF** — @react-pdf/renderer avec styles dynamiques (couleur accent configurable)
+- **Email** — Resend
+- **Fichiers** — Vercel Blob
+- **Langage** — TypeScript strict
+
+## Modules
+
+| Module | Fonctionnalités |
+|---|---|
+| **Dashboard** | Widgets temps réel — tâches du jour, échéances, impayés, alertes renouvellement |
+| **Module client** | Fiche client, pipeline de température, interactions (canal + édition), rappels, projets liés |
+| **Projets** | Kanban tâches, jalons, livrables, time tracking intégré, liens & renouvellements |
+| **Facturation / Devis** | Pipeline complet DRAFT→SIGNED, acomptes, workflow dépôt (WAITING_DEPOSIT→IN_PROGRESS), vue liste/cartes |
+| **Facturation / Factures** | Génération depuis devis, types (acompte/solde/récurrent/standalone), suivi paiement, vue liste/cartes |
+| **Facturation / Récurrentes** | Modèles de facturation avec lignes produits, fréquence, activation/désactivation |
+| **Catalogue produits** | Produits/services réutilisables avec unité, prix, TVA, type de facturation |
+| **Calendrier** | Vue transversale (tâches, factures, jalons, interactions, renouvellements) |
+| **Paramètres** | Profil entreprise, SIRET, IBAN, logo, couleur PDF, conditions générales par défaut |
+
+## Démarrage
 
 ```bash
+# Dépendances
+npm install
+
+# Variables d'environnement
+cp .env.example .env
+# Renseigner DATABASE_URL, AUTH_SECRET, AUTH_GOOGLE_ID, AUTH_GOOGLE_SECRET, BLOB_READ_WRITE_TOKEN, RESEND_API_KEY
+
+# Migrations
+npx prisma migrate deploy
+
+# Seed (optionnel)
+npm run seed
+
+# Dev
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Variables d'environnement
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```env
+DATABASE_URL=
+AUTH_SECRET=
+AUTH_GOOGLE_ID=
+AUTH_GOOGLE_SECRET=
+BLOB_READ_WRITE_TOKEN=
+RESEND_API_KEY=
+NEXT_PUBLIC_APP_URL=
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Architecture
 
-## Learn More
+```
+src/
+├── app/
+│   ├── (app)/          # Pages protégées (layout avec sidebar)
+│   │   ├── page.tsx    # Dashboard
+│   │   ├── crm/        # Module client
+│   │   ├── projets/    # Projets & tasks
+│   │   ├── facturation/# Devis, factures, récurrentes, produits
+│   │   ├── calendrier/
+│   │   └── settings/
+│   ├── api/            # Routes API (PDF, upload, auth)
+│   └── login/
+├── actions/            # Server Actions (crm, facturation, projets…)
+├── components/
+│   ├── modules/        # Composants métier par module
+│   └── ui/             # Composants génériques (Button, Input, Dialog…)
+├── generated/prisma/   # Client Prisma généré (ne pas éditer)
+└── lib/                # auth, prisma, pdf, utils
+```
 
-To learn more about Next.js, take a look at the following resources:
+## Notes Prisma
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Le client Prisma est généré dans `src/generated/prisma/` (output custom). Certains modèles ont été ajoutés via migrations SQL brutes (`RecurringInvoice`, `RecurringInvoiceLine`) sans regénération du client — ils sont accédés via le pattern `(prisma as never as { model: ... }).model`.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Les champs ajoutés manuellement (`pdfAccentColor`, `defaultConditions`, `logoUrl` sur `UserProfile`) nécessitent une mise à jour de `src/generated/prisma/models/UserProfile.ts` après `prisma generate`.
 
-## Deploy on Vercel
+## Licence
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Usage privé.

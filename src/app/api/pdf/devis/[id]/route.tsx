@@ -39,6 +39,7 @@ export async function GET(
     acceptedAt: quote.acceptedAt,
     depositPercent: quote.depositPercent,
     generalConditions: quote.generalConditions,
+    accentColor: profile?.pdfAccentColor,
     emitter: {
       name: quote.user.name ?? "Freelance",
       email: quote.user.email,

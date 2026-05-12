@@ -5,6 +5,7 @@ import Link from "next/link"
 import { ChevronLeft, Download, Send, CheckCircle2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { LineItemsEditor } from "@/components/modules/facturation/LineItemsEditor"
+import { DeleteConfirmButton } from "@/components/modules/facturation/DeleteConfirmButton"
 import { updateInvoiceStatus, deleteInvoice, updateInvoiceDueDate, updateInvoiceNotes, sendInvoiceEmail } from "@/actions/facturation"
 import { redirect } from "next/navigation"
 import { Input } from "@/components/ui/input"
@@ -199,9 +200,16 @@ export default async function FactureDetailPage({
       {/* Danger */}
       {isEditable && (
         <div className="flex justify-end">
-          <form action={async () => { "use server"; await deleteInvoice(id, userId); redirect("/facturation/factures") }}>
-            <Button type="submit" variant="destructive" size="sm">Supprimer cette facture</Button>
-          </form>
+          <DeleteConfirmButton
+            label="Supprimer cette facture"
+            confirmTitle="Supprimer la facture ?"
+            confirmMessage={`La facture ${invoice.number} sera supprimée définitivement. Cette action est irréversible.`}
+            action={async () => {
+              "use server"
+              await deleteInvoice(id, userId)
+              redirect("/facturation/factures")
+            }}
+          />
         </div>
       )}
     </div>

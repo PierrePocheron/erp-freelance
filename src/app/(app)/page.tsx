@@ -98,9 +98,8 @@ export default async function DashboardPage() {
     }),
     prisma.product.findMany({
       where: { userId, isActive: true },
-      select: { id: true, name: true, description: true, unitPrice: true, unit: true, isActive: true },
       orderBy: { name: "asc" },
-    }),
+    }) as unknown as Array<{ id: string; name: string; description: string | null; unitPrice: number; unit: string; isActive: boolean; billingType: string; defaultTaxRate: number }>,
   ])
 
   const totalPending = unpaidInvoices.reduce((s, i) => s + i.totalHT - i.depositDeducted, 0)

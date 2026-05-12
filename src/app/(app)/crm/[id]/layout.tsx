@@ -31,7 +31,7 @@ export default async function ClientLayout({
           href="/crm"
           className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground mb-3"
         >
-          <ChevronLeft className="h-4 w-4" /> CRM
+          <ChevronLeft className="h-4 w-4" /> Clients
         </Link>
 
         <div className="flex items-start justify-between gap-4">

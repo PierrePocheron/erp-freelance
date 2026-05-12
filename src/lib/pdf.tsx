@@ -6,149 +6,152 @@ import {
   StyleSheet,
 } from "@react-pdf/renderer"
 
+const DEFAULT_ACCENT = "#6366f1"
 
-const styles = StyleSheet.create({
-  page: {
-    fontFamily: "Helvetica",
-    fontSize: 10,
-    padding: 40,
-    color: "#1a1a1a",
-    backgroundColor: "#ffffff",
-  },
-  header: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginBottom: 32,
-  },
-  emitterBlock: {
-    flex: 1,
-  },
-  emitterName: {
-    fontSize: 16,
-    fontFamily: "Helvetica-Bold",
-    marginBottom: 4,
-  },
-  recipientBlock: {
-    flex: 1,
-    alignItems: "flex-end",
-  },
-  docTitle: {
-    fontSize: 24,
-    fontFamily: "Helvetica-Bold",
-    color: "#6366f1",
-    marginBottom: 4,
-  },
-  docNumber: {
-    fontSize: 11,
-    color: "#64748b",
-  },
-  divider: {
-    borderBottom: 1,
-    borderColor: "#e2e8f0",
-    marginVertical: 16,
-  },
-  metaRow: {
-    flexDirection: "row",
-    gap: 24,
-    marginBottom: 24,
-  },
-  metaBlock: {
-    flex: 1,
-  },
-  metaLabel: {
-    fontSize: 8,
-    color: "#94a3b8",
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
-    marginBottom: 3,
-  },
-  metaValue: {
-    fontSize: 10,
-  },
-  tableHeader: {
-    flexDirection: "row",
-    backgroundColor: "#f8fafc",
-    padding: "8 10",
-    borderRadius: 4,
-    marginBottom: 2,
-  },
-  tableRow: {
-    flexDirection: "row",
-    padding: "7 10",
-    borderBottom: 1,
-    borderColor: "#f1f5f9",
-  },
-  col5: { flex: 5 },
-  col1h: { flex: 1.5, textAlign: "right" },
-  col2: { flex: 2, textAlign: "right" },
-  col1: { flex: 1, textAlign: "center" },
-  headerText: {
-    fontSize: 8,
-    color: "#64748b",
-    textTransform: "uppercase",
-    letterSpacing: 0.3,
-  },
-  totalSection: {
-    alignItems: "flex-end",
-    marginTop: 16,
-  },
-  totalRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    width: 220,
-    paddingVertical: 3,
-  },
-  totalLabel: {
-    color: "#64748b",
-  },
-  totalValue: {
-    fontFamily: "Helvetica-Bold",
-  },
-  totalNet: {
-    fontSize: 14,
-    fontFamily: "Helvetica-Bold",
-    color: "#6366f1",
-  },
-  tvaNote: {
-    fontSize: 8,
-    color: "#94a3b8",
-    marginTop: 4,
-    textAlign: "right",
-  },
-  conditions: {
-    marginTop: 24,
-    padding: 12,
-    backgroundColor: "#f8fafc",
-    borderRadius: 4,
-  },
-  conditionsLabel: {
-    fontSize: 8,
-    color: "#64748b",
-    marginBottom: 4,
-    textTransform: "uppercase",
-  },
-  notes: {
-    marginTop: 12,
-    padding: 10,
-    backgroundColor: "#fffbeb",
-    borderRadius: 4,
-  },
-  notesLabel: {
-    fontSize: 8,
-    color: "#92400e",
-    marginBottom: 4,
-    textTransform: "uppercase",
-  },
-  footer: {
-    position: "absolute",
-    bottom: 30,
-    left: 40,
-    right: 40,
-    textAlign: "center",
-    fontSize: 8,
-    color: "#94a3b8",
-  },
-})
+function makeStyles(accent: string) {
+  return StyleSheet.create({
+    page: {
+      fontFamily: "Helvetica",
+      fontSize: 10,
+      padding: 40,
+      color: "#1a1a1a",
+      backgroundColor: "#ffffff",
+    },
+    header: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      marginBottom: 32,
+    },
+    emitterBlock: {
+      flex: 1,
+    },
+    emitterName: {
+      fontSize: 16,
+      fontFamily: "Helvetica-Bold",
+      marginBottom: 4,
+    },
+    recipientBlock: {
+      flex: 1,
+      alignItems: "flex-end",
+    },
+    docTitle: {
+      fontSize: 24,
+      fontFamily: "Helvetica-Bold",
+      color: accent,
+      marginBottom: 4,
+    },
+    docNumber: {
+      fontSize: 11,
+      color: "#64748b",
+    },
+    divider: {
+      borderBottom: 1,
+      borderColor: "#e2e8f0",
+      marginVertical: 16,
+    },
+    metaRow: {
+      flexDirection: "row",
+      gap: 24,
+      marginBottom: 24,
+    },
+    metaBlock: {
+      flex: 1,
+    },
+    metaLabel: {
+      fontSize: 8,
+      color: "#94a3b8",
+      textTransform: "uppercase",
+      letterSpacing: 0.5,
+      marginBottom: 3,
+    },
+    metaValue: {
+      fontSize: 10,
+    },
+    tableHeader: {
+      flexDirection: "row",
+      backgroundColor: "#f8fafc",
+      padding: "8 10",
+      borderRadius: 4,
+      marginBottom: 2,
+    },
+    tableRow: {
+      flexDirection: "row",
+      padding: "7 10",
+      borderBottom: 1,
+      borderColor: "#f1f5f9",
+    },
+    col5: { flex: 5 },
+    col1h: { flex: 1.5, textAlign: "right" },
+    col2: { flex: 2, textAlign: "right" },
+    col1: { flex: 1, textAlign: "center" },
+    headerText: {
+      fontSize: 8,
+      color: "#64748b",
+      textTransform: "uppercase",
+      letterSpacing: 0.3,
+    },
+    totalSection: {
+      alignItems: "flex-end",
+      marginTop: 16,
+    },
+    totalRow: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      width: 220,
+      paddingVertical: 3,
+    },
+    totalLabel: {
+      color: "#64748b",
+    },
+    totalValue: {
+      fontFamily: "Helvetica-Bold",
+    },
+    totalNet: {
+      fontSize: 14,
+      fontFamily: "Helvetica-Bold",
+      color: accent,
+    },
+    tvaNote: {
+      fontSize: 8,
+      color: "#94a3b8",
+      marginTop: 4,
+      textAlign: "right",
+    },
+    conditions: {
+      marginTop: 24,
+      padding: 12,
+      backgroundColor: "#f8fafc",
+      borderRadius: 4,
+    },
+    conditionsLabel: {
+      fontSize: 8,
+      color: "#64748b",
+      marginBottom: 4,
+      textTransform: "uppercase",
+    },
+    notes: {
+      marginTop: 12,
+      padding: 10,
+      backgroundColor: "#fffbeb",
+      borderRadius: 4,
+    },
+    notesLabel: {
+      fontSize: 8,
+      color: "#92400e",
+      marginBottom: 4,
+      textTransform: "uppercase",
+    },
+    footer: {
+      position: "absolute",
+      bottom: 30,
+      left: 40,
+      right: 40,
+      textAlign: "center",
+      fontSize: 8,
+      color: "#94a3b8",
+    },
+  })
+}
 
 type Line = {
   description: string
@@ -169,6 +172,7 @@ type DocProps = {
   acceptedAt?: Date | null
   depositPercent?: number
   depositDeducted?: number
+  accentColor?: string | null
   emitter: {
     name: string
     email: string
@@ -211,6 +215,7 @@ export function InvoicePDF({
   dueDate,
   depositPercent,
   depositDeducted,
+  accentColor,
   emitter,
   client,
   lines,
@@ -218,6 +223,8 @@ export function InvoicePDF({
   generalConditions,
   totalHT,
 }: DocProps) {
+  const accent = accentColor || DEFAULT_ACCENT
+  const styles = makeStyles(accent)
   const displayName = emitter.companyName || emitter.name
 
   // Compute TVA breakdown
@@ -342,9 +349,7 @@ export function InvoicePDF({
                   </View>
                 ))}
               <View style={[styles.totalRow, { borderTop: 1, borderColor: "#e2e8f0", paddingTop: 6, marginTop: 2 }]}>
-                <Text style={{ ...styles.totalLabel, fontFamily: "Helvetica-Bold" }}>
-                  {isFacture && (depositDeducted ?? 0) > 0 ? "Total TTC" : "Total TTC"}
-                </Text>
+                <Text style={{ ...styles.totalLabel, fontFamily: "Helvetica-Bold" }}>Total TTC</Text>
                 <Text style={styles.totalNet}>{fmtMoney(totalTTC)}</Text>
               </View>
             </>
@@ -383,8 +388,6 @@ export function InvoicePDF({
             <Text style={{ fontSize: 8.5, color: "#374151", lineHeight: 1.4 }}>{generalConditions}</Text>
           </View>
         )}
-
-        {/* Notes internes → non affichées dans le PDF (uniquement conditions générales) */}
 
         {/* Footer */}
         <Text style={styles.footer}>

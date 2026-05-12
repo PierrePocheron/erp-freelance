@@ -22,6 +22,29 @@ const unitOptions = [
   { value: "FLAT", label: "Forfait" },
 ]
 
+const billingTypeOptions = [
+  { value: "ONE_SHOT", label: "Unique" },
+  { value: "MONTHLY", label: "Mensuel" },
+  { value: "QUARTERLY", label: "Trimestriel" },
+  { value: "YEARLY", label: "Annuel" },
+]
+
+const billingTypeLabels: Record<string, string> = {
+  ONE_SHOT: "Unique",
+  MONTHLY: "Mensuel",
+  QUARTERLY: "Trimestriel",
+  YEARLY: "Annuel",
+}
+
+const TAX_RATES = [
+  { value: "0", label: "0%" },
+  { value: "2.1", label: "2,1%" },
+  { value: "5.5", label: "5,5%" },
+  { value: "8.5", label: "8,5%" },
+  { value: "10", label: "10%" },
+  { value: "20", label: "20%" },
+]
+
 type Product = {
   id: string
   name: string
@@ -29,6 +52,8 @@ type Product = {
   unitPrice: number
   unit: string
   isActive: boolean
+  billingType: string
+  defaultTaxRate: number
 }
 
 export function ProductCard({ product, userId }: { product: Product; userId: string }) {
@@ -39,6 +64,8 @@ export function ProductCard({ product, userId }: { product: Product; userId: str
     description: product.description ?? "",
     unitPrice: String(product.unitPrice),
     unit: product.unit,
+    billingType: product.billingType,
+    defaultTaxRate: String(product.defaultTaxRate),
   })
 
   function set(k: keyof typeof form, v: string) {
@@ -53,6 +80,8 @@ export function ProductCard({ product, userId }: { product: Product; userId: str
         description: form.description.trim() || null,
         unitPrice: parseFloat(form.unitPrice) || 0,
         unit: form.unit,
+        billingType: form.billingType,
+        defaultTaxRate: parseFloat(form.defaultTaxRate) || 0,
       })
       setEditing(false)
     })
@@ -64,6 +93,8 @@ export function ProductCard({ product, userId }: { product: Product; userId: str
       description: product.description ?? "",
       unitPrice: String(product.unitPrice),
       unit: product.unit,
+      billingType: product.billingType,
+      defaultTaxRate: String(product.defaultTaxRate),
     })
     setEditing(false)
   }
@@ -119,6 +150,36 @@ export function ProductCard({ product, userId }: { product: Product; userId: str
                 className="flex h-9 w-full appearance-none rounded-md border border-input bg-background px-3 pr-8 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
               >
                 {unitOptions.map((o) => (
+                  <option key={o.value} value={o.value}>{o.label}</option>
+                ))}
+              </select>
+              <ChevronDown className="absolute right-2 top-2.5 h-4 w-4 text-muted-foreground pointer-events-none" />
+            </div>
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs text-muted-foreground">TVA par défaut</label>
+            <div className="relative">
+              <select
+                value={form.defaultTaxRate}
+                onChange={(e) => set("defaultTaxRate", e.target.value)}
+                className="flex h-9 w-full appearance-none rounded-md border border-input bg-background px-3 pr-8 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+              >
+                {TAX_RATES.map((r) => (
+                  <option key={r.value} value={r.value}>{r.label}</option>
+                ))}
+              </select>
+              <ChevronDown className="absolute right-2 top-2.5 h-4 w-4 text-muted-foreground pointer-events-none" />
+            </div>
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs text-muted-foreground">Facturation</label>
+            <div className="relative">
+              <select
+                value={form.billingType}
+                onChange={(e) => set("billingType", e.target.value)}
+                className="flex h-9 w-full appearance-none rounded-md border border-input bg-background px-3 pr-8 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+              >
+                {billingTypeOptions.map((o) => (
                   <option key={o.value} value={o.value}>{o.label}</option>
                 ))}
               </select>
@@ -183,7 +244,7 @@ export function ProductCard({ product, userId }: { product: Product; userId: str
         </div>
       </div>
 
-      <div className="mt-2">
+      <div className="mt-2 flex items-center gap-2 flex-wrap">
         <button
           onClick={handleToggleActive}
           disabled={isPending}
@@ -195,6 +256,16 @@ export function ProductCard({ product, userId }: { product: Product; userId: str
         >
           {product.isActive ? "Actif" : "Inactif"}
         </button>
+        {product.billingType !== "ONE_SHOT" && (
+          <span className="text-xs rounded-full px-2 py-0.5 bg-blue-500/10 text-blue-600 border border-blue-500/20">
+            {billingTypeLabels[product.billingType] ?? product.billingType}
+          </span>
+        )}
+        {product.defaultTaxRate > 0 && (
+          <span className="text-xs text-muted-foreground">
+            TVA {String(product.defaultTaxRate).replace(".", ",")}%
+          </span>
+        )}
       </div>
     </div>
   )

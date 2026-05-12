@@ -4,41 +4,34 @@ import { notFound } from "next/navigation"
 import Link from "next/link"
 import {
   ChevronLeft, Download, CheckCircle2, XCircle, FileText,
-  Send, ChevronRight, Clock, Check,
+  Send, ChevronRight, Clock, Check, PenLine, ExternalLink,
+  Banknote, Play,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { LineItemsEditor } from "@/components/modules/facturation/LineItemsEditor"
+import { DeleteConfirmButton } from "@/components/modules/facturation/DeleteConfirmButton"
+import { SignedUploadButton } from "@/components/modules/facturation/SignedUploadButton"
 import {
   updateQuoteStatus,
   deleteQuote,
   createInvoiceFromQuote,
   updateQuoteSettings,
+  signQuoteWithFile,
 } from "@/actions/facturation"
 import { redirect } from "next/navigation"
 import { Input } from "@/components/ui/input"
 
-// ── Statuts ───────────────────────────────────────────────────────────────────
-
-const PIPELINE = [
-  { status: "DRAFT", label: "Brouillon" },
-  { status: "VALIDATED", label: "Validé" },
-  { status: "SENT", label: "Envoyé" },
-  { status: "ACCEPTED", label: "Accepté" },
-] as const
-
-const STATUS_INDEX: Record<string, number> = {
-  DRAFT: 0,
-  VALIDATED: 1,
-  SENT: 2,
-  ACCEPTED: 3,
-  REJECTED: -1,
-}
+// ── Status metadata ───────────────────────────────────────────────────────────
 
 const statusBadge: Record<string, string> = {
   DRAFT: "bg-muted text-muted-foreground border-border",
   VALIDATED: "bg-violet-500/15 text-violet-600 border-violet-500/20",
   SENT: "bg-blue-500/15 text-blue-600 border-blue-500/20",
+  WAITING_DEPOSIT: "bg-amber-500/15 text-amber-600 border-amber-500/20",
+  DEPOSIT_RECEIVED: "bg-emerald-500/15 text-emerald-600 border-emerald-500/20",
   ACCEPTED: "bg-emerald-500/15 text-emerald-600 border-emerald-500/20",
+  IN_PROGRESS: "bg-indigo-500/15 text-indigo-600 border-indigo-500/20",
+  SIGNED: "bg-teal-500/15 text-teal-600 border-teal-500/20",
   REJECTED: "bg-red-500/15 text-red-600 border-red-500/20",
 }
 
@@ -46,8 +39,44 @@ const statusLabel: Record<string, string> = {
   DRAFT: "Brouillon",
   VALIDATED: "Validé",
   SENT: "Envoyé",
+  WAITING_DEPOSIT: "Attente acompte",
+  DEPOSIT_RECEIVED: "Acompte reçu",
   ACCEPTED: "Accepté",
+  IN_PROGRESS: "En cours",
+  SIGNED: "Signé",
   REJECTED: "Refusé",
+}
+
+// Pipeline with deposit steps
+const PIPELINE_DEPOSIT = [
+  { status: "DRAFT", label: "Brouillon" },
+  { status: "VALIDATED", label: "Validé" },
+  { status: "SENT", label: "Envoyé" },
+  { status: "WAITING_DEPOSIT", label: "Attente acompte" },
+  { status: "DEPOSIT_RECEIVED", label: "Acompte reçu" },
+  { status: "IN_PROGRESS", label: "En cours" },
+  { status: "SIGNED", label: "Signé" },
+]
+
+// Pipeline without deposit
+const PIPELINE_STANDARD = [
+  { status: "DRAFT", label: "Brouillon" },
+  { status: "VALIDATED", label: "Validé" },
+  { status: "SENT", label: "Envoyé" },
+  { status: "ACCEPTED", label: "Accepté" },
+  { status: "IN_PROGRESS", label: "En cours" },
+  { status: "SIGNED", label: "Signé" },
+]
+
+const STATUS_INDEX_DEPOSIT: Record<string, number> = {
+  DRAFT: 0, VALIDATED: 1, SENT: 2,
+  WAITING_DEPOSIT: 3, DEPOSIT_RECEIVED: 4, IN_PROGRESS: 5, SIGNED: 6,
+  REJECTED: -1,
+}
+
+const STATUS_INDEX_STANDARD: Record<string, number> = {
+  DRAFT: 0, VALIDATED: 1, SENT: 2, ACCEPTED: 3, IN_PROGRESS: 4, SIGNED: 5,
+  REJECTED: -1,
 }
 
 // ── Page ──────────────────────────────────────────────────────────────────────
@@ -73,16 +102,22 @@ export default async function DevisDetailPage({
 
   if (!quote) notFound()
 
+  const hasDeposit = quote.depositPercent > 0
+  const PIPELINE = hasDeposit ? PIPELINE_DEPOSIT : PIPELINE_STANDARD
+  const STATUS_INDEX = hasDeposit ? STATUS_INDEX_DEPOSIT : STATUS_INDEX_STANDARD
+
   const currentIdx = STATUS_INDEX[quote.status] ?? 0
   const isEditable = quote.status === "DRAFT"
   const isRejected = quote.status === "REJECTED"
   const depositAmount = quote.totalHT * (quote.depositPercent / 100)
 
-  // Compute TTC server-side for display
   const linesWithTax = quote.lines
   const totalHT = linesWithTax.reduce((s, l) => s + l.total, 0)
   const totalTVA = linesWithTax.reduce((s, l) => s + l.total * (l.taxRate / 100), 0)
   const totalTTC = totalHT + totalTVA
+
+  const hasDepositInvoice = quote.invoices.some((i) => i.type === "DEPOSIT")
+  const hasFinalInvoice = quote.invoices.some((i) => i.type === "FINAL")
 
   return (
     <div className="max-w-4xl space-y-6">
@@ -113,7 +148,6 @@ export default async function DevisDetailPage({
           </p>
         </div>
 
-        {/* Download PDF */}
         <a
           href={`/api/pdf/devis/${id}`}
           target="_blank"
@@ -124,7 +158,7 @@ export default async function DevisDetailPage({
         </a>
       </div>
 
-      {/* Pipeline de statuts */}
+      {/* Pipeline */}
       {!isRejected ? (
         <div className="rounded-xl border border-border/50 bg-card p-4">
           <div className="flex items-center gap-1 flex-wrap">
@@ -152,8 +186,9 @@ export default async function DevisDetailPage({
             })}
           </div>
 
-          {/* Actions selon le statut */}
+          {/* Actions */}
           <div className="mt-4 flex flex-wrap gap-2">
+
             {quote.status === "DRAFT" && (
               <form action={async () => {
                 "use server"
@@ -180,15 +215,27 @@ export default async function DevisDetailPage({
 
             {quote.status === "SENT" && (
               <>
-                <form action={async () => {
-                  "use server"
-                  await updateQuoteStatus(id, userId, "ACCEPTED")
-                }}>
-                  <Button type="submit" size="sm" className="bg-emerald-500 hover:bg-emerald-600 text-white border-none">
-                    <CheckCircle2 className="h-3.5 w-3.5" />
-                    Accepté par le client
-                  </Button>
-                </form>
+                {hasDeposit ? (
+                  <form action={async () => {
+                    "use server"
+                    await updateQuoteStatus(id, userId, "WAITING_DEPOSIT")
+                  }}>
+                    <Button type="submit" size="sm" className="bg-amber-500 hover:bg-amber-600 text-white border-none">
+                      <Banknote className="h-3.5 w-3.5" />
+                      En attente d&apos;acompte
+                    </Button>
+                  </form>
+                ) : (
+                  <form action={async () => {
+                    "use server"
+                    await updateQuoteStatus(id, userId, "ACCEPTED")
+                  }}>
+                    <Button type="submit" size="sm" className="bg-emerald-500 hover:bg-emerald-600 text-white border-none">
+                      <CheckCircle2 className="h-3.5 w-3.5" />
+                      Accepté par le client
+                    </Button>
+                  </form>
+                )}
                 <form action={async () => {
                   "use server"
                   await updateQuoteStatus(id, userId, "REJECTED")
@@ -201,9 +248,35 @@ export default async function DevisDetailPage({
               </>
             )}
 
-            {quote.status === "ACCEPTED" && (
-              <div className="flex flex-wrap gap-2">
-                {quote.depositPercent > 0 && !quote.invoices.some((i) => i.type === "DEPOSIT") && (
+            {quote.status === "WAITING_DEPOSIT" && (
+              <>
+                {!hasDepositInvoice && (
+                  <form action={async () => {
+                    "use server"
+                    const inv = await createInvoiceFromQuote(id, userId, "DEPOSIT")
+                    redirect(`/facturation/factures/${inv.id}`)
+                  }}>
+                    <Button type="submit" size="sm" variant="outline">
+                      <FileText className="h-3.5 w-3.5" />
+                      Générer facture acompte ({quote.depositPercent}%)
+                    </Button>
+                  </form>
+                )}
+                <form action={async () => {
+                  "use server"
+                  await updateQuoteStatus(id, userId, "DEPOSIT_RECEIVED")
+                }}>
+                  <Button type="submit" size="sm" className="bg-emerald-500 hover:bg-emerald-600 text-white border-none">
+                    <CheckCircle2 className="h-3.5 w-3.5" />
+                    Acompte reçu
+                  </Button>
+                </form>
+              </>
+            )}
+
+            {quote.status === "DEPOSIT_RECEIVED" && (
+              <>
+                {!hasDepositInvoice && (
                   <form action={async () => {
                     "use server"
                     const inv = await createInvoiceFromQuote(id, userId, "DEPOSIT")
@@ -215,7 +288,45 @@ export default async function DevisDetailPage({
                     </Button>
                   </form>
                 )}
-                {!quote.invoices.some((i) => i.type === "FINAL") && (
+                <form action={async () => {
+                  "use server"
+                  await updateQuoteStatus(id, userId, "IN_PROGRESS")
+                }}>
+                  <Button type="submit" size="sm" className="bg-indigo-500 hover:bg-indigo-600 text-white border-none">
+                    <Play className="h-3.5 w-3.5" />
+                    Démarrer le développement
+                  </Button>
+                </form>
+              </>
+            )}
+
+            {quote.status === "ACCEPTED" && (
+              <form action={async () => {
+                "use server"
+                await updateQuoteStatus(id, userId, "IN_PROGRESS")
+              }}>
+                <Button type="submit" size="sm" className="bg-indigo-500 hover:bg-indigo-600 text-white border-none">
+                  <Play className="h-3.5 w-3.5" />
+                  Démarrer le développement
+                </Button>
+              </form>
+            )}
+
+            {(quote.status === "IN_PROGRESS" || quote.status === "SIGNED") && (
+              <div className="flex flex-wrap gap-2">
+                {hasDeposit && !hasDepositInvoice && (
+                  <form action={async () => {
+                    "use server"
+                    const inv = await createInvoiceFromQuote(id, userId, "DEPOSIT")
+                    redirect(`/facturation/factures/${inv.id}`)
+                  }}>
+                    <Button type="submit" size="sm" variant="outline">
+                      <FileText className="h-3.5 w-3.5" />
+                      Facture acompte ({quote.depositPercent}%)
+                    </Button>
+                  </form>
+                )}
+                {!hasFinalInvoice && (
                   <form action={async () => {
                     "use server"
                     const inv = await createInvoiceFromQuote(id, userId, "FINAL")
@@ -241,6 +352,44 @@ export default async function DevisDetailPage({
         </div>
       )}
 
+      {/* Upload devis signé */}
+      {(quote.status === "IN_PROGRESS" || quote.status === "ACCEPTED") && !quote.signedFileUrl && (
+        <div className="rounded-xl border border-border/50 bg-card p-5 space-y-3">
+          <div>
+            <h2 className="font-semibold text-sm flex items-center gap-2">
+              <PenLine className="h-4 w-4 text-teal-500" />
+              Devis signé par le client
+            </h2>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Uploadez le bon pour accord signé — le devis passera au statut "Signé"
+            </p>
+          </div>
+          <SignedUploadButton
+            action={async (fileUrl: string) => {
+              "use server"
+              await signQuoteWithFile(id, userId, fileUrl)
+            }}
+          />
+        </div>
+      )}
+
+      {quote.status === "SIGNED" && quote.signedFileUrl && (
+        <div className="rounded-xl border border-teal-500/30 bg-teal-500/5 p-4 flex items-center gap-3">
+          <Check className="h-5 w-5 text-teal-500 shrink-0" />
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-teal-700">Devis signé</p>
+            <a
+              href={quote.signedFileUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs text-teal-600 hover:text-teal-700 flex items-center gap-1 mt-0.5"
+            >
+              Voir le document signé <ExternalLink className="h-3 w-3" />
+            </a>
+          </div>
+        </div>
+      )}
+
       {/* Lignes de prestation */}
       <div className="rounded-xl border border-border/50 bg-card overflow-hidden">
         <div className="px-4 py-3 border-b border-border flex items-center justify-between">
@@ -259,7 +408,7 @@ export default async function DevisDetailPage({
         />
       </div>
 
-      {/* Résumé financier (si TVA) */}
+      {/* Résumé financier */}
       {totalTVA > 0 && (
         <div className="rounded-xl border border-border/50 bg-card p-4">
           <h2 className="font-semibold text-sm mb-3">Récapitulatif</h2>
@@ -322,7 +471,7 @@ export default async function DevisDetailPage({
               <Input name="depositPercent" type="number" min="0" max="100" defaultValue={quote.depositPercent} className="h-8 w-full" />
             </div>
             <div className="space-y-1">
-              <label className="text-xs text-muted-foreground">Date d'expiration</label>
+              <label className="text-xs text-muted-foreground">Date d&apos;expiration</label>
               <Input
                 name="expiresAt"
                 type="date"
@@ -364,7 +513,7 @@ export default async function DevisDetailPage({
             name="generalConditions"
             rows={5}
             defaultValue={quote.generalConditions ?? ""}
-            placeholder="Ex : Paiement à 30 jours. En cas de retard, une pénalité de 1,5% par mois sera appliquée. Tout litige relève de la compétence du tribunal de commerce de Paris..."
+            placeholder="Ex : Paiement à 30 jours. En cas de retard, une pénalité de 1,5% par mois sera appliquée..."
             className="flex w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring resize-none"
           />
           <Button type="submit" size="sm" variant="outline">Enregistrer les conditions</Button>
@@ -374,13 +523,16 @@ export default async function DevisDetailPage({
       {/* Danger */}
       {isEditable && (
         <div className="flex justify-end">
-          <form action={async () => {
-            "use server"
-            await deleteQuote(id, userId)
-            redirect("/facturation/devis")
-          }}>
-            <Button type="submit" variant="destructive" size="sm">Supprimer ce devis</Button>
-          </form>
+          <DeleteConfirmButton
+            label="Supprimer ce devis"
+            confirmTitle="Supprimer le devis ?"
+            confirmMessage={`Le devis ${quote.number} sera supprimé définitivement. Cette action est irréversible.`}
+            action={async () => {
+              "use server"
+              await deleteQuote(id, userId)
+              redirect("/facturation/devis")
+            }}
+          />
         </div>
       )}
     </div>

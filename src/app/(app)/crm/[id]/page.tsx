@@ -175,6 +175,21 @@ export default async function ClientOverviewPage({
           </div>
         </div>
 
+        {/* Projets */}
+        {client.projects.length > 0 && (
+          <div className="rounded-xl border border-border/50 bg-card p-5 space-y-3">
+            <h2 className="font-semibold text-sm">Projets</h2>
+            <div className="space-y-1.5">
+              {client.projects.map((p) => (
+                <a key={p.id} href={`/projets/${p.id}`} className="flex items-center gap-2 text-sm hover:text-primary transition-colors">
+                  <span className={`h-1.5 w-1.5 rounded-full shrink-0 ${p.status === "ACTIVE" ? "bg-emerald-500" : p.status === "PAUSED" ? "bg-amber-500" : "bg-muted-foreground"}`} />
+                  {p.name}
+                </a>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Rappels en attente */}
         {client.reminders.length > 0 && (
           <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-5 space-y-3">
@@ -204,21 +219,6 @@ export default async function ClientOverviewPage({
                   </p>
                   <p className="text-sm line-clamp-2">{i.summary}</p>
                 </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Projets */}
-        {client.projects.length > 0 && (
-          <div className="rounded-xl border border-border/50 bg-card p-5 space-y-3">
-            <h2 className="font-semibold text-sm">Projets</h2>
-            <div className="space-y-1.5">
-              {client.projects.map((p) => (
-                <a key={p.id} href={`/projets/${p.id}`} className="flex items-center gap-2 text-sm hover:text-primary transition-colors">
-                  <span className={`h-1.5 w-1.5 rounded-full shrink-0 ${p.status === "ACTIVE" ? "bg-emerald-500" : p.status === "PAUSED" ? "bg-amber-500" : "bg-muted-foreground"}`} />
-                  {p.name}
-                </a>
               ))}
             </div>
           </div>

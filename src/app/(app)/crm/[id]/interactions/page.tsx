@@ -1,10 +1,11 @@
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { notFound } from "next/navigation"
-import { addInteraction, deleteInteraction } from "@/actions/crm"
+import { addInteraction } from "@/actions/crm"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Trash2, Mail, Phone, Users, MessageSquare, Coffee, MoreHorizontal } from "lucide-react"
+import { InteractionsList } from "@/components/modules/crm/InteractionsList"
+import { Mail, Phone, Users, MessageSquare, Coffee, MoreHorizontal } from "lucide-react"
 
 const channels = [
   { value: "EMAIL", label: "Email", icon: Mail },
@@ -14,8 +15,6 @@ const channels = [
   { value: "SMS", label: "SMS", icon: MessageSquare },
   { value: "OTHER", label: "Autre", icon: MoreHorizontal },
 ]
-
-const channelMap = Object.fromEntries(channels.map((c) => [c.value, c]))
 
 export default async function ClientInteractionsPage({
   params,
@@ -95,47 +94,7 @@ export default async function ClientInteractionsPage({
 
       {/* Timeline */}
       <div className="lg:col-span-2">
-        {client.interactions.length === 0 ? (
-          <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border py-16 text-center">
-            <MessageSquare className="h-8 w-8 text-muted-foreground mb-2" />
-            <p className="text-sm text-muted-foreground">Aucune interaction enregistrée</p>
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {client.interactions.map((interaction) => {
-              const ch = channelMap[interaction.channel]
-              const Icon = ch?.icon ?? MoreHorizontal
-              return (
-                <div key={interaction.id} className="group rounded-xl border border-border/50 bg-card p-4 space-y-2">
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-2">
-                      <span className="flex h-7 w-7 items-center justify-center rounded-full bg-muted">
-                        <Icon className="h-3.5 w-3.5 text-muted-foreground" />
-                      </span>
-                      <span className="text-sm font-medium">{ch?.label ?? interaction.channel}</span>
-                      <span className="text-xs text-muted-foreground">
-                        {new Date(interaction.date).toLocaleDateString("fr-FR", {
-                          weekday: "short", day: "numeric", month: "long", year: "numeric",
-                        })}
-                      </span>
-                    </div>
-                    <form action={async () => { "use server"; await deleteInteraction(interaction.id, id) }}>
-                      <button type="submit" className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive transition-opacity">
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </button>
-                    </form>
-                  </div>
-                  <p className="text-sm pl-9">{interaction.summary}</p>
-                  {interaction.response && (
-                    <div className="pl-9 text-xs text-muted-foreground border-l-2 border-border ml-9 pl-2">
-                      <span className="font-medium">Suite : </span>{interaction.response}
-                    </div>
-                  )}
-                </div>
-              )
-            })}
-          </div>
-        )}
+        <InteractionsList clientId={id} interactions={client.interactions} />
       </div>
     </div>
   )

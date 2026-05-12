@@ -17,6 +17,9 @@ export type ProfileData = {
   bic?: string | null
   quotePrefix?: string
   invoicePrefix?: string
+  pdfAccentColor?: string
+  defaultConditions?: string | null
+  logoUrl?: string | null
 }
 
 export async function saveProfile(userId: string, data: ProfileData) {
@@ -36,7 +39,10 @@ export async function saveProfile(userId: string, data: ProfileData) {
       bic: data.bic,
       quotePrefix: data.quotePrefix ?? "DEV",
       invoicePrefix: data.invoicePrefix ?? "FAC",
-    },
+      ...(data.pdfAccentColor !== undefined && { pdfAccentColor: data.pdfAccentColor }),
+      ...(data.defaultConditions !== undefined && { defaultConditions: data.defaultConditions }),
+      ...(data.logoUrl !== undefined && { logoUrl: data.logoUrl }),
+    } as never,
     update: {
       companyName: data.companyName,
       siret: data.siret,
@@ -50,7 +56,10 @@ export async function saveProfile(userId: string, data: ProfileData) {
       bic: data.bic,
       quotePrefix: data.quotePrefix,
       invoicePrefix: data.invoicePrefix,
-    },
+      ...(data.pdfAccentColor !== undefined && { pdfAccentColor: data.pdfAccentColor }),
+      ...(data.defaultConditions !== undefined && { defaultConditions: data.defaultConditions }),
+      ...(data.logoUrl !== undefined && { logoUrl: data.logoUrl }),
+    } as never,
   })
   revalidatePath("/settings")
 }

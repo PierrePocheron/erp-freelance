@@ -128,6 +128,23 @@ export async function addInteraction(
   revalidatePath("/crm")
 }
 
+export async function updateInteraction(
+  interactionId: string,
+  clientId: string,
+  data: { date: string; channel: string; summary: string; response?: string | null }
+) {
+  await prisma.interaction.update({
+    where: { id: interactionId },
+    data: {
+      date: new Date(data.date),
+      channel: data.channel as any,
+      summary: data.summary,
+      response: data.response || null,
+    },
+  })
+  revalidatePath(`/crm/${clientId}`)
+}
+
 export async function deleteInteraction(interactionId: string, clientId: string) {
   await prisma.interaction.delete({ where: { id: interactionId } })
   revalidatePath(`/crm/${clientId}`)

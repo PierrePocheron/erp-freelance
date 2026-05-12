@@ -1,7 +1,40 @@
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { notFound } from "next/navigation"
-import { Calendar, Clock, CheckSquare, BookOpen } from "lucide-react"
+import Link from "next/link"
+import { Calendar, Clock, CheckSquare, BookOpen, Link2, ExternalLink, FileText, Receipt } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { createJournalEntry } from "@/actions/projet"
+import { LINK_CATEGORY_CONFIG } from "@/lib/link-categories"
+
+const quoteStatusLabel: Record<string, string> = {
+  DRAFT: "Brouillon", VALIDATED: "Validé", SENT: "Envoyé",
+  WAITING_DEPOSIT: "Attente acompte", DEPOSIT_RECEIVED: "Acompte reçu",
+  ACCEPTED: "Accepté", IN_PROGRESS: "En cours", SIGNED: "Signé", REJECTED: "Refusé",
+}
+const quoteStatusCls: Record<string, string> = {
+  DRAFT: "bg-muted text-muted-foreground",
+  VALIDATED: "bg-violet-500/15 text-violet-600",
+  SENT: "bg-blue-500/15 text-blue-600",
+  WAITING_DEPOSIT: "bg-amber-500/15 text-amber-600",
+  DEPOSIT_RECEIVED: "bg-emerald-500/15 text-emerald-600",
+  ACCEPTED: "bg-emerald-500/15 text-emerald-600",
+  IN_PROGRESS: "bg-indigo-500/15 text-indigo-600",
+  SIGNED: "bg-teal-500/15 text-teal-600",
+  REJECTED: "bg-red-500/15 text-red-600",
+}
+const invoiceStatusLabel: Record<string, string> = {
+  DRAFT: "Brouillon", SENT: "Envoyée", PAID: "Payée", LATE: "En retard",
+}
+const invoiceStatusCls: Record<string, string> = {
+  DRAFT: "bg-muted text-muted-foreground",
+  SENT: "bg-blue-500/15 text-blue-600",
+  PAID: "bg-emerald-500/15 text-emerald-600",
+  LATE: "bg-red-500/15 text-red-600",
+}
+const invoiceTypeLabel: Record<string, string> = {
+  DEPOSIT: "Acompte", FINAL: "Solde", RECURRING: "Récurrent", STANDALONE: "Standard",
+}
 
 export default async function ProjectOverviewPage({
   params,
@@ -10,14 +43,24 @@ export default async function ProjectOverviewPage({
 }) {
   const { id } = await params
   const session = await auth()
+  const userId = session!.user.id
 
   const project = await prisma.project.findFirst({
-    where: { id, userId: session!.user.id },
+    where: { id, userId },
     include: {
       tasks: { where: { parentTaskId: null }, select: { status: true } },
       milestones: { orderBy: { date: "asc" } },
       deliverables: true,
-      journalEntries: { orderBy: { createdAt: "desc" }, take: 3 },
+      journalEntries: { orderBy: { createdAt: "desc" }, take: 8 },
+      usefulLinks: { orderBy: { createdAt: "asc" } },
+      quotes: {
+        select: { id: true, number: true, status: true, totalHT: true, createdAt: true },
+        orderBy: { createdAt: "desc" },
+      },
+      invoices: {
+        select: { id: true, number: true, status: true, type: true, totalHT: true, depositDeducted: true, dueDate: true },
+        orderBy: { createdAt: "desc" },
+      },
     },
   })
 
@@ -31,8 +74,11 @@ export default async function ProjectOverviewPage({
     .filter((m) => m.status !== "DONE")
     .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())[0]
 
+  const hasBilling = project.quotes.length > 0 || project.invoices.length > 0
+
   return (
     <div className="space-y-6">
+
       {/* Bento stats */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <div className="rounded-xl border border-border/50 bg-card p-4 space-y-1">
@@ -62,9 +108,7 @@ export default async function ProjectOverviewPage({
             <>
               <p className="text-sm font-semibold leading-tight">{nextMilestone.name}</p>
               <p className="text-xs text-muted-foreground">
-                {new Date(nextMilestone.date).toLocaleDateString("fr-FR", {
-                  day: "numeric", month: "short",
-                })}
+                {new Date(nextMilestone.date).toLocaleDateString("fr-FR", { day: "numeric", month: "short" })}
               </p>
             </>
           ) : (
@@ -85,24 +129,151 @@ export default async function ProjectOverviewPage({
         </div>
       </div>
 
-      {/* Journal récent */}
-      {project.journalEntries.length > 0 && (
-        <div className="rounded-xl border border-border/50 bg-card p-5 space-y-3">
-          <h2 className="text-sm font-semibold">Journal récent</h2>
-          <div className="space-y-3">
-            {project.journalEntries.map((entry) => (
-              <div key={entry.id} className="border-l-2 border-border pl-3">
-                <p className="text-xs text-muted-foreground mb-0.5">
-                  {new Date(entry.createdAt).toLocaleDateString("fr-FR", {
-                    day: "numeric", month: "short", hour: "2-digit", minute: "2-digit",
-                  })}
-                </p>
-                <p className="text-sm">{entry.content}</p>
-              </div>
-            ))}
+      {/* Liens rapides — raccourcis */}
+      {project.usefulLinks.length > 0 && (
+        <div className="rounded-xl border border-border/50 bg-card p-4">
+          <div className="flex items-center gap-2 mb-3">
+            <Link2 className="h-3.5 w-3.5 text-muted-foreground" />
+            <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Liens rapides</span>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {project.usefulLinks.map((l) => {
+              const cat = LINK_CATEGORY_CONFIG[l.category] ?? LINK_CATEGORY_CONFIG.OTHER
+              return (
+                <a
+                  key={l.id}
+                  href={l.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-opacity hover:opacity-80 ${cat.cls}`}
+                >
+                  <span className={`h-1.5 w-1.5 rounded-full shrink-0 ${cat.dot}`} />
+                  {l.label}
+                  <ExternalLink className="h-2.5 w-2.5 opacity-60" />
+                </a>
+              )
+            })}
           </div>
         </div>
       )}
+
+      {/* Contenu principal : 2 colonnes */}
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+
+        {/* Colonne gauche : Notes rapides */}
+        <div className="lg:col-span-2 space-y-6">
+
+          {/* Notes rapides */}
+          <div className="rounded-xl border border-border/50 bg-card p-5 space-y-4">
+            <div className="flex items-center gap-2">
+              <BookOpen className="h-4 w-4 text-muted-foreground" />
+              <h2 className="font-semibold">Notes rapides</h2>
+            </div>
+
+            <form
+              action={async (fd: FormData) => {
+                "use server"
+                await createJournalEntry(id, fd)
+              }}
+              className="flex gap-2"
+            >
+              <textarea
+                name="content"
+                rows={2}
+                placeholder="Note, décision, retour client…"
+                required
+                className="flex-1 rounded-md border border-input bg-transparent px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring resize-none"
+              />
+              <Button type="submit" size="sm" variant="outline" className="self-end shrink-0">
+                Ajouter
+              </Button>
+            </form>
+
+            {project.journalEntries.length === 0 ? (
+              <p className="text-xs text-muted-foreground italic">Aucune note pour l&apos;instant</p>
+            ) : (
+              <div className="space-y-2.5 max-h-72 overflow-y-auto pr-1">
+                {project.journalEntries.map((entry) => (
+                  <div key={entry.id} className="flex gap-3 group">
+                    <div className="mt-1.5 h-1.5 w-1.5 rounded-full bg-border shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs text-muted-foreground mb-0.5">
+                        {new Date(entry.createdAt).toLocaleDateString("fr-FR", {
+                          day: "numeric", month: "short", hour: "2-digit", minute: "2-digit",
+                        })}
+                      </p>
+                      <p className="text-sm whitespace-pre-line">{entry.content}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Colonne droite : Facturation */}
+        <div className="space-y-6">
+          {hasBilling ? (
+            <div className="rounded-xl border border-border/50 bg-card p-5 space-y-4">
+              <h2 className="font-semibold text-sm">Facturation</h2>
+
+              {project.quotes.length > 0 && (
+                <div className="space-y-1.5">
+                  <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide flex items-center gap-1">
+                    <FileText className="h-3 w-3" /> Devis
+                  </p>
+                  {project.quotes.map((q) => (
+                    <Link
+                      key={q.id}
+                      href={`/facturation/devis/${q.id}`}
+                      className="flex items-center gap-2 text-sm hover:text-primary transition-colors py-0.5"
+                    >
+                      <span className="font-mono text-xs text-muted-foreground">{q.number}</span>
+                      <span className={`rounded-full px-1.5 py-0.5 text-xs font-medium ${quoteStatusCls[q.status] ?? ""}`}>
+                        {quoteStatusLabel[q.status] ?? q.status}
+                      </span>
+                      <span className="ml-auto text-xs font-medium tabular-nums">{q.totalHT.toLocaleString("fr-FR")} €</span>
+                    </Link>
+                  ))}
+                </div>
+              )}
+
+              {project.invoices.length > 0 && (
+                <div className="space-y-1.5">
+                  <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide flex items-center gap-1">
+                    <Receipt className="h-3 w-3" /> Factures
+                  </p>
+                  {project.invoices.map((inv) => {
+                    const amount = inv.totalHT - inv.depositDeducted
+                    const isLate = inv.dueDate && inv.status === "SENT" && new Date(inv.dueDate) < new Date()
+                    return (
+                      <Link
+                        key={inv.id}
+                        href={`/facturation/factures/${inv.id}`}
+                        className="flex items-center gap-2 text-sm hover:text-primary transition-colors py-0.5"
+                      >
+                        <span className="font-mono text-xs text-muted-foreground">{inv.number}</span>
+                        <span className="text-xs text-muted-foreground">{invoiceTypeLabel[inv.type] ?? inv.type}</span>
+                        <span className={`rounded-full px-1.5 py-0.5 text-xs font-medium ${invoiceStatusCls[inv.status] ?? ""}`}>
+                          {invoiceStatusLabel[inv.status] ?? inv.status}
+                        </span>
+                        <span className={`ml-auto text-xs font-medium tabular-nums ${isLate ? "text-red-500" : ""}`}>
+                          {amount.toLocaleString("fr-FR")} €
+                        </span>
+                      </Link>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="rounded-xl border border-dashed border-border/50 p-5 text-center space-y-1">
+              <Receipt className="h-6 w-6 text-muted-foreground mx-auto" />
+              <p className="text-xs text-muted-foreground">Aucune facturation liée à ce projet</p>
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   )
 }

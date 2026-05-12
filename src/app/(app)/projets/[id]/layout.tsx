@@ -8,6 +8,7 @@ import { ProjectTabs } from "@/components/modules/projet/ProjectTabs"
 import { ProjectDateBadge } from "@/components/modules/projet/ProjectDateBadge"
 import { ProjectNameEdit, ProjectDescriptionEdit, ProjectHoursEdit } from "@/components/modules/projet/ProjectInlineEdit"
 import { TagSelector } from "@/components/modules/projet/TagSelector"
+import { ProjectDeleteButton } from "@/components/modules/projet/ProjectDeleteButton"
 
 const statusConfig = {
   ACTIVE:    { label: "Actif",    className: "bg-emerald-500/15 text-emerald-600 border-emerald-500/20" },
@@ -96,6 +97,10 @@ export default async function ProjectLayout({
       <ProjectTabs projectId={id} />
 
       {children}
+
+      <div className="pt-4 border-t border-border/50 flex justify-end">
+        <ProjectDeleteButton projectId={id} userId={userId} projectName={project.name} />
+      </div>
     </div>
   )
 }

@@ -39,8 +39,8 @@ export async function updateProjectStatus(
   revalidatePath(`/projets/${projectId}`)
 }
 
-export async function deleteProject(projectId: string) {
-  await prisma.project.delete({ where: { id: projectId } })
+export async function deleteProject(projectId: string, userId: string) {
+  await prisma.project.delete({ where: { id: projectId, userId } })
   revalidatePath("/projets")
 }
 

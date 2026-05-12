@@ -5,7 +5,7 @@ import {
   CheckCircle2, Circle, PlayCircle, Loader2, Trash2,
   ChevronUp, ChevronDown, ChevronRight, Flag, Plus, Pencil,
 } from "lucide-react"
-import { startTask, completeTask, reopenTask, deleteTask, updateTaskPriority, reorderTask, updateTaskTitle } from "@/actions/projet"
+import { startTask, completeTask, reopenTask, deleteTask, updateTaskPriority, reorderTask, updateTaskTitle, updateTaskDueDate } from "@/actions/projet"
 import { AddTaskForm } from "./AddTaskForm"
 import { TimeTracker } from "./TimeTracker"
 import { cn } from "@/lib/utils"
@@ -57,7 +57,9 @@ export function TaskItem({
   const [showSubs, setShowSubs] = useState(task.subTasks.length > 0)
   const [showPriorityMenu, setShowPriorityMenu] = useState(false)
   const [editingTitle, setEditingTitle] = useState(false)
+  const [editingDate, setEditingDate] = useState(false)
   const titleRef = useRef<HTMLInputElement>(null)
+  const dateRef = useRef<HTMLInputElement>(null)
   const p = priorityConfig[task.priority]
 
   function saveTitle() {
@@ -66,6 +68,15 @@ export function TaskItem({
       startTransition(() => updateTaskTitle(task.id, projectId, val))
     }
     setEditingTitle(false)
+  }
+
+  function saveDate() {
+    const val = dateRef.current?.value || null
+    const current = task.dueDate ? new Date(task.dueDate).toISOString().split("T")[0] : null
+    if (val !== current) {
+      startTransition(() => updateTaskDueDate(task.id, projectId, val))
+    }
+    setEditingDate(false)
   }
 
   const fmt = (d: Date | null) =>
@@ -148,10 +159,31 @@ export function TaskItem({
           {task.status === "DONE" && task.completedAt && (
             <span className="text-emerald-600">Terminé {fmt(task.completedAt)}</span>
           )}
-          {task.dueDate && task.status !== "DONE" && (
-            <span className={cn(new Date(task.dueDate) < new Date() ? "text-red-500 font-medium" : "")}>
-              ⏱ {fmt(task.dueDate)}
-            </span>
+          {task.status !== "DONE" && (
+            editingDate ? (
+              <input
+                ref={dateRef}
+                type="date"
+                defaultValue={task.dueDate ? new Date(task.dueDate).toISOString().split("T")[0] : ""}
+                autoFocus
+                onBlur={saveDate}
+                onKeyDown={(e) => { if (e.key === "Enter") saveDate(); if (e.key === "Escape") setEditingDate(false) }}
+                className="h-5 text-xs bg-transparent border-b border-primary outline-none w-28"
+              />
+            ) : (
+              <button
+                onClick={() => setEditingDate(true)}
+                className={cn(
+                  "text-xs opacity-0 group-hover:opacity-100 transition-opacity",
+                  task.dueDate
+                    ? new Date(task.dueDate) < new Date() ? "text-red-500 font-medium opacity-100" : "text-muted-foreground"
+                    : "text-muted-foreground"
+                )}
+                title="Définir une échéance"
+              >
+                {task.dueDate ? `⏱ ${fmt(task.dueDate)}` : "⏱"}
+              </button>
+            )
           )}
           {task.estimatedHours && <span>{task.estimatedHours}h</span>}
         </div>
@@ -227,6 +259,16 @@ export function TaskItem({
 
 function SubTaskItem({ sub, projectId }: { sub: SubTask; projectId: string }) {
   const [isPending, startTransition] = useTransition()
+  const [editingTitle, setEditingTitle] = useState(false)
+  const titleRef = useRef<HTMLInputElement>(null)
+
+  function saveTitle() {
+    const val = titleRef.current?.value.trim()
+    if (val && val !== sub.title) {
+      startTransition(() => updateTaskTitle(sub.id, projectId, val))
+    }
+    setEditingTitle(false)
+  }
 
   return (
     <div className={cn("flex items-center gap-2 py-1 px-2 rounded group/sub hover:bg-accent/50", sub.status === "DONE" && "opacity-55")}>
@@ -245,9 +287,23 @@ function SubTaskItem({ sub, projectId }: { sub: SubTask; projectId: string }) {
           <Circle className="h-3.5 w-3.5" />
         </button>
       )}
-      <span className={cn("flex-1 text-sm", sub.status === "DONE" && "line-through text-muted-foreground")}>
-        {sub.title}
-      </span>
+      {editingTitle ? (
+        <input
+          ref={titleRef}
+          defaultValue={sub.title}
+          autoFocus
+          onBlur={saveTitle}
+          onKeyDown={(e) => { if (e.key === "Enter") saveTitle(); if (e.key === "Escape") setEditingTitle(false) }}
+          className="flex-1 text-sm bg-transparent border-b border-primary outline-none"
+        />
+      ) : (
+        <span
+          onDoubleClick={() => sub.status !== "DONE" && setEditingTitle(true)}
+          className={cn("flex-1 text-sm cursor-default select-none", sub.status === "DONE" && "line-through text-muted-foreground")}
+        >
+          {sub.title}
+        </span>
+      )}
       <span className={cn("h-1.5 w-1.5 rounded-full shrink-0", priorityConfig[sub.priority].dotClass)} />
       <button
         onClick={() => startTransition(() => deleteTask(sub.id, projectId))}

@@ -1,3 +1,10 @@
+export function normalizeUrl(url: string): string {
+  if (!url.startsWith("http://") && !url.startsWith("https://")) {
+    return `https://${url}`
+  }
+  return url
+}
+
 export const LINK_CATEGORY_CONFIG: Record<string, { label: string; cls: string; dot: string }> = {
   GITHUB:  { label: "GitHub",  cls: "bg-slate-500/15 text-slate-600 border-slate-500/25",    dot: "bg-slate-500" },
   LOCAL:   { label: "Local",   cls: "bg-orange-500/15 text-orange-600 border-orange-500/25", dot: "bg-orange-500" },

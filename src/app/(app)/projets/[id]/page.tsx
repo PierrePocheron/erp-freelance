@@ -5,7 +5,7 @@ import Link from "next/link"
 import { Calendar, Clock, CheckSquare, BookOpen, Link2, ExternalLink, FileText, Receipt } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { createJournalEntry } from "@/actions/projet"
-import { LINK_CATEGORY_CONFIG } from "@/lib/link-categories"
+import { LINK_CATEGORY_CONFIG, normalizeUrl } from "@/lib/link-categories"
 
 const quoteStatusLabel: Record<string, string> = {
   DRAFT: "Brouillon", VALIDATED: "Validé", SENT: "Envoyé",
@@ -142,7 +142,7 @@ export default async function ProjectOverviewPage({
               return (
                 <a
                   key={l.id}
-                  href={l.url}
+                  href={normalizeUrl(l.url)}
                   target="_blank"
                   rel="noopener noreferrer"
                   className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-opacity hover:opacity-80 ${cat.cls}`}

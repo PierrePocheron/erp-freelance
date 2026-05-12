@@ -17,6 +17,7 @@ import {
   createInvoiceFromQuote,
   updateQuoteSettings,
   signQuoteWithFile,
+  sendQuoteEmail,
 } from "@/actions/facturation"
 import { redirect } from "next/navigation"
 import { Input } from "@/components/ui/input"
@@ -148,14 +149,24 @@ export default async function DevisDetailPage({
           </p>
         </div>
 
-        <a
-          href={`/api/pdf/devis/${id}`}
-          target="_blank"
-          className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-sm text-muted-foreground hover:bg-muted transition-colors"
-        >
-          <Download className="h-3.5 w-3.5" />
-          Imprimer PDF
-        </a>
+        <div className="flex flex-wrap gap-2">
+          <a
+            href={`/api/pdf/devis/${id}`}
+            target="_blank"
+            className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-sm text-muted-foreground hover:bg-muted transition-colors"
+          >
+            <Download className="h-3.5 w-3.5" />
+            Imprimer PDF
+          </a>
+          {(quote.status === "VALIDATED" || quote.status === "DRAFT") && quote.client.email && (
+            <form action={async () => { "use server"; await sendQuoteEmail(id, userId) }}>
+              <Button type="submit" size="sm">
+                <Send className="h-3.5 w-3.5" />
+                Envoyer par email
+              </Button>
+            </form>
+          )}
+        </div>
       </div>
 
       {/* Pipeline */}

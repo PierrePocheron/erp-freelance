@@ -6,7 +6,7 @@ import { ChevronLeft, Download, Send, CheckCircle2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { LineItemsEditor } from "@/components/modules/facturation/LineItemsEditor"
 import { DeleteConfirmButton } from "@/components/modules/facturation/DeleteConfirmButton"
-import { updateInvoiceStatus, deleteInvoice, updateInvoiceDueDate, updateInvoiceNotes, sendInvoiceEmail } from "@/actions/facturation"
+import { updateInvoiceStatus, deleteInvoice, updateInvoiceDueDate, updateInvoiceNotes, sendInvoiceEmail, sendInvoiceReminder } from "@/actions/facturation"
 import { redirect } from "next/navigation"
 import { Input } from "@/components/ui/input"
 
@@ -101,6 +101,15 @@ export default async function FactureDetailPage({
               <Button type="submit" size="sm">
                 <Send className="h-3.5 w-3.5" />
                 Envoyer par email
+              </Button>
+            </form>
+          )}
+
+          {(invoice.status === "SENT" || invoice.status === "LATE") && invoice.client.email && (
+            <form action={async () => { "use server"; await sendInvoiceReminder(id, userId) }}>
+              <Button type="submit" size="sm" variant="outline">
+                <Send className="h-3.5 w-3.5" />
+                {invoice.status === "LATE" ? "Relancer" : "Rappel email"}
               </Button>
             </form>
           )}

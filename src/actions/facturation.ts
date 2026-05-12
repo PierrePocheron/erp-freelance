@@ -636,6 +636,37 @@ export async function setRecurringInvoiceLines(
 
 // ── Email ─────────────────────────────────────────────────────────────────────
 
+export async function sendQuoteEmail(quoteId: string, userId: string) {
+  const quote = await prisma.quote.findFirst({
+    where: { id: quoteId, userId },
+    include: { client: true, user: true },
+  })
+  if (!quote) throw new Error("Devis introuvable")
+  if (!quote.client.email) throw new Error("Le client n'a pas d'adresse email")
+
+  const { Resend } = await import("resend")
+  const resend = new Resend(process.env.RESEND_API_KEY)
+
+  const pdfUrl = `${process.env.NEXTAUTH_URL}/api/pdf/devis/${quoteId}`
+
+  const { error } = await resend.emails.send({
+    from: "ERP Freelance <noreply@resend.dev>",
+    to: quote.client.email,
+    subject: `Devis ${quote.number}`,
+    html: `
+      <p>Bonjour ${quote.client.name},</p>
+      <p>Veuillez trouver ci-joint le devis <strong>${quote.number}</strong> d'un montant de <strong>${quote.totalHT.toLocaleString("fr-FR")} €</strong> HT.</p>
+      ${quote.expiresAt ? `<p>Ce devis est valable jusqu'au ${new Date(quote.expiresAt).toLocaleDateString("fr-FR")}.</p>` : ""}
+      <p><a href="${pdfUrl}">Télécharger le devis</a></p>
+      <p>Cordialement,<br>${quote.user.name}</p>
+    `,
+  })
+
+  if (error) throw new Error(error.message)
+
+  await updateQuoteStatus(quoteId, userId, "SENT")
+}
+
 export async function sendInvoiceEmail(invoiceId: string, userId: string) {
   const invoice = await prisma.invoice.findFirst({
     where: { id: invoiceId, userId },
@@ -673,4 +704,55 @@ export async function sendInvoiceEmail(invoiceId: string, userId: string) {
   })
 
   await updateInvoiceStatus(invoiceId, userId, "SENT")
+}
+
+export async function sendInvoiceReminder(invoiceId: string, userId: string) {
+  const invoice = await prisma.invoice.findFirst({
+    where: { id: invoiceId, userId, status: { in: ["SENT", "LATE"] } },
+    include: { client: true, user: true },
+  })
+  if (!invoice) throw new Error("Facture introuvable")
+  if (!invoice.client.email) throw new Error("Le client n'a pas d'adresse email")
+
+  const { Resend } = await import("resend")
+  const resend = new Resend(process.env.RESEND_API_KEY)
+
+  const pdfUrl = `${process.env.NEXTAUTH_URL}/api/pdf/facture/${invoiceId}`
+  const isLate = invoice.status === "LATE"
+  const daysLate = invoice.dueDate
+    ? Math.ceil((Date.now() - new Date(invoice.dueDate).getTime()) / 86400000)
+    : null
+
+  const subject = isLate
+    ? `Relance — Facture ${invoice.number} en retard`
+    : `Rappel — Facture ${invoice.number}`
+
+  const { data, error } = await resend.emails.send({
+    from: "ERP Freelance <noreply@resend.dev>",
+    to: invoice.client.email,
+    subject,
+    html: `
+      <p>Bonjour ${invoice.client.name},</p>
+      ${isLate && daysLate
+        ? `<p>Sauf erreur de notre part, la facture <strong>${invoice.number}</strong> d'un montant de <strong>${(invoice.totalHT - invoice.depositDeducted).toLocaleString("fr-FR")} €</strong> est en retard de <strong>${daysLate} jour(s)</strong>.</p>`
+        : `<p>Nous vous rappelons que la facture <strong>${invoice.number}</strong> d'un montant de <strong>${(invoice.totalHT - invoice.depositDeducted).toLocaleString("fr-FR")} €</strong> est toujours en attente de règlement.</p>`
+      }
+      <p><a href="${pdfUrl}">Voir la facture</a></p>
+      <p>Cordialement,<br>${invoice.user.name}</p>
+    `,
+  })
+
+  if (error) throw new Error(error.message)
+
+  await prisma.emailLog.create({
+    data: {
+      userId,
+      invoiceId,
+      to: invoice.client.email,
+      subject,
+      resendMessageId: data?.id,
+    },
+  })
+
+  revalidatePath(`/facturation/factures/${invoiceId}`)
 }

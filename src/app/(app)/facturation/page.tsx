@@ -1,7 +1,7 @@
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import Link from "next/link"
-import { TrendingUp, Clock, AlertCircle, CheckCircle2, BarChart3 } from "lucide-react"
+import { TrendingUp, Clock, AlertCircle, CheckCircle2, BarChart3, Settings } from "lucide-react"
 import { markLateInvoices } from "@/actions/facturation"
 
 const MONTHS_FR = ["Jan", "Fév", "Mar", "Avr", "Mai", "Jun", "Jul", "Aoû", "Sep", "Oct", "Nov", "Déc"]
@@ -17,7 +17,7 @@ export default async function FacturationOverviewPage() {
   const yearStart = new Date(now.getFullYear(), 0, 1)
   const yearEnd = new Date(now.getFullYear(), 11, 31, 23, 59, 59)
 
-  const [invoicesThisYear, allPending, quotes] = await Promise.all([
+  const [invoicesThisYear, allPending, quotes, profile] = await Promise.all([
     prisma.invoice.findMany({
       where: { userId, createdAt: { gte: yearStart, lte: yearEnd } },
       include: { client: { select: { name: true, company: true } } },
@@ -34,6 +34,7 @@ export default async function FacturationOverviewPage() {
       take: 5,
       include: { client: { select: { name: true, company: true } } },
     }),
+    prisma.userProfile.findUnique({ where: { userId } }),
   ])
 
   const paidThisYear = invoicesThisYear
@@ -49,6 +50,7 @@ export default async function FacturationOverviewPage() {
     .reduce((s, i) => s + i.totalHT - i.depositDeducted, 0)
 
   const quotesWaiting = quotes.filter((q) => q.status === "SENT").length
+  const profileIncomplete = !profile?.companyName || !profile?.siret || !profile?.address
 
   // Revenus mensuels (factures payées cette année)
   const monthlyRevenue = Array.from({ length: 12 }, (_, m) => {
@@ -73,6 +75,19 @@ export default async function FacturationOverviewPage() {
         <h1 className="text-2xl font-bold tracking-tight">Facturation</h1>
         <p className="text-sm text-muted-foreground">Vue d'ensemble {now.getFullYear()}</p>
       </div>
+
+      {/* Profil incomplet */}
+      {profileIncomplete && (
+        <div className="flex items-center gap-3 rounded-xl border border-amber-500/20 bg-amber-500/8 px-4 py-3 text-sm">
+          <Settings className="h-4 w-4 text-amber-500 shrink-0" />
+          <span className="text-amber-700 dark:text-amber-400 flex-1">
+            Votre profil est incomplet — certaines informations manqueront sur vos factures et devis.
+          </span>
+          <Link href="/settings" className="text-amber-700 dark:text-amber-400 font-medium hover:underline shrink-0">
+            Compléter →
+          </Link>
+        </div>
+      )}
 
       {/* KPIs */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">

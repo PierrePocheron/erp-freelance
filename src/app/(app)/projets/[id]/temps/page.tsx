@@ -1,7 +1,7 @@
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { notFound } from "next/navigation"
-import { Clock, Timer, TrendingUp, AlertTriangle, Trash2 } from "lucide-react"
+import { Clock, Timer, TrendingUp, AlertTriangle, Trash2, Download } from "lucide-react"
 import { deleteTimeEntry } from "@/actions/timetracking"
 
 function fmtSeconds(s: number): string {
@@ -248,6 +248,17 @@ export default async function ProjectTempsPage({
         <div className="flex items-center gap-2">
           <Timer className="h-4 w-4 text-muted-foreground" />
           <h2 className="font-semibold text-sm">Entrées récentes</h2>
+          {totalTrackedSeconds > 0 && (
+            <a
+              href={`/api/export/temps/${id}`}
+              download
+              className="ml-auto flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+              title="Exporter en CSV"
+            >
+              <Download className="h-3.5 w-3.5" />
+              Export CSV
+            </a>
+          )}
         </div>
 
         {taskStats.every((t) => t.entries.length === 0) ? (

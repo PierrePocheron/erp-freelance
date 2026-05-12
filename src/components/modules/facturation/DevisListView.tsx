@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import Link from "next/link"
-import { FileText, LayoutGrid, List } from "lucide-react"
+import { FileText, LayoutGrid, List, Download } from "lucide-react"
 import { CreateQuoteDialog } from "./CreateQuoteDialog"
 
 type Quote = {
@@ -106,6 +106,15 @@ export function DevisListView({
               <LayoutGrid className="h-4 w-4" />
             </button>
           </div>
+          <a
+            href="/api/export/devis"
+            download
+            className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-sm text-muted-foreground hover:bg-muted/50 transition-colors"
+            title="Exporter en CSV"
+          >
+            <Download className="h-3.5 w-3.5" />
+            CSV
+          </a>
           <CreateQuoteDialog
             userId={userId}
             clients={clients}

@@ -156,6 +156,38 @@ export default async function FactureDetailPage({
         />
       </div>
 
+      {/* Récapitulatif TVA */}
+      {(() => {
+        const totalTVA = invoice.lines.reduce((s, l) => s + l.total * (l.taxRate / 100), 0)
+        const totalTTC = invoice.totalHT + totalTVA
+        if (totalTVA <= 0) return null
+        return (
+          <div className="rounded-xl border border-border/50 bg-card p-4">
+            <h2 className="font-semibold text-sm mb-3">Récapitulatif</h2>
+            <div className="space-y-1.5 text-sm max-w-xs ml-auto">
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Total HT</span>
+                <span>{invoice.totalHT.toLocaleString("fr-FR", { minimumFractionDigits: 2 })} €</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Total TVA</span>
+                <span>{totalTVA.toLocaleString("fr-FR", { minimumFractionDigits: 2 })} €</span>
+              </div>
+              {invoice.depositDeducted > 0 && (
+                <div className="flex justify-between text-muted-foreground">
+                  <span>Acompte déduit</span>
+                  <span>- {invoice.depositDeducted.toLocaleString("fr-FR", { minimumFractionDigits: 2 })} €</span>
+                </div>
+              )}
+              <div className="flex justify-between font-bold border-t border-border pt-1.5">
+                <span>Total TTC</span>
+                <span className="text-primary text-base">{(totalTTC - invoice.depositDeducted).toLocaleString("fr-FR", { minimumFractionDigits: 2 })} €</span>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
+
       {/* Paramètres */}
       <div className="rounded-xl border border-border/50 bg-card p-5 space-y-4">
         <h2 className="font-semibold text-sm">Paramètres</h2>

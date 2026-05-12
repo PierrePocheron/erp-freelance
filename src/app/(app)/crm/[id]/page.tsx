@@ -1,7 +1,7 @@
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { notFound } from "next/navigation"
-import { updateClient, deleteClient } from "@/actions/crm"
+import { updateClient, deleteClient, updateClientType, updateClientTemperature } from "@/actions/crm"
 import { redirect } from "next/navigation"
 import { Mail, Phone, Building2, Tag, Trash2, MessageSquare } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -149,6 +149,47 @@ export default async function ClientOverviewPage({
 
       {/* Right: stats + dernières interactions + projets */}
       <div className="space-y-6">
+
+        {/* Type & Température */}
+        <div className="rounded-xl border border-border/50 bg-card p-5 space-y-3">
+          <h2 className="font-semibold text-sm">Qualification</h2>
+          <form
+            action={async (fd: FormData) => {
+              "use server"
+              await updateClientType(id, userId, fd.get("type") as string)
+              await updateClientTemperature(id, userId, fd.get("temperature") as string)
+            }}
+            className="grid grid-cols-2 gap-3"
+          >
+            <div className="space-y-1">
+              <label className="text-xs text-muted-foreground">Type</label>
+              <select
+                name="type"
+                defaultValue={client.type}
+                className="flex h-8 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+              >
+                <option value="PROSPECT">Prospect</option>
+                <option value="CLIENT">Client</option>
+                <option value="INACTIVE">Inactif</option>
+              </select>
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs text-muted-foreground">Température</label>
+              <select
+                name="temperature"
+                defaultValue={client.temperature}
+                className="flex h-8 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+              >
+                <option value="COLD">❄️ Froid</option>
+                <option value="WARM">🌤 Tiède</option>
+                <option value="HOT">🔥 Chaud</option>
+              </select>
+            </div>
+            <div className="col-span-2">
+              <Button type="submit" size="sm" variant="outline">Enregistrer</Button>
+            </div>
+          </form>
+        </div>
 
         {/* Stats */}
         <div className="rounded-xl border border-border/50 bg-card p-5 space-y-3">

@@ -1,11 +1,15 @@
 "use client"
 
 import Link from "next/link"
+import { useTransition } from "react"
 import {
   Mail, Phone, ExternalLink, Building2,
   MessageSquare, Bell, FolderKanban, FileText, Receipt,
   Phone as PhoneIcon, Mail as MailIcon, Video, Users,
+  UserCheck, Archive,
 } from "lucide-react"
+import { updateClientType } from "@/actions/crm"
+import { toast } from "sonner"
 
 const tempConfig = {
   COLD: { dot: "bg-blue-500", label: "Froid" },
@@ -79,12 +83,24 @@ type ClientPanelData = {
 export function ClientPanel({
   client,
   loading,
+  userId,
 }: {
   client: ClientPanelData | null
   loading: boolean
+  userId?: string
 }) {
+  const [isPending, startTransition] = useTransition()
+
   const fmt = (d: Date | string) =>
     new Date(d).toLocaleDateString("fr-FR", { day: "numeric", month: "short" })
+
+  function changeType(type: string, label: string) {
+    if (!client || !userId) return
+    startTransition(async () => {
+      await updateClientType(client.id, userId, type)
+      toast.success(`Statut mis à jour : ${label}`)
+    })
+  }
 
   if (loading || !client) {
     return (
@@ -154,7 +170,7 @@ export function ClientPanel({
         </div>
 
         {/* Quick actions */}
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           {client.email && (
             <a
               href={`mailto:${client.email}`}
@@ -170,6 +186,24 @@ export function ClientPanel({
             >
               <Phone className="h-3.5 w-3.5" /> Appeler
             </a>
+          )}
+          {client.type === "PROSPECT" && userId && (
+            <button
+              onClick={() => changeType("CLIENT", "Client")}
+              disabled={isPending}
+              className="flex items-center gap-1.5 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-1.5 text-xs font-medium text-emerald-700 dark:text-emerald-400 hover:bg-emerald-500/20 transition-colors"
+            >
+              <UserCheck className="h-3.5 w-3.5" /> Convertir en client
+            </button>
+          )}
+          {(client.type === "PROSPECT" || client.type === "CLIENT") && userId && (
+            <button
+              onClick={() => changeType("INACTIVE", "Inactif")}
+              disabled={isPending}
+              className="flex items-center gap-1.5 rounded-lg border border-border/50 px-3 py-1.5 text-xs font-medium text-muted-foreground hover:bg-muted/50 transition-colors"
+            >
+              <Archive className="h-3.5 w-3.5" /> Archiver
+            </button>
           )}
         </div>
       </div>

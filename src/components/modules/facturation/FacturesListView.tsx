@@ -35,6 +35,14 @@ const typeLabels: Record<string, string> = {
   STANDALONE: "Standard",
 }
 
+const STATUS_FILTERS = [
+  { value: "ALL", label: "Toutes" },
+  { value: "DRAFT", label: "Brouillon" },
+  { value: "SENT", label: "Envoyées" },
+  { value: "LATE", label: "En retard" },
+  { value: "PAID", label: "Payées" },
+]
+
 export function FacturesListView({
   userId,
   invoices,
@@ -47,15 +55,37 @@ export function FacturesListView({
   projects: Project[]
 }) {
   const [view, setView] = useState<"list" | "cards">("list")
+  const [statusFilter, setStatusFilter] = useState("ALL")
+
+  const filtered = statusFilter === "ALL" ? invoices : invoices.filter((i) => i.status === statusFilter)
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h2 className="text-xl font-semibold">Factures</h2>
-          <p className="text-sm text-muted-foreground">{invoices.length} facture{invoices.length !== 1 ? "s" : ""}</p>
+          <p className="text-sm text-muted-foreground">{filtered.length} / {invoices.length} facture{invoices.length !== 1 ? "s" : ""}</p>
         </div>
         <div className="flex items-center gap-2">
+          {/* Status filters */}
+          <div className="flex rounded-lg border border-border overflow-hidden text-xs">
+            {STATUS_FILTERS.map((f) => (
+              <button
+                key={f.value}
+                onClick={() => setStatusFilter(f.value)}
+                className={`px-3 py-1.5 border-r last:border-r-0 border-border transition-colors ${
+                  statusFilter === f.value ? "bg-accent font-medium" : "text-muted-foreground hover:bg-muted/50"
+                }`}
+              >
+                {f.label}
+                {f.value !== "ALL" && (
+                  <span className="ml-1 text-[10px] opacity-60">
+                    ({invoices.filter((i) => i.status === f.value).length})
+                  </span>
+                )}
+              </button>
+            ))}
+          </div>
           <div className="flex rounded-lg border border-border overflow-hidden">
             <button
               type="button"
@@ -84,6 +114,10 @@ export function FacturesListView({
           <p className="font-medium">Aucune facture</p>
           <p className="text-sm text-muted-foreground mt-1">Créez votre première facture</p>
         </div>
+      ) : filtered.length === 0 ? (
+        <p className="text-sm text-muted-foreground italic text-center py-10">
+          Aucune facture pour ce filtre
+        </p>
       ) : view === "list" ? (
         <div className="rounded-xl border border-border/50 bg-card overflow-hidden">
           <table className="w-full text-sm">
@@ -98,7 +132,7 @@ export function FacturesListView({
               </tr>
             </thead>
             <tbody>
-              {invoices.map((inv) => {
+              {filtered.map((inv) => {
                 const status = statusConfig[inv.status] ?? { label: inv.status, cls: "bg-muted text-muted-foreground border-border" }
                 const isLate = inv.dueDate && inv.status === "SENT" && new Date(inv.dueDate) < new Date()
                 return (
@@ -125,7 +159,7 @@ export function FacturesListView({
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {invoices.map((inv) => {
+          {filtered.map((inv) => {
             const status = statusConfig[inv.status] ?? { label: inv.status, cls: "bg-muted text-muted-foreground border-border" }
             const isLate = inv.dueDate && inv.status === "SENT" && new Date(inv.dueDate) < new Date()
             const amount = inv.totalHT - inv.depositDeducted

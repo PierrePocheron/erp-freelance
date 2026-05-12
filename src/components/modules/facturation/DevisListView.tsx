@@ -49,15 +49,45 @@ export function DevisListView({
   defaultConditions: string
 }) {
   const [view, setView] = useState<"list" | "cards">("list")
+  const [statusFilter, setStatusFilter] = useState("ALL")
+
+  const DEVIS_FILTERS = [
+    { value: "ALL", label: "Tous" },
+    { value: "DRAFT", label: "Brouillon" },
+    { value: "SENT", label: "Envoyés" },
+    { value: "ACCEPTED", label: "Acceptés" },
+    { value: "SIGNED", label: "Signés" },
+    { value: "REJECTED", label: "Refusés" },
+  ]
+
+  const filtered = statusFilter === "ALL" ? quotes : quotes.filter((q) => q.status === statusFilter)
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h2 className="text-xl font-semibold">Devis</h2>
-          <p className="text-sm text-muted-foreground">{quotes.length} devis</p>
+          <p className="text-sm text-muted-foreground">{filtered.length} / {quotes.length} devis</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex rounded-lg border border-border overflow-hidden text-xs">
+            {DEVIS_FILTERS.map((f) => (
+              <button
+                key={f.value}
+                onClick={() => setStatusFilter(f.value)}
+                className={`px-3 py-1.5 border-r last:border-r-0 border-border transition-colors ${
+                  statusFilter === f.value ? "bg-accent font-medium" : "text-muted-foreground hover:bg-muted/50"
+                }`}
+              >
+                {f.label}
+                {f.value !== "ALL" && (
+                  <span className="ml-1 text-[10px] opacity-60">
+                    ({quotes.filter((q) => q.status === f.value).length})
+                  </span>
+                )}
+              </button>
+            ))}
+          </div>
           <div className="flex rounded-lg border border-border overflow-hidden">
             <button
               type="button"
@@ -92,6 +122,10 @@ export function DevisListView({
           <p className="font-medium">Aucun devis</p>
           <p className="text-sm text-muted-foreground mt-1">Créez votre premier devis</p>
         </div>
+      ) : filtered.length === 0 ? (
+        <p className="text-sm text-muted-foreground italic text-center py-10">
+          Aucun devis pour ce filtre
+        </p>
       ) : view === "list" ? (
         <div className="rounded-xl border border-border/50 bg-card overflow-hidden">
           <table className="w-full text-sm">
@@ -106,7 +140,7 @@ export function DevisListView({
               </tr>
             </thead>
             <tbody>
-              {quotes.map((q) => {
+              {filtered.map((q) => {
                 const status = statusConfig[q.status] ?? { label: q.status, cls: "bg-muted text-muted-foreground border-border" }
                 return (
                   <tr key={q.id} className="border-b border-border/50 last:border-0 hover:bg-muted/30 transition-colors">
@@ -130,7 +164,7 @@ export function DevisListView({
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {quotes.map((q) => {
+          {filtered.map((q) => {
             const status = statusConfig[q.status] ?? { label: q.status, cls: "bg-muted text-muted-foreground border-border" }
             return (
               <Link

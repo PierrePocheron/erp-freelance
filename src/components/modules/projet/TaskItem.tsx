@@ -1,11 +1,11 @@
 "use client"
 
-import { useTransition, useState } from "react"
+import { useTransition, useState, useRef } from "react"
 import {
   CheckCircle2, Circle, PlayCircle, Loader2, Trash2,
-  ChevronUp, ChevronDown, ChevronRight, Flag, Plus,
+  ChevronUp, ChevronDown, ChevronRight, Flag, Plus, Pencil,
 } from "lucide-react"
-import { startTask, completeTask, reopenTask, deleteTask, updateTaskPriority, reorderTask } from "@/actions/projet"
+import { startTask, completeTask, reopenTask, deleteTask, updateTaskPriority, reorderTask, updateTaskTitle } from "@/actions/projet"
 import { AddTaskForm } from "./AddTaskForm"
 import { TimeTracker } from "./TimeTracker"
 import { cn } from "@/lib/utils"
@@ -56,7 +56,17 @@ export function TaskItem({
   const [isPending, startTransition] = useTransition()
   const [showSubs, setShowSubs] = useState(task.subTasks.length > 0)
   const [showPriorityMenu, setShowPriorityMenu] = useState(false)
+  const [editingTitle, setEditingTitle] = useState(false)
+  const titleRef = useRef<HTMLInputElement>(null)
   const p = priorityConfig[task.priority]
+
+  function saveTitle() {
+    const val = titleRef.current?.value.trim()
+    if (val && val !== task.title) {
+      startTransition(() => updateTaskTitle(task.id, projectId, val))
+    }
+    setEditingTitle(false)
+  }
 
   const fmt = (d: Date | null) =>
     d ? new Date(d).toLocaleDateString("fr-FR", { day: "numeric", month: "short" }) : null
@@ -102,9 +112,23 @@ export function TaskItem({
         )}
 
         {/* Titre */}
-        <span className={cn("flex-1 text-sm", task.status === "DONE" && "line-through text-muted-foreground")}>
-          {task.title}
-        </span>
+        {editingTitle ? (
+          <input
+            ref={titleRef}
+            defaultValue={task.title}
+            autoFocus
+            onBlur={saveTitle}
+            onKeyDown={(e) => { if (e.key === "Enter") saveTitle(); if (e.key === "Escape") setEditingTitle(false) }}
+            className="flex-1 text-sm bg-transparent border-b border-primary outline-none"
+          />
+        ) : (
+          <span
+            onDoubleClick={() => task.status !== "DONE" && setEditingTitle(true)}
+            className={cn("flex-1 text-sm cursor-default select-none", task.status === "DONE" && "line-through text-muted-foreground")}
+          >
+            {task.title}
+          </span>
+        )}
 
         {/* Time tracker */}
         {userId && task.status !== "DONE" && (

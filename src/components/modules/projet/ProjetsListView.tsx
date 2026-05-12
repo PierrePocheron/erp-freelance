@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import Link from "next/link"
-import { LayoutGrid, List, Layers, Calendar, CheckSquare } from "lucide-react"
+import { LayoutGrid, List, Layers, Calendar, CheckSquare, Search } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { ProjectCard } from "./ProjectCard"
 import { CreateProjectDialog } from "./CreateProjectDialog"
@@ -39,9 +39,17 @@ export function ProjetsListView({
   clients: Client[]
 }) {
   const [view, setView] = useState<"cards" | "list">("cards")
+  const [search, setSearch] = useState("")
 
-  const active = projects.filter((p) => p.status === "ACTIVE")
-  const others = projects.filter((p) => p.status !== "ACTIVE")
+  const filtered = search.trim()
+    ? projects.filter((p) =>
+        p.name.toLowerCase().includes(search.toLowerCase()) ||
+        (p.client.company ?? p.client.name).toLowerCase().includes(search.toLowerCase())
+      )
+    : projects
+
+  const active = filtered.filter((p) => p.status === "ACTIVE")
+  const others = filtered.filter((p) => p.status !== "ACTIVE")
 
   return (
     <div className="space-y-8">
@@ -49,10 +57,20 @@ export function ProjetsListView({
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Projets</h1>
           <p className="text-sm text-muted-foreground">
-            {projects.length} projet{projects.length !== 1 ? "s" : ""}
+            {filtered.length}{filtered.length !== projects.length ? `/${projects.length}` : ""} projet{projects.length !== 1 ? "s" : ""}
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <div className="relative">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+            <input
+              type="search"
+              placeholder="Rechercher..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="h-8 pl-8 pr-3 rounded-lg border border-border bg-transparent text-sm focus:outline-none focus:ring-1 focus:ring-ring w-44"
+            />
+          </div>
           <div className="flex rounded-lg border border-border overflow-hidden">
             <button
               type="button"

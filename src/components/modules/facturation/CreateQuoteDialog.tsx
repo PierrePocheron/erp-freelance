@@ -97,14 +97,13 @@ function LineForm({
     setForm((f) => ({ ...f, [k]: v }))
   }
 
-  function handleSubmit(e: React.FormEvent) {
-    e.preventDefault()
+  function handleConfirm() {
     if (!form.description.trim()) return
     onSubmit(form)
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-2.5 p-3 bg-muted/20 rounded-lg border border-border/60">
+    <div className="space-y-2.5 p-3 bg-muted/20 rounded-lg border border-border/60">
       <div className="space-y-1.5">
         <input
           value={form.description}
@@ -177,14 +176,15 @@ function LineForm({
           <X className="h-3.5 w-3.5" /> Annuler
         </button>
         <button
-          type="submit"
+          type="button"
+          onClick={handleConfirm}
           disabled={!form.description.trim()}
           className="flex items-center gap-1 px-3 py-1.5 text-sm rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50"
         >
           <Check className="h-3.5 w-3.5" /> {submitLabel}
         </button>
       </div>
-    </form>
+    </div>
   )
 }
 

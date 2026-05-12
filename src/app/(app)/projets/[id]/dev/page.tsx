@@ -19,6 +19,7 @@ import {
   CheckSquare, Flag, Link2, BookOpen, Package,
   ExternalLink, Trash2, CheckCircle2, Circle, Clock
 } from "lucide-react"
+import { LINK_CATEGORY_CONFIG } from "@/lib/link-categories"
 
 const milestoneColors = {
   UPCOMING: "bg-muted text-muted-foreground border-border",
@@ -27,14 +28,10 @@ const milestoneColors = {
 }
 const milestoneLabels = { UPCOMING: "À venir", IN_PROGRESS: "En cours", DONE: "Terminé" }
 
-const linkCategories = [
-  { value: "GITHUB", label: "GitHub" },
-  { value: "LOCAL", label: "Local" },
-  { value: "PROD", label: "Prod" },
-  { value: "STAGING", label: "Staging" },
-  { value: "DOCS", label: "Docs" },
-  { value: "OTHER", label: "Autre" },
-]
+const linkCategories = Object.entries(LINK_CATEGORY_CONFIG).map(([value, cfg]) => ({
+  value,
+  label: cfg.label,
+}))
 
 export default async function ProjectDevPage({
   params,
@@ -211,30 +208,34 @@ export default async function ProjectDevPage({
 
           {project.usefulLinks.length > 0 && (
             <div className="space-y-2">
-              {project.usefulLinks.map((l) => (
-                <div key={l.id} className="flex items-center gap-2 group">
-                  <a
-                    href={l.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex-1 flex items-center gap-1.5 text-sm hover:text-primary transition-colors"
-                  >
-                    <ExternalLink className="h-3 w-3 shrink-0 text-muted-foreground" />
-                    <span className="truncate">{l.label}</span>
-                    <Badge variant="outline" className="text-xs ml-auto shrink-0">
-                      {l.category}
-                    </Badge>
-                  </a>
-                  <form action={async () => {
-                    "use server"
-                    await deleteUsefulLink(l.id, id)
-                  }}>
-                    <button type="submit" className="text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity">
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </button>
-                  </form>
-                </div>
-              ))}
+              {project.usefulLinks.map((l) => {
+                const cat = LINK_CATEGORY_CONFIG[l.category] ?? LINK_CATEGORY_CONFIG.OTHER
+                return (
+                  <div key={l.id} className="flex items-center gap-2 group">
+                    <a
+                      href={l.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex-1 flex items-center gap-1.5 text-sm hover:text-primary transition-colors min-w-0"
+                    >
+                      <span className={`h-2 w-2 rounded-full shrink-0 ${cat.dot}`} />
+                      <span className="truncate">{l.label}</span>
+                      <Badge variant="outline" className={`text-xs ml-auto shrink-0 ${cat.cls}`}>
+                        {cat.label}
+                      </Badge>
+                      <ExternalLink className="h-3 w-3 shrink-0 text-muted-foreground" />
+                    </a>
+                    <form action={async () => {
+                      "use server"
+                      await deleteUsefulLink(l.id, id)
+                    }}>
+                      <button type="submit" className="text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity">
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </form>
+                  </div>
+                )
+              })}
             </div>
           )}
 

@@ -48,7 +48,18 @@ export default async function ProjectOverviewPage({
   const project = await prisma.project.findFirst({
     where: { id, userId },
     include: {
-      tasks: { where: { parentTaskId: null }, select: { status: true } },
+      tasks: {
+        where: { parentTaskId: null },
+        select: {
+          status: true,
+          timeEntries: { where: { userId, endedAt: { not: null } }, select: { duration: true } },
+          subTasks: {
+            select: {
+              timeEntries: { where: { userId, endedAt: { not: null } }, select: { duration: true } },
+            },
+          },
+        },
+      },
       milestones: { orderBy: { date: "asc" } },
       deliverables: true,
       journalEntries: { orderBy: { createdAt: "desc" }, take: 8 },
@@ -70,6 +81,25 @@ export default async function ProjectOverviewPage({
   const doneTasks = project.tasks.filter((t) => t.status === "DONE").length
   const inProgressTasks = project.tasks.filter((t) => t.status === "IN_PROGRESS").length
 
+  const totalTrackedSeconds = project.tasks.reduce((sum, t) => {
+    const direct = t.timeEntries.reduce((s, e) => s + (e.duration ?? 0), 0)
+    const sub = t.subTasks.reduce((s, st) => s + st.timeEntries.reduce((ss, e) => ss + (e.duration ?? 0), 0), 0)
+    return sum + direct + sub
+  }, 0)
+  const totalTrackedHours = totalTrackedSeconds / 3600
+  const budgetPct = project.estimatedHours
+    ? Math.min(100, Math.round((totalTrackedHours / project.estimatedHours) * 100))
+    : null
+  const isOver = project.estimatedHours ? totalTrackedHours > project.estimatedHours : false
+
+  function fmtH(h: number) {
+    const int = Math.floor(h)
+    const min = Math.round((h - int) * 60)
+    if (int > 0 && min > 0) return `${int}h${String(min).padStart(2, "0")}`
+    if (int > 0) return `${int}h`
+    return `${min}m`
+  }
+
   const nextMilestone = project.milestones
     .filter((m) => m.status !== "DONE")
     .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())[0]
@@ -81,22 +111,48 @@ export default async function ProjectOverviewPage({
 
       {/* Bento stats */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <div className="rounded-xl border border-border/50 bg-card p-4 space-y-1">
+        <div className="rounded-xl border border-border/50 bg-card p-4 space-y-1.5">
           <div className="flex items-center gap-2 text-muted-foreground text-xs">
             <CheckSquare className="h-3.5 w-3.5" />
             Tâches
           </div>
           <p className="text-2xl font-bold">{doneTasks}<span className="text-sm font-normal text-muted-foreground">/{totalTasks}</span></p>
-          <p className="text-xs text-muted-foreground">{inProgressTasks} en cours</p>
+          {totalTasks > 0 && (
+            <div className="space-y-1">
+              <div className="h-1 rounded-full bg-muted overflow-hidden">
+                <div
+                  className="h-full rounded-full bg-emerald-500 transition-all"
+                  style={{ width: `${Math.round((doneTasks / totalTasks) * 100)}%` }}
+                />
+              </div>
+              <p className="text-xs text-muted-foreground">{inProgressTasks} en cours</p>
+            </div>
+          )}
         </div>
 
-        <div className="rounded-xl border border-border/50 bg-card p-4 space-y-1">
+        <div className={`rounded-xl border p-4 space-y-1.5 ${isOver ? "border-red-500/30 bg-red-500/5" : budgetPct && budgetPct > 80 ? "border-amber-500/30 bg-amber-500/5" : "border-border/50 bg-card"}`}>
           <div className="flex items-center gap-2 text-muted-foreground text-xs">
             <Clock className="h-3.5 w-3.5" />
-            Heures estimées
+            Temps suivi
           </div>
-          <p className="text-2xl font-bold">{project.estimatedHours ?? "—"}</p>
-          <p className="text-xs text-muted-foreground">heures prévues</p>
+          <p className={`text-2xl font-bold ${isOver ? "text-red-500" : ""}`}>
+            {totalTrackedSeconds > 0 ? fmtH(totalTrackedHours) : "—"}
+          </p>
+          {project.estimatedHours ? (
+            <div className="space-y-1">
+              <div className="h-1 rounded-full bg-muted overflow-hidden">
+                <div
+                  className={`h-full rounded-full transition-all ${isOver ? "bg-red-500" : budgetPct && budgetPct > 80 ? "bg-amber-500" : "bg-blue-500"}`}
+                  style={{ width: `${budgetPct ?? 0}%` }}
+                />
+              </div>
+              <p className={`text-xs ${isOver ? "text-red-500 font-medium" : "text-muted-foreground"}`}>
+                {isOver ? `+${fmtH(totalTrackedHours - project.estimatedHours)} dépassement` : `${fmtH(project.estimatedHours)} estimé`}
+              </p>
+            </div>
+          ) : (
+            <p className="text-xs text-muted-foreground">pas d&apos;estimé</p>
+          )}
         </div>
 
         <div className="rounded-xl border border-border/50 bg-card p-4 space-y-1">

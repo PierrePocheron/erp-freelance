@@ -13,6 +13,7 @@ import {
   Settings,
   PanelLeftClose,
   PanelLeftOpen,
+  Search,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { ThemeToggle } from "./ThemeToggle"
@@ -105,6 +106,26 @@ export function Sidebar() {
           )
         })}
       </nav>
+
+      {/* Recherche Cmd+K */}
+      <div className="px-2 pb-1">
+        <button
+          onClick={() => document.dispatchEvent(new KeyboardEvent("keydown", { key: "k", metaKey: true, bubbles: true }))}
+          className={cn(
+            "flex h-9 items-center gap-3 rounded-xl px-2.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground w-full",
+            expanded ? "" : "w-10 justify-center"
+          )}
+          title="Recherche (⌘K)"
+        >
+          <Search className="h-4 w-4 shrink-0" />
+          {expanded && (
+            <span className="flex-1 text-sm text-left truncate">Recherche</span>
+          )}
+          {expanded && (
+            <kbd className="text-xs bg-muted border border-border px-1.5 py-0.5 rounded font-mono shrink-0">⌘K</kbd>
+          )}
+        </button>
+      </div>
 
       {/* Toggle */}
       <div className={cn("px-2 pb-5 space-y-1", expanded ? "" : "flex flex-col items-center")}>

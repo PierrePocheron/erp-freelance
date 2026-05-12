@@ -77,13 +77,15 @@ export default async function RecurrentesPage() {
         )
       : []
 
-  // Merge lines into each invoice row
-  const recurringInvoices: RecurringRow[] = recurringInvoicesRaw.map((r) => ({
-    ...r,
-    lines: allLines
-      .filter((l) => l.recurringInvoiceId === r.id)
-      .map(({ recurringInvoiceId: _rid, ...rest }) => rest),
-  }))
+  // Merge lines + compute totalHT from lines (DB column may not be in Prisma schema)
+  const recurringInvoices: RecurringRow[] = recurringInvoicesRaw.map((r) => {
+    const rowLines = allLines.filter((l) => l.recurringInvoiceId === r.id)
+    return {
+      ...r,
+      totalHT: rowLines.reduce((s, l) => s + Number(l.total), 0),
+      lines: rowLines.map(({ recurringInvoiceId: _rid, ...rest }) => rest),
+    }
+  })
 
   return (
     <RecurrentesManager

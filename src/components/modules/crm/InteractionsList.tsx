@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react"
 import { Mail, Phone, Users, MessageSquare, Coffee, MoreHorizontal, Trash2, Pencil, X, Check } from "lucide-react"
+import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { updateInteraction, deleteInteraction } from "@/actions/crm"
@@ -61,12 +62,14 @@ export function InteractionsList({
         response: editResponse || null,
       })
       setEditingId(null)
+      toast.success("Interaction mise à jour")
     })
   }
 
   function handleDelete(interactionId: string) {
     startTransition(async () => {
       await deleteInteraction(interactionId, clientId)
+      toast.success("Interaction supprimée")
     })
   }
 

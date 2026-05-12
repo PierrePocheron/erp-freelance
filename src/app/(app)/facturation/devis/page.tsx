@@ -15,7 +15,7 @@ export default async function DevisListPage() {
   const session = await auth()
   const userId = session!.user.id
 
-  const [quotes, clients, projects] = await Promise.all([
+  const [quotes, clients, projects, products] = await Promise.all([
     prisma.quote.findMany({
       where: { userId },
       orderBy: { createdAt: "desc" },
@@ -35,6 +35,11 @@ export default async function DevisListPage() {
       orderBy: { name: "asc" },
       select: { id: true, name: true, clientId: true },
     }),
+    prisma.product.findMany({
+      where: { userId },
+      orderBy: { name: "asc" },
+      select: { id: true, name: true, description: true, unitPrice: true, unit: true, isActive: true },
+    }),
   ])
 
   return (
@@ -44,7 +49,7 @@ export default async function DevisListPage() {
           <h2 className="text-xl font-semibold">Devis</h2>
           <p className="text-sm text-muted-foreground">{quotes.length} devis</p>
         </div>
-        <CreateQuoteDialog userId={userId} clients={clients} projects={projects} />
+        <CreateQuoteDialog userId={userId} clients={clients} projects={projects} products={products} />
       </div>
 
       {quotes.length === 0 ? (

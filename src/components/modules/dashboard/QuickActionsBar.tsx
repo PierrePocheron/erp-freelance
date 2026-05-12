@@ -19,6 +19,7 @@ import { CreateInvoiceDialog } from "@/components/modules/facturation/CreateInvo
 
 type Client = { id: string; name: string; company: string | null; type: string }
 type Project = { id: string; name: string; clientId: string }
+type Product = { id: string; name: string; description: string | null; unitPrice: number; unit: string; isActive: boolean }
 
 const UNIT_OPTIONS = [
   { value: "UNIT", label: "Unité" },
@@ -112,16 +113,18 @@ export function QuickActionsBar({
   userId,
   clients,
   projects,
+  products = [],
 }: {
   userId: string
   clients: Client[]
   projects: Project[]
+  products?: Product[]
 }) {
   return (
     <div className="rounded-xl border border-border/50 bg-card px-4 py-3">
       <div className="flex items-center gap-3 flex-wrap">
         <p className="text-xs font-medium text-muted-foreground mr-1 shrink-0">Raccourcis</p>
-        <CreateQuoteDialog userId={userId} clients={clients} projects={projects} />
+        <CreateQuoteDialog userId={userId} clients={clients} projects={projects} products={products} />
         <CreateInvoiceDialog userId={userId} clients={clients} projects={projects} />
         <CreateProductDialog userId={userId} />
         <a

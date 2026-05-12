@@ -1,10 +1,9 @@
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import Link from "next/link"
-import { TrendingUp, Clock, AlertCircle, CheckCircle2, BarChart3, Settings } from "lucide-react"
+import { TrendingUp, Clock, AlertCircle, CheckCircle2, Settings } from "lucide-react"
 import { markLateInvoices } from "@/actions/facturation"
-
-const MONTHS_FR = ["Jan", "Fév", "Mar", "Avr", "Mai", "Jun", "Jul", "Aoû", "Sep", "Oct", "Nov", "Déc"]
+import { MonthlyRevenueChart } from "@/components/modules/facturation/MonthlyRevenueChart"
 
 export default async function FacturationOverviewPage() {
   const session = await auth()
@@ -64,9 +63,7 @@ export default async function FacturationOverviewPage() {
     return total
   })
 
-  const maxMonthly = Math.max(...monthlyRevenue, 1)
   const currentMonth = now.getMonth()
-
   const recentInvoices = invoicesThisYear.slice(0, 8)
 
   return (
@@ -119,41 +116,11 @@ export default async function FacturationOverviewPage() {
       </div>
 
       {/* Graphique mensuel */}
-      <div className="rounded-xl border border-border/50 bg-card p-5 space-y-4">
-        <div className="flex items-center gap-2">
-          <BarChart3 className="h-4 w-4 text-muted-foreground" />
-          <h2 className="font-semibold text-sm">Revenus mensuels {now.getFullYear()}</h2>
-          <span className="ml-auto text-xs text-muted-foreground">factures payées</span>
-        </div>
-        <div className="flex items-end gap-1.5 h-28">
-          {monthlyRevenue.map((v, m) => {
-            const pct = Math.round((v / maxMonthly) * 100)
-            const isCurrent = m === currentMonth
-            const isFuture = m > currentMonth
-            return (
-              <div key={m} className="flex-1 flex flex-col items-center gap-1">
-                <div className="w-full flex items-end" style={{ height: "88px" }}>
-                  <div
-                    style={{ height: `${Math.max(pct, v > 0 ? 4 : 0)}%` }}
-                    className={`w-full rounded-t transition-all ${
-                      isFuture ? "bg-muted/40" :
-                      isCurrent ? "bg-primary/80" :
-                      "bg-primary/40"
-                    }`}
-                    title={`${MONTHS_FR[m]}: ${v.toLocaleString("fr-FR")} €`}
-                  />
-                </div>
-                <span className={`text-[10px] ${isCurrent ? "text-primary font-medium" : "text-muted-foreground"}`}>
-                  {MONTHS_FR[m]}
-                </span>
-              </div>
-            )
-          })}
-        </div>
-        <div className="text-xs text-muted-foreground text-right">
-          Max: {maxMonthly > 1 ? maxMonthly.toLocaleString("fr-FR") + " €" : "—"}
-        </div>
-      </div>
+      <MonthlyRevenueChart
+        initialData={monthlyRevenue}
+        currentYear={now.getFullYear()}
+        currentMonth={currentMonth}
+      />
 
       {/* Factures en retard — priorité */}
       {allPending.some((i) => i.status === "LATE") && (

@@ -785,3 +785,26 @@ export async function sendInvoiceReminder(invoiceId: string, userId: string) {
 
   revalidatePath(`/facturation/factures/${invoiceId}`)
 }
+
+// ── Chart ──────────────────────────────────────────────────────────────────
+
+export async function getMonthlyRevenue(year: number): Promise<number[]> {
+  const { auth } = await import("@/lib/auth")
+  const session = await auth()
+  if (!session) return Array(12).fill(0)
+  const userId = session.user.id
+
+  const start = new Date(year, 0, 1)
+  const end = new Date(year, 11, 31, 23, 59, 59, 999)
+
+  const invoices = await prisma.invoice.findMany({
+    where: { userId, status: "PAID", paidAt: { gte: start, lte: end } },
+    select: { paidAt: true, createdAt: true, totalHT: true, depositDeducted: true },
+  })
+
+  return Array.from({ length: 12 }, (_, m) =>
+    invoices
+      .filter((i) => new Date(i.paidAt ?? i.createdAt).getMonth() === m)
+      .reduce((s, i) => s + i.totalHT - i.depositDeducted, 0)
+  )
+}

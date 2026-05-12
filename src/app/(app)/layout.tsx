@@ -1,7 +1,9 @@
 import { auth } from "@/lib/auth"
 import { redirect } from "next/navigation"
 import { Sidebar } from "@/components/layout/Sidebar"
+import { TimerBanner } from "@/components/layout/TimerBanner"
 import { ensureSelfClient } from "@/actions/user"
+import { getRunningTimer } from "@/actions/timetracking"
 
 export default async function AppLayout({
   children,
@@ -11,12 +13,18 @@ export default async function AppLayout({
   const session = await auth()
   if (!session) redirect("/login")
 
-  await ensureSelfClient(session.user.id)
+  const userId = session.user.id
+  await ensureSelfClient(userId)
+
+  const runningTimer = await getRunningTimer(userId)
 
   return (
     <div className="flex h-screen overflow-hidden">
       <Sidebar />
-      <main className="flex-1 overflow-y-auto p-6">{children}</main>
+      <div className="flex flex-1 flex-col overflow-hidden">
+        <TimerBanner initialTimer={runningTimer} userId={userId} />
+        <main className="flex-1 overflow-y-auto p-6">{children}</main>
+      </div>
     </div>
   )
 }

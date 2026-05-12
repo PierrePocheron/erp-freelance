@@ -300,6 +300,19 @@ export async function createInvoiceFromQuote(quoteId: string, userId: string, ty
   return invoice
 }
 
+export async function markLateInvoices(userId: string) {
+  await prisma.invoice.updateMany({
+    where: {
+      userId,
+      status: "SENT",
+      dueDate: { lt: new Date() },
+    },
+    data: { status: "LATE" },
+  })
+  revalidatePath("/facturation")
+  revalidatePath("/facturation/factures")
+}
+
 export async function updateInvoiceStatus(invoiceId: string, userId: string, status: string) {
   const data: Record<string, unknown> = { status }
   if (status === "SENT") data.sentAt = new Date()

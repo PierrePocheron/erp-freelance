@@ -143,12 +143,21 @@ export default async function ClientProjetsPage({
 function QuoteStatusBadge({ status }: { status: string }) {
   const config: Record<string, string> = {
     DRAFT: "bg-muted text-muted-foreground",
+    VALIDATED: "bg-violet-500/15 text-violet-600",
     SENT: "bg-blue-500/15 text-blue-600",
+    WAITING_DEPOSIT: "bg-amber-500/15 text-amber-600",
+    DEPOSIT_RECEIVED: "bg-emerald-500/15 text-emerald-600",
     ACCEPTED: "bg-emerald-500/15 text-emerald-600",
+    IN_PROGRESS: "bg-indigo-500/15 text-indigo-600",
+    SIGNED: "bg-teal-500/15 text-teal-600",
     REJECTED: "bg-red-500/15 text-red-600",
   }
-  const labels: Record<string, string> = { DRAFT: "Brouillon", SENT: "Envoyé", ACCEPTED: "Accepté", REJECTED: "Refusé" }
-  return <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${config[status] ?? ""}`}>{labels[status] ?? status}</span>
+  const labels: Record<string, string> = {
+    DRAFT: "Brouillon", VALIDATED: "Validé", SENT: "Envoyé",
+    WAITING_DEPOSIT: "Attente acompte", DEPOSIT_RECEIVED: "Acompte reçu",
+    ACCEPTED: "Accepté", IN_PROGRESS: "En cours", SIGNED: "Signé", REJECTED: "Refusé",
+  }
+  return <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${config[status] ?? "bg-muted text-muted-foreground"}`}>{labels[status] ?? status}</span>
 }
 
 function InvoiceStatusBadge({ status }: { status: string }) {

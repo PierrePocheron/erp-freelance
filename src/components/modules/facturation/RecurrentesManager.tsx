@@ -1,7 +1,9 @@
 "use client"
 
 import { useState, useTransition } from "react"
-import { Plus, Pencil, Trash2, Power, PowerOff, RefreshCw, RefreshCwIcon, X } from "lucide-react"
+import { Plus, Pencil, Trash2, Power, PowerOff, RefreshCw, RefreshCwIcon, X, Zap } from "lucide-react"
+import { useRouter } from "next/navigation"
+import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
@@ -15,6 +17,7 @@ import {
   updateRecurringInvoice,
   deleteRecurringInvoice,
   setRecurringInvoiceLines,
+  generateInvoiceFromRecurring,
 } from "@/actions/facturation"
 import { ClientCombobox } from "./ClientCombobox"
 
@@ -71,6 +74,7 @@ export function RecurrentesManager({
   products: Product[]
   recurringInvoices: RecurringRow[]
 }) {
+  const router = useRouter()
   const [showCreate, setShowCreate] = useState(false)
   const [editId, setEditId] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
@@ -136,18 +140,33 @@ export function RecurrentesManager({
       }
       setShowCreate(false)
       resetForm()
+      toast.success("Modèle créé")
     })
   }
 
   function handleToggle(row: RecurringRow) {
     startTransition(async () => {
       await updateRecurringInvoice(row.id, userId, { isActive: !row.isActive })
+      toast.success(row.isActive ? "Modèle désactivé" : "Modèle activé")
     })
   }
 
   function handleDelete(id: string) {
     startTransition(async () => {
       await deleteRecurringInvoice(id, userId)
+      toast.success("Modèle supprimé")
+    })
+  }
+
+  function handleGenerate(row: RecurringRow) {
+    startTransition(async () => {
+      try {
+        const inv = await generateInvoiceFromRecurring(row.id, userId)
+        toast.success("Facture générée", { description: "Redirection vers la facture…" })
+        router.push(`/facturation/factures/${inv.id}`)
+      } catch {
+        toast.error("Erreur lors de la génération")
+      }
     })
   }
 
@@ -173,6 +192,7 @@ export function RecurrentesManager({
       await setRecurringInvoiceLines(editId, userId, lines)
       setEditId(null)
       resetForm()
+      toast.success("Modèle mis à jour")
     })
   }
 
@@ -250,6 +270,17 @@ export function RecurrentesManager({
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex items-center justify-end gap-1.5">
+                      {row.isActive && (
+                        <button
+                          type="button"
+                          onClick={() => handleGenerate(row)}
+                          disabled={isPending}
+                          className="p-1.5 rounded text-muted-foreground hover:text-indigo-600 hover:bg-indigo-500/10 transition-colors"
+                          title="Générer maintenant"
+                        >
+                          <Zap className="h-3.5 w-3.5" />
+                        </button>
+                      )}
                       <button
                         type="button"
                         onClick={() => startEdit(row)}

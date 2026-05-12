@@ -504,6 +504,77 @@ export async function deleteRecurringInvoice(id: string, userId: string) {
   revalidatePath("/facturation/recurrentes")
 }
 
+type RecurringRowFull = {
+  id: string
+  name: string
+  frequency: string
+  nextGenerationDate: Date
+  clientId: string
+  projectId: string | null
+  userId: string
+}
+
+export async function generateInvoiceFromRecurring(
+  recurringId: string,
+  userId: string
+): Promise<{ id: string }> {
+  const prismaExt = prisma as never as {
+    recurringInvoice: { findFirst: (args: unknown) => Promise<RecurringRowFull | null> }
+  }
+
+  const recurring = await prismaExt.recurringInvoice.findFirst({
+    where: { id: recurringId, userId } as never,
+  })
+  if (!recurring) throw new Error("Modèle introuvable")
+
+  // Fetch lines via raw SQL
+  type LineRow = { description: string; quantity: number; unitPrice: number; taxRate: number; total: number; productId: string | null }
+  const lines = await prisma.$queryRawUnsafe<LineRow[]>(
+    `SELECT description, quantity, "unitPrice", "taxRate", total, "productId" FROM "RecurringInvoiceLine" WHERE "recurringInvoiceId" = $1 ORDER BY id ASC`,
+    recurringId
+  )
+
+  const totalHT = lines.reduce((s, l) => s + Number(l.total), 0)
+  const number = await nextInvoiceNumber(userId)
+
+  const invoice = await prisma.invoice.create({
+    data: {
+      userId,
+      clientId: recurring.clientId,
+      projectId: recurring.projectId,
+      number,
+      type: "RECURRING",
+      status: "DRAFT",
+      totalHT,
+      depositDeducted: 0,
+      lines: {
+        create: lines.map((l) => ({
+          description: l.description,
+          quantity: l.quantity,
+          unitPrice: l.unitPrice,
+          taxRate: l.taxRate,
+          total: l.total,
+        })),
+      },
+    },
+  })
+
+  // Advance nextGenerationDate
+  const next = new Date(recurring.nextGenerationDate)
+  if (recurring.frequency === "MONTHLY") next.setMonth(next.getMonth() + 1)
+  else if (recurring.frequency === "QUARTERLY") next.setMonth(next.getMonth() + 3)
+  else if (recurring.frequency === "YEARLY") next.setFullYear(next.getFullYear() + 1)
+
+  await (prisma as never as { recurringInvoice: { update: (args: unknown) => Promise<unknown> } }).recurringInvoice.update({
+    where: { id: recurringId } as never,
+    data: { nextGenerationDate: next } as never,
+  })
+
+  revalidatePath("/facturation/recurrentes")
+  revalidatePath("/facturation/factures")
+  return invoice
+}
+
 type RecurringLine = {
   description: string
   quantity: number

@@ -120,6 +120,20 @@ export async function reopenTask(taskId: string, projectId: string) {
   revalidatePath(`/projets/${projectId}`)
 }
 
+export async function updateTaskTitle(taskId: string, projectId: string, title: string) {
+  if (!title.trim()) return
+  await prisma.task.update({ where: { id: taskId }, data: { title: title.trim() } })
+  revalidatePath(`/projets/${projectId}`)
+}
+
+export async function updateTaskDueDate(taskId: string, projectId: string, dueDate: string | null) {
+  await prisma.task.update({
+    where: { id: taskId },
+    data: { dueDate: dueDate ? new Date(dueDate) : null },
+  })
+  revalidatePath(`/projets/${projectId}`)
+}
+
 export async function updateTaskPriority(
   taskId: string,
   projectId: string,

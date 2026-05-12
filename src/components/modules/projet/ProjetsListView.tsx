@@ -40,13 +40,21 @@ export function ProjetsListView({
 }) {
   const [view, setView] = useState<"cards" | "list">("cards")
   const [search, setSearch] = useState("")
+  const [statusFilter, setStatusFilter] = useState("ALL")
 
-  const filtered = search.trim()
-    ? projects.filter((p) =>
-        p.name.toLowerCase().includes(search.toLowerCase()) ||
-        (p.client.company ?? p.client.name).toLowerCase().includes(search.toLowerCase())
-      )
-    : projects
+  const STATUS_FILTERS = [
+    { value: "ALL", label: "Tous" },
+    { value: "ACTIVE", label: "Actifs" },
+    { value: "PAUSED", label: "Pausés" },
+    { value: "COMPLETED", label: "Terminés" },
+    { value: "ARCHIVED", label: "Archivés" },
+  ]
+
+  const filtered = projects.filter((p) => {
+    const matchStatus = statusFilter === "ALL" || p.status === statusFilter
+    const matchSearch = !search.trim() || p.name.toLowerCase().includes(search.toLowerCase()) || (p.client.company ?? p.client.name).toLowerCase().includes(search.toLowerCase())
+    return matchStatus && matchSearch
+  })
 
   const active = filtered.filter((p) => p.status === "ACTIVE")
   const others = filtered.filter((p) => p.status !== "ACTIVE")
@@ -60,7 +68,25 @@ export function ProjetsListView({
             {filtered.length}{filtered.length !== projects.length ? `/${projects.length}` : ""} projet{projects.length !== 1 ? "s" : ""}
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex rounded-lg border border-border overflow-hidden text-xs">
+            {STATUS_FILTERS.map((f) => (
+              <button
+                key={f.value}
+                onClick={() => setStatusFilter(f.value)}
+                className={`px-2.5 py-1.5 border-r last:border-r-0 border-border transition-colors ${
+                  statusFilter === f.value ? "bg-accent font-medium" : "text-muted-foreground hover:bg-muted/50"
+                }`}
+              >
+                {f.label}
+                {f.value !== "ALL" && (
+                  <span className="ml-1 text-[10px] opacity-60">
+                    ({projects.filter((p) => p.status === f.value).length})
+                  </span>
+                )}
+              </button>
+            ))}
+          </div>
           <div className="relative">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
             <input
@@ -68,7 +94,7 @@ export function ProjetsListView({
               placeholder="Rechercher..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="h-8 pl-8 pr-3 rounded-lg border border-border bg-transparent text-sm focus:outline-none focus:ring-1 focus:ring-ring w-44"
+              className="h-8 pl-8 pr-3 rounded-lg border border-border bg-transparent text-sm focus:outline-none focus:ring-1 focus:ring-ring w-40"
             />
           </div>
           <div className="flex rounded-lg border border-border overflow-hidden">

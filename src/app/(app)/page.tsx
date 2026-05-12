@@ -5,6 +5,7 @@ import {
   CheckSquare, AlertCircle, Clock, Users,
   TrendingUp, Bell, Code2, Calendar,
 } from "lucide-react"
+import { QuickActionsBar } from "@/components/modules/dashboard/QuickActionsBar"
 
 export default async function DashboardPage() {
   const session = await auth()
@@ -25,6 +26,8 @@ export default async function DashboardPage() {
     pendingQuotes,
     recentInteractions,
     upcomingMilestones,
+    quickClients,
+    quickProjects,
   ] = await Promise.all([
     prisma.task.findMany({
       where: {
@@ -82,6 +85,16 @@ export default async function DashboardPage() {
       orderBy: { date: "asc" },
       take: 5,
     }),
+    prisma.client.findMany({
+      where: { userId, type: { not: "SELF" } },
+      select: { id: true, name: true, company: true, type: true },
+      orderBy: { name: "asc" },
+    }),
+    prisma.project.findMany({
+      where: { userId, status: "ACTIVE" },
+      select: { id: true, name: true, clientId: true },
+      orderBy: { name: "asc" },
+    }),
   ])
 
   const totalPending = unpaidInvoices.reduce((s, i) => s + i.totalHT - i.depositDeducted, 0)
@@ -97,6 +110,9 @@ export default async function DashboardPage() {
           {new Date().toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
         </p>
       </div>
+
+      {/* Raccourcis */}
+      <QuickActionsBar userId={userId} clients={quickClients} projects={quickProjects} />
 
       {/* KPI row */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">

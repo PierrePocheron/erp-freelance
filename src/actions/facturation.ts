@@ -27,6 +27,55 @@ async function nextInvoiceNumber(userId: string) {
 
 // ── Devis ─────────────────────────────────────────────────────────────────────
 
+export async function createQuoteWithLines(
+  userId: string,
+  data: {
+    clientId: string
+    projectId?: string
+    depositPercent?: number
+    expiresAtDays?: number
+    generalConditions?: string
+    lines: Array<{
+      description: string
+      detail?: string
+      quantity: number
+      unitPrice: number
+      taxRate: number
+    }>
+  }
+) {
+  const number = await nextQuoteNumber(userId)
+  const expiresAt = data.expiresAtDays
+    ? new Date(Date.now() + data.expiresAtDays * 24 * 60 * 60 * 1000)
+    : null
+  const totalHT = data.lines.reduce((s, l) => s + l.quantity * l.unitPrice, 0)
+  const quote = await prisma.quote.create({
+    data: {
+      userId,
+      clientId: data.clientId,
+      projectId: data.projectId || null,
+      number,
+      depositPercent: data.depositPercent ?? 0,
+      expiresAt,
+      generalConditions: data.generalConditions || null,
+      totalHT,
+      lines: {
+        create: data.lines.map((l) => ({
+          description: l.description,
+          detail: l.detail || null,
+          quantity: l.quantity,
+          unitPrice: l.unitPrice,
+          taxRate: l.taxRate,
+          total: l.quantity * l.unitPrice,
+        })),
+      },
+    },
+  })
+  revalidatePath("/facturation/devis")
+  revalidatePath("/facturation")
+  return quote
+}
+
 export async function createQuote(
   userId: string,
   data: {

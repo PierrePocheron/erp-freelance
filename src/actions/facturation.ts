@@ -310,8 +310,6 @@ export async function markLateInvoices(userId: string) {
     },
     data: { status: "LATE" },
   })
-  revalidatePath("/facturation")
-  revalidatePath("/facturation/factures")
 }
 
 export async function updateInvoiceStatus(invoiceId: string, userId: string, status: string) {

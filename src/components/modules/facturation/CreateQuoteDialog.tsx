@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
-import { Plus, ChevronDown, Trash2, Pencil, Check, X } from "lucide-react"
+import { Plus, ChevronDown, Trash2, Pencil, Check, X, Package } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import {
@@ -17,9 +17,18 @@ import { ClientCombobox } from "./ClientCombobox"
 
 type Client = { id: string; name: string; company: string | null; type: string }
 type Project = { id: string; name: string; clientId: string }
+type Product = {
+  id: string
+  name: string
+  description: string | null
+  unitPrice: number
+  unit: string
+  isActive: boolean
+}
 
 type DraftLine = {
   localId: string
+  productId?: string
   description: string
   detail: string
   quantity: number
@@ -28,6 +37,7 @@ type DraftLine = {
 }
 
 type LineFormState = {
+  productId: string
   description: string
   detail: string
   quantity: string
@@ -53,12 +63,17 @@ const EXPIRY_OPTIONS = [
   { value: "0", label: "Sans expiration" },
 ]
 
-const emptyLineForm: LineFormState = {
-  description: "",
-  detail: "",
-  quantity: "1",
-  unitPrice: "0",
-  taxRate: "20",
+const UNIT_LABELS: Record<string, string> = {
+  UNIT: "unité",
+  HOUR: "heure",
+  DAY: "jour",
+  MONTH: "mois",
+  YEAR: "an",
+  FLAT: "forfait",
+}
+
+function emptyLineForm(): LineFormState {
+  return { productId: "", description: "", detail: "", quantity: "1", unitPrice: "0", taxRate: "20" }
 }
 
 function fmtEur(n: number) {
@@ -81,20 +96,39 @@ function computeTotals(lines: DraftLine[]) {
 
 function LineForm({
   initial,
+  products,
   onSubmit,
   onCancel,
   submitLabel = "Ajouter",
 }: {
   initial: LineFormState
+  products: Product[]
   onSubmit: (data: LineFormState) => void
   onCancel: () => void
   submitLabel?: string
 }) {
   const [form, setForm] = useState(initial)
   const subtotal = (parseFloat(form.quantity) || 0) * (parseFloat(form.unitPrice) || 0)
+  const activeProducts = products.filter((p) => p.isActive)
 
   function set(k: keyof LineFormState, v: string) {
     setForm((f) => ({ ...f, [k]: v }))
+  }
+
+  function handleProductSelect(productId: string) {
+    if (!productId) {
+      set("productId", "")
+      return
+    }
+    const p = products.find((p) => p.id === productId)
+    if (!p) return
+    setForm((f) => ({
+      ...f,
+      productId,
+      description: p.name,
+      detail: p.description ?? f.detail,
+      unitPrice: String(p.unitPrice),
+    }))
   }
 
   function handleConfirm() {
@@ -104,13 +138,39 @@ function LineForm({
 
   return (
     <div className="space-y-2.5 p-3 bg-muted/20 rounded-lg border border-border/60">
+
+      {/* Sélecteur catalogue */}
+      {activeProducts.length > 0 && (
+        <div className="space-y-1">
+          <label className="text-xs text-muted-foreground flex items-center gap-1">
+            <Package className="h-3 w-3" />
+            Choisir depuis le catalogue
+          </label>
+          <div className="relative">
+            <select
+              value={form.productId}
+              onChange={(e) => handleProductSelect(e.target.value)}
+              className="flex h-8 w-full appearance-none rounded-md border border-input bg-background px-3 pr-8 text-sm focus:outline-none focus:ring-2 focus:ring-ring text-muted-foreground"
+            >
+              <option value="">— Saisir librement —</option>
+              {activeProducts.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name} · {fmtEur(p.unitPrice)} / {UNIT_LABELS[p.unit] ?? p.unit}
+                </option>
+              ))}
+            </select>
+            <ChevronDown className="absolute right-2 top-2 h-4 w-4 text-muted-foreground pointer-events-none" />
+          </div>
+        </div>
+      )}
+
+      {/* Champs libres */}
       <div className="space-y-1.5">
         <input
           value={form.description}
           onChange={(e) => set("description", e.target.value)}
-          required
           autoFocus
-          placeholder="Titre de la prestation *"
+          placeholder="Nom du produit *"
           className="w-full text-sm bg-background border border-input rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-ring"
         />
         <textarea
@@ -192,10 +252,12 @@ export function CreateQuoteDialog({
   userId,
   clients,
   projects,
+  products = [],
 }: {
   userId: string
   clients: Client[]
   projects: Project[]
+  products?: Product[]
 }) {
   const [open, setOpen] = useState(false)
   const [selectedClientId, setSelectedClientId] = useState("")
@@ -232,6 +294,7 @@ export function CreateQuoteDialog({
       ...prev,
       {
         localId: crypto.randomUUID(),
+        productId: data.productId || undefined,
         description: data.description,
         detail: data.detail,
         quantity: parseFloat(data.quantity) || 1,
@@ -248,6 +311,7 @@ export function CreateQuoteDialog({
         l.localId === localId
           ? {
               ...l,
+              productId: data.productId || undefined,
               description: data.description,
               detail: data.detail,
               quantity: parseFloat(data.quantity) || 1,
@@ -282,6 +346,7 @@ export function CreateQuoteDialog({
         expiresAtDays: parseFloat(expiresAtDays) > 0 ? parseFloat(expiresAtDays) : undefined,
         generalConditions: generalConditions || undefined,
         lines: draftLines.map((l) => ({
+          productId: l.productId,
           description: l.description,
           detail: l.detail || undefined,
           quantity: l.quantity,
@@ -368,15 +433,15 @@ export function CreateQuoteDialog({
               </div>
             </div>
 
-            {/* Prestations */}
+            {/* Produits */}
             <div className="space-y-2">
-              <Label>Prestations</Label>
+              <Label>Produits</Label>
 
               {/* Table with existing lines */}
               {draftLines.length > 0 && (
                 <div className="rounded-lg border border-border overflow-hidden">
                   <div className="grid grid-cols-12 gap-2 px-3 py-2 text-xs font-medium text-muted-foreground bg-muted/30 border-b border-border">
-                    <div className="col-span-5">Prestation</div>
+                    <div className="col-span-5">Produit</div>
                     <div className="col-span-1 text-right">Qté</div>
                     <div className="col-span-2 text-right">Prix HT</div>
                     <div className="col-span-1 text-center">TVA</div>
@@ -389,12 +454,14 @@ export function CreateQuoteDialog({
                       <div key={line.localId} className="p-3 border-b border-border/50 last:border-0">
                         <LineForm
                           initial={{
+                            productId: line.productId ?? "",
                             description: line.description,
                             detail: line.detail,
                             quantity: String(line.quantity),
                             unitPrice: String(line.unitPrice),
                             taxRate: String(line.taxRate),
                           }}
+                          products={products}
                           onSubmit={(data) => handleUpdateLine(line.localId, data)}
                           onCancel={() => setEditingLocalId(null)}
                           submitLabel="Valider"
@@ -444,7 +511,8 @@ export function CreateQuoteDialog({
                   {showAddForm ? (
                     <div className="p-3">
                       <LineForm
-                        initial={emptyLineForm}
+                        initial={emptyLineForm()}
+                        products={products}
                         onSubmit={handleAddLine}
                         onCancel={() => setShowAddForm(false)}
                       />
@@ -456,7 +524,7 @@ export function CreateQuoteDialog({
                       className="flex items-center gap-2 w-full px-3 py-2.5 text-sm text-muted-foreground hover:text-foreground hover:bg-muted/20 transition-colors"
                     >
                       <Plus className="h-3.5 w-3.5" />
-                      Ajouter une prestation
+                      Ajouter un produit
                     </button>
                   ) : null}
                 </div>
@@ -466,7 +534,8 @@ export function CreateQuoteDialog({
               {draftLines.length === 0 && (
                 showAddForm ? (
                   <LineForm
-                    initial={emptyLineForm}
+                    initial={emptyLineForm()}
+                    products={products}
                     onSubmit={handleAddLine}
                     onCancel={() => setShowAddForm(false)}
                   />
@@ -477,7 +546,7 @@ export function CreateQuoteDialog({
                     className="flex items-center gap-2 w-full px-3 py-3 text-sm text-muted-foreground border border-dashed border-border rounded-lg hover:text-foreground hover:border-border/80 transition-colors"
                   >
                     <Plus className="h-4 w-4" />
-                    Ajouter une prestation
+                    Ajouter un produit
                   </button>
                 )
               )}
@@ -539,8 +608,8 @@ export function CreateQuoteDialog({
           <div className="px-6 py-4 border-t border-border flex items-center justify-between gap-4">
             <p className="text-xs text-muted-foreground">
               {draftLines.length === 0
-                ? "Vous pourrez ajouter des prestations après création"
-                : `${draftLines.length} prestation${draftLines.length > 1 ? "s" : ""} · ${fmtEur(totalHT)} HT${!allZeroTax ? ` · ${fmtEur(totalTTC)} TTC` : ""}`}
+                ? "Vous pourrez ajouter des produits après création"
+                : `${draftLines.length} produit${draftLines.length > 1 ? "s" : ""} · ${fmtEur(totalHT)} HT${!allZeroTax ? ` · ${fmtEur(totalTTC)} TTC` : ""}`}
             </p>
             <div className="flex gap-2">
               <Button type="button" variant="outline" onClick={() => handleOpenChange(false)}>

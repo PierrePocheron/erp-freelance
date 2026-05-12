@@ -1,7 +1,7 @@
 "use client"
 
-import { useState, useRef, useCallback } from "react"
-import { Check, Plus, ChevronDown, Loader2 } from "lucide-react"
+import { useState } from "react"
+import { Check, Plus, ChevronDown, Loader2, X } from "lucide-react"
 import { createQuickClient } from "@/actions/crm"
 
 type Client = { id: string; name: string; company: string | null; type: string }
@@ -19,41 +19,43 @@ function clientLabel(c: Client) {
 }
 
 export function ClientCombobox({ userId, clients, value, onChange }: Props) {
-  const [open, setOpen] = useState(false)
   const [query, setQuery] = useState("")
+  const [open, setOpen] = useState(false)
   const [creating, setCreating] = useState(false)
-  const [localClients, setLocalClients] = useState<Client[]>(clients)
-  const inputRef = useRef<HTMLInputElement>(null)
+  const [allClients, setAllClients] = useState<Client[]>(clients)
 
-  const selected = localClients.find((c) => c.id === value)
+  const selected = allClients.find((c) => c.id === value)
 
   const filtered = query.trim()
-    ? localClients.filter((c) => {
+    ? allClients.filter((c) => {
         const q = query.toLowerCase()
-        return c.name.toLowerCase().includes(q) || c.company?.toLowerCase().includes(q)
+        return c.name.toLowerCase().includes(q) || (c.company ?? "").toLowerCase().includes(q)
       })
-    : localClients
+    : allClients
 
-  const showCreate =
-    query.trim().length > 0 &&
-    !localClients.some((c) => c.name.toLowerCase() === query.trim().toLowerCase())
+  const exactMatch = allClients.some(
+    (c) => c.name.toLowerCase() === query.trim().toLowerCase()
+  )
+  const showCreate = query.trim().length > 0 && !exactMatch
 
-  const handleOpen = useCallback(() => {
-    setOpen(true)
-    setQuery("")
-  }, [])
-
-  const handleClose = useCallback(() => {
-    setTimeout(() => {
+  // Close when focus leaves the entire combobox container
+  function handleContainerBlur(e: React.FocusEvent<HTMLDivElement>) {
+    if (!e.currentTarget.contains(e.relatedTarget as Node)) {
       setOpen(false)
       setQuery("")
-    }, 150)
-  }, [])
+    }
+  }
 
   function handleSelect(clientId: string) {
     onChange(clientId)
     setOpen(false)
     setQuery("")
+  }
+
+  function handleClear() {
+    onChange("")
+    setQuery("")
+    setOpen(true)
   }
 
   async function handleCreate() {
@@ -62,7 +64,13 @@ export function ClientCombobox({ userId, clients, value, onChange }: Props) {
     setCreating(true)
     try {
       const client = await createQuickClient(userId, { name })
-      setLocalClients((prev) => [...prev, { id: client.id, name: client.name, company: client.company, type: client.type }])
+      const newClient: Client = {
+        id: client.id,
+        name: client.name,
+        company: client.company,
+        type: client.type,
+      }
+      setAllClients((prev) => [...prev, newClient])
       onChange(client.id)
       setOpen(false)
       setQuery("")
@@ -72,54 +80,90 @@ export function ClientCombobox({ userId, clients, value, onChange }: Props) {
   }
 
   return (
-    <div className="relative">
+    <div className="space-y-1" onBlur={handleContainerBlur}>
+      {/* Input */}
       <div className="relative">
         <input
-          ref={inputRef}
-          value={open ? query : (selected ? clientLabel(selected) : "")}
-          onChange={(e) => setQuery(e.target.value)}
-          onFocus={handleOpen}
-          onBlur={handleClose}
-          placeholder="Rechercher un client..."
-          className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 pr-8 py-1 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+          value={open ? query : (selected ? clientLabel(selected) : query)}
+          onChange={(e) => {
+            setQuery(e.target.value)
+            if (!open) setOpen(true)
+            // Clear selection if user edits after picking a client
+            if (selected && e.target.value !== clientLabel(selected)) onChange("")
+          }}
+          onFocus={() => setOpen(true)}
+          placeholder="Rechercher ou créer un client..."
+          className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring pr-8"
         />
-        <ChevronDown className="absolute right-2.5 top-2.5 h-4 w-4 text-muted-foreground pointer-events-none" />
+        {selected && !open ? (
+          <button
+            type="button"
+            tabIndex={-1}
+            onClick={handleClear}
+            className="absolute right-2.5 top-2.5 text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        ) : (
+          <ChevronDown className="absolute right-2.5 top-2.5 h-4 w-4 text-muted-foreground pointer-events-none" />
+        )}
       </div>
 
+      {/* Selected indicator */}
+      {selected && !open && (
+        <p className="text-xs text-emerald-600 flex items-center gap-1">
+          <Check className="h-3 w-3" />
+          {clientLabel(selected)}
+        </p>
+      )}
+
+      {/* Dropdown list — inline, pas absolue, évite tout clipping dans le Dialog */}
       {open && (
-        <div className="absolute z-50 mt-1 w-full rounded-md border border-border bg-popover shadow-lg overflow-hidden">
-          <div className="max-h-52 overflow-y-auto py-1">
+        <div className="rounded-md border border-border bg-popover shadow-sm overflow-hidden">
+          <div className="max-h-44 overflow-y-auto">
             {filtered.length === 0 && !showCreate && (
-              <p className="px-3 py-2 text-sm text-muted-foreground">Aucun client trouvé</p>
+              <p className="px-3 py-2.5 text-sm text-muted-foreground">Aucun client trouvé</p>
             )}
 
             {filtered.map((c) => (
               <button
                 key={c.id}
                 type="button"
-                onMouseDown={() => handleSelect(c.id)}
-                className="flex items-center gap-2 w-full px-3 py-2 text-sm text-left hover:bg-muted/50 transition-colors"
+                onClick={() => handleSelect(c.id)}
+                className="flex items-center gap-2.5 w-full px-3 py-2 text-sm text-left hover:bg-muted/60 transition-colors"
               >
-                <Check className={`h-3.5 w-3.5 shrink-0 ${c.id === value ? "text-primary" : "opacity-0"}`} />
-                <span className={c.id === value ? "font-medium" : ""}>{clientLabel(c)}</span>
+                <Check
+                  className={`h-3.5 w-3.5 shrink-0 transition-opacity ${
+                    c.id === value ? "text-primary opacity-100" : "opacity-0"
+                  }`}
+                />
+                <span className="flex-1 truncate">
+                  <span className={c.id === value ? "font-medium" : ""}>{c.name}</span>
+                  {c.company && (
+                    <span className="text-muted-foreground ml-1.5">— {c.company}</span>
+                  )}
+                </span>
+                <span className="text-xs text-muted-foreground capitalize shrink-0">
+                  {c.type === "PROSPECT" ? "Prospect" : c.type === "CLIENT" ? "Client" : c.type === "INACTIVE" ? "Inactif" : ""}
+                </span>
               </button>
             ))}
 
             {showCreate && (
               <>
-                {filtered.length > 0 && <div className="border-t border-border/50 my-1" />}
+                {filtered.length > 0 && <div className="border-t border-border/50" />}
                 <button
                   type="button"
-                  onMouseDown={handleCreate}
+                  onClick={handleCreate}
                   disabled={creating}
-                  className="flex items-center gap-2 w-full px-3 py-2 text-sm text-primary hover:bg-primary/10 transition-colors disabled:opacity-50"
+                  className="flex items-center gap-2 w-full px-3 py-2.5 text-sm text-primary font-medium hover:bg-primary/8 transition-colors disabled:opacity-50"
                 >
                   {creating ? (
                     <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin" />
                   ) : (
                     <Plus className="h-3.5 w-3.5 shrink-0" />
                   )}
-                  {creating ? "Création..." : `Créer "${query.trim()}"`}
+                  {creating ? "Création en cours..." : `Créer "${query.trim()}"`}
                 </button>
               </>
             )}

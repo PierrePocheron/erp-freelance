@@ -2,8 +2,78 @@
 
 import { useState, useTransition, useRef } from "react"
 import { Pencil, Check, X } from "lucide-react"
-import { updateProjectInfo } from "@/actions/projet"
+import { updateProjectInfo, updateProjectStatus } from "@/actions/projet"
 import { cn } from "@/lib/utils"
+import { toast } from "sonner"
+
+// ── Statut du projet ──────────────────────────────────────────────────────────
+
+const statusOptions = [
+  { value: "ACTIVE", label: "Actif", cls: "bg-emerald-500/15 text-emerald-600 border-emerald-500/20" },
+  { value: "PAUSED", label: "Pausé", cls: "bg-amber-500/15 text-amber-600 border-amber-500/20" },
+  { value: "COMPLETED", label: "Terminé", cls: "bg-blue-500/15 text-blue-600 border-blue-500/20" },
+  { value: "ARCHIVED", label: "Archivé", cls: "bg-muted text-muted-foreground border-border" },
+]
+
+export function ProjectStatusEdit({
+  projectId,
+  value,
+}: {
+  projectId: string
+  value: string
+}) {
+  const [open, setOpen] = useState(false)
+  const [isPending, startTransition] = useTransition()
+
+  const current = statusOptions.find((s) => s.value === value) ?? statusOptions[0]
+
+  function pick(next: string) {
+    if (next === value) { setOpen(false); return }
+    startTransition(async () => {
+      await updateProjectStatus(projectId, next as "ACTIVE" | "PAUSED" | "COMPLETED" | "ARCHIVED")
+      toast.success("Statut mis à jour")
+      setOpen(false)
+    })
+  }
+
+  return (
+    <div className="relative">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        disabled={isPending}
+        className={cn(
+          "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-medium transition-opacity hover:opacity-75",
+          current.cls
+        )}
+      >
+        {current.label}
+        <Pencil className="h-2.5 w-2.5 opacity-60" />
+      </button>
+
+      {open && (
+        <>
+          <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
+          <div className="absolute right-0 top-full mt-1 z-20 rounded-lg border border-border bg-popover shadow-md p-1 min-w-32">
+            {statusOptions.map((opt) => (
+              <button
+                key={opt.value}
+                onClick={() => pick(opt.value)}
+                className={cn(
+                  "w-full text-left px-3 py-1.5 text-xs rounded-md hover:bg-muted transition-colors",
+                  opt.value === value && "font-medium"
+                )}
+              >
+                <span className={cn("inline-block rounded-full px-2 py-0.5 border text-xs", opt.cls)}>
+                  {opt.label}
+                </span>
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
 
 // ── Nom du projet ─────────────────────────────────────────────────────────────
 

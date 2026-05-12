@@ -29,6 +29,7 @@ export default async function DashboardPage() {
     quickClients,
     quickProjects,
     quickProducts,
+    userProfile,
   ] = await Promise.all([
     prisma.task.findMany({
       where: {
@@ -100,6 +101,7 @@ export default async function DashboardPage() {
       where: { userId, isActive: true },
       orderBy: { name: "asc" },
     }) as unknown as Array<{ id: string; name: string; description: string | null; unitPrice: number; unit: string; isActive: boolean; billingType: string; defaultTaxRate: number }>,
+    prisma.userProfile.findUnique({ where: { userId } }),
   ])
 
   const totalPending = unpaidInvoices.reduce((s, i) => s + i.totalHT - i.depositDeducted, 0)
@@ -117,7 +119,7 @@ export default async function DashboardPage() {
       </div>
 
       {/* Raccourcis */}
-      <QuickActionsBar userId={userId} clients={quickClients} projects={quickProjects} products={quickProducts} />
+      <QuickActionsBar userId={userId} clients={quickClients} projects={quickProjects} products={quickProducts} defaultConditions={userProfile?.defaultConditions ?? ""} />
 
       {/* KPI row */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">

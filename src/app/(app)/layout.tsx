@@ -2,6 +2,7 @@ import { auth } from "@/lib/auth"
 import { redirect } from "next/navigation"
 import { Sidebar } from "@/components/layout/Sidebar"
 import { TimerBanner } from "@/components/layout/TimerBanner"
+import { CommandPalette } from "@/components/layout/CommandPalette"
 import { ensureSelfClient } from "@/actions/user"
 import { getRunningTimer } from "@/actions/timetracking"
 
@@ -25,6 +26,7 @@ export default async function AppLayout({
         <TimerBanner initialTimer={runningTimer} userId={userId} />
         <main className="flex-1 overflow-y-auto p-6">{children}</main>
       </div>
+      <CommandPalette />
     </div>
   )
 }

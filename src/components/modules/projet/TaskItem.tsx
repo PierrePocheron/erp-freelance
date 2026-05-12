@@ -3,9 +3,9 @@
 import { useTransition, useState, useRef } from "react"
 import {
   CheckCircle2, Circle, PlayCircle, Loader2, Trash2,
-  ChevronUp, ChevronDown, ChevronRight, Flag, Plus, Pencil,
+  ChevronUp, ChevronDown, ChevronRight, Flag, Plus, Pencil, AlignLeft,
 } from "lucide-react"
-import { startTask, completeTask, reopenTask, deleteTask, updateTaskPriority, reorderTask, updateTaskTitle, updateTaskDueDate } from "@/actions/projet"
+import { startTask, completeTask, reopenTask, deleteTask, updateTaskPriority, reorderTask, updateTaskTitle, updateTaskDueDate, updateTaskDescription, updateTaskEstimatedHours } from "@/actions/projet"
 import { AddTaskForm } from "./AddTaskForm"
 import { TimeTracker } from "./TimeTracker"
 import { cn } from "@/lib/utils"
@@ -29,6 +29,7 @@ type SubTask = {
 type Task = {
   id: string
   title: string
+  description: string | null
   status: "TODO" | "IN_PROGRESS" | "DONE"
   priority: "LOW" | "MEDIUM" | "HIGH" | "URGENT"
   order: number
@@ -58,8 +59,12 @@ export function TaskItem({
   const [showPriorityMenu, setShowPriorityMenu] = useState(false)
   const [editingTitle, setEditingTitle] = useState(false)
   const [editingDate, setEditingDate] = useState(false)
+  const [editingHours, setEditingHours] = useState(false)
+  const [showDescription, setShowDescription] = useState(!!task.description)
   const titleRef = useRef<HTMLInputElement>(null)
   const dateRef = useRef<HTMLInputElement>(null)
+  const hoursRef = useRef<HTMLInputElement>(null)
+  const descRef = useRef<HTMLTextAreaElement>(null)
   const p = priorityConfig[task.priority]
 
   function saveTitle() {
@@ -77,6 +82,22 @@ export function TaskItem({
       startTransition(() => updateTaskDueDate(task.id, projectId, val))
     }
     setEditingDate(false)
+  }
+
+  function saveHours() {
+    const raw = hoursRef.current?.value
+    const val = raw ? parseFloat(raw) : null
+    if (val !== task.estimatedHours) {
+      startTransition(() => updateTaskEstimatedHours(task.id, projectId, val))
+    }
+    setEditingHours(false)
+  }
+
+  function saveDescription() {
+    const val = descRef.current?.value.trim() || null
+    if (val !== task.description) {
+      startTransition(() => updateTaskDescription(task.id, projectId, val))
+    }
   }
 
   const fmt = (d: Date | null) =>
@@ -185,7 +206,45 @@ export function TaskItem({
               </button>
             )
           )}
-          {task.estimatedHours && <span>{task.estimatedHours}h</span>}
+          {task.status !== "DONE" && (
+            editingHours ? (
+              <input
+                ref={hoursRef}
+                type="number"
+                min="0"
+                step="0.5"
+                defaultValue={task.estimatedHours ?? ""}
+                autoFocus
+                onBlur={saveHours}
+                onKeyDown={(e) => { if (e.key === "Enter") saveHours(); if (e.key === "Escape") setEditingHours(false) }}
+                className="h-5 text-xs bg-transparent border-b border-primary outline-none w-16"
+                placeholder="0h"
+              />
+            ) : (
+              <button
+                onClick={() => setEditingHours(true)}
+                className={cn(
+                  "text-xs transition-opacity",
+                  task.estimatedHours ? "text-muted-foreground opacity-100" : "opacity-0 group-hover:opacity-100 text-muted-foreground"
+                )}
+                title="Heures estimées"
+              >
+                {task.estimatedHours ? `${task.estimatedHours}h` : "~h"}
+              </button>
+            )
+          )}
+          {task.status !== "DONE" && (
+            <button
+              onClick={() => setShowDescription((v) => !v)}
+              className={cn(
+                "transition-opacity",
+                task.description ? "text-muted-foreground opacity-100" : "opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-foreground"
+              )}
+              title="Description"
+            >
+              <AlignLeft className={cn("h-3.5 w-3.5", showDescription && "text-primary")} />
+            </button>
+          )}
         </div>
 
         {/* Priorité */}
@@ -231,6 +290,20 @@ export function TaskItem({
           <Trash2 className="h-3.5 w-3.5" />
         </button>
       </div>
+
+      {/* Description */}
+      {showDescription && task.status !== "DONE" && (
+        <div className="ml-10 mr-2 pb-2">
+          <textarea
+            ref={descRef}
+            defaultValue={task.description ?? ""}
+            rows={2}
+            placeholder="Ajouter une description..."
+            onBlur={saveDescription}
+            className="w-full text-sm text-muted-foreground bg-transparent resize-none outline-none placeholder:text-muted-foreground/50 leading-relaxed"
+          />
+        </div>
+      )}
 
       {/* Sous-tâches */}
       {showSubs && (

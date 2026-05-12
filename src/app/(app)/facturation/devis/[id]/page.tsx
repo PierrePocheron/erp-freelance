@@ -18,6 +18,7 @@ import {
   updateQuoteSettings,
   signQuoteWithFile,
   sendQuoteEmail,
+  resendQuoteEmail,
 } from "@/actions/facturation"
 import { redirect } from "next/navigation"
 import { Input } from "@/components/ui/input"
@@ -158,11 +159,19 @@ export default async function DevisDetailPage({
             <Download className="h-3.5 w-3.5" />
             Imprimer PDF
           </a>
-          {(quote.status === "VALIDATED" || quote.status === "DRAFT") && quote.client.email && (
+          {(quote.status === "DRAFT" || quote.status === "VALIDATED") && quote.client.email && (
             <form action={async () => { "use server"; await sendQuoteEmail(id, userId) }}>
               <Button type="submit" size="sm">
                 <Send className="h-3.5 w-3.5" />
                 Envoyer par email
+              </Button>
+            </form>
+          )}
+          {quote.status === "SENT" && quote.client.email && (
+            <form action={async () => { "use server"; await resendQuoteEmail(id, userId) }}>
+              <Button type="submit" size="sm" variant="outline">
+                <Send className="h-3.5 w-3.5" />
+                Relancer
               </Button>
             </form>
           )}

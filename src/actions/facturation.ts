@@ -282,6 +282,7 @@ export async function createInvoiceFromQuote(quoteId: string, userId: string, ty
       type: isDeposit ? "DEPOSIT" : "FINAL",
       totalHT: isDeposit ? depositAmount : quote.totalHT,
       depositDeducted,
+      notes: quote.generalConditions ?? null,
       lines: {
         create: quote.lines.map((l) => ({
           description: l.description,
@@ -635,6 +636,36 @@ export async function setRecurringInvoiceLines(
 }
 
 // ── Email ─────────────────────────────────────────────────────────────────────
+
+export async function resendQuoteEmail(quoteId: string, userId: string) {
+  const quote = await prisma.quote.findFirst({
+    where: { id: quoteId, userId, status: "SENT" },
+    include: { client: true, user: true },
+  })
+  if (!quote) throw new Error("Devis introuvable")
+  if (!quote.client.email) throw new Error("Le client n'a pas d'adresse email")
+
+  const { Resend } = await import("resend")
+  const resend = new Resend(process.env.RESEND_API_KEY)
+
+  const pdfUrl = `${process.env.NEXTAUTH_URL}/api/pdf/devis/${quoteId}`
+
+  const { error } = await resend.emails.send({
+    from: "ERP Freelance <noreply@resend.dev>",
+    to: quote.client.email,
+    subject: `Rappel — Devis ${quote.number}`,
+    html: `
+      <p>Bonjour ${quote.client.name},</p>
+      <p>Je me permets de vous relancer concernant le devis <strong>${quote.number}</strong> d'un montant de <strong>${quote.totalHT.toLocaleString("fr-FR")} €</strong> HT que je vous ai adressé.</p>
+      ${quote.expiresAt ? `<p>Ce devis est valable jusqu'au ${new Date(quote.expiresAt).toLocaleDateString("fr-FR")}.</p>` : ""}
+      <p><a href="${pdfUrl}">Consulter le devis</a></p>
+      <p>Cordialement,<br>${quote.user.name}</p>
+    `,
+  })
+
+  if (error) throw new Error(error.message)
+  revalidatePath(`/facturation/devis/${quoteId}`)
+}
 
 export async function sendQuoteEmail(quoteId: string, userId: string) {
   const quote = await prisma.quote.findFirst({

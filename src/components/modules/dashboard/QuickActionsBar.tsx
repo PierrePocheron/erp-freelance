@@ -150,17 +150,19 @@ export function QuickActionsBar({
   clients,
   projects,
   products = [],
+  defaultConditions = "",
 }: {
   userId: string
   clients: Client[]
   projects: Project[]
   products?: Product[]
+  defaultConditions?: string
 }) {
   return (
     <div className="rounded-xl border border-border/50 bg-card px-4 py-3">
       <div className="flex items-center gap-3 flex-wrap">
         <p className="text-xs font-medium text-muted-foreground mr-1 shrink-0">Raccourcis</p>
-        <CreateQuoteDialog userId={userId} clients={clients} projects={projects} products={products} />
+        <CreateQuoteDialog userId={userId} clients={clients} projects={projects} products={products} defaultConditions={defaultConditions} />
         <CreateInvoiceDialog userId={userId} clients={clients} projects={projects} />
         <CreateProductDialog userId={userId} />
         <a

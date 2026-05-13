@@ -9,7 +9,7 @@ import { cn } from "@/lib/utils"
 const NAV_ITEMS = [
   { label: "Dashboard",       href: "/",                        icon: "⚡" },
   { label: "Projets",         href: "/projets",                 icon: "💻" },
-  { label: "CRM — Clients",   href: "/crm",                     icon: "👥" },
+  { label: "CRM — Clients",   href: "/client",                     icon: "👥" },
   { label: "Devis",           href: "/facturation/devis",       icon: "📄" },
   { label: "Factures",        href: "/facturation/factures",    icon: "💰" },
   { label: "Produits",        href: "/facturation/produits",    icon: "📦" },

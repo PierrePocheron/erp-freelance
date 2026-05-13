@@ -144,7 +144,7 @@ export function ClientPanel({
               {type.label}
             </span>
             <Link
-              href={`/crm/${client.id}`}
+              href={`/client/${client.id}`}
               className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
               title="Ouvrir la fiche complète"
             >
@@ -231,7 +231,7 @@ export function ClientPanel({
         {/* Reminders */}
         {client.reminders.length > 0 && (
           <section className="space-y-2">
-            <SectionHeader icon={<Bell className="h-3 w-3" />} label="Rappels" href={`/crm/${client.id}/rappels`} />
+            <SectionHeader icon={<Bell className="h-3 w-3" />} label="Rappels" href={`/client/${client.id}/rappels`} />
             <div className="space-y-1.5">
               {client.reminders.map((r) => {
                 const isLate = new Date(r.dueDate) < new Date()
@@ -251,7 +251,7 @@ export function ClientPanel({
         {/* Interactions */}
         {client.interactions.length > 0 && (
           <section className="space-y-2">
-            <SectionHeader icon={<MessageSquare className="h-3 w-3" />} label="Interactions" count={client._count.interactions} href={`/crm/${client.id}/interactions`} />
+            <SectionHeader icon={<MessageSquare className="h-3 w-3" />} label="Interactions" count={client._count.interactions} href={`/client/${client.id}/interactions`} />
             <div className="space-y-1.5">
               {client.interactions.map((i) => (
                 <div key={i.id} className="flex items-start gap-2 rounded-lg border border-border/50 p-2">
@@ -271,7 +271,7 @@ export function ClientPanel({
         {/* Projects */}
         {client.projects.length > 0 && (
           <section className="space-y-2">
-            <SectionHeader icon={<FolderKanban className="h-3 w-3" />} label="Projets" count={client._count.projects} href={`/crm/${client.id}/projets`} />
+            <SectionHeader icon={<FolderKanban className="h-3 w-3" />} label="Projets" count={client._count.projects} href={`/client/${client.id}/projets`} />
             <div className="space-y-1.5">
               {client.projects.map((p) => {
                 const ps = projectStatusConfig[p.status] ?? { label: p.status, className: "text-muted-foreground" }
@@ -356,7 +356,7 @@ export function ClientPanel({
       {/* Footer */}
       <div className="p-4 border-t border-border/50">
         <Link
-          href={`/crm/${client.id}`}
+          href={`/client/${client.id}`}
           className="flex items-center justify-center gap-2 w-full rounded-lg border border-border/50 px-4 py-2 text-sm font-medium hover:bg-muted/50 transition-colors"
         >
           Ouvrir la fiche complète

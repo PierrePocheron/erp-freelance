@@ -270,7 +270,7 @@ export default async function ClientOverviewPage({
           action={async () => {
             "use server"
             await deleteClient(id, userId)
-            redirect("/crm")
+            redirect("/client")
           }}
         >
           <Button type="submit" variant="destructive" size="sm" className="w-full">

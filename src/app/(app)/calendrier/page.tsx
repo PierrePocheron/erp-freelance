@@ -78,7 +78,7 @@ export default async function CalendrierPage() {
       date: r.dueDate,
       title: r.client.name + (r.note ? ` — ${r.note}` : ""),
       type: "reminder" as const,
-      href: `/crm/${r.client.id}/rappels`,
+      href: `/client/${r.client.id}/rappels`,
       isLate: new Date(r.dueDate) < now,
     })),
     ...invoices.map((inv) => ({

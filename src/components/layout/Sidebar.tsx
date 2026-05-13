@@ -20,7 +20,7 @@ import { ThemeToggle } from "./ThemeToggle"
 
 const navItems = [
   { href: "/", icon: LayoutDashboard, label: "Dashboard" },
-  { href: "/crm", icon: Users, label: "Clients" },
+  { href: "/client", icon: Users, label: "Clients" },
   { href: "/facturation", icon: FileText, label: "Facturation" },
   { href: "/projets", icon: Code2, label: "Projets" },
   { href: "/calendrier", icon: Calendar, label: "Calendrier" },

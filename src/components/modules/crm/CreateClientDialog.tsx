@@ -66,7 +66,7 @@ export function CreateClientDialog({ userId }: { userId: string }) {
               <select name="type" className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-ring">
                 <option value="PROSPECT">Prospect</option>
                 <option value="CLIENT">Client</option>
-                <option value="SELF">Perso</option>
+                <option value="PERSONAL">Perso</option>
                 <option value="INACTIVE">Inactif</option>
               </select>
             </div>

@@ -20,6 +20,7 @@ const tempConfig = {
 const typeConfig = {
   PROSPECT: { label: "Prospect", className: "bg-amber-500/15 text-amber-600 border-amber-500/20" },
   CLIENT: { label: "Client", className: "bg-emerald-500/15 text-emerald-600 border-emerald-500/20" },
+  PERSONAL: { label: "Perso", className: "bg-violet-500/15 text-violet-600 border-violet-500/20" },
   SELF: { label: "Perso", className: "bg-indigo-500/15 text-indigo-600 border-indigo-500/20" },
   INACTIVE: { label: "Inactif", className: "bg-muted text-muted-foreground border-border" },
 }

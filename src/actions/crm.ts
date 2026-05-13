@@ -22,7 +22,7 @@ export async function createQuickClient(
     },
   })
   revalidatePath("/projets")
-  revalidatePath("/crm")
+  revalidatePath("/client")
   return client
 }
 
@@ -53,7 +53,7 @@ export async function createClient(
       notes: data.notes || null,
     },
   })
-  revalidatePath("/crm")
+  revalidatePath("/client")
   return client
 }
 
@@ -73,8 +73,8 @@ export async function updateClient(
     where: { id: clientId, userId },
     data: data as any,
   })
-  revalidatePath(`/crm/${clientId}`)
-  revalidatePath("/crm")
+  revalidatePath(`/client/${clientId}`)
+  revalidatePath("/client")
 }
 
 export async function updateClientType(clientId: string, userId: string, type: string) {
@@ -82,8 +82,8 @@ export async function updateClientType(clientId: string, userId: string, type: s
     where: { id: clientId, userId },
     data: { type: type as any },
   })
-  revalidatePath(`/crm/${clientId}`)
-  revalidatePath("/crm")
+  revalidatePath(`/client/${clientId}`)
+  revalidatePath("/client")
 }
 
 export async function updateClientTemperature(clientId: string, userId: string, temperature: string) {
@@ -91,8 +91,8 @@ export async function updateClientTemperature(clientId: string, userId: string, 
     where: { id: clientId, userId },
     data: { temperature: temperature as any },
   })
-  revalidatePath(`/crm/${clientId}`)
-  revalidatePath("/crm")
+  revalidatePath(`/client/${clientId}`)
+  revalidatePath("/client")
 }
 
 export async function updateClientPriority(clientId: string, userId: string, priorityScore: number) {
@@ -100,13 +100,13 @@ export async function updateClientPriority(clientId: string, userId: string, pri
     where: { id: clientId, userId },
     data: { priorityScore },
   })
-  revalidatePath(`/crm/${clientId}`)
-  revalidatePath("/crm")
+  revalidatePath(`/client/${clientId}`)
+  revalidatePath("/client")
 }
 
 export async function deleteClient(clientId: string, userId: string) {
   await prisma.client.delete({ where: { id: clientId, userId } })
-  revalidatePath("/crm")
+  revalidatePath("/client")
 }
 
 // ── Interactions ──────────────────────────────────────────────────────────────
@@ -124,8 +124,8 @@ export async function addInteraction(
       response: data.response || null,
     },
   })
-  revalidatePath(`/crm/${clientId}`)
-  revalidatePath("/crm")
+  revalidatePath(`/client/${clientId}`)
+  revalidatePath("/client")
 }
 
 export async function updateInteraction(
@@ -142,12 +142,12 @@ export async function updateInteraction(
       response: data.response || null,
     },
   })
-  revalidatePath(`/crm/${clientId}`)
+  revalidatePath(`/client/${clientId}`)
 }
 
 export async function deleteInteraction(interactionId: string, clientId: string) {
   await prisma.interaction.delete({ where: { id: interactionId } })
-  revalidatePath(`/crm/${clientId}`)
+  revalidatePath(`/client/${clientId}`)
 }
 
 // ── Reminders ─────────────────────────────────────────────────────────────────
@@ -160,7 +160,7 @@ export async function addReminder(clientId: string, data: { dueDate: string; not
       note: data.note || null,
     },
   })
-  revalidatePath(`/crm/${clientId}`)
+  revalidatePath(`/client/${clientId}`)
 }
 
 export async function toggleReminder(reminderId: string, clientId: string, isDone: boolean) {
@@ -168,12 +168,12 @@ export async function toggleReminder(reminderId: string, clientId: string, isDon
     where: { id: reminderId },
     data: { isDone, doneAt: isDone ? new Date() : null },
   })
-  revalidatePath(`/crm/${clientId}`)
+  revalidatePath(`/client/${clientId}`)
 }
 
 export async function deleteReminder(reminderId: string, clientId: string) {
   await prisma.reminder.delete({ where: { id: reminderId } })
-  revalidatePath(`/crm/${clientId}`)
+  revalidatePath(`/client/${clientId}`)
 }
 
 // ── Panel ─────────────────────────────────────────────────────────────────────

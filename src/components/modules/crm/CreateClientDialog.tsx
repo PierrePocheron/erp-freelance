@@ -29,7 +29,7 @@ export function CreateClientDialog({ userId }: { userId: string }) {
         notes: (fd.get("notes") as string) || undefined,
       })
       setOpen(false)
-      router.push(`/crm/${client.id}`)
+      router.push(`/client/${client.id}`)
     })
   }
 

@@ -127,7 +127,7 @@ export default async function DashboardPage() {
         <KPICard href="/facturation/factures" icon={<TrendingUp className="h-4 w-4" />} label="En attente" value={`${totalPending.toLocaleString("fr-FR")} €`} color="blue" />
         <KPICard href="/facturation/factures" icon={<AlertCircle className="h-4 w-4" />} label="En retard" value={lateInvoices} color={lateInvoices > 0 ? "red" : "muted"} />
         <KPICard href="/facturation/devis" icon={<Clock className="h-4 w-4" />} label="Devis envoyés" value={pendingQuotes} color="amber" />
-        <KPICard href="/crm" icon={<Bell className="h-4 w-4" />} label="Rappels" value={upcomingReminders.length} color={upcomingReminders.some(r => new Date(r.dueDate) < new Date()) ? "red" : "muted"} />
+        <KPICard href="/client" icon={<Bell className="h-4 w-4" />} label="Rappels" value={upcomingReminders.length} color={upcomingReminders.some(r => new Date(r.dueDate) < new Date()) ? "red" : "muted"} />
         <KPICard href="/projets" icon={<CheckSquare className="h-4 w-4" />} label="En cours" value={tasksInProgress.length} color="emerald" />
       </div>
 
@@ -230,7 +230,7 @@ export default async function DashboardPage() {
         <div className="space-y-6">
           {/* Rappels */}
           {upcomingReminders.length > 0 && (
-            <Section title="Rappels" icon={<Bell className="h-4 w-4" />} href="/crm">
+            <Section title="Rappels" icon={<Bell className="h-4 w-4" />} href="/client">
               <div className="space-y-1.5">
                 {upcomingReminders.map((r) => {
                   const isLate = new Date(r.dueDate) < new Date()
@@ -245,7 +245,7 @@ export default async function DashboardPage() {
                           <Circle className="h-3.5 w-3.5" />
                         </button>
                       </form>
-                      <Link href={`/crm/${r.client.id}/rappels`} className="flex-1 min-w-0">
+                      <Link href={`/client/${r.client.id}/rappels`} className="flex-1 min-w-0">
                         <p className="text-sm font-medium">{r.client.name}</p>
                         {r.note && <p className="text-xs text-muted-foreground truncate">{r.note}</p>}
                         <p className={`text-xs ${isLate ? "text-red-500 font-medium" : "text-muted-foreground"}`}>
@@ -262,10 +262,10 @@ export default async function DashboardPage() {
 
           {/* Activité récente */}
           {recentInteractions.length > 0 && (
-            <Section title="Activité récente" icon={<Users className="h-4 w-4" />} href="/crm">
+            <Section title="Activité récente" icon={<Users className="h-4 w-4" />} href="/client">
               <div className="space-y-1.5">
                 {recentInteractions.map((i) => (
-                  <Link key={i.id} href={`/crm/${i.client.id}/interactions`} className="flex items-start gap-3 rounded-lg px-3 py-2 hover:bg-muted/50 transition-colors">
+                  <Link key={i.id} href={`/client/${i.client.id}/interactions`} className="flex items-start gap-3 rounded-lg px-3 py-2 hover:bg-muted/50 transition-colors">
                     <span className="h-2 w-2 rounded-full bg-muted-foreground mt-1.5 shrink-0" />
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium">{i.client.name}</p>

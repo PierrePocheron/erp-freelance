@@ -5,6 +5,7 @@ import Link from "next/link"
 import { Calendar, Clock, CheckSquare, BookOpen, Link2, ExternalLink, FileText, Receipt } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { createJournalEntry } from "@/actions/projet"
+import { QuickNoteForm } from "@/components/modules/projet/QuickNoteForm"
 import { LINK_CATEGORY_CONFIG, normalizeUrl } from "@/lib/link-categories"
 
 const quoteStatusLabel: Record<string, string> = {
@@ -226,24 +227,10 @@ export default async function ProjectOverviewPage({
               <h2 className="font-semibold">Notes rapides</h2>
             </div>
 
-            <form
-              action={async (fd: FormData) => {
-                "use server"
-                await createJournalEntry(id, fd)
-              }}
-              className="flex gap-2"
-            >
-              <textarea
-                name="content"
-                rows={2}
-                placeholder="Note, décision, retour client…"
-                required
-                className="flex-1 rounded-md border border-input bg-transparent px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring resize-none"
-              />
-              <Button type="submit" size="sm" variant="outline" className="self-end shrink-0">
-                Ajouter
-              </Button>
-            </form>
+            <QuickNoteForm action={async (fd: FormData) => {
+              "use server"
+              await createJournalEntry(id, fd)
+            }} />
 
             {project.journalEntries.length === 0 ? (
               <p className="text-xs text-muted-foreground italic">Aucune note pour l&apos;instant</p>

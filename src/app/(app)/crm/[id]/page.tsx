@@ -152,7 +152,7 @@ export default async function ClientOverviewPage({
 
         {/* Type & Température */}
         <div className="rounded-xl border border-border/50 bg-card p-5 space-y-3">
-          <h2 className="font-semibold text-sm">Qualification</h2>
+          <h2 className="font-semibold text-sm">Type</h2>
           <form
             action={async (fd: FormData) => {
               "use server"

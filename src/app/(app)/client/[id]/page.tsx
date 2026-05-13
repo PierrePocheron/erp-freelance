@@ -170,6 +170,7 @@ export default async function ClientOverviewPage({
               >
                 <option value="PROSPECT">Prospect</option>
                 <option value="CLIENT">Client</option>
+                <option value="PERSONAL">Perso</option>
                 <option value="INACTIVE">Inactif</option>
               </select>
             </div>

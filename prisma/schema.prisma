@@ -111,6 +111,7 @@ model VerificationToken {
 enum ClientType {
   PROSPECT
   CLIENT
+  PERSONAL
   SELF
   INACTIVE
 }

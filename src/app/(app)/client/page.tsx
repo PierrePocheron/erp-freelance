@@ -20,12 +20,14 @@ export default async function CRMPage() {
 
   const prospects = clients.filter((c) => c.type === "PROSPECT")
   const activeClients = clients.filter((c) => c.type === "CLIENT")
+  const personalClients = clients.filter((c) => c.type === "PERSONAL")
   const hot = clients.filter((c) => c.temperature === "HOT")
   const pendingReminders = clients.reduce((acc, c) => acc + c.reminders.length, 0)
 
   const groups = [
-    { key: "CLIENT", label: "Clients actifs", items: activeClients },
+    { key: "CLIENT", label: "Clients", items: activeClients },
     { key: "PROSPECT", label: "Prospects", items: prospects },
+    { key: "PERSONAL", label: "Perso", items: personalClients },
     { key: "INACTIVE", label: "Inactifs", items: clients.filter((c) => c.type === "INACTIVE") },
   ]
 
@@ -39,8 +41,10 @@ export default async function CRMPage() {
         <CreateClientDialog userId={userId} />
       </div>
 
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
         <StatCard icon={<Users className="h-4 w-4" />} label="Contacts" value={clients.length} />
+        <StatCard icon={<TrendingUp className="h-4 w-4 text-blue-500" />} label="Clients" value={activeClients.length} />
+        <StatCard icon={<Users className="h-4 w-4 text-violet-500" />} label="Perso" value={personalClients.length} />
         <StatCard icon={<TrendingUp className="h-4 w-4" />} label="Prospects" value={prospects.length} />
         <StatCard icon={<Flame className="h-4 w-4 text-red-500" />} label="Chauds" value={hot.length} />
         <StatCard icon={<Thermometer className="h-4 w-4 text-amber-500" />} label="Rappels" value={pendingReminders} />

@@ -18,16 +18,23 @@ import { createQuickClient } from "@/actions/crm"
 
 type Client = { id: string; name: string; company: string | null; type: string }
 
+function clientLabel(c: Client) {
+  if (c.type === "SELF" || c.type === "PERSONAL") return c.name
+  return c.company ? `${c.name} — ${c.company}` : c.name
+}
+
 export function CreateProjectDialog({
   userId,
   clients: initialClients,
+  defaultClientId,
 }: {
   userId: string
   clients: Client[]
+  defaultClientId?: string
 }) {
   const [open, setOpen] = useState(false)
   const [clients, setClients] = useState(initialClients)
-  const [selectedClientId, setSelectedClientId] = useState(initialClients[0]?.id ?? "")
+  const [selectedClientId, setSelectedClientId] = useState(defaultClientId ?? initialClients[0]?.id ?? "")
   const [showNewClient, setShowNewClient] = useState(false)
   const [isPending, startTransition] = useTransition()
   const [isCreatingClient, startCreatingClient] = useTransition()
@@ -67,101 +74,98 @@ export function CreateProjectDialog({
       </DialogTrigger>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Nouveau projet</DialogTitle>
+          <DialogTitle>{showNewClient ? "Nouveau client" : "Nouveau projet"}</DialogTitle>
         </DialogHeader>
 
-        {showNewClient ? (
-          <form onSubmit={handleCreateClient} className="space-y-4 pt-2">
-            <button
-              type="button"
-              onClick={() => setShowNewClient(false)}
-              className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
-            >
-              <ChevronLeft className="h-4 w-4" /> Retour
-            </button>
-            <p className="text-sm font-medium">Nouveau client</p>
-            <div className="space-y-1.5">
-              <Label htmlFor="clientName">Nom *</Label>
-              <Input id="clientName" name="clientName" placeholder="Jean Dupont" required />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="clientCompany">Société</Label>
-              <Input id="clientCompany" name="clientCompany" placeholder="Acme Inc." />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="clientEmail">Email</Label>
-              <Input id="clientEmail" name="clientEmail" type="email" placeholder="jean@acme.fr" />
-            </div>
-            <div className="flex justify-end gap-2">
-              <Button type="button" variant="outline" onClick={() => setShowNewClient(false)}>Annuler</Button>
-              <Button type="submit" disabled={isCreatingClient}>
-                {isCreatingClient ? "Création..." : "Créer le client"}
+        {/* Formulaire création client — caché mais conservé dans le DOM pour ne pas perdre les données du formulaire projet */}
+        <form onSubmit={handleCreateClient} className={showNewClient ? "space-y-4 pt-2" : "hidden"}>
+          <button
+            type="button"
+            onClick={() => setShowNewClient(false)}
+            className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
+          >
+            <ChevronLeft className="h-4 w-4" /> Retour
+          </button>
+          <div className="space-y-1.5">
+            <Label htmlFor="clientName">Nom *</Label>
+            <Input id="clientName" name="clientName" placeholder="Jean Dupont" />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="clientCompany">Société</Label>
+            <Input id="clientCompany" name="clientCompany" placeholder="Acme Inc." />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="clientEmail">Email</Label>
+            <Input id="clientEmail" name="clientEmail" type="email" placeholder="jean@acme.fr" />
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="outline" onClick={() => setShowNewClient(false)}>Annuler</Button>
+            <Button type="submit" disabled={isCreatingClient}>
+              {isCreatingClient ? "Création..." : "Créer le client"}
+            </Button>
+          </div>
+        </form>
+
+        {/* Formulaire création projet — caché via CSS, pas démonté */}
+        <form onSubmit={handleSubmit} className={showNewClient ? "hidden" : "space-y-4 pt-2"}>
+          <div className="space-y-1.5">
+            <Label htmlFor="name">Nom du projet *</Label>
+            <Input id="name" name="name" placeholder="Mon site e-commerce" required />
+          </div>
+
+          <div className="space-y-1.5">
+            <Label>Client *</Label>
+            <div className="flex gap-2">
+              <select
+                value={selectedClientId}
+                onChange={(e) => setSelectedClientId(e.target.value)}
+                required
+                className="flex h-9 flex-1 rounded-md border border-input bg-transparent px-3 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+              >
+                {clients.map((c) => (
+                  <option key={c.id} value={c.id}>{clientLabel(c)}</option>
+                ))}
+              </select>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setShowNewClient(true)}
+                title="Nouveau client"
+              >
+                <UserPlus className="h-4 w-4" />
               </Button>
             </div>
-          </form>
-        ) : (
-          <form onSubmit={handleSubmit} className="space-y-4 pt-2">
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="description">Description</Label>
+            <Input id="description" name="description" placeholder="Courte description..." />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <Label htmlFor="name">Nom du projet *</Label>
-              <Input id="name" name="name" placeholder="Mon site e-commerce" required />
+              <Label htmlFor="startDate">Début</Label>
+              <Input id="startDate" name="startDate" type="date" />
             </div>
-
             <div className="space-y-1.5">
-              <Label>Client *</Label>
-              <div className="flex gap-2">
-                <select
-                  value={selectedClientId}
-                  onChange={(e) => setSelectedClientId(e.target.value)}
-                  required
-                  className="flex h-9 flex-1 rounded-md border border-input bg-transparent px-3 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
-                >
-                  {clients.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.type === "SELF" ? "Perso" : c.company ? `${c.name} — ${c.company}` : c.name}
-                    </option>
-                  ))}
-                </select>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setShowNewClient(true)}
-                  title="Nouveau client"
-                >
-                  <UserPlus className="h-4 w-4" />
-                </Button>
-              </div>
+              <Label htmlFor="endDate">Fin estimée</Label>
+              <Input id="endDate" name="endDate" type="date" />
             </div>
+          </div>
 
-            <div className="space-y-1.5">
-              <Label htmlFor="description">Description</Label>
-              <Input id="description" name="description" placeholder="Courte description..." />
-            </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="estimatedHours">Heures estimées</Label>
+            <Input id="estimatedHours" name="estimatedHours" type="number" min="0" step="0.5" placeholder="20" />
+          </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label htmlFor="startDate">Début</Label>
-                <Input id="startDate" name="startDate" type="date" />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="endDate">Fin estimée</Label>
-                <Input id="endDate" name="endDate" type="date" />
-              </div>
-            </div>
-
-            <div className="space-y-1.5">
-              <Label htmlFor="estimatedHours">Heures estimées</Label>
-              <Input id="estimatedHours" name="estimatedHours" type="number" min="0" step="0.5" placeholder="20" />
-            </div>
-
-            <div className="flex justify-end gap-2 pt-2">
-              <Button type="button" variant="outline" onClick={() => setOpen(false)}>Annuler</Button>
-              <Button type="submit" disabled={isPending || !selectedClientId}>
-                {isPending ? "Création..." : "Créer le projet"}
-              </Button>
-            </div>
-          </form>
-        )}
+          <div className="flex justify-end gap-2 pt-2">
+            <Button type="button" variant="outline" onClick={() => setOpen(false)}>Annuler</Button>
+            <Button type="submit" disabled={isPending || !selectedClientId}>
+              {isPending ? "Création..." : "Créer le projet"}
+            </Button>
+          </div>
+        </form>
       </DialogContent>
     </Dialog>
   )

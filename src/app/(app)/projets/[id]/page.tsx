@@ -6,6 +6,7 @@ import { Calendar, Clock, CheckSquare, BookOpen, Link2, ExternalLink, FileText, 
 import { Button } from "@/components/ui/button"
 import { createJournalEntry } from "@/actions/projet"
 import { QuickNoteForm } from "@/components/modules/projet/QuickNoteForm"
+import { JournalEntryItem } from "@/components/modules/projet/JournalEntryItem"
 import { LINK_CATEGORY_CONFIG, normalizeUrl } from "@/lib/link-categories"
 
 const quoteStatusLabel: Record<string, string> = {
@@ -237,17 +238,7 @@ export default async function ProjectOverviewPage({
             ) : (
               <div className="space-y-2.5 max-h-72 overflow-y-auto pr-1">
                 {project.journalEntries.map((entry) => (
-                  <div key={entry.id} className="flex gap-3 group">
-                    <div className="mt-1.5 h-1.5 w-1.5 rounded-full bg-border shrink-0" />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs text-muted-foreground mb-0.5">
-                        {new Date(entry.createdAt).toLocaleDateString("fr-FR", {
-                          day: "numeric", month: "short", hour: "2-digit", minute: "2-digit",
-                        })}
-                      </p>
-                      <p className="text-sm whitespace-pre-line">{entry.content}</p>
-                    </div>
-                  </div>
+                  <JournalEntryItem key={entry.id} entry={entry} projectId={id} />
                 ))}
               </div>
             )}

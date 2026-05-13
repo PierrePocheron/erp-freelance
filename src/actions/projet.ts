@@ -226,6 +226,16 @@ export async function createJournalEntry(projectId: string, formData: FormData) 
   revalidatePath(`/projets/${projectId}`)
 }
 
+export async function updateJournalEntry(id: string, projectId: string, content: string) {
+  await prisma.journalEntry.update({ where: { id }, data: { content } })
+  revalidatePath(`/projets/${projectId}`)
+}
+
+export async function deleteJournalEntry(id: string, projectId: string) {
+  await prisma.journalEntry.delete({ where: { id } })
+  revalidatePath(`/projets/${projectId}`)
+}
+
 // ── Deliverables ───────────────────────────────────────────────────────────
 
 export async function createDeliverable(projectId: string, formData: FormData) {

@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma"
 import { notFound } from "next/navigation"
 import Link from "next/link"
 import { Code2, ExternalLink } from "lucide-react"
+import { CreateProjectDialog } from "@/components/modules/projet/CreateProjectDialog"
 
 const statusConfig = {
   ACTIVE: { label: "Actif", className: "bg-emerald-500/15 text-emerald-600 border-emerald-500/20" },
@@ -18,8 +19,10 @@ export default async function ClientProjetsPage({
 }) {
   const { id } = await params
   const session = await auth()
+  const userId = session!.user.id
 
-  const client = await prisma.client.findFirst({
+  const [client, allClients] = await Promise.all([
+  prisma.client.findFirst({
     where: { id, userId: session!.user.id },
     include: {
       projects: {
@@ -31,7 +34,13 @@ export default async function ClientProjetsPage({
       quotes: { orderBy: { createdAt: "desc" }, select: { id: true, number: true, status: true, totalHT: true, createdAt: true } },
       invoices: { orderBy: { createdAt: "desc" }, select: { id: true, number: true, status: true, totalHT: true, createdAt: true } },
     },
-  })
+  }),
+  prisma.client.findMany({
+    where: { userId, type: { not: "SELF" } },
+    select: { id: true, name: true, company: true, type: true },
+    orderBy: { name: "asc" },
+  }),
+  ])
 
   if (!client) notFound()
 
@@ -39,7 +48,10 @@ export default async function ClientProjetsPage({
     <div className="space-y-8">
       {/* Projets */}
       <section className="space-y-3">
-        <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">Projets</h2>
+        <div className="flex items-center justify-between">
+          <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">Projets</h2>
+          <CreateProjectDialog userId={userId} clients={allClients} defaultClientId={id} />
+        </div>
         {client.projects.length === 0 ? (
           <p className="text-sm text-muted-foreground">Aucun projet pour ce client</p>
         ) : (

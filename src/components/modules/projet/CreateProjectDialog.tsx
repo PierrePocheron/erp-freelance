@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useTransition } from "react"
+import { useState, useRef, useTransition } from "react"
 import { useRouter } from "next/navigation"
 import { Plus, UserPlus, ChevronLeft } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -36,6 +36,7 @@ export function CreateProjectDialog({
   const [clients, setClients] = useState(initialClients)
   const [selectedClientId, setSelectedClientId] = useState(defaultClientId ?? initialClients[0]?.id ?? "")
   const [showNewClient, setShowNewClient] = useState(false)
+  const [startDate, setStartDate] = useState("")
   const [isPending, startTransition] = useTransition()
   const [isCreatingClient, startCreatingClient] = useTransition()
   const router = useRouter()
@@ -146,11 +147,17 @@ export function CreateProjectDialog({
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label htmlFor="startDate">Début</Label>
-              <Input id="startDate" name="startDate" type="date" />
+              <Input
+                id="startDate"
+                name="startDate"
+                type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+              />
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="endDate">Fin estimée</Label>
-              <Input id="endDate" name="endDate" type="date" />
+              <Input id="endDate" name="endDate" type="date" min={startDate || undefined} />
             </div>
           </div>
 

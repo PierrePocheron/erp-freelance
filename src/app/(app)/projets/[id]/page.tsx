@@ -250,13 +250,10 @@ export default async function ProjectOverviewPage({
 
           {/* Jalons */}
           <div className="rounded-xl border border-border/50 bg-card p-5 space-y-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Flag className="h-4 w-4 text-muted-foreground" />
-                <h2 className="font-semibold text-sm">Jalons</h2>
-              </div>
-              <Link href={`/projets/${id}/dev`} className="text-xs text-primary hover:underline">Gérer →</Link>
-            </div>
+            <Link href={`/projets/${id}/dev`} className="flex items-center gap-2 font-semibold text-sm hover:text-primary transition-colors">
+              <Flag className="h-4 w-4 text-muted-foreground" />
+              Jalons →
+            </Link>
             {project.milestones.length === 0 ? (
               <p className="text-xs text-muted-foreground italic">Aucun jalon défini</p>
             ) : (
@@ -290,7 +287,8 @@ export default async function ProjectOverviewPage({
 
           {hasBilling ? (
             <div className="rounded-xl border border-border/50 bg-card p-5 space-y-4">
-              <Link href="/facturation" className="block font-semibold text-sm hover:text-primary transition-colors">
+              <Link href="/facturation" className="flex items-center gap-2 font-semibold text-sm hover:text-primary transition-colors">
+                <Receipt className="h-4 w-4 text-muted-foreground" />
                 Facturation →
               </Link>
 

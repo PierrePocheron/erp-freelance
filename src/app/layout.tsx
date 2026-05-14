@@ -26,15 +26,7 @@ export default function RootLayout({
       suppressHydrationWarning
     >
       <head>
-        {/* Inline script to apply theme before hydration and avoid FOUC.
-            RootLayout is a Server Component — this script IS executed by the browser
-            despite the React 19 dev warning, which is a false positive here. */}
-        {/* eslint-disable-next-line @next/next/no-before-interactive-script-outside-document */}
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `(function(){try{var t=localStorage.getItem('theme');if(t==='dark'||(t===null&&window.matchMedia('(prefers-color-scheme:dark)').matches)){document.documentElement.classList.add('dark')}}catch(e){}})()`,
-          }}
-        />
+        <script src="/theme-init.js" />
       </head>
       <body className="min-h-full flex flex-col bg-background text-foreground">
         {children}

@@ -2,7 +2,7 @@ import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { notFound } from "next/navigation"
 import Link from "next/link"
-import { Calendar, Clock, CheckSquare, BookOpen, Link2, ExternalLink, FileText, Receipt } from "lucide-react"
+import { Calendar, Clock, CheckSquare, BookOpen, Link2, ExternalLink, FileText, Receipt, Flag } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { createJournalEntry } from "@/actions/projet"
 import { QuickNoteForm } from "@/components/modules/projet/QuickNoteForm"
@@ -245,11 +245,54 @@ export default async function ProjectOverviewPage({
           </div>
         </div>
 
-        {/* Colonne droite : Facturation */}
+        {/* Colonne droite : Jalons + Facturation */}
         <div className="space-y-6">
+
+          {/* Jalons */}
+          <div className="rounded-xl border border-border/50 bg-card p-5 space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Flag className="h-4 w-4 text-muted-foreground" />
+                <h2 className="font-semibold text-sm">Jalons</h2>
+              </div>
+              <Link href={`/projets/${id}/dev`} className="text-xs text-primary hover:underline">Gérer →</Link>
+            </div>
+            {project.milestones.length === 0 ? (
+              <p className="text-xs text-muted-foreground italic">Aucun jalon défini</p>
+            ) : (
+              <div className="space-y-1.5">
+                {project.milestones.map((m) => {
+                  const isPast = m.status !== "DONE" && new Date(m.date) < new Date()
+                  const statusCls =
+                    m.status === "DONE" ? "bg-emerald-500/15 text-emerald-600" :
+                    m.status === "IN_PROGRESS" ? "bg-blue-500/15 text-blue-600" :
+                    isPast ? "bg-red-500/15 text-red-600" :
+                    "bg-muted text-muted-foreground"
+                  const statusLabel =
+                    m.status === "DONE" ? "Terminé" :
+                    m.status === "IN_PROGRESS" ? "En cours" :
+                    isPast ? "En retard" : "À venir"
+                  return (
+                    <div key={m.id} className="flex items-center gap-2 py-1">
+                      <span className={`shrink-0 rounded-full px-1.5 py-0.5 text-xs font-medium ${statusCls}`}>
+                        {statusLabel}
+                      </span>
+                      <span className="flex-1 text-sm truncate">{m.name}</span>
+                      <span className="shrink-0 text-xs text-muted-foreground">
+                        {new Date(m.date).toLocaleDateString("fr-FR", { day: "numeric", month: "short" })}
+                      </span>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+
           {hasBilling ? (
             <div className="rounded-xl border border-border/50 bg-card p-5 space-y-4">
-              <h2 className="font-semibold text-sm">Facturation</h2>
+              <Link href="/facturation" className="block font-semibold text-sm hover:text-primary transition-colors">
+                Facturation →
+              </Link>
 
               {project.quotes.length > 0 && (
                 <div className="space-y-1.5">

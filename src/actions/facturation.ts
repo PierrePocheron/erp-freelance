@@ -259,7 +259,7 @@ export async function createInvoice(
   return invoice
 }
 
-export async function createInvoiceFromQuote(quoteId: string, userId: string, type: "DEPOSIT" | "FINAL") {
+export async function createInvoiceFromQuote(quoteId: string, userId: string, type: "DEPOSIT" | "FINAL" | "RECURRING") {
   const quote = await prisma.quote.findFirst({
     where: { id: quoteId, userId },
     include: { lines: true },
@@ -279,7 +279,7 @@ export async function createInvoiceFromQuote(quoteId: string, userId: string, ty
       projectId: quote.projectId,
       quoteId: quote.id,
       number,
-      type: isDeposit ? "DEPOSIT" : "FINAL",
+      type: isDeposit ? "DEPOSIT" : type === "RECURRING" ? "RECURRING" : "FINAL",
       totalHT: isDeposit ? depositAmount : quote.totalHT,
       depositDeducted,
       notes: quote.generalConditions ?? null,
@@ -299,6 +299,49 @@ export async function createInvoiceFromQuote(quoteId: string, userId: string, ty
   revalidatePath("/facturation/factures")
   revalidatePath("/facturation")
   return invoice
+}
+
+export async function recordPayment(
+  invoiceId: string,
+  userId: string,
+  data: { amount: number; paidAt: string; note?: string }
+) {
+  const invoice = await prisma.invoice.findFirst({
+    where: { id: invoiceId, userId },
+    include: { payments: true },
+  })
+  if (!invoice) return
+
+  await prisma.payment.create({
+    data: {
+      invoiceId,
+      amount: data.amount,
+      paidAt: new Date(data.paidAt),
+      note: data.note || null,
+    },
+  })
+
+  const netAmount = invoice.totalHT - invoice.depositDeducted
+  const totalPaid = invoice.payments.reduce((s, p) => s + p.amount, 0) + data.amount
+  if (netAmount > 0 && totalPaid >= netAmount - 0.01 && invoice.status !== "PAID") {
+    await prisma.invoice.update({
+      where: { id: invoiceId },
+      data: { status: "PAID", paidAt: new Date(data.paidAt) },
+    })
+  }
+
+  revalidatePath(`/facturation/factures/${invoiceId}`)
+  revalidatePath("/facturation/factures")
+  revalidatePath("/facturation")
+}
+
+export async function deletePayment(paymentId: string, invoiceId: string, userId: string) {
+  const invoice = await prisma.invoice.findFirst({ where: { id: invoiceId, userId } })
+  if (!invoice) return
+  await prisma.payment.delete({ where: { id: paymentId } })
+  revalidatePath(`/facturation/factures/${invoiceId}`)
+  revalidatePath("/facturation/factures")
+  revalidatePath("/facturation")
 }
 
 export async function markLateInvoices(userId: string) {

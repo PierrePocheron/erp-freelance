@@ -10,7 +10,7 @@ import { toast } from "sonner"
 
 const statusOptions = [
   { value: "ACTIVE", label: "Actif", cls: "bg-emerald-500/15 text-emerald-600 border-emerald-500/20" },
-  { value: "PAUSED", label: "Pausé", cls: "bg-amber-500/15 text-amber-600 border-amber-500/20" },
+  { value: "PAUSED", label: "En pause", cls: "bg-amber-500/15 text-amber-600 border-amber-500/20" },
   { value: "COMPLETED", label: "Terminé", cls: "bg-blue-500/15 text-blue-600 border-blue-500/20" },
   { value: "ARCHIVED", label: "Archivé", cls: "bg-muted text-muted-foreground border-border" },
 ]

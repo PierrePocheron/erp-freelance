@@ -31,6 +31,7 @@ model User {
   timeEntries       TimeEntry[]
   tags              Tag[]
   profile           UserProfile?
+  projectMemberships ProjectMember[]
 }
 
 model UserProfile {
@@ -275,6 +276,26 @@ model Project {
   invoices      Invoice[]
   recurringInvoices RecurringInvoice[]
   tags          Tag[]
+  members       ProjectMember[]
+}
+
+enum ProjectMemberRole {
+  ADMIN
+  MEMBER
+  VIEWER
+}
+
+model ProjectMember {
+  id        String            @id @default(cuid())
+  projectId String
+  userId    String
+  role      ProjectMemberRole @default(MEMBER)
+  createdAt DateTime          @default(now())
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, userId])
 }
 
 model Milestone {
@@ -548,6 +569,18 @@ model Invoice {
   quote     Quote?        @relation(fields: [quoteId], references: [id])
   lines     InvoiceLine[]
   emailLogs EmailLog[]
+  payments  Payment[]
+}
+
+model Payment {
+  id        String   @id @default(cuid())
+  invoiceId String
+  amount    Float
+  paidAt    DateTime @default(now())
+  note      String?
+  createdAt DateTime @default(now())
+
+  invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
 }
 
 model InvoiceLine {

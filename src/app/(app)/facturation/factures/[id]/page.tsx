@@ -6,6 +6,7 @@ import { ChevronLeft, Download, Send, CheckCircle2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { LineItemsEditor } from "@/components/modules/facturation/LineItemsEditor"
 import { DeleteConfirmButton } from "@/components/modules/facturation/DeleteConfirmButton"
+import { InvoicePaymentSection } from "@/components/modules/facturation/InvoicePaymentSection"
 import { updateInvoiceStatus, deleteInvoice, updateInvoiceDueDate, updateInvoiceNotes, sendInvoiceEmail, sendInvoiceReminder } from "@/actions/facturation"
 import { redirect } from "next/navigation"
 import { Input } from "@/components/ui/input"
@@ -41,6 +42,7 @@ export default async function FactureDetailPage({
       quote: { select: { id: true, number: true } },
       lines: { orderBy: { id: "asc" } },
       emailLogs: { orderBy: { sentAt: "desc" }, take: 3 },
+      payments: { orderBy: { paidAt: "asc" } },
     },
   })
 
@@ -221,6 +223,15 @@ export default async function FactureDetailPage({
           <Button type="submit" size="sm" variant="outline">Enregistrer</Button>
         </form>
       </div>
+
+      {/* Paiements */}
+      <InvoicePaymentSection
+        invoiceId={id}
+        userId={userId}
+        netAmount={netAmount}
+        payments={invoice.payments}
+        isPaid={invoice.status === "PAID"}
+      />
 
       {/* Logs email */}
       {invoice.emailLogs.length > 0 && (

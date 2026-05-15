@@ -7,7 +7,7 @@ import { ProjectTabs } from "@/components/modules/projet/ProjectTabs"
 import { ProjectDateBadge } from "@/components/modules/projet/ProjectDateBadge"
 import { ProjectNameEdit, ProjectDescriptionEdit, ProjectHoursEdit, ProjectStatusEdit } from "@/components/modules/projet/ProjectInlineEdit"
 import { TagSelector } from "@/components/modules/projet/TagSelector"
-import { ProjectDeleteButton } from "@/components/modules/projet/ProjectDeleteButton"
+import { ProjectSettingsDialog } from "@/components/modules/projet/ProjectSettingsDialog"
 
 export default async function ProjectLayout({
   children,
@@ -18,14 +18,21 @@ export default async function ProjectLayout({
 }) {
   const { id } = await params
   const session = await auth()
-
   const userId = session!.user.id
 
   const [project, allTags, projectTagIds] = await Promise.all([
     prisma.project.findFirst({
-      where: { id, userId },
+      where: {
+        id,
+        OR: [{ userId }, { members: { some: { userId } } }],
+      },
       include: {
         client: { select: { name: true, company: true, type: true } },
+        members: {
+          include: { user: { select: { name: true, email: true, image: true } } },
+          orderBy: { createdAt: "asc" },
+        },
+        user: { select: { name: true, email: true, image: true } },
       },
     }),
     prisma.tag.findMany({
@@ -34,15 +41,17 @@ export default async function ProjectLayout({
       select: { id: true, name: true, color: true },
     }).catch(() => [] as { id: string; name: string; color: string }[]),
     prisma.project.findFirst({
-      where: { id, userId },
+      where: { id, OR: [{ userId }, { members: { some: { userId } } }] },
       select: { tags: { select: { id: true } } },
     }).catch(() => null),
   ])
 
   if (!project) notFound()
 
+  const isOwner = project.userId === userId
+
   const clientLabel =
-    project.client.type === "SELF"
+    project.client.type === "SELF" || project.client.type === "PERSONAL"
       ? "Perso"
       : project.client.company || project.client.name
   const selectedTagIds = projectTagIds?.tags?.map((t) => t.id) ?? []
@@ -63,14 +72,12 @@ export default async function ProjectLayout({
             <ProjectNameEdit projectId={id} value={project.name} />
             <ProjectDescriptionEdit projectId={id} value={project.description} />
 
-            {/* Badges dates + heures — tous éditables au clic */}
             <div className="flex flex-wrap items-center gap-2 pt-1">
               <ProjectDateBadge projectId={id} field="startDate" value={project.startDate} label="Début" />
               <ProjectDateBadge projectId={id} field="endDate" value={project.endDate} label="Fin estimée" />
               <ProjectHoursEdit projectId={id} value={project.estimatedHours} />
             </div>
 
-            {/* Tags */}
             <TagSelector
               projectId={id}
               userId={userId}
@@ -79,17 +86,26 @@ export default async function ProjectLayout({
             />
           </div>
 
-          <ProjectStatusEdit projectId={id} value={project.status} />
+          <div className="flex items-center gap-2 shrink-0">
+            <ProjectStatusEdit projectId={id} value={project.status} />
+            {isOwner && (
+              <ProjectSettingsDialog
+                projectId={id}
+                userId={userId}
+                projectName={project.name}
+                members={project.members}
+                ownerName={project.user.name}
+                ownerEmail={project.user.email}
+                ownerImage={project.user.image}
+              />
+            )}
+          </div>
         </div>
       </div>
 
       <ProjectTabs projectId={id} />
 
       {children}
-
-      <div className="pt-4 border-t border-border/50 flex justify-end">
-        <ProjectDeleteButton projectId={id} userId={userId} projectName={project.name} />
-      </div>
     </div>
   )
 }

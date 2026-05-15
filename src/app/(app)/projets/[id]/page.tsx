@@ -48,7 +48,7 @@ export default async function ProjectOverviewPage({
   const userId = session!.user.id
 
   const project = await prisma.project.findFirst({
-    where: { id, userId },
+    where: { id, OR: [{ userId }, { members: { some: { userId } } }] },
     include: {
       tasks: {
         where: { parentTaskId: null },
@@ -74,6 +74,11 @@ export default async function ProjectOverviewPage({
         select: { id: true, number: true, status: true, type: true, totalHT: true, depositDeducted: true, dueDate: true },
         orderBy: { createdAt: "desc" },
       },
+      members: {
+        include: { user: { select: { name: true, email: true, image: true } } },
+        orderBy: { createdAt: "asc" },
+      },
+      user: { select: { name: true, email: true, image: true } },
     },
   })
 
@@ -110,6 +115,34 @@ export default async function ProjectOverviewPage({
 
   return (
     <div className="space-y-6">
+
+      {/* Liens rapides — raccourcis */}
+      {project.usefulLinks.length > 0 && (
+        <div className="rounded-xl border border-border/50 bg-card p-4">
+          <div className="flex items-center gap-2 mb-3">
+            <Link2 className="h-3.5 w-3.5 text-muted-foreground" />
+            <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Liens rapides</span>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {project.usefulLinks.map((l) => {
+              const cat = LINK_CATEGORY_CONFIG[l.category] ?? LINK_CATEGORY_CONFIG.OTHER
+              return (
+                <a
+                  key={l.id}
+                  href={normalizeUrl(l.url)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-opacity hover:opacity-80 ${cat.cls}`}
+                >
+                  <span className={`h-1.5 w-1.5 rounded-full shrink-0 ${cat.dot}`} />
+                  {l.label}
+                  <ExternalLink className="h-2.5 w-2.5 opacity-60" />
+                </a>
+              )
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Bento stats */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
@@ -187,30 +220,54 @@ export default async function ProjectOverviewPage({
         </div>
       </div>
 
-      {/* Liens rapides — raccourcis */}
-      {project.usefulLinks.length > 0 && (
-        <div className="rounded-xl border border-border/50 bg-card p-4">
-          <div className="flex items-center gap-2 mb-3">
-            <Link2 className="h-3.5 w-3.5 text-muted-foreground" />
-            <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Liens rapides</span>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {project.usefulLinks.map((l) => {
-              const cat = LINK_CATEGORY_CONFIG[l.category] ?? LINK_CATEGORY_CONFIG.OTHER
-              return (
-                <a
-                  key={l.id}
-                  href={normalizeUrl(l.url)}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-opacity hover:opacity-80 ${cat.cls}`}
+      {/* Collaborateurs */}
+      {project.members.length > 0 && (
+        <div className="flex items-center gap-3">
+          <span className="text-xs text-muted-foreground">Collaborateurs</span>
+          <div className="flex items-center -space-x-1.5">
+            {/* Owner */}
+            {project.user.image ? (
+              <img
+                src={project.user.image}
+                alt={project.user.name ?? project.user.email}
+                title={`${project.user.name ?? project.user.email} (propriétaire)`}
+                className="h-7 w-7 rounded-full border-2 border-background object-cover"
+              />
+            ) : (
+              <div
+                title={`${project.user.name ?? project.user.email} (propriétaire)`}
+                className="h-7 w-7 rounded-full border-2 border-background bg-primary/20 text-primary text-[10px] font-semibold flex items-center justify-center"
+              >
+                {(project.user.name ?? project.user.email).slice(0, 1).toUpperCase()}
+              </div>
+            )}
+            {project.members.map((m) =>
+              m.user.image ? (
+                <img
+                  key={m.userId}
+                  src={m.user.image}
+                  alt={m.user.name ?? m.user.email}
+                  title={`${m.user.name ?? m.user.email} (${m.role === "VIEWER" ? "lecteur" : "membre"})`}
+                  className="h-7 w-7 rounded-full border-2 border-background object-cover"
+                />
+              ) : (
+                <div
+                  key={m.userId}
+                  title={`${m.user.name ?? m.user.email} (${m.role === "VIEWER" ? "lecteur" : "membre"})`}
+                  className="h-7 w-7 rounded-full border-2 border-background bg-muted text-muted-foreground text-[10px] font-semibold flex items-center justify-center"
                 >
-                  <span className={`h-1.5 w-1.5 rounded-full shrink-0 ${cat.dot}`} />
-                  {l.label}
-                  <ExternalLink className="h-2.5 w-2.5 opacity-60" />
-                </a>
+                  {(m.user.name ?? m.user.email).slice(0, 1).toUpperCase()}
+                </div>
               )
-            })}
+            )}
+          </div>
+          <div className="flex gap-1 flex-wrap">
+            {project.members.map((m) => (
+              <span key={m.userId} className="text-xs text-muted-foreground">
+                {m.user.name ?? m.user.email}
+                {m.role === "VIEWER" && <span className="ml-0.5 opacity-60">(lecture)</span>}
+              </span>
+            )).reduce((acc: React.ReactNode[], el, i) => i === 0 ? [el] : [...acc, <span key={`sep-${i}`} className="text-muted-foreground/40 text-xs">·</span>, el], [])}
           </div>
         </div>
       )}

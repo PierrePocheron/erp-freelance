@@ -259,3 +259,53 @@ export async function updateDeliverableStatus(
   await prisma.deliverable.update({ where: { id: deliverableId }, data: { status } })
   revalidatePath(`/projets/${projectId}`)
 }
+
+// ── Collaborateurs ─────────────────────────────────────────────────────────────
+
+export async function addProjectMember(
+  projectId: string,
+  ownerUserId: string,
+  email: string
+): Promise<{ error?: string }> {
+  const project = await prisma.project.findFirst({ where: { id: projectId, userId: ownerUserId } })
+  if (!project) return { error: "Projet introuvable ou accès refusé" }
+
+  const target = await prisma.user.findUnique({ where: { email: email.trim().toLowerCase() } })
+  if (!target) return { error: "Aucun compte trouvé avec cet email" }
+  if (target.id === ownerUserId) return { error: "Vous êtes déjà le propriétaire du projet" }
+
+  const existing = await prisma.projectMember.findUnique({
+    where: { projectId_userId: { projectId, userId: target.id } },
+  })
+  if (existing) return { error: "Cet utilisateur est déjà collaborateur" }
+
+  await prisma.projectMember.create({
+    data: { projectId, userId: target.id, role: "MEMBER" },
+  })
+  revalidatePath(`/projets/${projectId}`)
+  return {}
+}
+
+export async function removeProjectMember(projectId: string, ownerUserId: string, memberId: string) {
+  const project = await prisma.project.findFirst({ where: { id: projectId, userId: ownerUserId } })
+  if (!project) return
+  await prisma.projectMember.delete({
+    where: { projectId_userId: { projectId, userId: memberId } },
+  })
+  revalidatePath(`/projets/${projectId}`)
+}
+
+export async function updateProjectMemberRole(
+  projectId: string,
+  ownerUserId: string,
+  memberId: string,
+  role: "MEMBER" | "VIEWER"
+) {
+  const project = await prisma.project.findFirst({ where: { id: projectId, userId: ownerUserId } })
+  if (!project) return
+  await prisma.projectMember.update({
+    where: { projectId_userId: { projectId, userId: memberId } },
+    data: { role },
+  })
+  revalidatePath(`/projets/${projectId}`)
+}

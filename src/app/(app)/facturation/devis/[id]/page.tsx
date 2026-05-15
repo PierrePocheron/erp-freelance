@@ -346,6 +346,16 @@ export default async function DevisDetailPage({
                     </Button>
                   </form>
                 )}
+                <form action={async () => {
+                  "use server"
+                  const inv = await createInvoiceFromQuote(id, userId, "RECURRING")
+                  redirect(`/facturation/factures/${inv.id}`)
+                }}>
+                  <Button type="submit" size="sm" variant="outline">
+                    <FileText className="h-3.5 w-3.5" />
+                    Facture intermédiaire
+                  </Button>
+                </form>
                 {!hasFinalInvoice && (
                   <form action={async () => {
                     "use server"

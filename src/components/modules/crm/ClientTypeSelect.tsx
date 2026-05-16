@@ -4,6 +4,7 @@ import { useTransition } from "react"
 import { updateClientType } from "@/actions/crm"
 
 const types = [
+  { value: "TO_COMPLETE", label: "À compléter", className: "bg-rose-500/15 text-rose-600 border-rose-500/20" },
   { value: "PROSPECT", label: "Prospect", className: "bg-amber-500/15 text-amber-600 border-amber-500/20" },
   { value: "CLIENT", label: "Client", className: "bg-emerald-500/15 text-emerald-600 border-emerald-500/20" },
   { value: "PERSONAL", label: "Perso", className: "bg-violet-500/15 text-violet-600 border-violet-500/20" },

@@ -4,7 +4,11 @@ import { useState, useTransition } from "react"
 import { getClientPanel } from "@/actions/crm"
 import { ClientPanel } from "./ClientPanel"
 import { Sheet, SheetContent } from "@/components/ui/sheet"
-import { LayoutGrid, List, Search } from "lucide-react"
+import { LayoutGrid, List, Search, TrendingUp } from "lucide-react"
+
+function fmtEur(n: number) {
+  return n.toLocaleString("fr-FR", { maximumFractionDigits: 0 }) + " €"
+}
 import { cn } from "@/lib/utils"
 
 const tempConfig = {
@@ -14,6 +18,7 @@ const tempConfig = {
 }
 
 const typeConfig = {
+  TO_COMPLETE: { label: "À compléter", className: "bg-rose-500/15 text-rose-600 border-rose-500/20" },
   PROSPECT: { label: "Prospect", className: "bg-amber-500/15 text-amber-600 border-amber-500/20" },
   CLIENT: { label: "Client", className: "bg-emerald-500/15 text-emerald-600 border-emerald-500/20" },
   PERSONAL: { label: "Perso", className: "bg-violet-500/15 text-violet-600 border-violet-500/20" },
@@ -41,6 +46,7 @@ type Client = {
   _count: { interactions: number; projects: number }
   interactions: { date: Date | string; channel: string }[]
   reminders: { dueDate: Date | string }[]
+  billing: { totalFacture: number; totalEncaisse: number }
 }
 
 type Group = { key: string; label: string; items: Client[] }
@@ -59,6 +65,7 @@ export function CrmList({ groups, userId }: { groups: Group[]; userId: string })
   const [isPending, startTransition] = useTransition()
   const [view, setView] = useState<View>("cards")
   const [search, setSearch] = useState("")
+  const [showBilling, setShowBilling] = useState(false)
 
   function openClient(clientId: string) {
     setOpen(true)
@@ -94,8 +101,8 @@ export function CrmList({ groups, userId }: { groups: Group[]; userId: string })
         </div>
       ) : (
         <div className="space-y-6">
-          {/* Search + View toggle */}
-          <div className="flex items-center gap-3">
+          {/* Search + toggles */}
+          <div className="flex items-center gap-3 flex-wrap">
             <div className="relative flex-1 max-w-xs">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
               <input
@@ -105,6 +112,21 @@ export function CrmList({ groups, userId }: { groups: Group[]; userId: string })
                 className="h-8 w-full rounded-lg border border-input bg-transparent pl-8 pr-3 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
               />
             </div>
+
+            <button
+              onClick={() => setShowBilling((v) => !v)}
+              className={cn(
+                "flex items-center gap-1.5 h-8 px-2.5 rounded-lg text-xs font-medium border transition-colors",
+                showBilling
+                  ? "bg-emerald-500/10 text-emerald-700 border-emerald-500/20"
+                  : "text-muted-foreground border-border hover:bg-muted/50 hover:text-foreground"
+              )}
+              title="Afficher la facturation"
+            >
+              <TrendingUp className="h-3.5 w-3.5" />
+              Facturation
+            </button>
+
             <div className="flex items-center gap-1">
               <button
                 onClick={() => setView("cards")}
@@ -148,11 +170,11 @@ export function CrmList({ groups, userId }: { groups: Group[]; userId: string })
                 {view === "cards" ? (
                   <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
                     {items.map((client) => (
-                      <CardItem key={client.id} client={client} onClick={() => openClient(client.id)} />
+                      <CardItem key={client.id} client={client} showBilling={showBilling} onClick={() => openClient(client.id)} />
                     ))}
                   </div>
                 ) : (
-                  <ListSection items={items} onOpen={openClient} />
+                  <ListSection items={items} showBilling={showBilling} onOpen={openClient} />
                 )}
               </section>
             )
@@ -169,11 +191,13 @@ export function CrmList({ groups, userId }: { groups: Group[]; userId: string })
   )
 }
 
-function CardItem({ client, onClick }: { client: Client; onClick: () => void }) {
+function CardItem({ client, showBilling, onClick }: { client: Client; showBilling: boolean; onClick: () => void }) {
   const type = typeConfig[client.type as keyof typeof typeConfig]
   const temp = tempConfig[client.temperature as keyof typeof tempConfig]
   const lastInteraction = client.interactions[0]
   const nextReminder = client.reminders[0]
+  const hasBilling = client.billing.totalFacture > 0
+  const billPct = hasBilling ? Math.min(100, (client.billing.totalEncaisse / client.billing.totalFacture) * 100) : 0
 
   return (
     <button
@@ -218,11 +242,33 @@ function CardItem({ client, onClick }: { client: Client; onClick: () => void }) 
           </span>
         )}
       </div>
+
+      {showBilling && (
+        <div className={cn("pt-2 border-t border-border/50 space-y-1.5", !hasBilling && "opacity-40")}>
+          <div className="flex items-center justify-between text-xs">
+            <span className="text-muted-foreground">Facturation</span>
+            {hasBilling ? (
+              <span>
+                <span className="font-medium">{fmtEur(client.billing.totalEncaisse)}</span>
+                <span className="text-muted-foreground"> / {fmtEur(client.billing.totalFacture)}</span>
+              </span>
+            ) : (
+              <span className="text-muted-foreground">Aucune facture</span>
+            )}
+          </div>
+          <div className="h-1.5 rounded-full bg-muted overflow-hidden">
+            <div
+              className="h-full rounded-full bg-emerald-500 transition-all"
+              style={{ width: `${billPct}%` }}
+            />
+          </div>
+        </div>
+      )}
     </button>
   )
 }
 
-function ListSection({ items, onOpen }: { items: Client[]; onOpen: (id: string) => void }) {
+function ListSection({ items, showBilling, onOpen }: { items: Client[]; showBilling: boolean; onOpen: (id: string) => void }) {
   return (
     <div className="rounded-xl border border-border/50 bg-card overflow-hidden">
       {items.map((client, i) => {
@@ -230,6 +276,8 @@ function ListSection({ items, onOpen }: { items: Client[]; onOpen: (id: string) 
         const temp = tempConfig[client.temperature as keyof typeof tempConfig]
         const lastInteraction = client.interactions[0]
         const nextReminder = client.reminders[0]
+        const hasBilling = client.billing.totalFacture > 0
+        const billPct = hasBilling ? Math.min(100, (client.billing.totalEncaisse / client.billing.totalFacture) * 100) : 0
 
         return (
           <button
@@ -254,6 +302,28 @@ function ListSection({ items, onOpen }: { items: Client[]; onOpen: (id: string) 
             <span className={`shrink-0 hidden sm:inline-flex rounded-full border px-2 py-0.5 text-xs font-medium ${type.className}`}>
               {type.label}
             </span>
+
+            {/* Facturation (conditionnel) */}
+            {showBilling && (
+              <div className="shrink-0 hidden md:flex flex-col items-end gap-1 w-40">
+                {hasBilling ? (
+                  <>
+                    <span className="text-xs">
+                      <span className="font-medium">{fmtEur(client.billing.totalEncaisse)}</span>
+                      <span className="text-muted-foreground"> / {fmtEur(client.billing.totalFacture)}</span>
+                    </span>
+                    <div className="h-1 w-24 rounded-full bg-muted overflow-hidden">
+                      <div
+                        className="h-full rounded-full bg-emerald-500 transition-all"
+                        style={{ width: `${billPct}%` }}
+                      />
+                    </div>
+                  </>
+                ) : (
+                  <span className="text-xs text-muted-foreground">—</span>
+                )}
+              </div>
+            )}
 
             {/* Depuis */}
             <span className="shrink-0 hidden md:block text-xs text-muted-foreground w-28 text-right">

@@ -9,10 +9,25 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { createClient } from "@/actions/crm"
 
-export function CreateClientDialog({ userId }: { userId: string }) {
-  const [open, setOpen] = useState(false)
+export function CreateClientDialog({
+  userId,
+  open: controlledOpen,
+  onOpenChange: controlledOnOpenChange,
+}: {
+  userId: string
+  open?: boolean
+  onOpenChange?: (v: boolean) => void
+}) {
+  const [internalOpen, setInternalOpen] = useState(false)
   const [isPending, startTransition] = useTransition()
   const router = useRouter()
+  const isControlled = controlledOpen !== undefined
+  const open = isControlled ? controlledOpen! : internalOpen
+
+  function handleOpenChange(v: boolean) {
+    if (!isControlled) setInternalOpen(v)
+    controlledOnOpenChange?.(v)
+  }
 
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -28,17 +43,19 @@ export function CreateClientDialog({ userId }: { userId: string }) {
         temperature: (fd.get("temperature") as string) || undefined,
         notes: (fd.get("notes") as string) || undefined,
       })
-      setOpen(false)
+      handleOpenChange(false)
       router.push(`/client/${client.id}`)
     })
   }
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger className="inline-flex items-center gap-2 rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground shadow hover:bg-primary/90 transition-colors">
-        <Plus className="h-4 w-4" />
-        Nouveau contact
-      </DialogTrigger>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
+      {!isControlled && (
+        <DialogTrigger className="inline-flex items-center gap-2 rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground shadow hover:bg-primary/90 transition-colors">
+          <Plus className="h-4 w-4" />
+          Nouveau contact
+        </DialogTrigger>
+      )}
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Nouveau contact</DialogTitle>
@@ -64,6 +81,7 @@ export function CreateClientDialog({ userId }: { userId: string }) {
             <div className="space-y-1.5">
               <Label>Type</Label>
               <select name="type" className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-ring">
+                <option value="TO_COMPLETE">À compléter</option>
                 <option value="PROSPECT">Prospect</option>
                 <option value="CLIENT">Client</option>
                 <option value="PERSONAL">Perso</option>
@@ -99,7 +117,7 @@ export function CreateClientDialog({ userId }: { userId: string }) {
             </div>
           </div>
           <div className="flex justify-end gap-2 pt-2">
-            <Button type="button" variant="outline" onClick={() => setOpen(false)}>Annuler</Button>
+            <Button type="button" variant="outline" onClick={() => handleOpenChange(false)}>Annuler</Button>
             <Button type="submit" disabled={isPending}>
               {isPending ? "Création..." : "Créer le contact"}
             </Button>

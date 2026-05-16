@@ -185,7 +185,7 @@ export function ClientCombobox({ userId, clients, value, onChange }: Props) {
                   )}
                 </span>
                 <span className="text-xs text-muted-foreground capitalize shrink-0">
-                  {c.type === "PROSPECT" ? "Prospect" : c.type === "CLIENT" ? "Client" : c.type === "INACTIVE" ? "Inactif" : ""}
+                  {c.type === "TO_COMPLETE" ? "À compléter" : c.type === "PROSPECT" ? "Prospect" : c.type === "CLIENT" ? "Client" : c.type === "INACTIVE" ? "Inactif" : ""}
                 </span>
               </button>
             ))}

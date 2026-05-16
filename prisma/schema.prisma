@@ -52,9 +52,10 @@ model UserProfile {
   quotePrefix       String   @default("DEV")
   invoicePrefix     String   @default("FAC")
   defaultConditions String?
-  pdfAccentColor    String   @default("#6366f1")
-  logoUrl           String?
-  createdAt         DateTime @default(now())
+  pdfAccentColor      String   @default("#6366f1")
+  customAccentColors  String?
+  logoUrl             String?
+  createdAt           DateTime @default(now())
   updatedAt         DateTime @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)

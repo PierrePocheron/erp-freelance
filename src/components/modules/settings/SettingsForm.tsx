@@ -1,10 +1,12 @@
 "use client"
 
-import { useState, useRef } from "react"
+import { useState, useRef, useEffect } from "react"
 import { saveProfile, type ProfileData } from "@/actions/settings"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
-import { User, Building2, CreditCard, FileText, CheckCircle2, Loader2, Palette, Upload, X } from "lucide-react"
+import { User, Building2, CreditCard, FileText, CheckCircle2, Loader2, Palette, Upload, X, Pencil, Plus } from "lucide-react"
+
+const CUSTOM_COLORS_KEY = "erp-custom-accent-colors"
 
 type Props = {
   userId: string
@@ -29,7 +31,40 @@ export function SettingsForm({ userId, profile, userName, userEmail }: Props) {
   const [accentColor, setAccentColor] = useState(profile?.pdfAccentColor ?? "#6366f1")
   const [logoUrl, setLogoUrl] = useState<string | null>(profile?.logoUrl ?? null)
   const [logoUploading, setLogoUploading] = useState(false)
+  const [customColors, setCustomColors] = useState<string[]>([])
   const logoInputRef = useRef<HTMLInputElement>(null)
+  const addColorRef = useRef<HTMLInputElement>(null)
+  const editColorRefs = useRef<(HTMLInputElement | null)[]>([])
+  const pendingAdd = useRef<string | null>(null)
+
+  useEffect(() => {
+    const stored = localStorage.getItem(CUSTOM_COLORS_KEY)
+    if (stored) {
+      try { setCustomColors(JSON.parse(stored)) } catch {}
+    }
+  }, [])
+
+  function saveCustomColors(colors: string[]) {
+    setCustomColors(colors)
+    localStorage.setItem(CUSTOM_COLORS_KEY, JSON.stringify(colors))
+  }
+
+  function addCustomColor(color: string) {
+    const next = [...customColors, color]
+    saveCustomColors(next)
+    setAccentColor(color)
+  }
+
+  function editCustomColor(idx: number, newColor: string) {
+    const next = customColors.map((c, i) => (i === idx ? newColor : c))
+    saveCustomColors(next)
+    if (accentColor === customColors[idx]) setAccentColor(newColor)
+  }
+
+  function removeCustomColor(idx: number) {
+    const next = customColors.filter((_, i) => i !== idx)
+    saveCustomColors(next)
+  }
 
   async function handleLogoUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
@@ -192,6 +227,7 @@ export function SettingsForm({ userId, profile, userName, userEmail }: Props) {
         <Field label="Couleur d'accentuation">
           <div className="space-y-2">
             <div className="flex items-center gap-2 flex-wrap">
+              {/* Presets */}
               {ACCENT_PRESETS.map((p) => (
                 <button
                   key={p.color}
@@ -206,13 +242,78 @@ export function SettingsForm({ userId, profile, userName, userEmail }: Props) {
                   }}
                 />
               ))}
-              <div className="flex items-center gap-1.5 ml-2">
-                <label className="text-xs text-muted-foreground">Personnalisée</label>
+
+              {/* Séparateur */}
+              {customColors.length > 0 && (
+                <div className="w-px h-5 bg-border mx-0.5 shrink-0" />
+              )}
+
+              {/* Couleurs personnalisées */}
+              {customColors.map((color, i) => (
+                <div key={i} className="relative group shrink-0">
+                  <button
+                    type="button"
+                    title={color}
+                    onClick={() => setAccentColor(color)}
+                    className="h-7 w-7 rounded-full border-2 transition-all block"
+                    style={{
+                      backgroundColor: color,
+                      borderColor: accentColor === color ? color : "transparent",
+                      boxShadow: accentColor === color ? `0 0 0 2px white, 0 0 0 4px ${color}` : "none",
+                    }}
+                  />
+                  {/* Crayon d'édition au hover */}
+                  <button
+                    type="button"
+                    title="Modifier"
+                    onClick={(e) => { e.stopPropagation(); editColorRefs.current[i]?.click() }}
+                    className="absolute inset-0 flex items-center justify-center rounded-full bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity"
+                  >
+                    <Pencil className="h-3 w-3 text-white" />
+                  </button>
+                  {/* Croix suppression — coin haut-droit */}
+                  <button
+                    type="button"
+                    title="Supprimer"
+                    onClick={(e) => { e.stopPropagation(); removeCustomColor(i) }}
+                    className="absolute -top-1 -right-1 h-3.5 w-3.5 rounded-full bg-destructive text-destructive-foreground hidden group-hover:flex items-center justify-center z-10"
+                  >
+                    <X className="h-2 w-2" />
+                  </button>
+                  <input
+                    ref={el => { editColorRefs.current[i] = el }}
+                    type="color"
+                    value={color}
+                    onChange={(e) => editCustomColor(i, e.target.value)}
+                    className="absolute opacity-0 w-0 h-0 pointer-events-none"
+                    tabIndex={-1}
+                  />
+                </div>
+              ))}
+
+              {/* Bouton ajouter une couleur */}
+              <div className="relative shrink-0">
+                <button
+                  type="button"
+                  title="Ajouter une couleur"
+                  onClick={() => addColorRef.current?.click()}
+                  className="h-7 w-7 rounded-full border-2 border-dashed border-border flex items-center justify-center text-muted-foreground hover:border-primary hover:text-primary transition-colors"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                </button>
                 <input
+                  ref={addColorRef}
                   type="color"
-                  value={accentColor}
-                  onChange={(e) => setAccentColor(e.target.value)}
-                  className="h-7 w-7 rounded border border-border cursor-pointer bg-transparent p-0.5"
+                  defaultValue="#6366f1"
+                  onChange={(e) => { pendingAdd.current = e.target.value }}
+                  onBlur={() => {
+                    if (pendingAdd.current) {
+                      addCustomColor(pendingAdd.current)
+                      pendingAdd.current = null
+                    }
+                  }}
+                  className="absolute opacity-0 w-0 h-0 pointer-events-none"
+                  tabIndex={-1}
                 />
               </div>
             </div>

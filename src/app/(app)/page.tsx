@@ -29,6 +29,7 @@ export default async function DashboardPage() {
     quickClients,
     quickProjects,
     quickProducts,
+    quickQuotes,
     userProfile,
   ] = await Promise.all([
     prisma.task.findMany({
@@ -101,6 +102,16 @@ export default async function DashboardPage() {
       where: { userId, isActive: true },
       orderBy: { name: "asc" },
     }) as unknown as Array<{ id: string; name: string; description: string | null; unitPrice: number; unit: string; isActive: boolean; billingType: string; defaultTaxRate: number }>,
+    prisma.quote.findMany({
+      where: { userId, status: { notIn: ["DRAFT", "REJECTED"] } },
+      select: {
+        id: true, number: true, clientId: true, projectId: true,
+        totalHT: true, depositPercent: true, status: true,
+        client: { select: { name: true, company: true } },
+      },
+      orderBy: { createdAt: "desc" },
+      take: 20,
+    }),
     prisma.userProfile.findUnique({ where: { userId } }),
   ])
 
@@ -119,7 +130,7 @@ export default async function DashboardPage() {
       </div>
 
       {/* Raccourcis */}
-      <QuickActionsBar userId={userId} clients={quickClients} projects={quickProjects} products={quickProducts} defaultConditions={userProfile?.defaultConditions ?? ""} />
+      <QuickActionsBar userId={userId} clients={quickClients} projects={quickProjects} products={quickProducts} quotes={quickQuotes} defaultConditions={userProfile?.defaultConditions ?? ""} />
 
       {/* KPI row */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">

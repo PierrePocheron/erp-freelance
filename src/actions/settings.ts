@@ -18,6 +18,7 @@ export type ProfileData = {
   quotePrefix?: string
   invoicePrefix?: string
   pdfAccentColor?: string
+  customAccentColors?: string | null
   defaultConditions?: string | null
   logoUrl?: string | null
 }
@@ -62,6 +63,14 @@ export async function saveProfile(userId: string, data: ProfileData) {
     } as never,
   })
   revalidatePath("/settings")
+}
+
+export async function updateAccentColors(userId: string, colorsJson: string) {
+  await prisma.userProfile?.upsert({
+    where: { userId },
+    create: { userId, customAccentColors: colorsJson } as never,
+    update: { customAccentColors: colorsJson } as never,
+  })
 }
 
 export async function deleteAllUserData(userId: string) {

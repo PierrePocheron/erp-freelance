@@ -9,7 +9,7 @@ import { cn } from "@/lib/utils"
 const NAV_ITEMS = [
   { label: "Dashboard",       href: "/",                        icon: "⚡" },
   { label: "Projets",         href: "/projets",                 icon: "💻" },
-  { label: "CRM — Clients",   href: "/client",                     icon: "👥" },
+  { label: "CRM — Clients",   href: "/client",                  icon: "👥" },
   { label: "Devis",           href: "/facturation/devis",       icon: "📄" },
   { label: "Factures",        href: "/facturation/factures",    icon: "💰" },
   { label: "Produits",        href: "/facturation/produits",    icon: "📦" },
@@ -17,10 +17,17 @@ const NAV_ITEMS = [
   { label: "Paramètres",      href: "/settings",                icon: "⚙️" },
 ]
 
+const TYPE_ICON: Record<string, string> = {
+  client:  "👥",
+  project: "💻",
+  quote:   "📄",
+  invoice: "💰",
+}
+
 const TYPE_LABEL: Record<string, string> = {
-  client: "Client",
+  client:  "Client",
   project: "Projet",
-  quote: "Devis",
+  quote:   "Devis",
   invoice: "Facture",
 }
 
@@ -29,6 +36,7 @@ export function CommandPalette() {
   const [query, setQuery] = useState("")
   const [results, setResults] = useState<SearchResult[]>([])
   const [selected, setSelected] = useState(0)
+  const [searching, setSearching] = useState(false)
   const [isPending, startTransition] = useTransition()
   const inputRef = useRef<HTMLInputElement>(null)
   const router = useRouter()
@@ -49,26 +57,29 @@ export function CommandPalette() {
       setQuery("")
       setResults([])
       setSelected(0)
+      setSearching(false)
       setTimeout(() => inputRef.current?.focus(), 30)
     }
   }, [open])
 
   useEffect(() => {
-    if (query.length < 2) { setResults([]); setSelected(0); return }
+    if (query.length < 2) { setResults([]); setSelected(0); setSearching(false); return }
+    setSearching(true)
     const t = setTimeout(() => {
       startTransition(async () => {
         const r = await searchGlobal(query)
         setResults(r)
         setSelected(0)
+        setSearching(false)
       })
     }, 200)
     return () => clearTimeout(t)
   }, [query])
 
-  const listItems: Array<{ label: string; sublabel?: string; href: string; badge?: string; icon?: string }> =
+  const listItems =
     query.length < 2
-      ? NAV_ITEMS.map((n) => ({ ...n }))
-      : results.map((r) => ({ label: r.label, sublabel: r.sublabel, href: r.href, badge: TYPE_LABEL[r.type] }))
+      ? NAV_ITEMS
+      : results.map((r) => ({ ...r, href: r.href }))
 
   const total = listItems.length
 
@@ -132,13 +143,20 @@ export function CommandPalette() {
             </>
           )}
 
-          {query.length >= 2 && !isPending && results.length === 0 && (
+          {query.length >= 2 && (searching || isPending) && (
+            <div className="flex items-center justify-center gap-2 py-8 text-sm text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              <span>Recherche en cours…</span>
+            </div>
+          )}
+
+          {query.length >= 2 && !searching && !isPending && results.length === 0 && (
             <p className="px-3 py-8 text-center text-sm text-muted-foreground">
               Aucun résultat pour &ldquo;{query}&rdquo;
             </p>
           )}
 
-          {query.length >= 2 && results.length > 0 && (
+          {query.length >= 2 && !searching && !isPending && results.length > 0 && (
             <>
               <p className="px-3 pt-2 pb-1 text-xs text-muted-foreground font-medium tracking-wide">Résultats</p>
               {results.map((r, i) => (
@@ -150,13 +168,16 @@ export function CommandPalette() {
                     i === selected ? "bg-accent text-accent-foreground" : "hover:bg-accent/50"
                   )}
                 >
-                  <span className="text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded font-mono w-16 text-center shrink-0">
-                    {TYPE_LABEL[r.type]}
+                  <span className="text-base leading-none w-5 text-center shrink-0">
+                    {TYPE_ICON[r.type]}
                   </span>
                   <div className="min-w-0 flex-1">
                     <p className="truncate font-medium">{r.label}</p>
                     {r.sublabel && <p className="text-xs text-muted-foreground truncate">{r.sublabel}</p>}
                   </div>
+                  <span className="text-[10px] text-muted-foreground bg-muted border border-border px-1.5 py-0.5 rounded font-mono shrink-0">
+                    {TYPE_LABEL[r.type]}
+                  </span>
                 </button>
               ))}
             </>

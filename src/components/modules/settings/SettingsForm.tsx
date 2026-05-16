@@ -1,13 +1,11 @@
 "use client"
 
-import { useState, useRef, useEffect } from "react"
-import { saveProfile, type ProfileData } from "@/actions/settings"
+import { useState, useRef } from "react"
+import { saveProfile, updateAccentColors, type ProfileData } from "@/actions/settings"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { User, Building2, CreditCard, FileText, CheckCircle2, Loader2, Palette, Upload, X, Pencil, Plus, ScrollText } from "lucide-react"
 import { ConditionsManager } from "./ConditionsManager"
-
-const CUSTOM_COLORS_KEY = "erp-custom-accent-colors"
 
 type ConditionsTemplate = {
   id: string
@@ -40,22 +38,17 @@ export function SettingsForm({ userId, profile, userName, userEmail, conditionsT
   const [accentColor, setAccentColor] = useState(profile?.pdfAccentColor ?? "#6366f1")
   const [logoUrl, setLogoUrl] = useState<string | null>(profile?.logoUrl ?? null)
   const [logoUploading, setLogoUploading] = useState(false)
-  const [customColors, setCustomColors] = useState<string[]>([])
+  const [customColors, setCustomColors] = useState<string[]>(() => {
+    try { return JSON.parse(profile?.customAccentColors ?? "[]") } catch { return [] }
+  })
   const logoInputRef = useRef<HTMLInputElement>(null)
   const addColorRef = useRef<HTMLInputElement>(null)
   const editColorRefs = useRef<(HTMLInputElement | null)[]>([])
   const pendingAdd = useRef<string | null>(null)
 
-  useEffect(() => {
-    const stored = localStorage.getItem(CUSTOM_COLORS_KEY)
-    if (stored) {
-      try { setCustomColors(JSON.parse(stored)) } catch {}
-    }
-  }, [])
-
   function saveCustomColors(colors: string[]) {
     setCustomColors(colors)
-    localStorage.setItem(CUSTOM_COLORS_KEY, JSON.stringify(colors))
+    void updateAccentColors(userId, JSON.stringify(colors))
   }
 
   function addCustomColor(color: string) {
@@ -75,20 +68,21 @@ export function SettingsForm({ userId, profile, userName, userEmail, conditionsT
     saveCustomColors(next)
   }
 
-  async function handleLogoUpload(e: React.ChangeEvent<HTMLInputElement>) {
+  function handleLogoUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file) return
+    if (file.size > 2 * 1024 * 1024) {
+      alert("Image trop grande (max 2 Mo)")
+      return
+    }
     setLogoUploading(true)
-    try {
-      const fd = new FormData()
-      fd.append("file", file)
-      fd.append("folder", "logos")
-      const res = await fetch("/api/upload", { method: "POST", body: fd })
-      const json = await res.json()
-      if (json.url) setLogoUrl(json.url)
-    } finally {
+    const reader = new FileReader()
+    reader.onload = (ev) => {
+      setLogoUrl(ev.target?.result as string)
       setLogoUploading(false)
     }
+    reader.onerror = () => setLogoUploading(false)
+    reader.readAsDataURL(file)
   }
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {

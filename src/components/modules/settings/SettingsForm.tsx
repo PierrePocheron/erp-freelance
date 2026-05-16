@@ -4,15 +4,24 @@ import { useState, useRef, useEffect } from "react"
 import { saveProfile, type ProfileData } from "@/actions/settings"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
-import { User, Building2, CreditCard, FileText, CheckCircle2, Loader2, Palette, Upload, X, Pencil, Plus } from "lucide-react"
+import { User, Building2, CreditCard, FileText, CheckCircle2, Loader2, Palette, Upload, X, Pencil, Plus, ScrollText } from "lucide-react"
+import { ConditionsManager } from "./ConditionsManager"
 
 const CUSTOM_COLORS_KEY = "erp-custom-accent-colors"
+
+type ConditionsTemplate = {
+  id: string
+  name: string
+  content: string
+  isDefault: boolean
+}
 
 type Props = {
   userId: string
   profile: ProfileData | null
   userName: string | null
   userEmail: string | null
+  conditionsTemplates: ConditionsTemplate[]
 }
 
 const ACCENT_PRESETS = [
@@ -26,7 +35,7 @@ const ACCENT_PRESETS = [
   { color: "#1a1a1a", label: "Noir" },
 ]
 
-export function SettingsForm({ userId, profile, userName, userEmail }: Props) {
+export function SettingsForm({ userId, profile, userName, userEmail, conditionsTemplates }: Props) {
   const [status, setStatus] = useState<"idle" | "saving" | "saved" | "error">("idle")
   const [accentColor, setAccentColor] = useState(profile?.pdfAccentColor ?? "#6366f1")
   const [logoUrl, setLogoUrl] = useState<string | null>(profile?.logoUrl ?? null)
@@ -101,7 +110,6 @@ export function SettingsForm({ userId, profile, userName, userEmail }: Props) {
         quotePrefix: (fd.get("quotePrefix") as string) || "DEV",
         invoicePrefix: (fd.get("invoicePrefix") as string) || "FAC",
         pdfAccentColor: accentColor,
-        defaultConditions: (fd.get("defaultConditions") as string) || null,
         logoUrl,
       })
       setStatus("saved")
@@ -324,16 +332,6 @@ export function SettingsForm({ userId, profile, userName, userEmail }: Props) {
           </div>
         </Field>
 
-        {/* Conditions par défaut */}
-        <Field label="Conditions générales par défaut" hint="Pré-remplies à la création d'un nouveau devis">
-          <textarea
-            name="defaultConditions"
-            rows={4}
-            defaultValue={profile?.defaultConditions ?? ""}
-            placeholder="Paiement à 30 jours. En cas de retard, une pénalité de 1,5% par mois sera appliquée..."
-            className="flex w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring resize-none"
-          />
-        </Field>
       </Section>
 
       <div className="flex items-center gap-3">
@@ -352,6 +350,15 @@ export function SettingsForm({ userId, profile, userName, userEmail }: Props) {
           <span className="text-sm text-red-500">Une erreur est survenue, réessayez.</span>
         )}
       </div>
+
+      {/* Conditions générales — section indépendante hors submit */}
+      <Section
+        icon={<ScrollText className="h-4 w-4" />}
+        title="Conditions générales"
+        description="Modèles réutilisables pré-remplis à la création d'un devis. L'étoile définit le modèle par défaut."
+      >
+        <ConditionsManager userId={userId} templates={conditionsTemplates} />
+      </Section>
     </form>
   )
 }

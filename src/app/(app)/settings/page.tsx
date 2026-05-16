@@ -7,9 +7,13 @@ export default async function SettingsPage() {
   const session = await auth()
   const userId = session!.user.id
 
-  const [profile, user] = await Promise.all([
+  const [profile, user, conditionsTemplates] = await Promise.all([
     prisma.userProfile?.findUnique({ where: { userId } }).catch(() => null) ?? null,
     prisma.user.findUnique({ where: { id: userId }, select: { name: true, email: true } }),
+    prisma.conditionsTemplate.findMany({
+      where: { userId },
+      orderBy: { createdAt: "asc" },
+    }),
   ])
 
   return (
@@ -26,6 +30,7 @@ export default async function SettingsPage() {
         profile={profile}
         userName={user?.name ?? null}
         userEmail={user?.email ?? null}
+        conditionsTemplates={conditionsTemplates}
       />
 
       <DangerZone userId={userId} />

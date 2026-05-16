@@ -267,7 +267,10 @@ export async function addProjectMember(
   ownerUserId: string,
   email: string
 ): Promise<{ error?: string }> {
-  const project = await prisma.project.findFirst({ where: { id: projectId, userId: ownerUserId } })
+  const project = await prisma.project.findFirst({
+    where: { id: projectId, userId: ownerUserId },
+    include: { client: { select: { name: true, company: true } }, user: { select: { name: true } } },
+  })
   if (!project) return { error: "Projet introuvable ou accès refusé" }
 
   const target = await prisma.user.findUnique({ where: { email: email.trim().toLowerCase() } })
@@ -279,9 +282,23 @@ export async function addProjectMember(
   })
   if (existing) return { error: "Cet utilisateur est déjà collaborateur" }
 
-  await prisma.projectMember.create({
-    data: { projectId, userId: target.id, role: "MEMBER" },
-  })
+  const clientLabel = project.client.company ?? project.client.name
+  const ownerName = project.user.name ?? "Un utilisateur"
+
+  await prisma.$transaction([
+    prisma.projectMember.create({
+      data: { projectId, userId: target.id, role: "MEMBER" },
+    }),
+    prisma.notification.create({
+      data: {
+        userId: target.id,
+        type: "PROJECT_INVITE",
+        title: "Invitation à collaborer",
+        body: `${ownerName} vous invite à collaborer sur le projet « ${project.name} » (${clientLabel}).`,
+        href: `/projets/${projectId}`,
+      },
+    }),
+  ])
   revalidatePath(`/projets/${projectId}`)
   return {}
 }

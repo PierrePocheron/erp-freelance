@@ -15,7 +15,7 @@ export async function createQuickClient(
       name: data.name,
       company: data.company || null,
       email: data.email || null,
-      type: "PROSPECT",
+      type: "TO_COMPLETE",
       source: "OTHER",
       temperature: "COLD",
       priorityScore: 1,

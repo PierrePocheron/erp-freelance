@@ -110,6 +110,7 @@ model VerificationToken {
 // ─── CRM ─────────────────────────────────────────────────────────────────────
 
 enum ClientType {
+  TO_COMPLETE
   PROSPECT
   CLIENT
   PERSONAL

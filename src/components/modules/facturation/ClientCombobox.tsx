@@ -1,6 +1,7 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useRef, useEffect, useCallback } from "react"
+import { createPortal } from "react-dom"
 import { Check, Plus, ChevronDown, Loader2, X } from "lucide-react"
 import { createQuickClient } from "@/actions/crm"
 
@@ -23,6 +24,9 @@ export function ClientCombobox({ userId, clients, value, onChange }: Props) {
   const [open, setOpen] = useState(false)
   const [creating, setCreating] = useState(false)
   const [allClients, setAllClients] = useState<Client[]>(clients)
+  const [dropdownStyle, setDropdownStyle] = useState<React.CSSProperties>({})
+  const inputRef = useRef<HTMLInputElement>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
 
   const selected = allClients.find((c) => c.id === value)
 
@@ -38,13 +42,48 @@ export function ClientCombobox({ userId, clients, value, onChange }: Props) {
   )
   const showCreate = query.trim().length > 0 && !exactMatch
 
-  // Close when focus leaves the entire combobox container
-  function handleContainerBlur(e: React.FocusEvent<HTMLDivElement>) {
-    if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+  const updatePosition = useCallback(() => {
+    if (!inputRef.current) return
+    const rect = inputRef.current.getBoundingClientRect()
+    setDropdownStyle({
+      position: "fixed",
+      top: rect.bottom + 4,
+      left: rect.left,
+      width: rect.width,
+      zIndex: 9999,
+    })
+  }, [])
+
+  function handleOpen() {
+    updatePosition()
+    setOpen(true)
+  }
+
+  // Reposition on scroll / resize while open
+  useEffect(() => {
+    if (!open) return
+    window.addEventListener("scroll", updatePosition, true)
+    window.addEventListener("resize", updatePosition)
+    return () => {
+      window.removeEventListener("scroll", updatePosition, true)
+      window.removeEventListener("resize", updatePosition)
+    }
+  }, [open, updatePosition])
+
+  // Close on outside click
+  useEffect(() => {
+    if (!open) return
+    function handlePointerDown(e: PointerEvent) {
+      if (
+        containerRef.current?.contains(e.target as Node) ||
+        (e.target as HTMLElement)?.closest?.("[data-combobox-dropdown]")
+      ) return
       setOpen(false)
       setQuery("")
     }
-  }
+    document.addEventListener("pointerdown", handlePointerDown)
+    return () => document.removeEventListener("pointerdown", handlePointerDown)
+  }, [open])
 
   function handleSelect(clientId: string) {
     onChange(clientId)
@@ -55,7 +94,8 @@ export function ClientCombobox({ userId, clients, value, onChange }: Props) {
   function handleClear() {
     onChange("")
     setQuery("")
-    setOpen(true)
+    handleOpen()
+    inputRef.current?.focus()
   }
 
   async function handleCreate() {
@@ -80,18 +120,17 @@ export function ClientCombobox({ userId, clients, value, onChange }: Props) {
   }
 
   return (
-    <div className="space-y-1" onBlur={handleContainerBlur}>
-      {/* Input */}
+    <div ref={containerRef}>
       <div className="relative">
         <input
+          ref={inputRef}
           value={open ? query : (selected ? clientLabel(selected) : query)}
           onChange={(e) => {
             setQuery(e.target.value)
-            if (!open) setOpen(true)
-            // Clear selection if user edits after picking a client
+            if (!open) handleOpen()
             if (selected && e.target.value !== clientLabel(selected)) onChange("")
           }}
-          onFocus={() => setOpen(true)}
+          onFocus={handleOpen}
           placeholder="Rechercher ou créer un client..."
           className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring pr-8"
         />
@@ -109,18 +148,20 @@ export function ClientCombobox({ userId, clients, value, onChange }: Props) {
         )}
       </div>
 
-      {/* Selected indicator */}
       {selected && !open && (
-        <p className="text-xs text-emerald-600 flex items-center gap-1">
+        <p className="text-xs text-emerald-600 flex items-center gap-1 mt-1">
           <Check className="h-3 w-3" />
           {clientLabel(selected)}
         </p>
       )}
 
-      {/* Dropdown list — inline, pas absolue, évite tout clipping dans le Dialog */}
-      {open && (
-        <div className="rounded-md border border-border bg-popover shadow-sm overflow-hidden">
-          <div className="max-h-44 overflow-y-auto">
+      {open && typeof document !== "undefined" && createPortal(
+        <div
+          data-combobox-dropdown=""
+          style={dropdownStyle}
+          className="rounded-md border border-border bg-popover shadow-lg overflow-hidden"
+        >
+          <div className="max-h-52 overflow-y-auto">
             {filtered.length === 0 && !showCreate && (
               <p className="px-3 py-2.5 text-sm text-muted-foreground">Aucun client trouvé</p>
             )}
@@ -129,7 +170,7 @@ export function ClientCombobox({ userId, clients, value, onChange }: Props) {
               <button
                 key={c.id}
                 type="button"
-                onClick={() => handleSelect(c.id)}
+                onPointerDown={(e) => { e.preventDefault(); handleSelect(c.id) }}
                 className="flex items-center gap-2.5 w-full px-3 py-2 text-sm text-left hover:bg-muted/60 transition-colors"
               >
                 <Check
@@ -154,7 +195,7 @@ export function ClientCombobox({ userId, clients, value, onChange }: Props) {
                 {filtered.length > 0 && <div className="border-t border-border/50" />}
                 <button
                   type="button"
-                  onClick={handleCreate}
+                  onPointerDown={(e) => { e.preventDefault(); handleCreate() }}
                   disabled={creating}
                   className="flex items-center gap-2 w-full px-3 py-2.5 text-sm text-primary font-medium hover:bg-primary/8 transition-colors disabled:opacity-50"
                 >
@@ -168,7 +209,8 @@ export function ClientCombobox({ userId, clients, value, onChange }: Props) {
               </>
             )}
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   )

@@ -2,6 +2,7 @@
 
 import { useState, useRef } from "react"
 import { saveProfile, updateAccentColors, type ProfileData } from "@/actions/settings"
+import { type NumberFormat, FORMAT_OPTIONS, buildNumberPreview } from "@/lib/number-format"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { User, Building2, CreditCard, FileText, CheckCircle2, Loader2, Palette, Upload, X, Pencil, Plus, ScrollText } from "lucide-react"
@@ -33,28 +34,42 @@ const ACCENT_PRESETS = [
   { color: "#1a1a1a", label: "Noir" },
 ]
 
+
 export function SettingsForm({ userId, profile, userName, userEmail, conditionsTemplates }: Props) {
   const [status, setStatus] = useState<"idle" | "saving" | "saved" | "error">("idle")
   const [accentColor, setAccentColor] = useState(profile?.pdfAccentColor ?? "#6366f1")
   const [logoUrl, setLogoUrl] = useState<string | null>(profile?.logoUrl ?? null)
+  const [quotePrefix, setQuotePrefix] = useState(profile?.quotePrefix ?? "DEV")
+  const [invoicePrefix, setInvoicePrefix] = useState(profile?.invoicePrefix ?? "FAC")
+  const [quoteFormat, setQuoteFormat] = useState<NumberFormat>((profile?.quoteNumberFormat as NumberFormat) ?? "PREFIX-YYYY-NNN")
+  const [invoiceFormat, setInvoiceFormat] = useState<NumberFormat>((profile?.invoiceNumberFormat as NumberFormat) ?? "PREFIX-YYYY-NNN")
   const [logoUploading, setLogoUploading] = useState(false)
   const [customColors, setCustomColors] = useState<string[]>(() => {
     try { return JSON.parse(profile?.customAccentColors ?? "[]") } catch { return [] }
   })
   const logoInputRef = useRef<HTMLInputElement>(null)
-  const addColorRef = useRef<HTMLInputElement>(null)
-  const editColorRefs = useRef<(HTMLInputElement | null)[]>([])
-  const pendingAdd = useRef<string | null>(null)
+  const addingColor = useRef(false)
 
   function saveCustomColors(colors: string[]) {
     setCustomColors(colors)
     void updateAccentColors(userId, JSON.stringify(colors))
   }
 
-  function addCustomColor(color: string) {
-    const next = [...customColors, color]
-    saveCustomColors(next)
-    setAccentColor(color)
+  function handleAddColorChange(color: string) {
+    if (!addingColor.current) {
+      addingColor.current = true
+      const next = [...customColors, color]
+      saveCustomColors(next)
+      setAccentColor(color)
+    } else {
+      const next = [...customColors.slice(0, -1), color]
+      saveCustomColors(next)
+      setAccentColor(color)
+    }
+  }
+
+  function handleAddColorClose() {
+    addingColor.current = false
   }
 
   function editCustomColor(idx: number, newColor: string) {
@@ -103,6 +118,8 @@ export function SettingsForm({ userId, profile, userName, userEmail, conditionsT
         bic: (fd.get("bic") as string) || null,
         quotePrefix: (fd.get("quotePrefix") as string) || "DEV",
         invoicePrefix: (fd.get("invoicePrefix") as string) || "FAC",
+        quoteNumberFormat: quoteFormat,
+        invoiceNumberFormat: invoiceFormat,
         pdfAccentColor: accentColor,
         logoUrl,
       })
@@ -115,6 +132,10 @@ export function SettingsForm({ userId, profile, userName, userEmail, conditionsT
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+        {/* Colonne gauche */}
+        <div className="space-y-6">
 
       {/* Identité */}
       <Section icon={<User className="h-4 w-4" />} title="Identité">
@@ -170,15 +191,72 @@ export function SettingsForm({ userId, profile, userName, userEmail, conditionsT
         </Field>
       </Section>
 
+        </div>{/* fin colonne gauche */}
+
+        {/* Colonne droite */}
+        <div className="space-y-6">
+
       {/* Numérotation */}
-      <Section icon={<FileText className="h-4 w-4" />} title="Numérotation" description="Préfixes utilisés pour générer les numéros de documents (ex: DEV-2026-001)">
-        <div className="grid grid-cols-2 gap-4">
-          <Field label="Préfixe devis">
-            <Input name="quotePrefix" defaultValue={profile?.quotePrefix ?? "DEV"} placeholder="DEV" className="h-8 font-mono" maxLength={6} />
-          </Field>
-          <Field label="Préfixe facture">
-            <Input name="invoicePrefix" defaultValue={profile?.invoicePrefix ?? "FAC"} placeholder="FAC" className="h-8 font-mono" maxLength={6} />
-          </Field>
+      <Section icon={<FileText className="h-4 w-4" />} title="Numérotation" description="Format et préfixes des numéros de documents">
+        {/* Devis */}
+        <div className="space-y-2">
+          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Devis</p>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Préfixe">
+              <Input
+                name="quotePrefix"
+                value={quotePrefix}
+                onChange={(e) => setQuotePrefix(e.target.value.toUpperCase())}
+                placeholder="DEV"
+                className="h-8 font-mono"
+                maxLength={8}
+              />
+            </Field>
+            <Field label="Format">
+              <select
+                value={quoteFormat}
+                onChange={(e) => setQuoteFormat(e.target.value as NumberFormat)}
+                className="flex h-8 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm"
+              >
+                {FORMAT_OPTIONS.map((o) => (
+                  <option key={o.value} value={o.value}>{o.label}</option>
+                ))}
+              </select>
+            </Field>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Aperçu : <span className="font-mono font-semibold">{buildNumberPreview(quoteFormat, quotePrefix || "DEV")}</span>
+          </p>
+        </div>
+
+        <div className="border-t border-border/40 pt-3 space-y-2">
+          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Factures</p>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Préfixe">
+              <Input
+                name="invoicePrefix"
+                value={invoicePrefix}
+                onChange={(e) => setInvoicePrefix(e.target.value.toUpperCase())}
+                placeholder="FAC"
+                className="h-8 font-mono"
+                maxLength={8}
+              />
+            </Field>
+            <Field label="Format">
+              <select
+                value={invoiceFormat}
+                onChange={(e) => setInvoiceFormat(e.target.value as NumberFormat)}
+                className="flex h-8 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm"
+              >
+                {FORMAT_OPTIONS.map((o) => (
+                  <option key={o.value} value={o.value}>{o.label}</option>
+                ))}
+              </select>
+            </Field>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Aperçu : <span className="font-mono font-semibold">{buildNumberPreview(invoiceFormat, invoicePrefix || "FAC")}</span>
+          </p>
         </div>
       </Section>
 
@@ -264,15 +342,20 @@ export function SettingsForm({ userId, profile, userName, userEmail, conditionsT
                       boxShadow: accentColor === color ? `0 0 0 2px white, 0 0 0 4px ${color}` : "none",
                     }}
                   />
-                  {/* Crayon d'édition au hover */}
-                  <button
-                    type="button"
+                  {/* Crayon d'édition au hover — label clique sur l'input caché */}
+                  <label
                     title="Modifier"
-                    onClick={(e) => { e.stopPropagation(); editColorRefs.current[i]?.click() }}
-                    className="absolute inset-0 flex items-center justify-center rounded-full bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity"
+                    className="absolute inset-0 flex items-center justify-center rounded-full bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                    onClick={(e) => e.stopPropagation()}
                   >
-                    <Pencil className="h-3 w-3 text-white" />
-                  </button>
+                    <Pencil className="h-3 w-3 text-white pointer-events-none" />
+                    <input
+                      type="color"
+                      value={color}
+                      onChange={(e) => editCustomColor(i, e.target.value)}
+                      className="sr-only"
+                    />
+                  </label>
                   {/* Croix suppression — coin haut-droit */}
                   <button
                     type="button"
@@ -282,42 +365,23 @@ export function SettingsForm({ userId, profile, userName, userEmail, conditionsT
                   >
                     <X className="h-2 w-2" />
                   </button>
-                  <input
-                    ref={el => { editColorRefs.current[i] = el }}
-                    type="color"
-                    value={color}
-                    onChange={(e) => editCustomColor(i, e.target.value)}
-                    className="absolute opacity-0 w-0 h-0 pointer-events-none"
-                    tabIndex={-1}
-                  />
                 </div>
               ))}
 
               {/* Bouton ajouter une couleur */}
-              <div className="relative shrink-0">
-                <button
-                  type="button"
-                  title="Ajouter une couleur"
-                  onClick={() => addColorRef.current?.click()}
-                  className="h-7 w-7 rounded-full border-2 border-dashed border-border flex items-center justify-center text-muted-foreground hover:border-primary hover:text-primary transition-colors"
-                >
-                  <Plus className="h-3.5 w-3.5" />
-                </button>
+              <label
+                title="Ajouter une couleur"
+                className="h-7 w-7 rounded-full border-2 border-dashed border-border flex items-center justify-center text-muted-foreground hover:border-primary hover:text-primary transition-colors cursor-pointer shrink-0"
+                onClick={handleAddColorClose}
+              >
+                <Plus className="h-3.5 w-3.5 pointer-events-none" />
                 <input
-                  ref={addColorRef}
                   type="color"
                   defaultValue="#6366f1"
-                  onChange={(e) => { pendingAdd.current = e.target.value }}
-                  onBlur={() => {
-                    if (pendingAdd.current) {
-                      addCustomColor(pendingAdd.current)
-                      pendingAdd.current = null
-                    }
-                  }}
-                  className="absolute opacity-0 w-0 h-0 pointer-events-none"
-                  tabIndex={-1}
+                  onChange={(e) => handleAddColorChange(e.target.value)}
+                  className="sr-only"
                 />
-              </div>
+              </label>
             </div>
             <div className="flex items-center gap-2">
               <span className="text-xs text-muted-foreground">Aperçu :</span>
@@ -327,6 +391,18 @@ export function SettingsForm({ userId, profile, userName, userEmail, conditionsT
         </Field>
 
       </Section>
+
+      {/* Conditions générales */}
+      <Section
+        icon={<ScrollText className="h-4 w-4" />}
+        title="Conditions générales"
+        description="Modèles réutilisables pré-remplis à la création d'un devis. L'étoile définit le modèle par défaut."
+      >
+        <ConditionsManager userId={userId} templates={conditionsTemplates} />
+      </Section>
+
+        </div>{/* fin colonne droite */}
+      </div>{/* fin grid */}
 
       <div className="flex items-center gap-3">
         <Button type="submit" disabled={status === "saving"} className="min-w-40">
@@ -344,15 +420,6 @@ export function SettingsForm({ userId, profile, userName, userEmail, conditionsT
           <span className="text-sm text-red-500">Une erreur est survenue, réessayez.</span>
         )}
       </div>
-
-      {/* Conditions générales — section indépendante hors submit */}
-      <Section
-        icon={<ScrollText className="h-4 w-4" />}
-        title="Conditions générales"
-        description="Modèles réutilisables pré-remplis à la création d'un devis. L'étoile définit le modèle par défaut."
-      >
-        <ConditionsManager userId={userId} templates={conditionsTemplates} />
-      </Section>
     </form>
   )
 }

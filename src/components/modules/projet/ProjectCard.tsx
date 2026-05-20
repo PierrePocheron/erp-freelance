@@ -3,6 +3,10 @@ import { Badge } from "@/components/ui/badge"
 import { Calendar, Clock, CheckSquare } from "lucide-react"
 import { TagBadge } from "./TagBadge"
 
+function fmtEur(n: number) {
+  return n.toLocaleString("fr-FR", { maximumFractionDigits: 0 }) + " €"
+}
+
 const statusConfig = {
   ACTIVE: { label: "Actif", className: "bg-emerald-500/15 text-emerald-600 border-emerald-500/20" },
   PAUSED: { label: "En pause", className: "bg-amber-500/15 text-amber-600 border-amber-500/20" },
@@ -22,6 +26,7 @@ type Props = {
     _count: { tasks: number }
     tasksDone: number
     tags: { id: string; name: string; color: string }[]
+    billing: { totalFacture: number; totalEncaisse: number }
   }
 }
 
@@ -84,6 +89,24 @@ export function ProjectCard({ project }: Props) {
             </span>
           )}
         </div>
+
+        {project.billing.totalFacture > 0 && (
+          <div className="pt-3 border-t border-border/50 space-y-1.5">
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-muted-foreground">Facturation</span>
+              <span>
+                <span className="font-medium">{fmtEur(project.billing.totalEncaisse)}</span>
+                <span className="text-muted-foreground"> / {fmtEur(project.billing.totalFacture)}</span>
+              </span>
+            </div>
+            <div className="h-1.5 rounded-full bg-muted overflow-hidden">
+              <div
+                className="h-full rounded-full bg-emerald-500 transition-all"
+                style={{ width: `${Math.min(100, (project.billing.totalEncaisse / project.billing.totalFacture) * 100)}%` }}
+              />
+            </div>
+          </div>
+        )}
       </div>
     </Link>
   )

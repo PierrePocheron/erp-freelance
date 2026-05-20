@@ -3,6 +3,68 @@
 import { prisma } from "@/lib/prisma"
 import { revalidatePath } from "next/cache"
 import { z } from "zod"
+import { auth } from "@/lib/auth"
+
+async function requireAuth(): Promise<string> {
+  const session = await auth()
+  if (!session?.user?.id) throw new Error("Non autorisé")
+  return session.user.id
+}
+
+// ── ProjectIdeas ──────────────────────────────────────────────────────────────
+
+export async function createProjectIdea(_userId: string, title: string) {
+  const userId = await requireAuth()
+  const idea = await prisma.projectIdea.create({
+    data: { userId, title, content: "" },
+  })
+  revalidatePath("/projets")
+  return idea
+}
+
+export async function updateProjectIdea(ideaId: string, _userId: string, data: { title?: string; content?: string }) {
+  const userId = await requireAuth()
+  await prisma.projectIdea.update({
+    where: { id: ideaId, userId },
+    data,
+  })
+  revalidatePath("/projets")
+}
+
+export async function deleteProjectIdea(ideaId: string, _userId: string) {
+  const userId = await requireAuth()
+  await prisma.projectIdea.delete({ where: { id: ideaId, userId } })
+  revalidatePath("/projets")
+}
+
+export async function convertIdeaToProject(
+  ideaId: string,
+  _userId: string,
+  clientId: string,
+  deleteIdea: boolean
+) {
+  const userId = await requireAuth()
+  const idea = await prisma.projectIdea.findUnique({ where: { id: ideaId, userId } })
+  if (!idea) throw new Error("Idée introuvable")
+
+  const project = await prisma.project.create({
+    data: {
+      userId,
+      clientId,
+      name: idea.title,
+      description: idea.content ? idea.content.slice(0, 300) : null,
+    },
+  })
+
+  if (deleteIdea) {
+    await prisma.projectIdea.delete({ where: { id: ideaId } })
+  }
+
+  revalidatePath("/projets")
+  return project
+}
+
+// ── Projects ──────────────────────────────────────────────────────────────────
 
 const CreateProjectSchema = z.object({
   name: z.string().min(1),
@@ -13,7 +75,8 @@ const CreateProjectSchema = z.object({
   estimatedHours: z.coerce.number().optional(),
 })
 
-export async function createProject(userId: string, formData: FormData) {
+export async function createProject(_userId: string, formData: FormData) {
+  const userId = await requireAuth()
   const parsed = CreateProjectSchema.parse(Object.fromEntries(formData))
   const project = await prisma.project.create({
     data: {
@@ -34,12 +97,15 @@ export async function updateProjectStatus(
   projectId: string,
   status: "ACTIVE" | "PAUSED" | "COMPLETED" | "ARCHIVED"
 ) {
+  const userId = await requireAuth()
+  await prisma.project.findFirstOrThrow({ where: { id: projectId, userId } })
   await prisma.project.update({ where: { id: projectId }, data: { status } })
   revalidatePath("/projets")
   revalidatePath(`/projets/${projectId}`)
 }
 
-export async function deleteProject(projectId: string, userId: string) {
+export async function deleteProject(projectId: string, _userId: string) {
+  const userId = await requireAuth()
   await prisma.project.delete({ where: { id: projectId, userId } })
   revalidatePath("/projets")
 }
@@ -48,6 +114,8 @@ export async function updateProjectInfo(
   projectId: string,
   data: { name?: string; description?: string | null; estimatedHours?: number | null }
 ) {
+  const userId = await requireAuth()
+  await prisma.project.findFirstOrThrow({ where: { id: projectId, userId } })
   await prisma.project.update({ where: { id: projectId }, data })
   revalidatePath(`/projets/${projectId}`)
   revalidatePath("/projets")
@@ -57,6 +125,8 @@ export async function updateProjectDates(
   projectId: string,
   data: { startDate?: string; endDate?: string; estimatedHours?: number }
 ) {
+  const userId = await requireAuth()
+  await prisma.project.findFirstOrThrow({ where: { id: projectId, userId } })
   await prisma.project.update({
     where: { id: projectId },
     data: {
@@ -80,9 +150,13 @@ const TaskSchema = z.object({
 })
 
 export async function createTask(projectId: string, formData: FormData) {
+  const userId = await requireAuth()
+  const proj = await prisma.project.findFirst({ where: { id: projectId, userId }, select: { id: true } })
+  if (!proj) throw new Error("Projet introuvable")
   const parsed = TaskSchema.parse(Object.fromEntries(formData))
   const task = await prisma.task.create({
     data: {
+      userId,
       projectId,
       title: parsed.title,
       description: parsed.description,
@@ -93,10 +167,49 @@ export async function createTask(projectId: string, formData: FormData) {
     },
   })
   revalidatePath(`/projets/${projectId}`)
+  revalidatePath("/taches")
+  return task
+}
+
+/** Tâche autonome liée à un client (ou sans contexte si clientId est null) */
+export async function createClientTask(
+  clientId: string | null,
+  title: string,
+  dueDate?: string | null
+) {
+  const userId = await requireAuth()
+  if (clientId) {
+    const client = await prisma.client.findFirst({ where: { id: clientId, userId }, select: { id: true } })
+    if (!client) throw new Error("Client introuvable")
+  }
+  const task = await prisma.task.create({
+    data: {
+      userId,
+      clientId: clientId || null,
+      title: title.trim(),
+      dueDate: dueDate ? new Date(dueDate) : null,
+    },
+  })
+  revalidatePath("/taches")
+  return task
+}
+
+/** Helper d'ownership universel : projet OU userId direct */
+async function requireTaskOwnership(taskId: string, userId: string) {
+  const task = await prisma.task.findFirst({
+    where: {
+      id: taskId,
+      OR: [{ project: { userId } }, { userId }],
+    },
+    select: { id: true },
+  })
+  if (!task) throw new Error("Tâche introuvable")
   return task
 }
 
 export async function startTask(taskId: string, projectId: string) {
+  const userId = await requireAuth()
+  await requireTaskOwnership(taskId, userId)
   await prisma.task.update({
     where: { id: taskId },
     data: { status: "IN_PROGRESS", startedAt: new Date(), completedAt: null },
@@ -105,6 +218,8 @@ export async function startTask(taskId: string, projectId: string) {
 }
 
 export async function completeTask(taskId: string, projectId: string) {
+  const userId = await requireAuth()
+  await requireTaskOwnership(taskId, userId)
   await prisma.task.update({
     where: { id: taskId },
     data: { status: "DONE", completedAt: new Date() },
@@ -113,6 +228,8 @@ export async function completeTask(taskId: string, projectId: string) {
 }
 
 export async function reopenTask(taskId: string, projectId: string) {
+  const userId = await requireAuth()
+  await requireTaskOwnership(taskId, userId)
   await prisma.task.update({
     where: { id: taskId },
     data: { status: "TODO", startedAt: null, completedAt: null },
@@ -121,25 +238,43 @@ export async function reopenTask(taskId: string, projectId: string) {
 }
 
 export async function updateTaskTitle(taskId: string, projectId: string, title: string) {
+  const userId = await requireAuth()
+  await requireTaskOwnership(taskId, userId)
   if (!title.trim()) return
   await prisma.task.update({ where: { id: taskId }, data: { title: title.trim() } })
   revalidatePath(`/projets/${projectId}`)
 }
 
 export async function updateTaskDescription(taskId: string, projectId: string, description: string | null) {
+  const userId = await requireAuth()
+  await requireTaskOwnership(taskId, userId)
   await prisma.task.update({ where: { id: taskId }, data: { description: description?.trim() || null } })
   revalidatePath(`/projets/${projectId}`)
 }
 
 export async function updateTaskEstimatedHours(taskId: string, projectId: string, hours: number | null) {
+  const userId = await requireAuth()
+  await requireTaskOwnership(taskId, userId)
   await prisma.task.update({ where: { id: taskId }, data: { estimatedHours: hours } })
   revalidatePath(`/projets/${projectId}`)
 }
 
 export async function updateTaskDueDate(taskId: string, projectId: string, dueDate: string | null) {
+  const userId = await requireAuth()
+  await requireTaskOwnership(taskId, userId)
   await prisma.task.update({
     where: { id: taskId },
     data: { dueDate: dueDate ? new Date(dueDate) : null },
+  })
+  revalidatePath(`/projets/${projectId}`)
+}
+
+export async function updateTaskCompletedAt(taskId: string, projectId: string, completedAt: string | null) {
+  const userId = await requireAuth()
+  await requireTaskOwnership(taskId, userId)
+  await prisma.task.update({
+    where: { id: taskId },
+    data: { completedAt: completedAt ? new Date(completedAt) : null },
   })
   revalidatePath(`/projets/${projectId}`)
 }
@@ -149,11 +284,139 @@ export async function updateTaskPriority(
   projectId: string,
   priority: "LOW" | "MEDIUM" | "HIGH" | "URGENT"
 ) {
+  const userId = await requireAuth()
+  await requireTaskOwnership(taskId, userId)
   await prisma.task.update({ where: { id: taskId }, data: { priority } })
   revalidatePath(`/projets/${projectId}`)
 }
 
+export async function updateTaskImportance(taskId: string, projectId: string, importance: number) {
+  const userId = await requireAuth()
+  await requireTaskOwnership(taskId, userId)
+  await prisma.task.update({
+    where: { id: taskId },
+    data: { importance: Math.max(1, Math.min(4, importance)) },
+  })
+  revalidatePath(`/projets/${projectId}`)
+}
+
+// ── TaskTags ──────────────────────────────────────────────────────────────────
+
+export async function createTaskTag(projectId: string, name: string, color: string) {
+  const userId = await requireAuth()
+  const proj = await prisma.project.findFirst({ where: { id: projectId, userId }, select: { id: true } })
+  if (!proj) throw new Error("Projet introuvable")
+  await prisma.taskTag.upsert({
+    where: { projectId_name: { projectId, name } },
+    create: { projectId, name, color },
+    update: { color },
+  })
+  revalidatePath(`/projets/${projectId}`)
+}
+
+export async function deleteTaskTag(tagId: string, projectId: string) {
+  const userId = await requireAuth()
+  const proj = await prisma.project.findFirst({ where: { id: projectId, userId }, select: { id: true } })
+  if (!proj) throw new Error("Projet introuvable")
+  await prisma.taskTag.delete({ where: { id: tagId, projectId } })
+  revalidatePath(`/projets/${projectId}`)
+}
+
+export async function updateTaskTagColor(tagId: string, projectId: string, color: string) {
+  const userId = await requireAuth()
+  const proj = await prisma.project.findFirst({ where: { id: projectId, userId }, select: { id: true } })
+  if (!proj) throw new Error("Projet introuvable")
+  await prisma.taskTag.update({ where: { id: tagId }, data: { color } })
+  revalidatePath(`/projets/${projectId}`)
+}
+
+export async function addTagToTask(taskId: string, tagId: string, projectId: string) {
+  const userId = await requireAuth()
+  const proj = await prisma.project.findFirst({ where: { id: projectId, userId }, select: { id: true } })
+  if (!proj) throw new Error("Projet introuvable")
+  await prisma.task.update({
+    where: { id: taskId },
+    data: { taskTags: { connect: { id: tagId } } },
+  })
+  revalidatePath(`/projets/${projectId}`)
+}
+
+export async function removeTagFromTask(taskId: string, tagId: string, projectId: string) {
+  const userId = await requireAuth()
+  const proj = await prisma.project.findFirst({ where: { id: projectId, userId }, select: { id: true } })
+  if (!proj) throw new Error("Projet introuvable")
+  await prisma.task.update({
+    where: { id: taskId },
+    data: { taskTags: { disconnect: { id: tagId } } },
+  })
+  revalidatePath(`/projets/${projectId}`)
+}
+
+/** Migration one-shot : convertit les anciennes tâches-groupe en TaskTags */
+export async function migrateGroupsToTags(projectId: string) {
+  const userId = await requireAuth()
+  const proj = await prisma.project.findFirst({ where: { id: projectId, userId }, select: { id: true } })
+  if (!proj) throw new Error("Projet introuvable")
+  const groups = await prisma.task.findMany({
+    where: { projectId, isGroup: true },
+    include: { subTasks: { select: { id: true } } },
+  })
+  if (groups.length === 0) return
+
+  for (const g of groups) {
+    const tag = await prisma.taskTag.upsert({
+      where: { projectId_name: { projectId, name: g.title } },
+      create: { projectId, name: g.title, color: g.color ?? "#6366f1" },
+      update: {},
+    })
+    // Détacher les sous-tâches et leur assigner le tag
+    for (const sub of g.subTasks) {
+      await prisma.task.update({
+        where: { id: sub.id },
+        data: { parentTaskId: null, taskTags: { connect: { id: tag.id } } },
+      })
+    }
+    // Supprimer le groupe (deleteMany est idempotent — pas d'erreur si déjà supprimé)
+    await prisma.task.deleteMany({ where: { id: g.id, isGroup: true } })
+  }
+  revalidatePath(`/projets/${projectId}`)
+}
+
+export async function reorderTasks(projectId: string, orderedTaskIds: string[]) {
+  const userId = await requireAuth()
+  const proj = await prisma.project.findFirst({ where: { id: projectId, userId }, select: { id: true } })
+  if (!proj) throw new Error("Projet introuvable")
+  if (orderedTaskIds.length === 0) return
+  await prisma.$transaction(
+    orderedTaskIds.map((id, index) =>
+      prisma.task.update({ where: { id }, data: { order: index * 10 } })
+    )
+  )
+  revalidatePath(`/projets/${projectId}`)
+}
+
+// Kept for subtask reordering (parentTaskId still used for real subtasks)
+export async function reorderTasksInContainer(
+  projectId: string,
+  parentTaskId: string | null,
+  orderedTaskIds: string[]
+) {
+  const userId = await requireAuth()
+  const proj = await prisma.project.findFirst({ where: { id: projectId, userId }, select: { id: true } })
+  if (!proj) throw new Error("Projet introuvable")
+  if (orderedTaskIds.length === 0) return
+  await prisma.$transaction(
+    orderedTaskIds.map((id, index) =>
+      prisma.task.update({ where: { id }, data: { order: index * 10, parentTaskId } })
+    )
+  )
+  revalidatePath(`/projets/${projectId}`)
+}
+
 export async function reorderTask(taskId: string, projectId: string, direction: "up" | "down") {
+  const userId = await requireAuth()
+  const proj = await prisma.project.findFirst({ where: { id: projectId, userId }, select: { id: true } })
+  if (!proj) throw new Error("Projet introuvable")
   const task = await prisma.task.findUnique({ where: { id: taskId } })
   if (!task) return
   const siblings = await prisma.task.findMany({
@@ -170,14 +433,44 @@ export async function reorderTask(taskId: string, projectId: string, direction: 
   revalidatePath(`/projets/${projectId}`)
 }
 
-export async function deleteTask(taskId: string, projectId: string) {
+export async function updateTaskFields(
+  taskId: string,
+  fields: {
+    title?: string
+    description?: string | null
+    dueDate?: string | null
+    priority?: "LOW" | "MEDIUM" | "HIGH" | "URGENT"
+    importance?: number
+    estimatedHours?: number | null
+  }
+) {
+  const userId = await requireAuth()
+  await requireTaskOwnership(taskId, userId)
+  const data: Record<string, unknown> = {}
+  if (fields.title !== undefined && fields.title.trim()) data.title = fields.title.trim()
+  if ("description" in fields) data.description = fields.description?.trim() || null
+  if ("dueDate" in fields) data.dueDate = fields.dueDate ? new Date(fields.dueDate) : null
+  if (fields.priority) data.priority = fields.priority
+  if (fields.importance !== undefined) data.importance = Math.max(1, Math.min(4, fields.importance))
+  if ("estimatedHours" in fields) data.estimatedHours = fields.estimatedHours ?? null
+  await prisma.task.update({ where: { id: taskId }, data })
+  revalidatePath("/taches")
+}
+
+export async function deleteTask(taskId: string, projectId?: string) {
+  const userId = await requireAuth()
+  await requireTaskOwnership(taskId, userId)
   await prisma.task.delete({ where: { id: taskId } })
-  revalidatePath(`/projets/${projectId}`)
+  if (projectId) revalidatePath(`/projets/${projectId}`)
+  revalidatePath("/taches")
 }
 
 // ── Milestones ─────────────────────────────────────────────────────────────
 
 export async function createMilestone(projectId: string, formData: FormData) {
+  const userId = await requireAuth()
+  const proj = await prisma.project.findFirst({ where: { id: projectId, userId }, select: { id: true } })
+  if (!proj) throw new Error("Projet introuvable")
   const milestone = await prisma.milestone.create({
     data: {
       projectId,
@@ -194,6 +487,9 @@ export async function updateMilestoneStatus(
   projectId: string,
   status: "UPCOMING" | "IN_PROGRESS" | "DONE"
 ) {
+  const userId = await requireAuth()
+  const proj = await prisma.project.findFirst({ where: { id: projectId, userId }, select: { id: true } })
+  if (!proj) throw new Error("Projet introuvable")
   await prisma.milestone.update({ where: { id: milestoneId }, data: { status } })
   revalidatePath(`/projets/${projectId}`)
 }
@@ -201,6 +497,9 @@ export async function updateMilestoneStatus(
 // ── Useful Links ───────────────────────────────────────────────────────────
 
 export async function createUsefulLink(projectId: string, formData: FormData) {
+  const userId = await requireAuth()
+  const proj = await prisma.project.findFirst({ where: { id: projectId, userId }, select: { id: true } })
+  if (!proj) throw new Error("Projet introuvable")
   await prisma.usefulLink.create({
     data: {
       projectId,
@@ -213,6 +512,12 @@ export async function createUsefulLink(projectId: string, formData: FormData) {
 }
 
 export async function deleteUsefulLink(linkId: string, projectId: string) {
+  const userId = await requireAuth()
+  const link = await prisma.usefulLink.findFirst({
+    where: { id: linkId, project: { userId } },
+    select: { id: true },
+  })
+  if (!link) throw new Error("Lien introuvable")
   await prisma.usefulLink.delete({ where: { id: linkId } })
   revalidatePath(`/projets/${projectId}`)
 }
@@ -220,6 +525,9 @@ export async function deleteUsefulLink(linkId: string, projectId: string) {
 // ── Journal ────────────────────────────────────────────────────────────────
 
 export async function createJournalEntry(projectId: string, formData: FormData) {
+  const userId = await requireAuth()
+  const proj = await prisma.project.findFirst({ where: { id: projectId, userId }, select: { id: true } })
+  if (!proj) throw new Error("Projet introuvable")
   await prisma.journalEntry.create({
     data: { projectId, content: formData.get("content") as string },
   })
@@ -227,6 +535,12 @@ export async function createJournalEntry(projectId: string, formData: FormData) 
 }
 
 export async function updateJournalEntry(id: string, projectId: string, content: string) {
+  const userId = await requireAuth()
+  const entry = await prisma.journalEntry.findFirst({
+    where: { id, project: { userId } },
+    select: { id: true },
+  })
+  if (!entry) throw new Error("Entrée introuvable")
   await prisma.journalEntry.update({ where: { id }, data: { content } })
   revalidatePath(`/projets/${projectId}`)
 }

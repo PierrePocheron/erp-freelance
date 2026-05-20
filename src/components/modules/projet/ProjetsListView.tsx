@@ -2,7 +2,11 @@
 
 import { useState } from "react"
 import Link from "next/link"
-import { LayoutGrid, List, Layers, Calendar, CheckSquare, Search } from "lucide-react"
+import { LayoutGrid, List, Layers, Calendar, CheckSquare, Search, TrendingUp } from "lucide-react"
+
+function fmtEur(n: number) {
+  return n.toLocaleString("fr-FR", { maximumFractionDigits: 0 }) + " €"
+}
 import { Badge } from "@/components/ui/badge"
 import { ProjectCard } from "./ProjectCard"
 import { CreateProjectDialog } from "./CreateProjectDialog"
@@ -25,6 +29,7 @@ type Project = {
   _count: { tasks: number }
   tasksDone: number
   tags: { id: string; name: string; color: string }[]
+  billing: { totalFacture: number; totalEncaisse: number }
 }
 
 type Client = { id: string; name: string; company: string | null; type: string }
@@ -153,6 +158,7 @@ export function ProjetsListView({
                 <th className="px-4 py-3 text-left font-medium">Client</th>
                 <th className="px-4 py-3 text-left font-medium">Statut</th>
                 <th className="px-4 py-3 text-left font-medium">Tâches</th>
+                <th className="px-4 py-3 text-left font-medium">Facturation</th>
                 <th className="px-4 py-3 text-left font-medium">Fin estimée</th>
               </tr>
             </thead>
@@ -185,6 +191,25 @@ export function ProjetsListView({
                             <CheckSquare className="h-3 w-3" />
                             {p.tasksDone}/{p._count.tasks}
                           </span>
+                        </div>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">—</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3">
+                      {p.billing.totalFacture > 0 ? (
+                        <div className="space-y-1 min-w-[120px]">
+                          <div className="flex items-center gap-1.5 text-xs">
+                            <TrendingUp className="h-3 w-3 text-muted-foreground shrink-0" />
+                            <span className="font-medium">{fmtEur(p.billing.totalEncaisse)}</span>
+                            <span className="text-muted-foreground">/ {fmtEur(p.billing.totalFacture)}</span>
+                          </div>
+                          <div className="h-1 w-20 rounded-full bg-muted overflow-hidden">
+                            <div
+                              className="h-full rounded-full bg-emerald-500 transition-all"
+                              style={{ width: `${Math.min(100, (p.billing.totalEncaisse / p.billing.totalFacture) * 100)}%` }}
+                            />
+                          </div>
                         </div>
                       ) : (
                         <span className="text-xs text-muted-foreground">—</span>

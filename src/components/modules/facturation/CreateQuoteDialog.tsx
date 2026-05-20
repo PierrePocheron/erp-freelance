@@ -289,14 +289,20 @@ export function CreateQuoteDialog({
   projects,
   products = [],
   defaultConditions = "",
+  open: controlledOpen,
+  onOpenChange: controlledOnOpenChange,
 }: {
   userId: string
   clients: Client[]
   projects: Project[]
   products?: Product[]
   defaultConditions?: string
+  open?: boolean
+  onOpenChange?: (v: boolean) => void
 }) {
-  const [open, setOpen] = useState(false)
+  const [internalOpen, setInternalOpen] = useState(false)
+  const isControlled = controlledOpen !== undefined
+  const open = isControlled ? controlledOpen! : internalOpen
   const [selectedClientId, setSelectedClientId] = useState("")
   const [draftLines, setDraftLines] = useState<DraftLine[]>([])
   const [showAddForm, setShowAddForm] = useState(false)
@@ -322,7 +328,8 @@ export function CreateQuoteDialog({
   }
 
   function handleOpenChange(v: boolean) {
-    setOpen(v)
+    if (!isControlled) setInternalOpen(v)
+    controlledOnOpenChange?.(v)
     if (!v) reset()
   }
 
@@ -394,17 +401,19 @@ export function CreateQuoteDialog({
           billingType: l.billingType,
         })),
       })
-      setOpen(false)
+      handleOpenChange(false)
       router.push(`/facturation/devis/${quote.id}`)
     })
   }
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogTrigger className="inline-flex items-center gap-2 rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground shadow hover:bg-primary/90 transition-colors">
-        <Plus className="h-4 w-4" />
-        Nouveau devis
-      </DialogTrigger>
+      {!isControlled && (
+        <DialogTrigger className="inline-flex items-center gap-2 rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground shadow hover:bg-primary/90 transition-colors">
+          <Plus className="h-4 w-4" />
+          Nouveau devis
+        </DialogTrigger>
+      )}
 
       <DialogContent className="sm:max-w-4xl p-0 gap-0">
         <DialogHeader className="px-6 pt-5 pb-4 pr-12 border-b border-border">

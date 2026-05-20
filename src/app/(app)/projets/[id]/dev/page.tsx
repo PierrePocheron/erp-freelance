@@ -1,8 +1,9 @@
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
-import { notFound } from "next/navigation"
-import { TaskItem } from "@/components/modules/projet/TaskItem"
-import { AddTaskForm } from "@/components/modules/projet/AddTaskForm"
+import { notFound, redirect } from "next/navigation"
+import { TaskShortcut } from "@/components/modules/projet/TaskShortcut"
+import { DevTaskBoard } from "@/components/modules/projet/DevTaskBoard"
+import { TagManager } from "@/components/modules/projet/TagManager"
 import {
   createMilestone,
   updateMilestoneStatus,
@@ -11,15 +12,17 @@ import {
   createJournalEntry,
   createDeliverable,
   updateDeliverableStatus,
+  migrateGroupsToTags,
 } from "@/actions/projet"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
   CheckSquare, Flag, Link2, BookOpen, Package,
-  ExternalLink, Trash2, CheckCircle2, Circle, Clock
+  ExternalLink, Trash2, CheckCircle2, Circle, Clock,
 } from "lucide-react"
 import { LINK_CATEGORY_CONFIG, normalizeUrl } from "@/lib/link-categories"
+import { type TaskShape } from "@/components/modules/projet/TaskItem"
 
 const milestoneColors = {
   UPCOMING: "bg-muted text-muted-foreground border-border",
@@ -42,20 +45,39 @@ export default async function ProjectDevPage({
   const session = await auth()
   const userId = session!.user.id
 
+  // Migration one-shot : si des anciennes tâches-groupe existent, les convertir en tags
+  const hasGroups = await prisma.task.count({ where: { projectId: id, isGroup: true } })
+  if (hasGroups > 0) {
+    await migrateGroupsToTags(id)
+    redirect(`/projets/${id}/dev`)
+  }
+
   const project = await prisma.project.findFirst({
     where: { id, userId },
     include: {
       tasks: {
-        where: { parentTaskId: null },
+        where: { parentTaskId: null, isGroup: false },
         orderBy: [{ order: "asc" }, { createdAt: "asc" }],
         include: {
-          subTasks: { orderBy: [{ order: "asc" }, { createdAt: "asc" }] },
+          taskTags: { select: { id: true, name: true, color: true } },
+          subTasks: {
+            orderBy: [{ order: "asc" }, { createdAt: "asc" }],
+            include: {
+              taskTags: { select: { id: true, name: true, color: true } },
+              subTasks: { orderBy: [{ order: "asc" }, { createdAt: "asc" }] },
+              timeEntries: {
+                where: { userId },
+                select: { id: true, startedAt: true, endedAt: true, duration: true },
+              },
+            },
+          },
           timeEntries: {
             where: { userId },
             select: { id: true, startedAt: true, endedAt: true, duration: true },
           },
         },
       },
+      taskTags: { orderBy: { createdAt: "asc" } },
       milestones: { orderBy: { date: "asc" } },
       usefulLinks: { orderBy: { createdAt: "asc" } },
       journalEntries: { orderBy: { createdAt: "desc" } },
@@ -65,49 +87,40 @@ export default async function ProjectDevPage({
 
   if (!project) notFound()
 
-  const todo = project.tasks.filter((t) => t.status === "TODO")
-  const inProgress = project.tasks.filter((t) => t.status === "IN_PROGRESS")
-  const done = project.tasks.filter((t) => t.status === "DONE")
+  const tasks = project.tasks as unknown as TaskShape[]
+  const projectTags = project.taskTags
+
+  const totalTasks = tasks.length
+  const doneTasks = tasks.filter((t) => t.status === "DONE").length
 
   return (
     <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+      <TaskShortcut />
 
-      {/* Colonne principale : Tâches + Jalons + Livrables */}
-      <div className="lg:col-span-2 space-y-6">
+      {/* Colonne principale */}
+      <div className="lg:col-span-2 space-y-4">
 
-        {/* Tâches */}
-        <div className="rounded-xl border border-border/50 bg-card p-5 space-y-4">
-          <div className="flex items-center gap-2">
-            <CheckSquare className="h-4 w-4 text-muted-foreground" />
-            <h2 className="font-semibold">Tâches</h2>
-            <span className="ml-auto text-xs text-muted-foreground">
-              {done.length}/{project.tasks.length} terminées
-            </span>
-          </div>
-
-          {inProgress.length > 0 && (
-            <div className="space-y-0.5">
-              <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide mb-2">En cours</p>
-              {inProgress.map((t, i) => <TaskItem key={t.id} task={t} projectId={id} userId={userId} isFirst={i === 0} isLast={i === inProgress.length - 1} />)}
-            </div>
-          )}
-
-          {todo.length > 0 && (
-            <div className="space-y-0.5">
-              <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide mb-2">À faire</p>
-              {todo.map((t, i) => <TaskItem key={t.id} task={t} projectId={id} userId={userId} isFirst={i === 0} isLast={i === todo.length - 1} />)}
-            </div>
-          )}
-
-          {done.length > 0 && (
-            <div className="space-y-0.5 opacity-70">
-              <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide mb-2">Terminées</p>
-              {done.map((t, i) => <TaskItem key={t.id} task={t} projectId={id} userId={userId} isFirst={i === 0} isLast={i === done.length - 1} />)}
-            </div>
-          )}
-
-          <AddTaskForm projectId={id} />
+        {/* En-tête tâches */}
+        <div className="flex items-center gap-3 flex-wrap">
+          <CheckSquare className="h-4 w-4 text-muted-foreground" />
+          <h2 className="font-semibold">Tâches</h2>
+          <span className="text-xs text-muted-foreground">{doneTasks}/{totalTasks} terminées</span>
+          <div className="flex-1" />
+          <span className="text-xs text-muted-foreground hidden sm:inline">
+            <kbd className="bg-muted border border-border px-1 py-0.5 rounded font-mono text-[10px]">⌘↵</kbd> nouvelle tâche
+          </span>
         </div>
+
+        {/* Gestion des tags */}
+        <TagManager projectId={id} initialTags={projectTags} />
+
+        {/* Board DnD filtré par tags */}
+        <DevTaskBoard
+          initialTasks={tasks}
+          projectId={id}
+          userId={userId}
+          projectTags={projectTags}
+        />
 
         {/* Jalons */}
         <div className="rounded-xl border border-border/50 bg-card p-5 space-y-4">
@@ -126,27 +139,20 @@ export default async function ProjectDevPage({
                     await updateMilestoneStatus(m.id, id, next)
                   }}>
                     <button type="submit" className="text-muted-foreground hover:text-primary transition-colors">
-                      {m.status === "DONE"
-                        ? <CheckCircle2 className="h-4 w-4 text-emerald-500" />
-                        : <Circle className="h-4 w-4" />}
+                      {m.status === "DONE" ? <CheckCircle2 className="h-4 w-4 text-emerald-500" /> : <Circle className="h-4 w-4" />}
                     </button>
                   </form>
                   <span className="flex-1 text-sm">{m.name}</span>
                   <span className="text-xs text-muted-foreground">
                     {new Date(m.date).toLocaleDateString("fr-FR", { day: "numeric", month: "short" })}
                   </span>
-                  <Badge variant="outline" className={`text-xs ${milestoneColors[m.status]}`}>
-                    {milestoneLabels[m.status]}
-                  </Badge>
+                  <Badge variant="outline" className={`text-xs ${milestoneColors[m.status]}`}>{milestoneLabels[m.status]}</Badge>
                 </div>
               ))}
             </div>
           )}
 
-          <form action={async (fd: FormData) => {
-            "use server"
-            await createMilestone(id, fd)
-          }} className="flex gap-2">
+          <form action={async (fd: FormData) => { "use server"; await createMilestone(id, fd) }} className="flex gap-2">
             <Input name="name" placeholder="Nom du jalon" className="h-8 text-sm" required />
             <Input name="date" type="date" className="h-8 text-sm w-36" required />
             <Button type="submit" size="sm" variant="outline">Ajouter</Button>
@@ -170,11 +176,7 @@ export default async function ProjectDevPage({
                     await updateDeliverableStatus(d.id, id, next)
                   }}>
                     <button type="submit" className="text-muted-foreground hover:text-primary">
-                      {d.status === "VALIDATED"
-                        ? <CheckCircle2 className="h-4 w-4 text-emerald-500" />
-                        : d.status === "DELIVERED"
-                        ? <Clock className="h-4 w-4 text-amber-500" />
-                        : <Circle className="h-4 w-4" />}
+                      {d.status === "VALIDATED" ? <CheckCircle2 className="h-4 w-4 text-emerald-500" /> : d.status === "DELIVERED" ? <Clock className="h-4 w-4 text-amber-500" /> : <Circle className="h-4 w-4" />}
                     </button>
                   </form>
                   <span className="flex-1 text-sm">{d.name}</span>
@@ -186,17 +188,14 @@ export default async function ProjectDevPage({
             </div>
           )}
 
-          <form action={async (fd: FormData) => {
-            "use server"
-            await createDeliverable(id, fd)
-          }} className="flex gap-2">
+          <form action={async (fd: FormData) => { "use server"; await createDeliverable(id, fd) }} className="flex gap-2">
             <Input name="name" placeholder="Nom du livrable" className="h-8 text-sm" required />
             <Button type="submit" size="sm" variant="outline">Ajouter</Button>
           </form>
         </div>
       </div>
 
-      {/* Colonne secondaire : Liens utiles + Journal */}
+      {/* Colonne secondaire */}
       <div className="space-y-6">
 
         {/* Liens utiles */}
@@ -212,23 +211,13 @@ export default async function ProjectDevPage({
                 const cat = LINK_CATEGORY_CONFIG[l.category] ?? LINK_CATEGORY_CONFIG.OTHER
                 return (
                   <div key={l.id} className="flex items-center gap-2 group">
-                    <a
-                      href={normalizeUrl(l.url)}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex-1 flex items-center gap-1.5 text-sm hover:text-primary transition-colors min-w-0"
-                    >
+                    <a href={normalizeUrl(l.url)} target="_blank" rel="noopener noreferrer" className="flex-1 flex items-center gap-1.5 text-sm hover:text-primary transition-colors min-w-0">
                       <span className={`h-2 w-2 rounded-full shrink-0 ${cat.dot}`} />
                       <span className="truncate">{l.label}</span>
-                      <Badge variant="outline" className={`text-xs ml-auto shrink-0 ${cat.cls}`}>
-                        {cat.label}
-                      </Badge>
+                      <Badge variant="outline" className={`text-xs ml-auto shrink-0 ${cat.cls}`}>{cat.label}</Badge>
                       <ExternalLink className="h-3 w-3 shrink-0 text-muted-foreground" />
                     </a>
-                    <form action={async () => {
-                      "use server"
-                      await deleteUsefulLink(l.id, id)
-                    }}>
+                    <form action={async () => { "use server"; await deleteUsefulLink(l.id, id) }}>
                       <button type="submit" className="text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity">
                         <Trash2 className="h-3.5 w-3.5" />
                       </button>
@@ -239,19 +228,11 @@ export default async function ProjectDevPage({
             </div>
           )}
 
-          <form action={async (fd: FormData) => {
-            "use server"
-            await createUsefulLink(id, fd)
-          }} className="space-y-2">
+          <form action={async (fd: FormData) => { "use server"; await createUsefulLink(id, fd) }} className="space-y-2">
             <Input name="label" placeholder="Label (ex: GitHub repo)" className="h-8 text-sm" required />
             <Input name="url" placeholder="https://..." className="h-8 text-sm" required />
-            <select
-              name="category"
-              className="flex h-8 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm"
-            >
-              {linkCategories.map((c) => (
-                <option key={c.value} value={c.value}>{c.label}</option>
-              ))}
+            <select name="category" className="flex h-8 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm">
+              {linkCategories.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
             </select>
             <Button type="submit" size="sm" variant="outline" className="w-full">Ajouter</Button>
           </form>
@@ -264,17 +245,8 @@ export default async function ProjectDevPage({
             <h2 className="font-semibold">Journal de bord</h2>
           </div>
 
-          <form action={async (fd: FormData) => {
-            "use server"
-            await createJournalEntry(id, fd)
-          }} className="space-y-2">
-            <textarea
-              name="content"
-              rows={3}
-              placeholder="Note, décision technique, retour client..."
-              required
-              className="flex w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring resize-none"
-            />
+          <form action={async (fd: FormData) => { "use server"; await createJournalEntry(id, fd) }} className="space-y-2">
+            <textarea name="content" rows={3} placeholder="Note, décision technique, retour client..." required className="flex w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring resize-none" />
             <Button type="submit" size="sm" variant="outline" className="w-full">Ajouter une note</Button>
           </form>
 
@@ -283,9 +255,7 @@ export default async function ProjectDevPage({
               {project.journalEntries.map((e) => (
                 <div key={e.id} className="border-l-2 border-border pl-3">
                   <p className="text-xs text-muted-foreground mb-0.5">
-                    {new Date(e.createdAt).toLocaleDateString("fr-FR", {
-                      day: "numeric", month: "short", hour: "2-digit", minute: "2-digit",
-                    })}
+                    {new Date(e.createdAt).toLocaleDateString("fr-FR", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
                   </p>
                   <p className="text-sm whitespace-pre-line">{e.content}</p>
                 </div>

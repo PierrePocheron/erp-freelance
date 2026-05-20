@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useRef, useTransition } from "react"
+import { useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
 import { Plus, UserPlus, ChevronLeft } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -27,13 +27,24 @@ export function CreateProjectDialog({
   userId,
   clients: initialClients,
   defaultClientId,
+  open: controlledOpen,
+  onOpenChange: controlledOnOpenChange,
 }: {
   userId: string
   clients: Client[]
   defaultClientId?: string
+  open?: boolean
+  onOpenChange?: (v: boolean) => void
 }) {
-  const [open, setOpen] = useState(false)
+  const [internalOpen, setInternalOpen] = useState(false)
   const [clients, setClients] = useState(initialClients)
+  const isControlled = controlledOpen !== undefined
+  const open = isControlled ? controlledOpen! : internalOpen
+
+  function handleOpenChange(v: boolean) {
+    if (!isControlled) setInternalOpen(v)
+    controlledOnOpenChange?.(v)
+  }
   const [selectedClientId, setSelectedClientId] = useState(defaultClientId ?? initialClients[0]?.id ?? "")
   const [showNewClient, setShowNewClient] = useState(false)
   const [startDate, setStartDate] = useState("")
@@ -47,7 +58,7 @@ export function CreateProjectDialog({
     formData.set("clientId", selectedClientId)
     startTransition(async () => {
       const project = await createProject(userId, formData)
-      setOpen(false)
+      handleOpenChange(false)
       router.push(`/projets/${project.id}`)
     })
   }
@@ -68,11 +79,13 @@ export function CreateProjectDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger className="inline-flex items-center gap-2 rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground shadow hover:bg-primary/90 transition-colors">
-        <Plus className="h-4 w-4" />
-        Nouveau projet
-      </DialogTrigger>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
+      {!isControlled && (
+        <DialogTrigger className="inline-flex items-center gap-2 rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground shadow hover:bg-primary/90 transition-colors">
+          <Plus className="h-4 w-4" />
+          Nouveau projet
+        </DialogTrigger>
+      )}
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>{showNewClient ? "Nouveau client" : "Nouveau projet"}</DialogTitle>
@@ -167,7 +180,7 @@ export function CreateProjectDialog({
           </div>
 
           <div className="flex justify-end gap-2 pt-2">
-            <Button type="button" variant="outline" onClick={() => setOpen(false)}>Annuler</Button>
+            <Button type="button" variant="outline" onClick={() => handleOpenChange(false)}>Annuler</Button>
             <Button type="submit" disabled={isPending || !selectedClientId}>
               {isPending ? "Création..." : "Créer le projet"}
             </Button>

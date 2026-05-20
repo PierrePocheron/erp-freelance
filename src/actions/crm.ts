@@ -2,13 +2,21 @@
 
 import { prisma } from "@/lib/prisma"
 import { revalidatePath } from "next/cache"
+import { auth } from "@/lib/auth"
+
+async function requireAuth(): Promise<string> {
+  const session = await auth()
+  if (!session?.user?.id) throw new Error("Non autorisé")
+  return session.user.id
+}
 
 // ── Client CRUD ───────────────────────────────────────────────────────────────
 
 export async function createQuickClient(
-  userId: string,
+  _userId: string,
   data: { name: string; company?: string; email?: string }
 ) {
+  const userId = await requireAuth()
   const client = await prisma.client.create({
     data: {
       userId,
@@ -27,7 +35,7 @@ export async function createQuickClient(
 }
 
 export async function createClient(
-  userId: string,
+  _userId: string,
   data: {
     name: string
     company?: string
@@ -39,6 +47,7 @@ export async function createClient(
     notes?: string
   }
 ) {
+  const userId = await requireAuth()
   const client = await prisma.client.create({
     data: {
       userId,
@@ -46,7 +55,7 @@ export async function createClient(
       company: data.company || null,
       email: data.email || null,
       phone: data.phone || null,
-      type: (data.type as any) || "PROSPECT",
+      type: (data.type as any) || "TO_COMPLETE",
       source: (data.source as any) || "OTHER",
       temperature: (data.temperature as any) || "COLD",
       priorityScore: 1,
@@ -59,7 +68,7 @@ export async function createClient(
 
 export async function updateClient(
   clientId: string,
-  userId: string,
+  _userId: string,
   data: {
     name?: string
     company?: string | null
@@ -69,6 +78,7 @@ export async function updateClient(
     source?: string
   }
 ) {
+  const userId = await requireAuth()
   await prisma.client.update({
     where: { id: clientId, userId },
     data: data as any,
@@ -77,7 +87,8 @@ export async function updateClient(
   revalidatePath("/client")
 }
 
-export async function updateClientType(clientId: string, userId: string, type: string) {
+export async function updateClientType(clientId: string, _userId: string, type: string) {
+  const userId = await requireAuth()
   await prisma.client.update({
     where: { id: clientId, userId },
     data: { type: type as any },
@@ -86,7 +97,8 @@ export async function updateClientType(clientId: string, userId: string, type: s
   revalidatePath("/client")
 }
 
-export async function updateClientTemperature(clientId: string, userId: string, temperature: string) {
+export async function updateClientTemperature(clientId: string, _userId: string, temperature: string) {
+  const userId = await requireAuth()
   await prisma.client.update({
     where: { id: clientId, userId },
     data: { temperature: temperature as any },
@@ -95,7 +107,8 @@ export async function updateClientTemperature(clientId: string, userId: string, 
   revalidatePath("/client")
 }
 
-export async function updateClientPriority(clientId: string, userId: string, priorityScore: number) {
+export async function updateClientPriority(clientId: string, _userId: string, priorityScore: number) {
+  const userId = await requireAuth()
   await prisma.client.update({
     where: { id: clientId, userId },
     data: { priorityScore },
@@ -104,7 +117,36 @@ export async function updateClientPriority(clientId: string, userId: string, pri
   revalidatePath("/client")
 }
 
-export async function deleteClient(clientId: string, userId: string) {
+export async function updateClientAll(
+  clientId: string,
+  data: {
+    name?: string
+    company?: string | null
+    email?: string | null
+    phone?: string | null
+    source?: string
+    notes?: string | null
+    type?: string
+    temperature?: string
+  }
+) {
+  const userId = await requireAuth()
+  const clean: Record<string, unknown> = {}
+  if (data.name?.trim()) clean.name = data.name.trim()
+  if ("company" in data) clean.company = data.company?.trim() || null
+  if ("email" in data) clean.email = data.email?.trim() || null
+  if ("phone" in data) clean.phone = data.phone?.trim() || null
+  if ("source" in data && data.source) clean.source = data.source
+  if ("notes" in data) clean.notes = data.notes?.trim() || null
+  if ("type" in data && data.type) clean.type = data.type
+  if ("temperature" in data && data.temperature) clean.temperature = data.temperature
+  await prisma.client.update({ where: { id: clientId, userId }, data: clean as any })
+  revalidatePath(`/client/${clientId}`)
+  revalidatePath("/client")
+}
+
+export async function deleteClient(clientId: string, _userId: string) {
+  const userId = await requireAuth()
   await prisma.client.delete({ where: { id: clientId, userId } })
   revalidatePath("/client")
 }
@@ -115,6 +157,9 @@ export async function addInteraction(
   clientId: string,
   data: { date: string; channel: string; summary: string; response?: string }
 ) {
+  const userId = await requireAuth()
+  const client = await prisma.client.findFirst({ where: { id: clientId, userId }, select: { id: true } })
+  if (!client) throw new Error("Non autorisé")
   await prisma.interaction.create({
     data: {
       clientId,
@@ -133,6 +178,9 @@ export async function updateInteraction(
   clientId: string,
   data: { date: string; channel: string; summary: string; response?: string | null }
 ) {
+  const userId = await requireAuth()
+  const client = await prisma.client.findFirst({ where: { id: clientId, userId }, select: { id: true } })
+  if (!client) throw new Error("Non autorisé")
   await prisma.interaction.update({
     where: { id: interactionId },
     data: {
@@ -146,6 +194,9 @@ export async function updateInteraction(
 }
 
 export async function deleteInteraction(interactionId: string, clientId: string) {
+  const userId = await requireAuth()
+  const client = await prisma.client.findFirst({ where: { id: clientId, userId }, select: { id: true } })
+  if (!client) throw new Error("Non autorisé")
   await prisma.interaction.delete({ where: { id: interactionId } })
   revalidatePath(`/client/${clientId}`)
 }
@@ -153,6 +204,9 @@ export async function deleteInteraction(interactionId: string, clientId: string)
 // ── Reminders ─────────────────────────────────────────────────────────────────
 
 export async function addReminder(clientId: string, data: { dueDate: string; note?: string }) {
+  const userId = await requireAuth()
+  const client = await prisma.client.findFirst({ where: { id: clientId, userId }, select: { id: true } })
+  if (!client) throw new Error("Non autorisé")
   await prisma.reminder.create({
     data: {
       clientId,
@@ -164,6 +218,9 @@ export async function addReminder(clientId: string, data: { dueDate: string; not
 }
 
 export async function toggleReminder(reminderId: string, clientId: string, isDone: boolean) {
+  const userId = await requireAuth()
+  const client = await prisma.client.findFirst({ where: { id: clientId, userId }, select: { id: true } })
+  if (!client) throw new Error("Non autorisé")
   await prisma.reminder.update({
     where: { id: reminderId },
     data: { isDone, doneAt: isDone ? new Date() : null },
@@ -172,13 +229,17 @@ export async function toggleReminder(reminderId: string, clientId: string, isDon
 }
 
 export async function deleteReminder(reminderId: string, clientId: string) {
+  const userId = await requireAuth()
+  const client = await prisma.client.findFirst({ where: { id: clientId, userId }, select: { id: true } })
+  if (!client) throw new Error("Non autorisé")
   await prisma.reminder.delete({ where: { id: reminderId } })
   revalidatePath(`/client/${clientId}`)
 }
 
 // ── Panel ─────────────────────────────────────────────────────────────────────
 
-export async function getClientPanel(clientId: string, userId: string) {
+export async function getClientPanel(clientId: string, _userId: string) {
+  const userId = await requireAuth()
   return prisma.client.findFirst({
     where: { id: clientId, userId },
     include: {

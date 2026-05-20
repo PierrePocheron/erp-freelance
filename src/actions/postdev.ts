@@ -2,12 +2,19 @@
 
 import { prisma } from "@/lib/prisma"
 import { revalidatePath } from "next/cache"
+import { auth } from "@/lib/auth"
+
+async function requireAuth(): Promise<string> {
+  const session = await auth()
+  if (!session?.user?.id) throw new Error("Non autorisé")
+  return session.user.id
+}
 
 // ── PostDev ───────────────────────────────────────────────────────────────────
 
 export async function upsertPostDev(
   projectId: string,
-  userId: string,
+  _userId: string,
   data: {
     prodUrl?: string | null
     adminUrl?: string | null
@@ -15,6 +22,7 @@ export async function upsertPostDev(
     registrarUrl?: string | null
   }
 ) {
+  const userId = await requireAuth()
   const project = await prisma.project.findFirst({ where: { id: projectId, userId } })
   if (!project) throw new Error("Projet introuvable")
 
@@ -33,6 +41,12 @@ export async function addRenewal(
   projectId: string,
   data: { type: string; name: string; expiresAt: string }
 ) {
+  const userId = await requireAuth()
+  const postDev = await prisma.postDev.findFirst({
+    where: { id: postDevId, project: { userId } },
+    select: { id: true },
+  })
+  if (!postDev) throw new Error("Non autorisé")
   await prisma.renewal.create({
     data: {
       postDevId,
@@ -45,6 +59,12 @@ export async function addRenewal(
 }
 
 export async function deleteRenewal(renewalId: string, projectId: string) {
+  const userId = await requireAuth()
+  const renewal = await prisma.renewal.findFirst({
+    where: { id: renewalId, postDev: { project: { userId } } },
+    select: { id: true },
+  })
+  if (!renewal) throw new Error("Non autorisé")
   await prisma.renewal.delete({ where: { id: renewalId } })
   revalidatePath(`/projets/${projectId}/post-dev`)
 }
@@ -52,6 +72,22 @@ export async function deleteRenewal(renewalId: string, projectId: string) {
 // ── Monitoring ────────────────────────────────────────────────────────────────
 
 export async function checkSiteStatus(postDevId: string, projectId: string, url: string) {
+  const userId = await requireAuth()
+  const postDev = await prisma.postDev.findFirst({
+    where: { id: postDevId, project: { userId } },
+    select: { id: true },
+  })
+  if (!postDev) throw new Error("Non autorisé")
+
+  // SSRF protection — validate URL before fetching
+  let parsedUrl: URL
+  try { parsedUrl = new URL(url) } catch { throw new Error("URL invalide") }
+  if (!["http:", "https:"].includes(parsedUrl.protocol)) throw new Error("Protocole non autorisé")
+  const hostname = parsedUrl.hostname
+  if (/^(localhost|127\.|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/.test(hostname)) {
+    throw new Error("URL non autorisée")
+  }
+
   let isUp = false
   let statusCode: number | null = null
   let responseTimeMs: number | null = null

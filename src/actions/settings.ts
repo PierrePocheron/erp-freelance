@@ -3,6 +3,13 @@
 import { prisma } from "@/lib/prisma"
 import { revalidatePath } from "next/cache"
 import { redirect } from "next/navigation"
+import { auth } from "@/lib/auth"
+
+async function requireAuth(): Promise<string> {
+  const session = await auth()
+  if (!session?.user?.id) throw new Error("Non autorisé")
+  return session.user.id
+}
 
 export type ProfileData = {
   companyName?: string | null
@@ -17,13 +24,16 @@ export type ProfileData = {
   bic?: string | null
   quotePrefix?: string
   invoicePrefix?: string
+  quoteNumberFormat?: string
+  invoiceNumberFormat?: string
   pdfAccentColor?: string
   customAccentColors?: string | null
   defaultConditions?: string | null
   logoUrl?: string | null
 }
 
-export async function saveProfile(userId: string, data: ProfileData) {
+export async function saveProfile(_userId: string, data: ProfileData) {
+  const userId = await requireAuth()
   await prisma.userProfile?.upsert({
     where: { userId },
     create: {
@@ -40,6 +50,8 @@ export async function saveProfile(userId: string, data: ProfileData) {
       bic: data.bic,
       quotePrefix: data.quotePrefix ?? "DEV",
       invoicePrefix: data.invoicePrefix ?? "FAC",
+      quoteNumberFormat: data.quoteNumberFormat ?? "PREFIX-YYYY-NNN",
+      invoiceNumberFormat: data.invoiceNumberFormat ?? "PREFIX-YYYY-NNN",
       ...(data.pdfAccentColor !== undefined && { pdfAccentColor: data.pdfAccentColor }),
       ...(data.defaultConditions !== undefined && { defaultConditions: data.defaultConditions }),
       ...(data.logoUrl !== undefined && { logoUrl: data.logoUrl }),
@@ -57,6 +69,8 @@ export async function saveProfile(userId: string, data: ProfileData) {
       bic: data.bic,
       quotePrefix: data.quotePrefix,
       invoicePrefix: data.invoicePrefix,
+      quoteNumberFormat: data.quoteNumberFormat,
+      invoiceNumberFormat: data.invoiceNumberFormat,
       ...(data.pdfAccentColor !== undefined && { pdfAccentColor: data.pdfAccentColor }),
       ...(data.defaultConditions !== undefined && { defaultConditions: data.defaultConditions }),
       ...(data.logoUrl !== undefined && { logoUrl: data.logoUrl }),
@@ -65,7 +79,8 @@ export async function saveProfile(userId: string, data: ProfileData) {
   revalidatePath("/settings")
 }
 
-export async function updateAccentColors(userId: string, colorsJson: string) {
+export async function updateAccentColors(_userId: string, colorsJson: string) {
+  const userId = await requireAuth()
   await prisma.userProfile?.upsert({
     where: { userId },
     create: { userId, customAccentColors: colorsJson } as never,
@@ -73,7 +88,8 @@ export async function updateAccentColors(userId: string, colorsJson: string) {
   })
 }
 
-export async function deleteAllUserData(userId: string) {
+export async function deleteAllUserData(_userId: string) {
+  const userId = await requireAuth()
   // Delete in dependency order to avoid FK conflicts
   await prisma.timeEntry.deleteMany({ where: { userId } })
   await prisma.calendarEvent.deleteMany({ where: { userId } })

@@ -2,33 +2,50 @@
 
 import { prisma } from "@/lib/prisma"
 import { revalidatePath } from "next/cache"
+import { type NumberFormat, buildNumberParts } from "@/lib/number-format"
+import { auth } from "@/lib/auth"
+import { enforceRateLimit } from "@/lib/rate-limit"
+
+async function requireAuth(): Promise<string> {
+  const session = await auth()
+  if (!session?.user?.id) throw new Error("Non autorisé")
+  return session.user.id
+}
 
 // ── Numérotation ──────────────────────────────────────────────────────────────
 
 async function nextQuoteNumber(userId: string) {
-  const year = new Date().getFullYear()
-  const profile = await prisma.userProfile?.findUnique({ where: { userId }, select: { quotePrefix: true } }).catch(() => null)
+  const profile = await prisma.userProfile?.findUnique({
+    where: { userId },
+    select: { quotePrefix: true, quoteNumberFormat: true },
+  }).catch(() => null)
   const prefix = profile?.quotePrefix ?? "DEV"
+  const format = (profile?.quoteNumberFormat ?? "PREFIX-YYYY-NNN") as NumberFormat
+  const { scopePrefix, digits } = buildNumberParts(format, prefix, new Date())
   const count = await prisma.quote.count({
-    where: { userId, number: { startsWith: `${prefix}-${year}-` } },
+    where: { userId, number: { startsWith: scopePrefix } },
   })
-  return `${prefix}-${year}-${String(count + 1).padStart(3, "0")}`
+  return `${scopePrefix}${String(count + 1).padStart(digits, "0")}`
 }
 
 async function nextInvoiceNumber(userId: string) {
-  const year = new Date().getFullYear()
-  const profile = await prisma.userProfile?.findUnique({ where: { userId }, select: { invoicePrefix: true } }).catch(() => null)
+  const profile = await prisma.userProfile?.findUnique({
+    where: { userId },
+    select: { invoicePrefix: true, invoiceNumberFormat: true },
+  }).catch(() => null)
   const prefix = profile?.invoicePrefix ?? "FAC"
+  const format = (profile?.invoiceNumberFormat ?? "PREFIX-YYYY-NNN") as NumberFormat
+  const { scopePrefix, digits } = buildNumberParts(format, prefix, new Date())
   const count = await prisma.invoice.count({
-    where: { userId, number: { startsWith: `${prefix}-${year}-` } },
+    where: { userId, number: { startsWith: scopePrefix } },
   })
-  return `${prefix}-${year}-${String(count + 1).padStart(3, "0")}`
+  return `${scopePrefix}${String(count + 1).padStart(digits, "0")}`
 }
 
 // ── Devis ─────────────────────────────────────────────────────────────────────
 
 export async function createQuoteWithLines(
-  userId: string,
+  _userId: string,
   data: {
     clientId: string
     projectId?: string
@@ -46,6 +63,7 @@ export async function createQuoteWithLines(
     }>
   }
 ) {
+  const userId = await requireAuth()
   const number = await nextQuoteNumber(userId)
   const expiresAt = data.expiresAtDays
     ? new Date(Date.now() + data.expiresAtDays * 24 * 60 * 60 * 1000)
@@ -81,7 +99,7 @@ export async function createQuoteWithLines(
 }
 
 export async function createQuote(
-  userId: string,
+  _userId: string,
   data: {
     clientId: string
     projectId?: string
@@ -90,6 +108,7 @@ export async function createQuote(
     expiresAtDays?: number
   }
 ) {
+  const userId = await requireAuth()
   const number = await nextQuoteNumber(userId)
   const expiresAt = data.expiresAtDays
     ? new Date(Date.now() + data.expiresAtDays * 24 * 60 * 60 * 1000)
@@ -110,19 +129,20 @@ export async function createQuote(
   return quote
 }
 
-export async function updateQuoteStatus(quoteId: string, userId: string, status: string) {
+export async function updateQuoteStatus(quoteId: string, _userId: string, status: string) {
+  const realUserId = await requireAuth()
   const data: Record<string, unknown> = { status }
   if (status === "VALIDATED") data.validatedAt = new Date()
   if (status === "SENT") data.sentAt = new Date()
   if (status === "ACCEPTED") data.acceptedAt = new Date()
-  await prisma.quote.update({ where: { id: quoteId, userId }, data })
+  await prisma.quote.update({ where: { id: quoteId, userId: realUserId }, data })
   revalidatePath(`/facturation/devis/${quoteId}`)
   revalidatePath("/facturation/devis")
 }
 
 export async function updateQuoteSettings(
   quoteId: string,
-  userId: string,
+  _userId: string,
   data: {
     generalConditions?: string | null
     expiresAt?: string | null
@@ -130,6 +150,7 @@ export async function updateQuoteSettings(
     notes?: string | null
   }
 ) {
+  const userId = await requireAuth()
   await prisma.quote.update({
     where: { id: quoteId, userId },
     data: {
@@ -142,7 +163,8 @@ export async function updateQuoteSettings(
   revalidatePath(`/facturation/devis/${quoteId}`)
 }
 
-export async function updateQuoteNotes(quoteId: string, userId: string, notes: string | null, depositPercent?: number) {
+export async function updateQuoteNotes(quoteId: string, _userId: string, notes: string | null, depositPercent?: number) {
+  const userId = await requireAuth()
   await prisma.quote.update({
     where: { id: quoteId, userId },
     data: { notes, ...(depositPercent !== undefined ? { depositPercent } : {}) },
@@ -150,7 +172,8 @@ export async function updateQuoteNotes(quoteId: string, userId: string, notes: s
   revalidatePath(`/facturation/devis/${quoteId}`)
 }
 
-export async function deleteQuote(quoteId: string, userId: string) {
+export async function deleteQuote(quoteId: string, _userId: string) {
+  const userId = await requireAuth()
   await prisma.quote.delete({ where: { id: quoteId, userId } })
   revalidatePath("/facturation/devis")
   revalidatePath("/facturation")
@@ -176,6 +199,7 @@ export async function addQuoteLine(
     productId?: string
   }
 ) {
+  await requireAuth()
   const total = data.quantity * data.unitPrice
   await prisma.quoteLine.create({
     data: {
@@ -203,6 +227,12 @@ export async function updateQuoteLine(
     taxRate?: number
   }
 ) {
+  const userId = await requireAuth()
+  const existing = await prisma.quoteLine.findFirst({
+    where: { id: lineId, quote: { userId } },
+    select: { id: true, quoteId: true },
+  })
+  if (!existing) throw new Error("Non autorisé")
   const total = data.quantity * data.unitPrice
   const line = await prisma.quoteLine.update({
     where: { id: lineId },
@@ -221,6 +251,12 @@ export async function updateQuoteLine(
 }
 
 export async function deleteQuoteLine(lineId: string) {
+  const userId = await requireAuth()
+  const existing = await prisma.quoteLine.findFirst({
+    where: { id: lineId, quote: { userId } },
+    select: { id: true },
+  })
+  if (!existing) throw new Error("Non autorisé")
   const line = await prisma.quoteLine.delete({ where: { id: lineId }, select: { quoteId: true } })
   await recalcQuoteTotal(line.quoteId)
   revalidatePath(`/facturation/devis/${line.quoteId}`)
@@ -229,7 +265,7 @@ export async function deleteQuoteLine(lineId: string) {
 // ── Factures ──────────────────────────────────────────────────────────────────
 
 export async function createInvoice(
-  userId: string,
+  _userId: string,
   data: {
     clientId: string
     projectId?: string
@@ -240,6 +276,7 @@ export async function createInvoice(
     depositDeducted?: number
   }
 ) {
+  const userId = await requireAuth()
   const number = await nextInvoiceNumber(userId)
   const invoice = await prisma.invoice.create({
     data: {
@@ -259,7 +296,8 @@ export async function createInvoice(
   return invoice
 }
 
-export async function createInvoiceFromQuote(quoteId: string, userId: string, type: "DEPOSIT" | "FINAL" | "RECURRING") {
+export async function createInvoiceFromQuote(quoteId: string, _userId: string, type: "DEPOSIT" | "FINAL" | "RECURRING") {
+  const userId = await requireAuth()
   const quote = await prisma.quote.findFirst({
     where: { id: quoteId, userId },
     include: { lines: true },
@@ -303,9 +341,10 @@ export async function createInvoiceFromQuote(quoteId: string, userId: string, ty
 
 export async function recordPayment(
   invoiceId: string,
-  userId: string,
+  _userId: string,
   data: { amount: number; paidAt: string; note?: string }
 ) {
+  const userId = await requireAuth()
   const invoice = await prisma.invoice.findFirst({
     where: { id: invoiceId, userId },
     include: { payments: true },
@@ -335,7 +374,8 @@ export async function recordPayment(
   revalidatePath("/facturation")
 }
 
-export async function deletePayment(paymentId: string, invoiceId: string, userId: string) {
+export async function deletePayment(paymentId: string, invoiceId: string, _userId: string) {
+  const userId = await requireAuth()
   const invoice = await prisma.invoice.findFirst({ where: { id: invoiceId, userId } })
   if (!invoice) return
   await prisma.payment.delete({ where: { id: paymentId } })
@@ -344,7 +384,8 @@ export async function deletePayment(paymentId: string, invoiceId: string, userId
   revalidatePath("/facturation")
 }
 
-export async function markLateInvoices(userId: string) {
+export async function markLateInvoices(_userId: string) {
+  const userId = await requireAuth()
   await prisma.invoice.updateMany({
     where: {
       userId,
@@ -355,7 +396,8 @@ export async function markLateInvoices(userId: string) {
   })
 }
 
-export async function updateInvoiceStatus(invoiceId: string, userId: string, status: string) {
+export async function updateInvoiceStatus(invoiceId: string, _userId: string, status: string) {
+  const userId = await requireAuth()
   const data: Record<string, unknown> = { status }
   if (status === "SENT") data.sentAt = new Date()
   if (status === "PAID") data.paidAt = new Date()
@@ -365,7 +407,8 @@ export async function updateInvoiceStatus(invoiceId: string, userId: string, sta
   revalidatePath("/facturation")
 }
 
-export async function updateInvoiceDueDate(invoiceId: string, userId: string, dueDate: string | null) {
+export async function updateInvoiceDueDate(invoiceId: string, _userId: string, dueDate: string | null) {
+  const userId = await requireAuth()
   await prisma.invoice.update({
     where: { id: invoiceId, userId },
     data: { dueDate: dueDate ? new Date(dueDate) : null },
@@ -373,18 +416,21 @@ export async function updateInvoiceDueDate(invoiceId: string, userId: string, du
   revalidatePath(`/facturation/factures/${invoiceId}`)
 }
 
-export async function updateInvoiceNotes(invoiceId: string, userId: string, notes: string | null) {
+export async function updateInvoiceNotes(invoiceId: string, _userId: string, notes: string | null) {
+  const userId = await requireAuth()
   await prisma.invoice.update({ where: { id: invoiceId, userId }, data: { notes } })
   revalidatePath(`/facturation/factures/${invoiceId}`)
 }
 
-export async function deleteInvoice(invoiceId: string, userId: string) {
+export async function deleteInvoice(invoiceId: string, _userId: string) {
+  const userId = await requireAuth()
   await prisma.invoice.delete({ where: { id: invoiceId, userId } })
   revalidatePath("/facturation/factures")
   revalidatePath("/facturation")
 }
 
-export async function signQuoteWithFile(quoteId: string, userId: string, fileUrl: string) {
+export async function signQuoteWithFile(quoteId: string, _userId: string, fileUrl: string) {
+  const userId = await requireAuth()
   await prisma.quote.update({
     where: { id: quoteId, userId },
     data: { signedFileUrl: fileUrl, status: "SIGNED" as never },
@@ -413,6 +459,7 @@ export async function addInvoiceLine(
     productId?: string
   }
 ) {
+  await requireAuth()
   const total = data.quantity * data.unitPrice
   await prisma.invoiceLine.create({
     data: {
@@ -440,6 +487,12 @@ export async function updateInvoiceLine(
     taxRate?: number
   }
 ) {
+  const userId = await requireAuth()
+  const existing = await prisma.invoiceLine.findFirst({
+    where: { id: lineId, invoice: { userId } },
+    select: { id: true },
+  })
+  if (!existing) throw new Error("Non autorisé")
   const total = data.quantity * data.unitPrice
   const line = await prisma.invoiceLine.update({
     where: { id: lineId },
@@ -458,6 +511,12 @@ export async function updateInvoiceLine(
 }
 
 export async function deleteInvoiceLine(lineId: string) {
+  const userId = await requireAuth()
+  const existing = await prisma.invoiceLine.findFirst({
+    where: { id: lineId, invoice: { userId } },
+    select: { id: true },
+  })
+  if (!existing) throw new Error("Non autorisé")
   const line = await prisma.invoiceLine.delete({ where: { id: lineId }, select: { invoiceId: true } })
   await recalcInvoiceTotal(line.invoiceId)
   revalidatePath(`/facturation/factures/${line.invoiceId}`)
@@ -466,9 +525,10 @@ export async function deleteInvoiceLine(lineId: string) {
 // ── Produits ──────────────────────────────────────────────────────────────────
 
 export async function createProduct(
-  userId: string,
+  _userId: string,
   data: { name: string; description?: string; unitPrice: number; unit?: string; billingType?: string; defaultTaxRate?: number }
 ) {
+  const userId = await requireAuth()
   const product = await prisma.product.create({
     data: {
       userId,
@@ -486,9 +546,10 @@ export async function createProduct(
 
 export async function updateProduct(
   productId: string,
-  userId: string,
+  _userId: string,
   data: { name?: string; description?: string | null; unitPrice?: number; unit?: string; isActive?: boolean; billingType?: string; defaultTaxRate?: number }
 ) {
+  const userId = await requireAuth()
   await prisma.product.update({
     where: { id: productId, userId },
     data: data as never,
@@ -496,7 +557,8 @@ export async function updateProduct(
   revalidatePath("/facturation/produits")
 }
 
-export async function deleteProduct(productId: string, userId: string) {
+export async function deleteProduct(productId: string, _userId: string) {
+  const userId = await requireAuth()
   await prisma.product.delete({ where: { id: productId, userId } })
   revalidatePath("/facturation/produits")
 }
@@ -504,7 +566,7 @@ export async function deleteProduct(productId: string, userId: string) {
 // ── Récurrentes ───────────────────────────────────────────────────────────────
 
 export async function createRecurringInvoice(
-  userId: string,
+  _userId: string,
   data: {
     clientId: string
     projectId?: string
@@ -513,6 +575,7 @@ export async function createRecurringInvoice(
     nextGenerationDate: string
   }
 ) {
+  const userId = await requireAuth()
   const rec = await (prisma as never as { recurringInvoice: { create: (args: unknown) => Promise<{ id: string }> } }).recurringInvoice.create({
     data: {
       userId,
@@ -530,7 +593,7 @@ export async function createRecurringInvoice(
 
 export async function updateRecurringInvoice(
   id: string,
-  userId: string,
+  _userId: string,
   data: {
     name?: string
     frequency?: string
@@ -539,6 +602,7 @@ export async function updateRecurringInvoice(
     projectId?: string | null
   }
 ) {
+  const userId = await requireAuth()
   await (prisma as never as { recurringInvoice: { update: (args: unknown) => Promise<unknown> } }).recurringInvoice.update({
     where: { id, userId } as never,
     data: {
@@ -552,7 +616,8 @@ export async function updateRecurringInvoice(
   revalidatePath("/facturation/recurrentes")
 }
 
-export async function deleteRecurringInvoice(id: string, userId: string) {
+export async function deleteRecurringInvoice(id: string, _userId: string) {
+  const userId = await requireAuth()
   await (prisma as never as { recurringInvoice: { delete: (args: unknown) => Promise<unknown> } }).recurringInvoice.delete({
     where: { id, userId } as never,
   })
@@ -571,8 +636,9 @@ type RecurringRowFull = {
 
 export async function generateInvoiceFromRecurring(
   recurringId: string,
-  userId: string
+  _userId: string
 ): Promise<{ id: string }> {
+  const userId = await requireAuth()
   const prismaExt = prisma as never as {
     recurringInvoice: { findFirst: (args: unknown) => Promise<RecurringRowFull | null> }
   }
@@ -640,9 +706,10 @@ type RecurringLine = {
 
 export async function setRecurringInvoiceLines(
   recurringInvoiceId: string,
-  userId: string,
+  _userId: string,
   lines: RecurringLine[]
 ) {
+  const userId = await requireAuth()
   // RecurringInvoiceLine is not in Prisma schema (raw SQL migration) — use $executeRawUnsafe
   await prisma.$executeRawUnsafe(
     `DELETE FROM "RecurringInvoiceLine" WHERE "recurringInvoiceId" = $1`,
@@ -678,7 +745,9 @@ export async function setRecurringInvoiceLines(
 
 // ── Email ─────────────────────────────────────────────────────────────────────
 
-export async function resendQuoteEmail(quoteId: string, userId: string) {
+export async function resendQuoteEmail(quoteId: string, _userId: string) {
+  const userId = await requireAuth()
+  enforceRateLimit(`email:${userId}`, 10, 60_000) // 10 emails/min max
   const quote = await prisma.quote.findFirst({
     where: { id: quoteId, userId, status: "SENT" },
     include: { client: true, user: true },
@@ -704,11 +773,13 @@ export async function resendQuoteEmail(quoteId: string, userId: string) {
     `,
   })
 
-  if (error) throw new Error(error.message)
+  if (error) throw new Error("Échec de l'envoi email. Vérifiez la configuration Resend.")
   revalidatePath(`/facturation/devis/${quoteId}`)
 }
 
-export async function sendQuoteEmail(quoteId: string, userId: string) {
+export async function sendQuoteEmail(quoteId: string, _userId: string) {
+  const userId = await requireAuth()
+  enforceRateLimit(`email:${userId}`, 10, 60_000)
   const quote = await prisma.quote.findFirst({
     where: { id: quoteId, userId },
     include: { client: true, user: true },
@@ -734,12 +805,14 @@ export async function sendQuoteEmail(quoteId: string, userId: string) {
     `,
   })
 
-  if (error) throw new Error(error.message)
+  if (error) throw new Error("Échec de l'envoi email. Vérifiez la configuration Resend.")
 
   await updateQuoteStatus(quoteId, userId, "SENT")
 }
 
-export async function sendInvoiceEmail(invoiceId: string, userId: string) {
+export async function sendInvoiceEmail(invoiceId: string, _userId: string) {
+  const userId = await requireAuth()
+  enforceRateLimit(`email:${userId}`, 10, 60_000)
   const invoice = await prisma.invoice.findFirst({
     where: { id: invoiceId, userId },
     include: { client: true, user: true },
@@ -753,7 +826,7 @@ export async function sendInvoiceEmail(invoiceId: string, userId: string) {
 
   const { data, error } = await resend.emails.send({
     from: "ERP Freelance <noreply@resend.dev>",
-    to: invoice.client.email ?? userId,
+    to: invoice.client.email ?? invoice.user.email ?? "",
     subject: `Facture ${invoice.number}`,
     html: `
       <p>Bonjour ${invoice.client.name},</p>
@@ -763,7 +836,7 @@ export async function sendInvoiceEmail(invoiceId: string, userId: string) {
     `,
   })
 
-  if (error) throw new Error(error.message)
+  if (error) throw new Error("Échec de l'envoi email. Vérifiez la configuration Resend.")
 
   await prisma.emailLog.create({
     data: {
@@ -778,7 +851,9 @@ export async function sendInvoiceEmail(invoiceId: string, userId: string) {
   await updateInvoiceStatus(invoiceId, userId, "SENT")
 }
 
-export async function sendInvoiceReminder(invoiceId: string, userId: string) {
+export async function sendInvoiceReminder(invoiceId: string, _userId: string) {
+  const userId = await requireAuth()
+  enforceRateLimit(`email:${userId}`, 10, 60_000)
   const invoice = await prisma.invoice.findFirst({
     where: { id: invoiceId, userId, status: { in: ["SENT", "LATE"] } },
     include: { client: true, user: true },
@@ -814,7 +889,7 @@ export async function sendInvoiceReminder(invoiceId: string, userId: string) {
     `,
   })
 
-  if (error) throw new Error(error.message)
+  if (error) throw new Error("Échec de l'envoi email. Vérifiez la configuration Resend.")
 
   await prisma.emailLog.create({
     data: {

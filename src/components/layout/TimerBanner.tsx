@@ -8,7 +8,7 @@ import Link from "next/link"
 type RunningTimer = {
   id: string
   startedAt: Date | string
-  task: { id: string; title: string; projectId: string }
+  task: { id: string; title: string; projectId: string | null }
 }
 
 function fmt(s: number) {
@@ -44,7 +44,7 @@ export function TimerBanner({
 
   function handleStop() {
     startTransition(async () => {
-      await stopTimer(initialTimer!.id, userId, initialTimer!.task.projectId)
+      await stopTimer(initialTimer!.id, userId, initialTimer!.task.projectId ?? "")
     })
   }
 
@@ -53,7 +53,7 @@ export function TimerBanner({
       <Timer className="h-3.5 w-3.5 text-amber-500 animate-pulse shrink-0" />
       <span className="text-amber-700 dark:text-amber-400 font-medium">Chrono actif ·</span>
       <Link
-        href={`/projets/${initialTimer.task.projectId}/dev`}
+        href={initialTimer.task.projectId ? `/projets/${initialTimer.task.projectId}/dev` : "/taches"}
         className="text-amber-700 dark:text-amber-400 hover:underline truncate flex-1"
       >
         {initialTimer.task.title}

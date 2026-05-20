@@ -72,7 +72,7 @@ export default async function FactureDetailPage({
             {invoice.quote && <> · Devis <Link href={`/facturation/devis/${invoice.quote.id}`} className="hover:text-primary font-mono">{invoice.quote.number}</Link></>}
           </p>
           <p className="text-xs text-muted-foreground">
-            Créée le {new Date(invoice.createdAt).toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" })}
+            Créée le {new Date(invoice.createdAt).toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" })} à {new Date(invoice.createdAt).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}
             {invoice.sentAt && ` · Envoyée le ${new Date(invoice.sentAt).toLocaleDateString("fr-FR")}`}
             {invoice.paidAt && ` · Payée le ${new Date(invoice.paidAt).toLocaleDateString("fr-FR")}`}
           </p>

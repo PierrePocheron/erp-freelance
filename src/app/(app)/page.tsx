@@ -151,11 +151,11 @@ export default async function DashboardPage() {
             <Section title="Tâches en cours" icon={<CheckSquare className="h-4 w-4" />} href="/projets">
               <div className="space-y-1.5">
                 {tasksInProgress.map((task) => (
-                  <Link key={task.id} href={`/projets/${task.project.id}/dev`} className="flex items-center gap-3 rounded-lg px-3 py-2 hover:bg-muted/50 transition-colors group">
+                  <Link key={task.id} href={`/projets/${task.project!.id}/dev`} className="flex items-center gap-3 rounded-lg px-3 py-2 hover:bg-muted/50 transition-colors group">
                     <span className="h-2 w-2 rounded-full bg-amber-500 shrink-0" />
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium truncate">{task.title}</p>
-                      <p className="text-xs text-muted-foreground">{task.project.name}</p>
+                      <p className="text-xs text-muted-foreground">{task.project!.name}</p>
                     </div>
                     {task.dueDate && (
                       <span className={`text-xs shrink-0 ${new Date(task.dueDate) < new Date() ? "text-red-500 font-medium" : "text-muted-foreground"}`}>
@@ -173,11 +173,11 @@ export default async function DashboardPage() {
             <Section title="Échéances aujourd'hui" icon={<Calendar className="h-4 w-4" />} href="/projets">
               <div className="space-y-1.5">
                 {tasksDueToday.map((task) => (
-                  <Link key={task.id} href={`/projets/${task.project.id}/dev`} className="flex items-center gap-3 rounded-lg px-3 py-2 hover:bg-muted/50 transition-colors">
+                  <Link key={task.id} href={`/projets/${task.project!.id}/dev`} className="flex items-center gap-3 rounded-lg px-3 py-2 hover:bg-muted/50 transition-colors">
                     <span className="h-2 w-2 rounded-full bg-red-500 shrink-0" />
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium truncate">{task.title}</p>
-                      <p className="text-xs text-muted-foreground">{task.project.name}</p>
+                      <p className="text-xs text-muted-foreground">{task.project!.name}</p>
                     </div>
                   </Link>
                 ))}

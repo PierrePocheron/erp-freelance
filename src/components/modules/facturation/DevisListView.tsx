@@ -12,7 +12,7 @@ type Quote = {
   totalHT: number
   depositPercent: number
   createdAt: Date
-  client: { name: string; company: string | null }
+  client: { id: string; name: string; company: string | null }
   project: { name: string } | null
   _count: { lines: number }
 }
@@ -156,7 +156,11 @@ export function DevisListView({
                     <td className="px-4 py-3">
                       <Link href={`/facturation/devis/${q.id}`} className="text-primary hover:underline font-mono text-xs font-medium">{q.number}</Link>
                     </td>
-                    <td className="px-4 py-3 text-muted-foreground">{q.client.company ?? q.client.name}</td>
+                    <td className="px-4 py-3">
+                      <Link href={`/clients/${q.client.id}`} className="text-muted-foreground hover:text-primary hover:underline transition-colors">
+                        {q.client.company ?? q.client.name}
+                      </Link>
+                    </td>
                     <td className="px-4 py-3 text-muted-foreground text-xs">{q.project?.name ?? "—"}</td>
                     <td className="px-4 py-3">
                       <span className={`rounded-full border px-2 py-0.5 text-xs font-medium ${status.cls}`}>{status.label}</span>
@@ -186,7 +190,13 @@ export function DevisListView({
                   <span className={`rounded-full border px-2 py-0.5 text-xs font-medium shrink-0 ${status.cls}`}>{status.label}</span>
                 </div>
                 <div>
-                  <p className="font-semibold text-sm leading-tight">{q.client.company ?? q.client.name}</p>
+                  <Link
+                    href={`/clients/${q.client.id}`}
+                    onClick={(e) => e.stopPropagation()}
+                    className="font-semibold text-sm leading-tight hover:text-primary hover:underline transition-colors"
+                  >
+                    {q.client.company ?? q.client.name}
+                  </Link>
                   {q.project && (
                     <p className="text-xs text-muted-foreground mt-0.5">{q.project.name}</p>
                   )}

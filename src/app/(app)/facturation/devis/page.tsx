@@ -11,7 +11,7 @@ export default async function DevisListPage() {
       where: { userId },
       orderBy: { createdAt: "desc" },
       include: {
-        client: { select: { name: true, company: true } },
+        client: { select: { id: true, name: true, company: true } },
         project: { select: { name: true } },
         _count: { select: { lines: true } },
       },

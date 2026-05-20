@@ -2,8 +2,16 @@
 
 import { prisma } from "@/lib/prisma"
 import { revalidatePath } from "next/cache"
+import { auth } from "@/lib/auth"
 
-export async function startTimer(taskId: string, userId: string, projectId: string) {
+async function requireAuth(): Promise<string> {
+  const session = await auth()
+  if (!session?.user?.id) throw new Error("Non autorisé")
+  return session.user.id
+}
+
+export async function startTimer(taskId: string, _userId: string, projectId: string) {
+  const userId = await requireAuth()
   // Arrêter tout chrono en cours pour cet utilisateur
   const running = await prisma.timeEntry.findFirst({
     where: { userId, endedAt: null },
@@ -24,7 +32,8 @@ export async function startTimer(taskId: string, userId: string, projectId: stri
   return entry
 }
 
-export async function stopTimer(entryId: string, userId: string, projectId: string) {
+export async function stopTimer(entryId: string, _userId: string, projectId: string | null) {
+  const userId = await requireAuth()
   const entry = await prisma.timeEntry.findFirst({
     where: { id: entryId, userId },
   })
@@ -36,15 +45,18 @@ export async function stopTimer(entryId: string, userId: string, projectId: stri
     data: { endedAt: new Date(), duration },
   })
 
-  revalidatePath(`/projets/${projectId}/dev`)
+  if (projectId) revalidatePath(`/projets/${projectId}/dev`)
+  revalidatePath("/taches")
 }
 
-export async function deleteTimeEntry(entryId: string, userId: string, projectId: string) {
+export async function deleteTimeEntry(entryId: string, _userId: string, projectId: string) {
+  const userId = await requireAuth()
   await prisma.timeEntry.delete({ where: { id: entryId, userId } })
   revalidatePath(`/projets/${projectId}/dev`)
 }
 
-export async function getRunningTimer(userId: string) {
+export async function getRunningTimer(_userId: string) {
+  const userId = await requireAuth()
   return prisma.timeEntry.findFirst({
     where: { userId, endedAt: null },
     include: { task: { select: { id: true, title: true, projectId: true } } },

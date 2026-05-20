@@ -9,6 +9,7 @@ import {
   FileText,
   Code2,
   Calendar,
+  CheckSquare,
   Server,
   Settings,
   PanelLeftClose,
@@ -23,6 +24,7 @@ const navItems = [
   { href: "/client", icon: Users, label: "Clients" },
   { href: "/facturation", icon: FileText, label: "Facturation" },
   { href: "/projets", icon: Code2, label: "Projets" },
+  { href: "/taches", icon: CheckSquare, label: "Tâches" },
   { href: "/calendrier", icon: Calendar, label: "Calendrier" },
   { href: "/settings", icon: Settings, label: "Paramètres" },
 ]

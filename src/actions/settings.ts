@@ -90,16 +90,63 @@ export async function updateAccentColors(_userId: string, colorsJson: string) {
 
 export async function deleteAllUserData(_userId: string) {
   const userId = await requireAuth()
-  // Delete in dependency order to avoid FK conflicts
+
+  // ── Suppression dans l'ordre inverse des dépendances FK ──────────────────
+
+  // Post-Dev (le plus profond : monitoring → renewal → postDev)
+  await prisma.monitoringCheck.deleteMany({ where: { postDev: { project: { userId } } } })
+  await prisma.renewal.deleteMany({ where: { postDev: { project: { userId } } } })
+  await prisma.postDev.deleteMany({ where: { project: { userId } } })
+
+  // Time tracking
   await prisma.timeEntry.deleteMany({ where: { userId } })
-  await prisma.calendarEvent.deleteMany({ where: { userId } })
+
+  // Facturation : lignes & paiements avant les têtes
+  await prisma.payment.deleteMany({ where: { invoice: { userId } } })
+  await prisma.invoiceLine.deleteMany({ where: { invoice: { userId } } })
+  await prisma.quoteLine.deleteMany({ where: { quote: { userId } } })
   await prisma.emailLog.deleteMany({ where: { userId } })
-  await prisma.quote.deleteMany({ where: { userId } })
+
+  // Calendrier & notifications
+  await prisma.calendarEvent.deleteMany({ where: { userId } })
+  await prisma.notification.deleteMany({ where: { userId } })
+
+  // Tâches : passe 1 → effacer parentTaskId (auto-référence circulaire)
+  await prisma.task.updateMany({
+    where: { OR: [{ project: { userId } }, { userId }] },
+    data: { parentTaskId: null },
+  })
+  // Tâches : passe 2 → supprimer
+  await prisma.task.deleteMany({ where: { OR: [{ project: { userId } }, { userId }] } })
+  await prisma.taskTag.deleteMany({ where: { project: { userId } } })
+
+  // Données projet (milestones, journal, livrables, liens, membres)
+  await prisma.milestone.deleteMany({ where: { project: { userId } } })
+  await prisma.journalEntry.deleteMany({ where: { project: { userId } } })
+  await prisma.deliverable.deleteMany({ where: { project: { userId } } })
+  await prisma.usefulLink.deleteMany({ where: { project: { userId } } })
+  await prisma.projectMember.deleteMany({ where: { project: { userId } } })
+
+  // Facturation têtes (quotes & invoices référencent clients + projets)
+  await prisma.recurringInvoice.deleteMany({ where: { userId } })
   await prisma.invoice.deleteMany({ where: { userId } })
-  await prisma.product.deleteMany({ where: { userId } })
-  // Cascade: client → interactions, reminders, projects → tasks, milestones, postDev, etc.
+  await prisma.quote.deleteMany({ where: { userId } })
+
+  // Projets (maintenant libres de toutes dépendances)
+  await prisma.project.deleteMany({ where: { userId } })
+
+  // CRM : interactions, rappels, fichiers puis clients
+  await prisma.interaction.deleteMany({ where: { client: { userId } } })
+  await prisma.reminder.deleteMany({ where: { client: { userId } } })
+  await prisma.clientFile.deleteMany({ where: { client: { userId } } })
   await prisma.client.deleteMany({ where: { userId } })
+
+  // Reste utilisateur
+  await prisma.product.deleteMany({ where: { userId } })
   await prisma.tag.deleteMany({ where: { userId } })
+  await prisma.conditionsTemplate.deleteMany({ where: { userId } })
+  await prisma.projectIdea.deleteMany({ where: { userId } })
   await prisma.userProfile?.deleteMany({ where: { userId } })
+
   redirect("/")
 }

@@ -45,7 +45,7 @@ export function DangerZone({ userId }: { userId: string }) {
         {open && (
           <div className="border-t border-border/50 pt-4 space-y-3">
             <p className="text-sm text-muted-foreground">
-              Pour confirmer, tapez <span className="font-mono font-bold text-foreground">SUPPRIMER</span> ci-dessous&nbsp;:
+              Pour confirmer, tapez{" "}<span className="font-mono font-bold text-foreground">SUPPRIMER</span>{" "}ci-dessous&nbsp;:
             </p>
             <input
               type="text"

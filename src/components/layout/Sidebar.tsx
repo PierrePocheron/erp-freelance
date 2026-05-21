@@ -3,6 +3,7 @@
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useEffect, useState } from "react"
+import pkg from "../../../package.json"
 import {
   LayoutDashboard,
   Users,
@@ -128,6 +129,13 @@ export function Sidebar() {
           )}
         </button>
       </div>
+
+      {/* Version */}
+      {expanded && (
+        <div className="px-4 pb-1">
+          <span className="text-[10px] text-muted-foreground/40 font-mono select-none">v{pkg.version}</span>
+        </div>
+      )}
 
       {/* Toggle */}
       <div className={cn("px-2 pb-5 space-y-1", expanded ? "" : "flex flex-col items-center")}>

@@ -115,6 +115,11 @@ export default async function ClientOverviewPage({
           notes: client.notes,
           type: client.type,
           temperature: client.temperature,
+          address: client.address ?? null,
+          postalCode: client.postalCode ?? null,
+          city: client.city ?? null,
+          country: client.country ?? null,
+          siret: client.siret ?? null,
         }} />
 
         {/* Tâches */}

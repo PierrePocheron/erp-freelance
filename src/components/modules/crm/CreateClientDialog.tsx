@@ -60,23 +60,23 @@ export function CreateClientDialog({
         <DialogHeader>
           <DialogTitle>Nouveau contact</DialogTitle>
         </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-4 pt-2">
+        <form onSubmit={handleSubmit} className="space-y-4 pt-2" autoComplete="off">
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5 col-span-2">
               <Label>Nom *</Label>
-              <Input name="name" placeholder="Jean Dupont" required />
+              <Input name="name" placeholder="Jean Dupont" required autoComplete="off" />
             </div>
             <div className="space-y-1.5 col-span-2">
               <Label>Société</Label>
-              <Input name="company" placeholder="Acme Inc." />
+              <Input name="company" placeholder="Acme Inc." autoComplete="off" />
             </div>
             <div className="space-y-1.5">
               <Label>Email</Label>
-              <Input name="email" type="email" placeholder="jean@acme.fr" />
+              <Input name="email" type="email" placeholder="jean@acme.fr" autoComplete="off" />
             </div>
             <div className="space-y-1.5">
               <Label>Téléphone</Label>
-              <Input name="phone" placeholder="+33 6 00 00 00 00" />
+              <Input name="phone" placeholder="+33 6 00 00 00 00" autoComplete="off" />
             </div>
             <div className="space-y-1.5">
               <Label>Type</Label>

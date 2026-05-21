@@ -117,6 +117,8 @@ export async function importData(jsonString: string): Promise<ImportResult> {
           company: c.company ?? null, email: c.email ?? null, phone: c.phone ?? null,
           source: c.source, temperature: c.temperature, priorityScore: c.priorityScore ?? 1,
           notes: c.notes ?? null,
+          address: c.address ?? null, postalCode: c.postalCode ?? null,
+          city: c.city ?? null, country: c.country ?? null, siret: c.siret ?? null,
           createdAt: toDate(c.createdAt) ?? new Date(),
           updatedAt: toDate(c.updatedAt) ?? new Date(),
         })),

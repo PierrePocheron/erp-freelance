@@ -45,6 +45,11 @@ export async function createClient(
     source?: string
     temperature?: string
     notes?: string
+    address?: string
+    postalCode?: string
+    city?: string
+    country?: string
+    siret?: string
   }
 ) {
   const userId = await requireAuth()
@@ -60,6 +65,11 @@ export async function createClient(
       temperature: (data.temperature as any) || "COLD",
       priorityScore: 1,
       notes: data.notes || null,
+      address: data.address || null,
+      postalCode: data.postalCode || null,
+      city: data.city || null,
+      country: data.country || null,
+      siret: data.siret || null,
     },
   })
   revalidatePath("/client")
@@ -128,6 +138,11 @@ export async function updateClientAll(
     notes?: string | null
     type?: string
     temperature?: string
+    address?: string | null
+    postalCode?: string | null
+    city?: string | null
+    country?: string | null
+    siret?: string | null
   }
 ) {
   const userId = await requireAuth()
@@ -140,6 +155,11 @@ export async function updateClientAll(
   if ("notes" in data) clean.notes = data.notes?.trim() || null
   if ("type" in data && data.type) clean.type = data.type
   if ("temperature" in data && data.temperature) clean.temperature = data.temperature
+  if ("address" in data) clean.address = data.address?.trim() || null
+  if ("postalCode" in data) clean.postalCode = data.postalCode?.trim() || null
+  if ("city" in data) clean.city = data.city?.trim() || null
+  if ("country" in data) clean.country = data.country?.trim() || null
+  if ("siret" in data) clean.siret = data.siret?.trim() || null
   await prisma.client.update({ where: { id: clientId, userId }, data: clean as any })
   revalidatePath(`/client/${clientId}`)
   revalidatePath("/client")

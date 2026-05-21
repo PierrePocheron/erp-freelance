@@ -178,6 +178,11 @@ model Client {
   temperature   Temperature  @default(COLD)
   priorityScore Int          @default(1)
   notes         String?
+  address       String?
+  postalCode    String?
+  city          String?
+  country       String?
+  siret         String?
   createdAt     DateTime     @default(now())
   updatedAt     DateTime     @updatedAt
 

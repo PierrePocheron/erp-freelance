@@ -3,7 +3,7 @@
 import { useState, useTransition, useEffect } from "react"
 import {
   Pencil, Check, X, Mail, Phone, Building2, Tag,
-  MessageSquare, Loader2, Thermometer,
+  MessageSquare, Loader2, MapPin, Hash,
 } from "lucide-react"
 import { updateClientAll } from "@/actions/crm"
 import { cn } from "@/lib/utils"
@@ -47,6 +47,11 @@ type ClientData = {
   notes: string | null
   type: string
   temperature: string
+  address: string | null
+  postalCode: string | null
+  city: string | null
+  country: string | null
+  siret: string | null
 }
 
 export function ClientInfoCard({ client }: { client: ClientData }) {
@@ -61,6 +66,11 @@ export function ClientInfoCard({ client }: { client: ClientData }) {
   const [notes, setNotes] = useState(client.notes ?? "")
   const [type, setType] = useState(client.type)
   const [temperature, setTemperature] = useState(client.temperature)
+  const [address, setAddress] = useState(client.address ?? "")
+  const [postalCode, setPostalCode] = useState(client.postalCode ?? "")
+  const [city, setCity] = useState(client.city ?? "")
+  const [country, setCountry] = useState(client.country ?? "")
+  const [siret, setSiret] = useState(client.siret ?? "")
 
   useEffect(() => {
     if (!editing) return
@@ -72,6 +82,11 @@ export function ClientInfoCard({ client }: { client: ClientData }) {
     setNotes(client.notes ?? "")
     setType(client.type)
     setTemperature(client.temperature)
+    setAddress(client.address ?? "")
+    setPostalCode(client.postalCode ?? "")
+    setCity(client.city ?? "")
+    setCountry(client.country ?? "")
+    setSiret(client.siret ?? "")
   }, [editing]) // eslint-disable-line react-hooks/exhaustive-deps
 
   function handleSave() {
@@ -85,6 +100,11 @@ export function ClientInfoCard({ client }: { client: ClientData }) {
         notes: notes.trim() || null,
         type,
         temperature,
+        address: address.trim() || null,
+        postalCode: postalCode.trim() || null,
+        city: city.trim() || null,
+        country: country.trim() || null,
+        siret: siret.trim() || null,
       })
       setEditing(false)
     })
@@ -180,6 +200,31 @@ export function ClientInfoCard({ client }: { client: ClientData }) {
           </div>
 
           <div className="space-y-1">
+            <label className="text-xs text-muted-foreground">Adresse</label>
+            <input value={address} onChange={(e) => setAddress(e.target.value)} placeholder="12 rue de la Paix" className="flex h-8 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-ring" />
+          </div>
+
+          <div className="grid grid-cols-3 gap-3">
+            <div className="space-y-1">
+              <label className="text-xs text-muted-foreground">Code postal</label>
+              <input value={postalCode} onChange={(e) => setPostalCode(e.target.value)} placeholder="75001" className="flex h-8 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-ring" />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs text-muted-foreground">Ville</label>
+              <input value={city} onChange={(e) => setCity(e.target.value)} placeholder="Paris" className="flex h-8 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-ring" />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs text-muted-foreground">Pays</label>
+              <input value={country} onChange={(e) => setCountry(e.target.value)} placeholder="France" className="flex h-8 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-ring" />
+            </div>
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-xs text-muted-foreground">SIRET</label>
+            <input value={siret} onChange={(e) => setSiret(e.target.value)} placeholder="123 456 789 00012" className="flex h-8 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-ring" />
+          </div>
+
+          <div className="space-y-1">
             <label className="text-xs text-muted-foreground">Notes internes</label>
             <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} placeholder="Notes privées..." className="flex w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-ring resize-none" />
           </div>
@@ -221,6 +266,20 @@ export function ClientInfoCard({ client }: { client: ClientData }) {
               <Tag className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
               <span className="text-muted-foreground">{SOURCE_LABELS[client.source] ?? client.source}</span>
             </div>
+            {(client.address || client.city || client.postalCode) && (
+              <div className="flex items-start gap-2.5 text-sm">
+                <MapPin className="h-3.5 w-3.5 text-muted-foreground shrink-0 mt-0.5" />
+                <span className="text-muted-foreground leading-relaxed">
+                  {[client.address, [client.postalCode, client.city].filter(Boolean).join(" "), client.country].filter(Boolean).join(", ")}
+                </span>
+              </div>
+            )}
+            {client.siret && (
+              <div className="flex items-center gap-2.5 text-sm">
+                <Hash className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                <span className="text-muted-foreground font-mono text-xs">{client.siret}</span>
+              </div>
+            )}
           </div>
 
           {/* Notes */}

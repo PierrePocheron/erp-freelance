@@ -42,6 +42,11 @@ export function CreateClientDialog({
         source: (fd.get("source") as string) || undefined,
         temperature: (fd.get("temperature") as string) || undefined,
         notes: (fd.get("notes") as string) || undefined,
+        address: (fd.get("address") as string) || undefined,
+        postalCode: (fd.get("postalCode") as string) || undefined,
+        city: (fd.get("city") as string) || undefined,
+        country: (fd.get("country") as string) || undefined,
+        siret: (fd.get("siret") as string) || undefined,
       })
       handleOpenChange(false)
       router.push(`/client/${client.id}`)
@@ -56,7 +61,7 @@ export function CreateClientDialog({
           Nouveau contact
         </DialogTrigger>
       )}
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>Nouveau contact</DialogTitle>
         </DialogHeader>
@@ -105,6 +110,26 @@ export function CreateClientDialog({
                 <option value="WARM">Tiède</option>
                 <option value="HOT">Chaud</option>
               </select>
+            </div>
+            <div className="space-y-1.5 col-span-2">
+              <Label>Adresse</Label>
+              <Input name="address" placeholder="12 rue de la Paix" autoComplete="off" />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Code postal</Label>
+              <Input name="postalCode" placeholder="75001" autoComplete="off" />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Ville</Label>
+              <Input name="city" placeholder="Paris" autoComplete="off" />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Pays</Label>
+              <Input name="country" placeholder="France" autoComplete="off" />
+            </div>
+            <div className="space-y-1.5">
+              <Label>SIRET</Label>
+              <Input name="siret" placeholder="123 456 789 00012" autoComplete="off" />
             </div>
             <div className="space-y-1.5 col-span-2">
               <Label>Notes</Label>

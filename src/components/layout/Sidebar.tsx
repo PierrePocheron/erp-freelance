@@ -130,14 +130,7 @@ export function Sidebar() {
         </button>
       </div>
 
-      {/* Version */}
-      {expanded && (
-        <div className="px-4 pb-1">
-          <span className="text-[10px] text-muted-foreground/40 font-mono select-none">v{pkg.version}</span>
-        </div>
-      )}
-
-      {/* Toggle */}
+      {/* Toggle + version */}
       <div className={cn("px-2 pb-5 space-y-1", expanded ? "" : "flex flex-col items-center")}>
         <ThemeToggle expanded={expanded} />
         <button
@@ -154,6 +147,9 @@ export function Sidebar() {
           }
           {expanded && <span className="text-sm truncate">Réduire</span>}
         </button>
+        {expanded && (
+          <p className="px-2.5 pt-1 text-[10px] text-muted-foreground/40 font-mono select-none">v{pkg.version}</p>
+        )}
       </div>
     </aside>
   )

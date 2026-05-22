@@ -29,7 +29,7 @@ export default function RootLayout({
       <head>
         <Script src="/theme-init.js" strategy="beforeInteractive" />
       </head>
-      <body className="min-h-full flex flex-col bg-background text-foreground" suppressHydrationWarning>
+      <body className="h-full overflow-hidden bg-background text-foreground" suppressHydrationWarning>
         {children}
         <Toaster position="bottom-right" richColors />
       </body>

@@ -618,11 +618,32 @@ export async function addProjectMember(
 }
 
 export async function removeProjectMember(projectId: string, ownerUserId: string, memberId: string) {
-  const project = await prisma.project.findFirst({ where: { id: projectId, userId: ownerUserId } })
-  if (!project) return
-  await prisma.projectMember.delete({
-    where: { projectId_userId: { projectId, userId: memberId } },
+  const project = await prisma.project.findFirst({
+    where: { id: projectId, userId: ownerUserId },
+    include: {
+      user: { select: { name: true } },
+      client: { select: { name: true, company: true } },
+    },
   })
+  if (!project) return
+
+  const ownerName = project.user.name ?? "Le propriétaire du projet"
+  const clientLabel = project.client.company ?? project.client.name
+
+  await prisma.$transaction([
+    prisma.projectMember.delete({
+      where: { projectId_userId: { projectId, userId: memberId } },
+    }),
+    prisma.notification.create({
+      data: {
+        userId: memberId,
+        type: "PROJECT_INVITE",
+        title: "Retiré d'un projet",
+        body: `${ownerName} vous a retiré du projet « ${project.name} » (${clientLabel}).`,
+        href: `/projets`,
+      },
+    }),
+  ])
   revalidatePath(`/projets/${projectId}`)
 }
 

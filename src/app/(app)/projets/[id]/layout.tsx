@@ -2,7 +2,7 @@ import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { notFound } from "next/navigation"
 import Link from "next/link"
-import { ChevronLeft } from "lucide-react"
+import { ChevronLeft, Users } from "lucide-react"
 import { ProjectTabs } from "@/components/modules/projet/ProjectTabs"
 import { ProjectDateBadge } from "@/components/modules/projet/ProjectDateBadge"
 import { ProjectNameEdit, ProjectDescriptionEdit, ProjectHoursEdit, ProjectStatusEdit } from "@/components/modules/projet/ProjectInlineEdit"
@@ -27,7 +27,7 @@ export default async function ProjectLayout({
         OR: [{ userId }, { members: { some: { userId } } }],
       },
       include: {
-        client: { select: { name: true, company: true, type: true } },
+        client: { select: { id: true, name: true, company: true, type: true } },
         members: {
           include: { user: { select: { name: true, email: true, image: true } } },
           orderBy: { createdAt: "asc" },
@@ -68,7 +68,12 @@ export default async function ProjectLayout({
 
         <div className="flex items-start justify-between gap-4">
           <div className="space-y-2">
-            <p className="text-sm text-muted-foreground">{clientLabel}</p>
+            <Link
+              href={`/client/${project.client.id}`}
+              className="text-sm text-muted-foreground hover:text-primary transition-colors"
+            >
+              {clientLabel}
+            </Link>
             <ProjectNameEdit projectId={id} value={project.name} />
             <ProjectDescriptionEdit projectId={id} value={project.description} />
 
@@ -86,7 +91,52 @@ export default async function ProjectLayout({
             />
           </div>
 
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex items-center gap-3 shrink-0">
+            {/* Avatars collaborateurs */}
+            {(project.members.length > 0) && (
+              <div className="flex items-center gap-2">
+                <div className="flex items-center -space-x-1.5">
+                  {project.user.image ? (
+                    <img
+                      src={project.user.image}
+                      alt={project.user.name ?? project.user.email ?? ""}
+                      title={`${project.user.name ?? project.user.email} (propriétaire)`}
+                      className="h-6 w-6 rounded-full border-2 border-background object-cover"
+                    />
+                  ) : (
+                    <div
+                      title={`${project.user.name ?? project.user.email} (propriétaire)`}
+                      className="h-6 w-6 rounded-full border-2 border-background bg-primary/20 text-primary text-[9px] font-semibold flex items-center justify-center"
+                    >
+                      {(project.user.name ?? project.user.email ?? "?").slice(0, 1).toUpperCase()}
+                    </div>
+                  )}
+                  {project.members.map((m) =>
+                    m.user.image ? (
+                      <img
+                        key={m.userId}
+                        src={m.user.image}
+                        alt={m.user.name ?? m.user.email ?? ""}
+                        title={`${m.user.name ?? m.user.email} (${m.role === "VIEWER" ? "lecteur" : "membre"})`}
+                        className="h-6 w-6 rounded-full border-2 border-background object-cover"
+                      />
+                    ) : (
+                      <div
+                        key={m.userId}
+                        title={`${m.user.name ?? m.user.email} (${m.role === "VIEWER" ? "lecteur" : "membre"})`}
+                        className="h-6 w-6 rounded-full border-2 border-background bg-muted text-muted-foreground text-[9px] font-semibold flex items-center justify-center"
+                      >
+                        {(m.user.name ?? m.user.email ?? "?").slice(0, 1).toUpperCase()}
+                      </div>
+                    )
+                  )}
+                </div>
+                <span className="text-xs text-muted-foreground hidden sm:inline">
+                  {project.members.length + 1} <Users className="h-3 w-3 inline" />
+                </span>
+              </div>
+            )}
+
             <ProjectStatusEdit projectId={id} value={project.status} />
             {isOwner && (
               <ProjectSettingsDialog

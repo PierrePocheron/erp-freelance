@@ -29,7 +29,13 @@ export default async function ClientOverviewPage({
   const userId = session!.user.id
 
   const client = await prisma.client.findFirst({
-    where: { id, userId },
+    where: {
+      id,
+      OR: [
+        { userId },
+        { projects: { some: { members: { some: { userId } } } } },
+      ],
+    },
     include: {
       _count: { select: { interactions: true, projects: true, invoices: true } },
       interactions: { orderBy: { date: "desc" }, take: 3 },
@@ -86,6 +92,7 @@ export default async function ClientOverviewPage({
     },
   })
 
+  const isOwner = client.userId === userId
   const allTasks = [...client.tasks, ...projectTasks]
 
   const totalBilled = client.invoices
@@ -105,7 +112,7 @@ export default async function ClientOverviewPage({
       <div className="lg:col-span-2 space-y-6">
 
         {/* Fiche informations */}
-        <ClientInfoCard client={{
+        <ClientInfoCard isOwner={isOwner} client={{
           id: client.id,
           name: client.name,
           company: client.company,
@@ -227,19 +234,21 @@ export default async function ClientOverviewPage({
           </div>
         )}
 
-        {/* Danger zone */}
-        <form
-          action={async () => {
-            "use server"
-            await deleteClient(id, userId)
-            redirect("/client")
-          }}
-        >
-          <Button type="submit" variant="destructive" size="sm" className="w-full">
-            <Trash2 className="h-3.5 w-3.5" />
-            Supprimer ce contact
-          </Button>
-        </form>
+        {/* Danger zone — propriétaire uniquement */}
+        {isOwner && (
+          <form
+            action={async () => {
+              "use server"
+              await deleteClient(id, userId)
+              redirect("/client")
+            }}
+          >
+            <Button type="submit" variant="destructive" size="sm" className="w-full">
+              <Trash2 className="h-3.5 w-3.5" />
+              Supprimer ce contact
+            </Button>
+          </form>
+        )}
       </div>
     </div>
   )

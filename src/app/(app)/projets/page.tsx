@@ -9,10 +9,11 @@ export default async function ProjetsPage() {
 
   const [projects, clients, projectTags, projectInvoices, ideas] = await Promise.all([
     prisma.project.findMany({
-      where: { userId },
+      where: { OR: [{ userId }, { members: { some: { userId } } }] },
       orderBy: { createdAt: "desc" },
       include: {
         client: { select: { name: true, company: true, type: true } },
+        members: { select: { userId: true } },
         _count: { select: { tasks: true } },
         tasks: { select: { status: true }, where: { parentTaskId: null } },
       },
@@ -23,7 +24,7 @@ export default async function ProjetsPage() {
       select: { id: true, name: true, company: true, type: true },
     }),
     prisma.project.findMany({
-      where: { userId },
+      where: { OR: [{ userId }, { members: { some: { userId } } }] },
       select: { id: true, tags: { select: { id: true, name: true, color: true } } },
     }).catch(() => [] as { id: string; tags: { id: string; name: string; color: string }[] }[]),
     prisma.invoice.findMany({

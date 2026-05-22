@@ -54,7 +54,7 @@ type ClientData = {
   siret: string | null
 }
 
-export function ClientInfoCard({ client }: { client: ClientData }) {
+export function ClientInfoCard({ client, isOwner = true }: { client: ClientData; isOwner?: boolean }) {
   const [editing, setEditing] = useState(false)
   const [isPending, startTransition] = useTransition()
 
@@ -123,7 +123,7 @@ export function ClientInfoCard({ client }: { client: ClientData }) {
         <h2 className="font-semibold text-sm">Informations</h2>
         <div className="flex items-center gap-1">
           {isPending && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />}
-          {editing ? (
+          {isOwner && (editing ? (
             <>
               <button
                 onClick={() => setEditing(false)}
@@ -150,7 +150,7 @@ export function ClientInfoCard({ client }: { client: ClientData }) {
             >
               <Pencil className="h-4 w-4" />
             </button>
-          )}
+          ))}
         </div>
       </div>
 

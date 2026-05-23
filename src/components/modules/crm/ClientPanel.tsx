@@ -126,8 +126,8 @@ export function ClientPanel({
   return (
     <div className="flex flex-col h-full overflow-y-auto">
 
-      {/* Header */}
-      <div className="p-5 border-b border-border/50 space-y-3">
+      {/* Header — pr-10 pour dégager la croix de fermeture du Sheet (absolute top-3 right-3) */}
+      <div className="p-5 pr-10 border-b border-border/50 space-y-3">
         <div className="flex items-start justify-between gap-3">
           <div>
             <div className="flex items-center gap-2 mb-1">

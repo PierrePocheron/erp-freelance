@@ -3,7 +3,7 @@
 import { useState, useTransition, useRef } from "react"
 import { useRouter } from "next/navigation"
 import {
-  Lightbulb, Plus, Trash2, Loader2, ArrowRight, X, ChevronDown, ChevronRight, Copy,
+  Lightbulb, Plus, Trash2, Loader2, ArrowRight, X, ChevronDown, ChevronRight, Copy, Check,
 } from "lucide-react"
 import {
   createProjectIdea, updateProjectIdea, deleteProjectIdea, convertIdeaToProject,
@@ -36,6 +36,7 @@ function IdeaCard({
   const [showConvert, setShowConvert] = useState(false)
   const [clientId, setClientId] = useState(clients[0]?.id ?? "")
   const [keepIdea, setKeepIdea] = useState(false)
+  const [saved, setSaved] = useState(false)
   const saveTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   function handleTitleBlur() {
@@ -56,6 +57,15 @@ function IdeaCard({
     if (!confirm(`Supprimer l'idée "${idea.title}" ?`)) return
     onDelete(idea.id)
     startTransition(() => deleteProjectIdea(idea.id, userId))
+  }
+
+  function handleSave() {
+    if (saveTimeout.current) clearTimeout(saveTimeout.current)
+    startTransition(async () => {
+      await updateProjectIdea(idea.id, userId, { title: title.trim() || idea.title, content })
+      setSaved(true)
+      setTimeout(() => setSaved(false), 2000)
+    })
   }
 
   function handleCopy() {
@@ -115,6 +125,24 @@ function IdeaCard({
         {isPending && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground shrink-0" />}
 
         <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+          {expanded && (
+            <button
+              type="button"
+              onClick={handleSave}
+              disabled={isPending}
+              className={cn(
+                "p-1 transition-colors",
+                saved ? "text-emerald-500" : "text-muted-foreground hover:text-emerald-600"
+              )}
+              title="Valider les modifications"
+            >
+              {saved
+                ? <Check className="h-3.5 w-3.5" />
+                : isPending
+                  ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  : <Check className="h-3.5 w-3.5" />}
+            </button>
+          )}
           <button
             type="button"
             onClick={handleCopy}

@@ -6,6 +6,21 @@ import { ChevronLeft } from "lucide-react"
 import { ClientTabs } from "@/components/modules/crm/ClientTabs"
 import { ClientTypeSelect } from "@/components/modules/crm/ClientTypeSelect"
 import { TemperatureSelect } from "@/components/modules/crm/TemperatureSelect"
+import type { Metadata } from "next"
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ id: string }>
+}): Promise<Metadata> {
+  const { id } = await params
+  const client = await prisma.client.findFirst({
+    where: { id },
+    select: { name: true, company: true },
+  })
+  const label = client ? (client.company ? `${client.name} · ${client.company}` : client.name) : "Fiche client"
+  return { title: `${label} — ERP Freelance` }
+}
 
 export default async function ClientLayout({
   children,
@@ -36,9 +51,9 @@ export default async function ClientLayout({
 
         <div className="flex items-start justify-between gap-4">
           <div className="space-y-1">
-            {client.company && (
-              <p className="text-sm text-muted-foreground">{client.company}</p>
-            )}
+            <p className="text-sm text-muted-foreground">
+              Fiche client{client.company ? ` · ${client.company}` : ""}
+            </p>
             <h1 className="text-2xl font-bold tracking-tight">{client.name}</h1>
             <div className="flex items-center gap-3 pt-1">
               <ClientTypeSelect clientId={id} userId={userId} value={client.type} />

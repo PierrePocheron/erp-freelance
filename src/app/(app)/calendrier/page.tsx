@@ -9,6 +9,8 @@ type RawCalEvent = {
   id: string
   title: string
   startDate: Date
+  endDate: Date | null
+  allDay: boolean
   sourceType: string
   categoryId: string | null
   category: CalendarCategory | null
@@ -85,7 +87,8 @@ export default async function CalendrierPage() {
     // $queryRaw car CalendarCategory n'est pas encore dans le client généré
     prisma.$queryRaw<RawCalEvent[]>`
       SELECT
-        e.id, e.title, e."startDate", e."sourceType", e."categoryId",
+        e.id, e.title, e."startDate", e."endDate", e."allDay",
+        e."sourceType", e."categoryId",
         CASE WHEN c.id IS NOT NULL THEN
           jsonb_build_object(
             'id', c.id, 'userId', c."userId",
@@ -116,9 +119,12 @@ export default async function CalendrierPage() {
   const events: CalendarEvent[] = [
     ...tasks.map((t) => {
       const clientLabel = t.project!.client.company ?? t.project!.client.name
+      const d = new Date(t.dueDate!)
+      const isAllDay = d.getHours() === 0 && d.getMinutes() === 0
       return {
         id: t.id,
         date: t.dueDate!,
+        allDay: isAllDay,
         title: t.title,
         subtitle: `${t.project!.name} · ${clientLabel}`,
         type: "task" as const,
@@ -130,9 +136,12 @@ export default async function CalendrierPage() {
     }),
     ...milestones.map((m) => {
       const clientLabel = m.project.client.company ?? m.project.client.name
+      const d = new Date(m.date)
+      const isAllDay = d.getHours() === 0 && d.getMinutes() === 0
       return {
         id: m.id,
         date: m.date,
+        allDay: isAllDay,
         title: m.name,
         subtitle: `${m.project.name} · ${clientLabel}`,
         type: "milestone" as const,
@@ -182,6 +191,8 @@ export default async function CalendrierPage() {
       return {
         id: e.id,
         date: e.startDate,
+        endDate: e.endDate ?? null,
+        allDay: e.allDay,
         title: e.title,
         subtitle: e.sourceType === "GOOGLE" ? "Google Calendar" : undefined,
         type: "manual" as const,

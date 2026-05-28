@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useTransition } from "react"
+import { useState, useEffect, useTransition, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { ChevronLeft, ChevronRight, ExternalLink, Plus, Loader2, RefreshCw, Check, AlertCircle, Eye, EyeOff } from "lucide-react"
 import { cn } from "@/lib/utils"
@@ -8,7 +8,7 @@ import Link from "next/link"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
-import { createCalendarEvent, syncGoogleEvents } from "@/actions/calendar"
+import { createCalendarEvent, syncGoogleEvents, updateCalendarEvent } from "@/actions/calendar"
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -23,7 +23,7 @@ export type CalendarEvent = {
   id: string
   date: Date          // startDate
   endDate?: Date | null
-  allDay?: boolean    // true = tout la journée, false = heure précise
+  allDay?: boolean    // true = toute la journée, false = heure précise
   title: string
   subtitle?: string
   type: "task" | "milestone" | "reminder" | "invoice" | "renewal" | "manual"
@@ -36,11 +36,12 @@ export type CalendarEvent = {
 
 type ViewMode = "day" | "3day" | "5day" | "week" | "month"
 
+type MoveEventFn = (eventId: string, newStart: Date, newEnd: Date | null, allDay: boolean) => void
+
 // ── Constants ─────────────────────────────────────────────────────────────────
 
 const VIEW_STORAGE_KEY = "erp-calendar-view"
 
-// Grille horaire : 7h → 21h
 const HOUR_START  = 7
 const HOUR_END    = 21
 const HOUR_HEIGHT = 64   // px par heure
@@ -86,7 +87,6 @@ function eventsForDay(events: CalendarEvent[], date: Date): CalendarEvent[] {
   return events.filter(e => isSameDay(new Date(e.date), date))
 }
 
-/** Heatmap de fond selon la charge du jour */
 function loadBg(count: number): string {
   if (count === 0) return ""
   if (count === 1) return "bg-emerald-500/8"
@@ -95,7 +95,6 @@ function loadBg(count: number): string {
   return "bg-red-500/12"
 }
 
-/** Vrai si l'événement a une heure précise (pas minuit = all-day implicite) */
 function isTimedEvent(ev: CalendarEvent): boolean {
   if (ev.allDay === true) return false
   if (ev.allDay === false) return true
@@ -103,7 +102,6 @@ function isTimedEvent(ev: CalendarEvent): boolean {
   return d.getHours() !== 0 || d.getMinutes() !== 0
 }
 
-/** Convertit une date en position Y dans la grille horaire (px) */
 function timeToY(date: Date): number {
   const h = date.getHours()
   const m = date.getMinutes()
@@ -112,16 +110,22 @@ function timeToY(date: Date): number {
   return (h - HOUR_START + m / 60) * HOUR_HEIGHT
 }
 
-/** Hauteur d'un événement dans la grille (px) */
 function eventHeightPx(ev: CalendarEvent): number {
-  if (!ev.endDate) return HOUR_HEIGHT / 2   // 30 min par défaut
+  if (!ev.endDate) return HOUR_HEIGHT / 2
   const dur = (new Date(ev.endDate).getTime() - new Date(ev.date).getTime()) / 3_600_000
   return Math.max(HOUR_HEIGHT / 2, dur * HOUR_HEIGHT)
 }
 
-/** Couleur principale d'un événement (catégorie > type) */
 function evColor(ev: CalendarEvent): string {
   return ev.categoryColor ?? typeConfig[ev.type]?.color ?? "#8b5cf6"
+}
+
+/** Snap des minutes à l'incrément de 15 min */
+function snapMinutes(totalMin: number): number {
+  return Math.max(0, Math.min(
+    (HOUR_END - HOUR_START) * 60 - 15,
+    Math.round(totalMin / 15) * 15,
+  ))
 }
 
 // ── Dialog Nouvel Événement ───────────────────────────────────────────────────
@@ -134,18 +138,17 @@ function NewEventDialog({
   defaultDate: Date
   categories: CalendarCategory[]
 }) {
-  const [title, setTitle]             = useState("")
-  const [date, setDate]               = useState(defaultDate.toISOString().slice(0, 10))
-  const [time, setTime]               = useState("")
-  const [categoryId, setCategoryId]   = useState<string>(categories[0]?.id ?? "")
-  const [error, setError]             = useState("")
-  const [isPending, startTransition]  = useTransition()
+  const [title, setTitle]            = useState("")
+  const [date, setDate]              = useState(defaultDate.toISOString().slice(0, 10))
+  const [time, setTime]              = useState("")
+  const [categoryId, setCategoryId]  = useState<string>(categories[0]?.id ?? "")
+  const [error, setError]            = useState("")
+  const [isPending, startTransition] = useTransition()
 
   useEffect(() => {
     if (open) {
       setTitle("")
       setDate(defaultDate.toISOString().slice(0, 10))
-      // Si la date par défaut a une heure précise, pré-remplir
       const h = defaultDate.getHours(), m = defaultDate.getMinutes()
       setTime(h || m ? `${String(h).padStart(2,"0")}:${String(m).padStart(2,"0")}` : "")
       setCategoryId(categories[0]?.id ?? "")
@@ -328,7 +331,14 @@ export function CalendarView({
     })
   }
 
-  // Masque les événements Google si le toggle est désactivé
+  /** Déplace un événement manual vers une nouvelle date/heure */
+  function handleMoveEvent(eventId: string, newStart: Date, newEnd: Date | null, allDay: boolean) {
+    startRefresh(async () => {
+      await updateCalendarEvent(eventId, { startDate: newStart, endDate: newEnd, allDay })
+      router.refresh()
+    })
+  }
+
   const baseEvents = (hasGoogleCalendar && !showGoogleEvents)
     ? events.filter(e => !e.isGoogle)
     : events
@@ -350,7 +360,6 @@ export function CalendarView({
       {/* ── Barre de navigation ──────────────────────────────────────────── */}
       <div className="flex items-center gap-2 shrink-0 flex-wrap">
 
-        {/* Navigation temporelle */}
         <div className="flex items-center gap-1">
           <button onClick={() => navigate(-1)} className="rounded-lg border border-border p-1.5 hover:bg-muted transition-colors">
             <ChevronLeft className="h-4 w-4" />
@@ -363,7 +372,6 @@ export function CalendarView({
           </button>
         </div>
 
-        {/* Titre période */}
         <h2 className="text-base font-semibold capitalize flex-1 min-w-0 truncate">{headerLabel()}</h2>
 
         {/* Bouton Actualiser */}
@@ -383,7 +391,6 @@ export function CalendarView({
         {/* Contrôles Google Calendar */}
         {hasGoogleCalendar && (
           <div className="flex items-center rounded-lg border border-border overflow-hidden">
-            {/* Toggle affichage événements Google */}
             <button
               onClick={() => setShowGoogleEvents(v => !v)}
               title={showGoogleEvents ? "Masquer les événements Google Calendar" : "Afficher les événements Google Calendar"}
@@ -394,14 +401,10 @@ export function CalendarView({
                   : "text-muted-foreground bg-muted/40 hover:bg-muted"
               )}
             >
-              {showGoogleEvents
-                ? <Eye className="h-3.5 w-3.5" />
-                : <EyeOff className="h-3.5 w-3.5" />
-              }
+              {showGoogleEvents ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}
               <span>Google</span>
             </button>
 
-            {/* Synchronisation */}
             <button
               onClick={handleSync}
               disabled={isSyncing}
@@ -449,7 +452,6 @@ export function CalendarView({
           ))}
         </div>
 
-        {/* Nouvel événement */}
         <button
           onClick={() => { setNewEventDate(new Date()); setNewEventOpen(true) }}
           className="inline-flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-xs font-medium hover:bg-muted transition-colors"
@@ -530,12 +532,14 @@ export function CalendarView({
           selectedDay={selectedDay}
           setSelectedDay={setSelectedDay}
           onNewEvent={date => { setNewEventDate(date); setNewEventOpen(true) }}
+          onMoveEvent={handleMoveEvent}
         />
       ) : (
         <TimeGridView
           events={filteredEvents}
           days={viewDays}
-          onNewEvent={(date) => { setNewEventDate(date); setNewEventOpen(true) }}
+          onNewEvent={date => { setNewEventDate(date); setNewEventOpen(true) }}
+          onMoveEvent={handleMoveEvent}
         />
       )}
 
@@ -569,17 +573,19 @@ export function CalendarView({
 // ── Vue Mois ──────────────────────────────────────────────────────────────────
 
 function MonthView({
-  events, currentDate, selectedDay, setSelectedDay, onNewEvent,
+  events, currentDate, selectedDay, setSelectedDay, onNewEvent, onMoveEvent,
 }: {
   events: CalendarEvent[]
   currentDate: Date
   selectedDay: Date | null
   setSelectedDay: (d: Date | null) => void
   onNewEvent: (date: Date) => void
+  onMoveEvent: MoveEventFn
 }) {
   const year  = currentDate.getFullYear()
   const month = currentDate.getMonth()
   const today = new Date()
+  const [dragOverDay, setDragOverDay] = useState<number | null>(null)
 
   const firstDay    = new Date(year, month, 1)
   const startOffset = (firstDay.getDay() + 6) % 7
@@ -611,6 +617,7 @@ function MonthView({
           const dayEvents  = eventsForDay(events, dayDate)
           const isWeekend  = (i % 7) >= 5
           const isSelected = selectedDay ? isSameDay(selectedDay, dayDate) : false
+          const isDragOver = dragOverDay === day
 
           return (
             <button
@@ -618,11 +625,33 @@ function MonthView({
               type="button"
               onClick={() => setSelectedDay(isSelected ? null : dayDate)}
               onDoubleClick={() => onNewEvent(dayDate)}
+              /* ── Drop zone ── */
+              onDragEnter={e => { e.preventDefault(); setDragOverDay(day) }}
+              onDragLeave={e => {
+                if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOverDay(null)
+              }}
+              onDragOver={e => { e.preventDefault(); e.dataTransfer.dropEffect = "move" }}
+              onDrop={e => {
+                e.preventDefault()
+                setDragOverDay(null)
+                const eventId = e.dataTransfer.getData("eventId")
+                if (!eventId) return
+                const ev = events.find(x => x.id === eventId)
+                if (!ev || ev.type !== "manual") return
+                const oldDate = new Date(ev.date)
+                const newDate = new Date(year, month, day)
+                newDate.setHours(oldDate.getHours(), oldDate.getMinutes(), 0, 0)
+                const newEnd = ev.endDate
+                  ? new Date(newDate.getTime() + (new Date(ev.endDate).getTime() - new Date(ev.date).getTime()))
+                  : null
+                onMoveEvent(eventId, newDate, newEnd, ev.allDay ?? false)
+              }}
               className={cn(
                 "border-b border-r border-border/30 p-1 text-left transition-colors hover:bg-muted/30 min-w-0 overflow-hidden",
                 isWeekend ? "bg-muted/10" : loadBg(dayEvents.length),
                 i % 7 === 6 && "border-r-0",
-                isSelected && "ring-1 ring-inset ring-primary/40 bg-primary/5"
+                isSelected && "ring-1 ring-inset ring-primary/40 bg-primary/5",
+                isDragOver && "ring-2 ring-inset ring-blue-400/70 bg-blue-50/10",
               )}
             >
               <span className={cn(
@@ -633,7 +662,21 @@ function MonthView({
               </span>
               <div className="space-y-px">
                 {dayEvents.slice(0, 2).map(ev => (
-                  <div key={ev.id} className={cn("flex items-center gap-1 rounded px-1 py-px text-[10px] leading-tight truncate", ev.isLate ? "bg-red-500/10" : "bg-muted/50")}>
+                  /* Chip draggable uniquement pour les événements manuels */
+                  <div
+                    key={ev.id}
+                    draggable={ev.type === "manual"}
+                    onDragStart={ev.type === "manual" ? e => {
+                      e.stopPropagation()
+                      e.dataTransfer.setData("eventId", ev.id)
+                      e.dataTransfer.effectAllowed = "move"
+                    } : undefined}
+                    className={cn(
+                      "flex items-center gap-1 rounded px-1 py-px text-[10px] leading-tight truncate",
+                      ev.isLate ? "bg-red-500/10" : "bg-muted/50",
+                      ev.type === "manual" && "cursor-grab active:cursor-grabbing",
+                    )}
+                  >
                     <span
                       className={`h-1.5 w-1.5 rounded-full shrink-0 ${ev.categoryColor ? "" : typeConfig[ev.type]?.dot ?? ""}`}
                       style={ev.categoryColor ? { backgroundColor: ev.categoryColor } : {}}
@@ -656,27 +699,116 @@ function MonthView({
 // ── Vue grille horaire (Jour / 3j / 5j / 7j) ─────────────────────────────────
 
 function TimeGridView({
-  events, days, onNewEvent,
+  events, days, onNewEvent, onMoveEvent,
 }: {
   events: CalendarEvent[]
   days: Date[]
   onNewEvent: (date: Date) => void
+  onMoveEvent: MoveEventFn
 }) {
-  const today = new Date()
-  const cols  = days.length
-  const totalH = (HOUR_END - HOUR_START) * HOUR_HEIGHT
+  const today   = new Date()
+  const cols    = days.length
+  const totalH  = (HOUR_END - HOUR_START) * HOUR_HEIGHT
 
-  // Sépare par jour : all-day VS avec heure
+  // Ref pour calculer la position Y lors du drop (getBoundingClientRect gère le scroll)
+  const grabOffsetRef = useRef(0)
+  // ID de l'événement en cours de drag (pour le feedback visuel)
+  const [draggingId, setDraggingId]   = useState<string | null>(null)
+  // Prévisualisation du point de dépôt dans la grille
+  const [dropPreview, setDropPreview] = useState<{
+    colIdx: number
+    snapY: number
+    timeLabel: string
+  } | null>(null)
+
+  // Réinitialise le drag si l'utilisateur annule (escape, drop hors zone valide…)
+  useEffect(() => {
+    const onEnd = () => { setDraggingId(null); setDropPreview(null) }
+    window.addEventListener("dragend", onEnd)
+    return () => window.removeEventListener("dragend", onEnd)
+  }, [])
+
   const allDayByDay  = days.map(d => eventsForDay(events, d).filter(e => !isTimedEvent(e)))
   const timedByDay   = days.map(d => eventsForDay(events, d).filter(isTimedEvent))
   const hasAnyAllDay = allDayByDay.some(arr => arr.length > 0)
+
+  // ── Helpers DnD ──────────────────────────────────────────────────────────
+
+  function startDrag(e: React.DragEvent, ev: CalendarEvent, fromAllDay = false) {
+    if (ev.type !== "manual") { e.preventDefault(); return }
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+    grabOffsetRef.current = fromAllDay ? 0 : Math.max(0, e.clientY - rect.top)
+    e.dataTransfer.setData("eventId", ev.id)
+    e.dataTransfer.setData("fromAllDay", fromAllDay ? "1" : "0")
+    e.dataTransfer.effectAllowed = "move"
+    setDraggingId(ev.id)
+  }
+
+  /** Calcule la position snappée depuis un DragEvent sur une colonne */
+  function calcSnapFromCol(e: React.DragEvent): { snapY: number; totalMin: number; timeLabel: string } {
+    const colRect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+    const relY    = Math.max(0, e.clientY - colRect.top - grabOffsetRef.current)
+    const rawMin  = relY / HOUR_HEIGHT * 60
+    const totalMin = snapMinutes(rawMin)
+    const h = Math.floor(totalMin / 60) + HOUR_START
+    const m = totalMin % 60
+    return {
+      totalMin,
+      snapY: (totalMin / 60) * HOUR_HEIGHT,
+      timeLabel: `${String(h).padStart(2,"0")}:${String(m).padStart(2,"0")}`,
+    }
+  }
+
+  function handleColDragOver(e: React.DragEvent, colIdx: number) {
+    e.preventDefault()
+    e.dataTransfer.dropEffect = "move"
+    const { snapY, timeLabel } = calcSnapFromCol(e)
+    setDropPreview({ colIdx, snapY, timeLabel })
+  }
+
+  function handleColDrop(e: React.DragEvent, date: Date, colIdx: number) {
+    e.preventDefault()
+    const eventId    = e.dataTransfer.getData("eventId")
+    if (!eventId) { clearDrag(); return }
+    const ev = events.find(x => x.id === eventId)
+    if (!ev || ev.type !== "manual") { clearDrag(); return }
+
+    const { totalMin } = calcSnapFromCol(e)
+    const h = Math.floor(totalMin / 60) + HOUR_START
+    const m = totalMin % 60
+    const newStart = new Date(date)
+    newStart.setHours(h, m, 0, 0)
+    const newEnd = ev.endDate
+      ? new Date(newStart.getTime() + (new Date(ev.endDate).getTime() - new Date(ev.date).getTime()))
+      : null
+    onMoveEvent(eventId, newStart, newEnd, false)
+    clearDrag()
+  }
+
+  function handleAllDayDrop(e: React.DragEvent, date: Date) {
+    e.preventDefault()
+    const eventId = e.dataTransfer.getData("eventId")
+    if (!eventId) { clearDrag(); return }
+    const ev = events.find(x => x.id === eventId)
+    if (!ev || ev.type !== "manual") { clearDrag(); return }
+    const newDate = new Date(date)
+    newDate.setHours(0, 0, 0, 0)
+    onMoveEvent(eventId, newDate, null, true)
+    clearDrag()
+  }
+
+  function clearDrag() {
+    setDraggingId(null)
+    setDropPreview(null)
+  }
+
+  // ── Render ────────────────────────────────────────────────────────────────
 
   return (
     <div className="rounded-xl border border-border/50 bg-card overflow-hidden flex flex-col flex-1 min-h-0">
 
       {/* ── En-têtes des jours ─────────────────────────────────────────── */}
       <div className="flex border-b border-border shrink-0">
-        {/* Placeholder colonne heures */}
         <div style={{ width: TIME_COL_W }} className="shrink-0" />
         {days.map(date => {
           const isToday   = isSameDay(date, today)
@@ -709,7 +841,7 @@ function TimeGridView({
         })}
       </div>
 
-      {/* ── Bandeau All-day (si au moins un événement sans heure) ─────── */}
+      {/* ── Bandeau All-day ────────────────────────────────────────────── */}
       {hasAnyAllDay && (
         <div className="flex border-b border-border/50 shrink-0 bg-muted/20">
           <div
@@ -719,9 +851,21 @@ function TimeGridView({
             Jour
           </div>
           {allDayByDay.map((dayEvs, i) => (
-            <div key={i} className="flex-1 border-l border-border/30 p-1 space-y-px min-h-[28px]">
+            <div
+              key={i}
+              className="flex-1 border-l border-border/30 p-1 space-y-px min-h-[28px]"
+              onDragOver={e => { e.preventDefault(); e.dataTransfer.dropEffect = "move" }}
+              onDrop={e => handleAllDayDrop(e, days[i])}
+            >
               {dayEvs.map(ev => (
-                <AllDayChip key={ev.id} ev={ev} />
+                <div
+                  key={ev.id}
+                  draggable={ev.type === "manual"}
+                  onDragStart={ev.type === "manual" ? e => { e.stopPropagation(); startDrag(e, ev, true) } : undefined}
+                  className={cn(ev.type === "manual" && "cursor-grab active:cursor-grabbing")}
+                >
+                  <AllDayChip ev={ev} isDragging={draggingId === ev.id} />
+                </div>
               ))}
             </div>
           ))}
@@ -730,6 +874,7 @@ function TimeGridView({
 
       {/* ── Grille horaire ────────────────────────────────────────────── */}
       <div className="flex flex-1 overflow-y-auto">
+
         {/* Colonne heures */}
         <div className="shrink-0 relative" style={{ width: TIME_COL_W, height: totalH }}>
           {Array.from({ length: HOUR_END - HOUR_START }, (_, i) => (
@@ -750,12 +895,11 @@ function TimeGridView({
           const isToday   = isSameDay(date, today)
           const isWeekend = date.getDay() === 0 || date.getDay() === 6
           const dayTimed  = timedByDay[di]
-
-          // Heure actuelle dans la grille (uniquement pour aujourd'hui)
-          const now = new Date()
-          const nowY = isToday && now.getHours() >= HOUR_START && now.getHours() < HOUR_END
+          const now       = new Date()
+          const nowY      = isToday && now.getHours() >= HOUR_START && now.getHours() < HOUR_END
             ? timeToY(now)
             : null
+          const preview   = dropPreview?.colIdx === di ? dropPreview : null
 
           return (
             <div
@@ -763,35 +907,49 @@ function TimeGridView({
               className={cn(
                 "flex-1 relative border-l border-border/30",
                 isToday   && "bg-primary/5",
-                !isToday && isWeekend && "bg-muted/10"
+                !isToday && isWeekend && "bg-muted/10",
+                preview   && "bg-blue-500/3",
               )}
               style={{ height: totalH }}
+              onDragOver={e => handleColDragOver(e, di)}
+              onDragLeave={e => {
+                if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+                  setDropPreview(null)
+                }
+              }}
+              onDrop={e => handleColDrop(e, date, di)}
             >
               {/* Lignes d'heures */}
               {Array.from({ length: HOUR_END - HOUR_START }, (_, i) => (
-                <div
-                  key={i}
-                  style={{ top: i * HOUR_HEIGHT }}
-                  className="absolute inset-x-0 border-t border-border/20 pointer-events-none"
-                />
+                <div key={i} style={{ top: i * HOUR_HEIGHT }}
+                  className="absolute inset-x-0 border-t border-border/20 pointer-events-none" />
               ))}
               {/* Demi-heures */}
               {Array.from({ length: HOUR_END - HOUR_START }, (_, i) => (
-                <div
-                  key={`h-${i}`}
-                  style={{ top: i * HOUR_HEIGHT + HOUR_HEIGHT / 2 }}
-                  className="absolute inset-x-0 border-t border-border/10 pointer-events-none"
-                />
+                <div key={`h-${i}`} style={{ top: i * HOUR_HEIGHT + HOUR_HEIGHT / 2 }}
+                  className="absolute inset-x-0 border-t border-border/10 pointer-events-none" />
               ))}
 
               {/* Ligne heure actuelle */}
               {nowY !== null && (
-                <div
-                  style={{ top: nowY }}
-                  className="absolute inset-x-0 z-10 flex items-center pointer-events-none"
-                >
+                <div style={{ top: nowY }}
+                  className="absolute inset-x-0 z-10 flex items-center pointer-events-none">
                   <span className="h-2 w-2 rounded-full bg-primary shrink-0 -ml-1" />
                   <div className="flex-1 h-px bg-primary" />
+                </div>
+              )}
+
+              {/* ── Ligne de prévisualisation du drop ────────────────── */}
+              {preview && (
+                <div
+                  style={{ top: preview.snapY }}
+                  className="absolute inset-x-0 z-30 flex items-center pointer-events-none"
+                >
+                  <span className="h-2.5 w-2.5 rounded-full bg-blue-500 shrink-0 -ml-1.5 shadow-sm" />
+                  <div className="flex-1 h-0.5 bg-blue-500" />
+                  <span className="text-[10px] font-semibold text-blue-600 bg-background border border-blue-200 rounded px-1 py-px ml-1 mr-1 shadow-sm tabular-nums">
+                    {preview.timeLabel}
+                  </span>
                 </div>
               )}
 
@@ -812,17 +970,24 @@ function TimeGridView({
                 const height = eventHeightPx(ev)
                 const color  = evColor(ev)
                 const cfg    = typeConfig[ev.type]
+                const isDragging = draggingId === ev.id
 
                 return (
                   <div
                     key={ev.id}
+                    draggable={ev.type === "manual"}
+                    onDragStart={ev.type === "manual" ? e => { e.stopPropagation(); startDrag(e, ev) } : undefined}
                     style={{
                       top,
                       height,
                       backgroundColor: color + "20",
                       borderColor: color + "60",
                     }}
-                    className="absolute left-1 right-1 rounded-md border px-1.5 py-0.5 overflow-hidden z-20 group"
+                    className={cn(
+                      "absolute left-1 right-1 rounded-md border px-1.5 py-0.5 overflow-hidden z-20 group transition-opacity",
+                      ev.type === "manual" && "cursor-grab active:cursor-grabbing",
+                      isDragging && "opacity-30",
+                    )}
                   >
                     {ev.href ? (
                       <Link href={ev.href} className="block h-full">
@@ -842,7 +1007,8 @@ function TimeGridView({
   )
 }
 
-// Contenu d'un événement dans la grille horaire
+// ── Contenu d'un événement dans la grille horaire ─────────────────────────────
+
 function TimedEventContent({ ev, height, color, cfg }: {
   ev: CalendarEvent
   height: number
@@ -853,11 +1019,8 @@ function TimedEventContent({ ev, height, color, cfg }: {
   const compact = height < 40
 
   return (
-    <div className="h-full flex flex-col min-w-0">
-      <p
-        className="text-[11px] font-semibold leading-tight truncate"
-        style={{ color }}
-      >
+    <div className="h-full flex flex-col min-w-0 pointer-events-none">
+      <p className="text-[11px] font-semibold leading-tight truncate" style={{ color }}>
         {compact ? `${timeStr} ${ev.title}` : ev.title}
       </p>
       {!compact && (
@@ -875,16 +1038,17 @@ function TimedEventContent({ ev, height, color, cfg }: {
   )
 }
 
-// Chip événement all-day dans le bandeau
-function AllDayChip({ ev }: { ev: CalendarEvent }) {
+// ── Chip événement all-day dans le bandeau ────────────────────────────────────
+
+function AllDayChip({ ev, isDragging = false }: { ev: CalendarEvent; isDragging?: boolean }) {
   const color = evColor(ev)
-  const cfg   = typeConfig[ev.type]
 
   const inner = (
     <div
       className={cn(
-        "flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium leading-tight truncate",
-        ev.isLate ? "bg-red-500/10 border border-red-500/20" : "border"
+        "flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium leading-tight truncate transition-opacity",
+        ev.isLate ? "bg-red-500/10 border border-red-500/20" : "border",
+        isDragging && "opacity-30",
       )}
       style={ev.isLate ? {} : { backgroundColor: color + "18", borderColor: color + "40", color }}
     >

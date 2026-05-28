@@ -34,7 +34,14 @@ export default async function ClientLayout({
   const userId = session!.user.id
 
   const client = await prisma.client.findFirst({
-    where: { id, userId },
+    where: {
+      id,
+      OR: [
+        { userId },
+        // Collaborateurs d'un projet lié à ce client
+        { projects: { some: { members: { some: { userId } } } } },
+      ],
+    },
   })
 
   if (!client) notFound()
@@ -52,7 +59,7 @@ export default async function ClientLayout({
         <div className="flex items-start justify-between gap-4">
           <div className="space-y-1">
             <p className="text-sm text-muted-foreground">
-              Fiche client{client.company ? ` · ${client.company}` : ""}
+              Détail client{client.company ? ` · ${client.company}` : ""}
             </p>
             <h1 className="text-2xl font-bold tracking-tight">{client.name}</h1>
             <div className="flex items-center gap-3 pt-1">

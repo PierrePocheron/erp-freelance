@@ -328,28 +328,32 @@ export function CalendarView({
 
       {/* ── Barre de navigation ──────────────────────────────────────────── */}
       <div className="flex items-center gap-2 shrink-0 flex-wrap">
-        <button
-          onClick={() => navigate(-1)}
-          className="rounded-lg border border-border p-1.5 hover:bg-muted transition-colors"
-        >
-          <ChevronLeft className="h-4 w-4" />
-        </button>
-        <h2 className="text-base font-semibold capitalize flex-1 text-center min-w-0 truncate">
+
+        {/* Groupe navigation : flèches + Aujourd'hui côte à côte */}
+        <div className="flex items-center gap-1">
+          <button
+            onClick={() => navigate(-1)}
+            className="rounded-lg border border-border p-1.5 hover:bg-muted transition-colors"
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </button>
+          <button
+            onClick={() => navigate(1)}
+            className="rounded-lg border border-border p-1.5 hover:bg-muted transition-colors"
+          >
+            <ChevronRight className="h-4 w-4" />
+          </button>
+          <button
+            onClick={goToToday}
+            className="rounded-lg border border-border px-2.5 py-1.5 text-xs font-medium hover:bg-muted transition-colors"
+          >
+            Aujourd'hui
+          </button>
+        </div>
+
+        <h2 className="text-base font-semibold capitalize flex-1 min-w-0 truncate">
           {headerLabel()}
         </h2>
-        <button
-          onClick={() => navigate(1)}
-          className="rounded-lg border border-border p-1.5 hover:bg-muted transition-colors"
-        >
-          <ChevronRight className="h-4 w-4" />
-        </button>
-
-        <button
-          onClick={goToToday}
-          className="rounded-lg border border-border px-2.5 py-1.5 text-xs font-medium hover:bg-muted transition-colors ml-1"
-        >
-          Aujourd'hui
-        </button>
 
         {/* Sélecteur de vue */}
         <div className="flex items-center rounded-lg border border-border overflow-hidden">

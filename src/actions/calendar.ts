@@ -33,6 +33,8 @@ export type CalendarEventFull = {
   sourceType: string
   sourceId: string | null
   categoryId: string | null
+  projectId: string | null
+  clientId: string | null
   createdAt: Date
   updatedAt: Date
   category: CalendarCategory | null
@@ -179,27 +181,31 @@ export async function createCalendarEvent(data: {
   endDate?: Date
   allDay?: boolean
   categoryId?: string
+  projectId?: string
+  clientId?: string
 }): Promise<{ error?: string; event?: CalendarEventFull }> {
   const session = await auth()
   const userId = session!.user.id
 
   if (!data.title.trim()) return { error: "Le titre est requis" }
 
-  const id = crypto.randomUUID()
-  const now = new Date()
-  const categoryId = data.categoryId ?? null
-  const endDate    = data.endDate    ?? null
-  const allDay     = data.allDay     ?? false
+  const id          = crypto.randomUUID()
+  const now         = new Date()
+  const categoryId  = data.categoryId ?? null
+  const endDate     = data.endDate    ?? null
+  const allDay      = data.allDay     ?? false
   const description = data.description ?? null
+  const projectId   = data.projectId  ?? null
+  const clientId    = data.clientId   ?? null
 
   await prisma.$executeRaw`
     INSERT INTO "CalendarEvent"
       (id, "userId", title, description, "startDate", "endDate", "allDay",
-       "sourceType", "categoryId", "createdAt", "updatedAt")
+       "sourceType", "categoryId", "projectId", "clientId", "createdAt", "updatedAt")
     VALUES (
       ${id}, ${userId}, ${data.title.trim()}, ${description},
       ${data.startDate}, ${endDate}, ${allDay},
-      'MANUAL', ${categoryId}, ${now}, ${now}
+      'MANUAL', ${categoryId}, ${projectId}, ${clientId}, ${now}, ${now}
     )
   `
 
@@ -208,6 +214,7 @@ export async function createCalendarEvent(data: {
       e.id, e."userId", e.title, e.description,
       e."startDate", e."endDate", e."allDay",
       e."sourceType", e."sourceId", e."categoryId",
+      e."projectId", e."clientId",
       e."createdAt", e."updatedAt",
       CASE WHEN c.id IS NOT NULL THEN
         jsonb_build_object(
@@ -237,6 +244,8 @@ export async function updateCalendarEvent(
     endDate?: Date | null
     allDay?: boolean
     categoryId?: string | null
+    projectId?: string | null
+    clientId?: string | null
   }
 ): Promise<void> {
   const session = await auth()
@@ -276,6 +285,18 @@ export async function updateCalendarEvent(
   if (data.categoryId !== undefined) {
     await prisma.$executeRaw`
       UPDATE "CalendarEvent" SET "categoryId" = ${data.categoryId}, "updatedAt" = NOW()
+      WHERE id = ${eventId} AND "userId" = ${userId}
+    `
+  }
+  if (data.projectId !== undefined) {
+    await prisma.$executeRaw`
+      UPDATE "CalendarEvent" SET "projectId" = ${data.projectId}, "updatedAt" = NOW()
+      WHERE id = ${eventId} AND "userId" = ${userId}
+    `
+  }
+  if (data.clientId !== undefined) {
+    await prisma.$executeRaw`
+      UPDATE "CalendarEvent" SET "clientId" = ${data.clientId}, "updatedAt" = NOW()
       WHERE id = ${eventId} AND "userId" = ${userId}
     `
   }

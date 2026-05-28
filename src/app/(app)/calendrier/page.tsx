@@ -1,6 +1,6 @@
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
-import { CalendarView, type CalendarEvent, type CalendarCategory } from "@/components/modules/calendrier/CalendarView"
+import { CalendarView, type CalendarEvent, type CalendarCategory, type ProjectOption } from "@/components/modules/calendrier/CalendarView"
 import { getOrCreateDefaultCategories } from "@/actions/calendar"
 import { hasCalendarScope } from "@/lib/google-calendar"
 
@@ -8,12 +8,17 @@ import { hasCalendarScope } from "@/lib/google-calendar"
 type RawCalEvent = {
   id: string
   title: string
+  description: string | null
   startDate: Date
   endDate: Date | null
   allDay: boolean
   sourceType: string
   categoryId: string | null
   category: CalendarCategory | null
+  projectId: string | null
+  clientId: string | null
+  projectName: string | null
+  clientName: string | null
 }
 
 export default async function CalendrierPage() {
@@ -25,9 +30,18 @@ export default async function CalendrierPage() {
   const to = new Date()
   to.setMonth(to.getMonth() + 2)
 
-  const [categories, googleScope, tasks, milestones, reminders, invoices, renewals, calEvents] = await Promise.all([
+  const [categories, googleScope, projects, tasks, milestones, reminders, invoices, renewals, calEvents] = await Promise.all([
     getOrCreateDefaultCategories(),
     hasCalendarScope(userId),
+    prisma.project.findMany({
+      where: { userId },
+      select: {
+        id: true,
+        name: true,
+        client: { select: { id: true, name: true, company: true } },
+      },
+      orderBy: { name: "asc" },
+    }),
     prisma.task.findMany({
       where: {
         project: { userId },
@@ -87,8 +101,12 @@ export default async function CalendrierPage() {
     // $queryRaw car CalendarCategory n'est pas encore dans le client généré
     prisma.$queryRaw<RawCalEvent[]>`
       SELECT
-        e.id, e.title, e."startDate", e."endDate", e."allDay",
+        e.id, e.title, e.description,
+        e."startDate", e."endDate", e."allDay",
         e."sourceType", e."categoryId",
+        e."projectId", e."clientId",
+        p.name AS "projectName",
+        COALESCE(cl.company, cl.name) AS "clientName",
         CASE WHEN c.id IS NOT NULL THEN
           jsonb_build_object(
             'id', c.id, 'userId', c."userId",
@@ -98,6 +116,8 @@ export default async function CalendrierPage() {
         ELSE NULL END AS category
       FROM "CalendarEvent" e
       LEFT JOIN "CalendarCategory" c ON c.id = e."categoryId"
+      LEFT JOIN "Project" p ON p.id = e."projectId"
+      LEFT JOIN "Client" cl ON cl.id = COALESCE(e."clientId", p."clientId")
       WHERE e."userId" = ${userId}
         AND e."startDate" >= ${from}
         AND e."startDate" <= ${to}
@@ -109,6 +129,14 @@ export default async function CalendrierPage() {
 
   // Index catégories par id pour lookup O(1)
   const catById = Object.fromEntries(categories.map(c => [c.id, c]))
+
+  // Prépare la liste de projets pour CalendarView
+  const projectOptions: ProjectOption[] = projects.map(p => ({
+    id: p.id,
+    name: p.name,
+    clientId: p.client.id,
+    clientName: p.client.company ?? p.client.name,
+  }))
 
   // Catégories par défaut mappées sur les types ERP
   const catTasks     = categories.find(c => c.name === "Tâches")
@@ -194,11 +222,16 @@ export default async function CalendrierPage() {
         endDate: e.endDate ?? null,
         allDay: e.allDay,
         title: e.title,
+        description: e.description ?? null,
         subtitle: e.sourceType === "GOOGLE" ? "Google Calendar" : undefined,
         type: "manual" as const,
         isGoogle: e.sourceType === "GOOGLE",
         categoryId: e.categoryId,
         categoryColor: (cat as { color?: string } | null)?.color ?? null,
+        projectId: e.projectId ?? null,
+        clientId: e.clientId ?? null,
+        projectName: e.projectName ?? null,
+        clientName: e.clientName ?? null,
       }
     }),
   ]
@@ -215,6 +248,7 @@ export default async function CalendrierPage() {
       <CalendarView
         events={events}
         categories={categories}
+        projects={projectOptions}
         hasGoogleCalendar={googleScope}
         className="flex-1 min-h-0"
       />

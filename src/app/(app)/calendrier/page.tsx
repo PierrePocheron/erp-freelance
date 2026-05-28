@@ -2,6 +2,7 @@ import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { CalendarView, type CalendarEvent } from "@/components/modules/calendrier/CalendarView"
 import { getOrCreateDefaultCategories } from "@/actions/calendar"
+import { hasCalendarScope } from "@/lib/google-calendar"
 
 export default async function CalendrierPage() {
   const session = await auth()
@@ -15,9 +16,10 @@ export default async function CalendrierPage() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = prisma as any
 
-  const [categories, tasks, milestones, reminders, invoices, renewals, manualEvents] = await Promise.all([
+  const [categories, googleScope, tasks, milestones, reminders, invoices, renewals, manualEvents] = await Promise.all([
     // Catégories : auto-création des défauts au premier accès
     getOrCreateDefaultCategories(),
+    hasCalendarScope(userId),
     prisma.task.findMany({
       where: {
         project: { userId },
@@ -74,11 +76,10 @@ export default async function CalendrierPage() {
       },
       include: { postDev: { include: { project: { select: { id: true } } } } },
     }),
-    // Événements manuels depuis la table CalendarEvent
+    // Événements CalendarEvent (manuels + Google synchro)
     db.calendarEvent.findMany({
       where: {
         userId,
-        sourceType: "MANUAL",
         startDate: { gte: from, lte: to },
       },
       include: { category: true },
@@ -159,14 +160,16 @@ export default async function CalendrierPage() {
       categoryId: catRenewal?.id ?? null,
       categoryColor: catRenewal?.color ?? null,
     })),
-    // Événements manuels créés dans l'app
+    // Événements CalendarEvent (manuels + Google synchro)
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     ...manualEvents.map((e: any) => {
       const cat = e.categoryId ? (catById[e.categoryId] ?? e.category) : null
+      const isGoogle = e.sourceType === "GOOGLE"
       return {
         id: e.id,
         date: e.startDate,
         title: e.title,
+        subtitle: isGoogle ? "Google Calendar" : undefined,
         type: "manual" as const,
         categoryId: e.categoryId ?? null,
         categoryColor: cat?.color ?? null,
@@ -186,6 +189,7 @@ export default async function CalendrierPage() {
       <CalendarView
         events={events}
         categories={categories}
+        hasGoogleCalendar={googleScope}
         className="flex-1 min-h-0"
       />
     </div>

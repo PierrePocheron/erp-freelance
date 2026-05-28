@@ -3,6 +3,12 @@
 import { prisma } from "@/lib/prisma"
 import { auth } from "@/lib/auth"
 import { revalidatePath } from "next/cache"
+import {
+  getGoogleAccessToken,
+  hasCalendarScope,
+  fetchGoogleEvents,
+  type SyncResult,
+} from "@/lib/google-calendar"
 
 // ─── Types locaux (jusqu'à ce que npx prisma generate soit relancé) ─────────
 
@@ -213,4 +219,100 @@ export async function deleteCalendarEvent(eventId: string): Promise<void> {
   })
 
   revalidatePath("/calendrier")
+}
+
+// ─── Sync Google Calendar ────────────────────────────────────────────────────
+
+/**
+ * Synchronise les événements Google Calendar sur les 3 prochains mois.
+ * Lit uniquement le calendrier principal (lecture seule pour l'instant).
+ */
+export async function syncGoogleEvents(): Promise<SyncResult> {
+  const session = await auth()
+  const userId = session!.user.id
+
+  // Vérifie si le scope calendar est accordé
+  const hasScope = await hasCalendarScope(userId)
+  if (!hasScope) {
+    return { synced: 0, needsPermission: true }
+  }
+
+  // Récupère un token valide (refresh auto si nécessaire)
+  const accessToken = await getGoogleAccessToken(userId)
+  if (!accessToken) {
+    return { synced: 0, needsPermission: true }
+  }
+
+  try {
+    const from = new Date()
+    from.setMonth(from.getMonth() - 1)
+    const to = new Date()
+    to.setMonth(to.getMonth() + 3)
+
+    const googleEvents = await fetchGoogleEvents(accessToken, from, to)
+
+    // Récupère les IDs Google déjà stockés pour la période
+    const existingGoogleEvents = await db.calendarEvent.findMany({
+      where: { userId, sourceType: "GOOGLE", startDate: { gte: from, lte: to } },
+      select: { id: true, sourceId: true },
+    }) as { id: string; sourceId: string | null }[]
+
+    const existingBySourceId = Object.fromEntries(
+      existingGoogleEvents
+        .filter(e => e.sourceId)
+        .map(e => [e.sourceId!, e.id])
+    )
+
+    let synced = 0
+    for (const gEvent of googleEvents) {
+      if (!gEvent.summary || gEvent.status === "cancelled") continue
+
+      const startStr = gEvent.start.dateTime ?? gEvent.start.date
+      const endStr   = gEvent.end.dateTime ?? gEvent.end.date
+      if (!startStr) continue
+
+      const startDate = new Date(startStr)
+      const endDate   = endStr ? new Date(endStr) : null
+      const allDay    = !gEvent.start.dateTime
+
+      const existingId = existingBySourceId[gEvent.id]
+
+      if (existingId) {
+        // Update
+        await db.calendarEvent.update({
+          where: { id: existingId },
+          data: {
+            title: gEvent.summary,
+            description: gEvent.description ?? null,
+            startDate,
+            endDate,
+            allDay,
+          },
+        })
+      } else {
+        // Create
+        await db.calendarEvent.create({
+          data: {
+            userId,
+            title: gEvent.summary,
+            description: gEvent.description ?? null,
+            startDate,
+            endDate,
+            allDay,
+            sourceType: "GOOGLE",
+            sourceId: gEvent.id,
+          },
+        })
+      }
+
+      synced++
+    }
+
+    revalidatePath("/calendrier")
+    return { synced }
+
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Erreur inconnue"
+    return { synced: 0, error: message }
+  }
 }

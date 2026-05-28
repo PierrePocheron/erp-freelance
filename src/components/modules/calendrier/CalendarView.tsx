@@ -1,13 +1,13 @@
 "use client"
 
 import { useState, useEffect, useTransition } from "react"
-import { ChevronLeft, ChevronRight, ExternalLink, Plus, X, Loader2 } from "lucide-react"
+import { ChevronLeft, ChevronRight, ExternalLink, Plus, Loader2, RefreshCw, Check, AlertCircle } from "lucide-react"
 import { cn } from "@/lib/utils"
 import Link from "next/link"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
-import { createCalendarEvent } from "@/actions/calendar"
+import { createCalendarEvent, syncGoogleEvents } from "@/actions/calendar"
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -221,10 +221,12 @@ function NewEventDialog({
 export function CalendarView({
   events,
   categories = [],
+  hasGoogleCalendar = false,
   className,
 }: {
   events: CalendarEvent[]
   categories?: CalendarCategory[]
+  hasGoogleCalendar?: boolean
   className?: string
 }) {
   const [viewMode, setViewMode]       = useState<ViewMode>("month")
@@ -238,6 +240,27 @@ export function CalendarView({
 
   // Filtre actif : null = tous, string = id catégorie, type string = type fixe
   const [activeFilter, setActiveFilter] = useState<string | null>(null)
+
+  // Sync Google Calendar
+  const [isSyncing, startSync] = useTransition()
+  const [syncStatus, setSyncStatus] = useState<"idle" | "success" | "error" | "noPermission">("idle")
+  const [syncCount, setSyncCount] = useState(0)
+
+  function handleSync() {
+    startSync(async () => {
+      const result = await syncGoogleEvents()
+      if (result.needsPermission) {
+        setSyncStatus("noPermission")
+      } else if (result.error) {
+        setSyncStatus("error")
+      } else {
+        setSyncStatus("success")
+        setSyncCount(result.synced)
+      }
+      // Reset après 4s
+      setTimeout(() => setSyncStatus("idle"), 4000)
+    })
+  }
 
   // Restaure la vue sauvegardée
   useEffect(() => {
@@ -354,6 +377,38 @@ export function CalendarView({
           <Plus className="h-3.5 w-3.5" />
           Événement
         </button>
+
+        {/* Bouton sync Google Calendar */}
+        {hasGoogleCalendar && (
+          <button
+            onClick={handleSync}
+            disabled={isSyncing}
+            title="Synchroniser avec Google Calendar"
+            className={cn(
+              "inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-colors",
+              syncStatus === "success" && "border-emerald-500/50 text-emerald-600 bg-emerald-500/5",
+              syncStatus === "error" && "border-red-500/50 text-red-600 bg-red-500/5",
+              syncStatus === "noPermission" && "border-amber-500/50 text-amber-600 bg-amber-500/5",
+              syncStatus === "idle" && "border-border hover:bg-muted text-muted-foreground"
+            )}
+          >
+            {isSyncing
+              ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              : syncStatus === "success"
+                ? <Check className="h-3.5 w-3.5" />
+                : syncStatus === "error" || syncStatus === "noPermission"
+                  ? <AlertCircle className="h-3.5 w-3.5" />
+                  : <RefreshCw className="h-3.5 w-3.5" />
+            }
+            <span>
+              {isSyncing ? "Sync…"
+                : syncStatus === "success" ? `${syncCount} synchronisés`
+                : syncStatus === "error" ? "Erreur"
+                : syncStatus === "noPermission" ? "Autorisation requise"
+                : "Sync Google"}
+            </span>
+          </button>
+        )}
       </div>
 
       {/* ── Catégories / filtres ─────────────────────────────────────────── */}

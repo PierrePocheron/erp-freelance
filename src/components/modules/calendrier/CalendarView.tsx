@@ -1,12 +1,22 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import { ChevronLeft, ChevronRight, ExternalLink } from "lucide-react"
+import { useState, useEffect, useTransition } from "react"
+import { ChevronLeft, ChevronRight, ExternalLink, Plus, X, Loader2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import Link from "next/link"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
+import { Button } from "@/components/ui/button"
+import { createCalendarEvent } from "@/actions/calendar"
 
 // ── Types ─────────────────────────────────────────────────────────────────────
+
+export type CalendarCategory = {
+  id: string
+  name: string
+  color: string
+  isDefault: boolean
+}
 
 export type CalendarEvent = {
   id: string
@@ -16,6 +26,8 @@ export type CalendarEvent = {
   type: "task" | "milestone" | "reminder" | "invoice" | "renewal" | "manual"
   href?: string
   isLate?: boolean
+  categoryId?: string | null
+  categoryColor?: string | null
 }
 
 type ViewMode = "day" | "3day" | "week" | "month"
@@ -30,7 +42,7 @@ const typeConfig = {
   reminder:  { dot: "bg-orange-500",       badge: "bg-orange-500/15 text-orange-700 border-orange-500/20", label: "Rappel" },
   invoice:   { dot: "bg-blue-500",         badge: "bg-blue-500/15 text-blue-700 border-blue-500/20",       label: "Facture" },
   renewal:   { dot: "bg-red-500",          badge: "bg-red-500/15 text-red-700 border-red-500/20",          label: "Renouvellement" },
-  manual:    { dot: "bg-muted-foreground", badge: "bg-muted text-muted-foreground border-border",          label: "Événement" },
+  manual:    { dot: "bg-purple-500",       badge: "bg-purple-500/15 text-purple-700 border-purple-500/20", label: "Événement" },
 }
 
 const VIEW_LABELS: Record<ViewMode, string> = { day: "Jour", "3day": "3j", week: "7j", month: "Mois" }
@@ -62,7 +74,7 @@ function eventsForDay(events: CalendarEvent[], date: Date): CalendarEvent[] {
   return events.filter(e => isSameDay(new Date(e.date), date))
 }
 
-/** Heatmap : couleur de fond selon la charge du jour (week-end exclus) */
+/** Heatmap : couleur de fond selon la charge du jour */
 function loadBg(count: number): string {
   if (count === 0) return ""
   if (count === 1) return "bg-emerald-500/8"
@@ -71,15 +83,161 @@ function loadBg(count: number): string {
   return "bg-red-500/12"
 }
 
+/** Couleur d'un événement : catégorie > type */
+function eventDotColor(ev: CalendarEvent): string {
+  if (ev.categoryColor) return ""
+  return typeConfig[ev.type]?.dot ?? typeConfig.manual.dot
+}
+
+// ── Dialog Nouvel Événement ───────────────────────────────────────────────────
+
+function NewEventDialog({
+  open,
+  onClose,
+  defaultDate,
+  categories,
+}: {
+  open: boolean
+  onClose: () => void
+  defaultDate: Date
+  categories: CalendarCategory[]
+}) {
+  const [title, setTitle]         = useState("")
+  const [date, setDate]           = useState(defaultDate.toISOString().slice(0, 10))
+  const [time, setTime]           = useState("09:00")
+  const [categoryId, setCategoryId] = useState<string>(categories[0]?.id ?? "")
+  const [error, setError]         = useState("")
+  const [isPending, startTransition] = useTransition()
+
+  // Reset on open
+  useEffect(() => {
+    if (open) {
+      setTitle("")
+      setDate(defaultDate.toISOString().slice(0, 10))
+      setTime("09:00")
+      setCategoryId(categories[0]?.id ?? "")
+      setError("")
+    }
+  }, [open, defaultDate, categories])
+
+  function handleSubmit() {
+    if (!title.trim()) { setError("Le titre est requis"); return }
+    startTransition(async () => {
+      const startDate = new Date(`${date}T${time}:00`)
+      const res = await createCalendarEvent({
+        title: title.trim(),
+        startDate,
+        categoryId: categoryId || undefined,
+      })
+      if (res.error) { setError(res.error); return }
+      onClose()
+    })
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={v => { if (!v) onClose() }}>
+      <DialogContent className="sm:max-w-sm">
+        <DialogHeader>
+          <DialogTitle>Nouvel événement</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4 pt-2">
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-muted-foreground">Titre *</label>
+            <Input
+              value={title}
+              onChange={e => { setTitle(e.target.value); setError("") }}
+              onKeyDown={e => { if (e.key === "Enter") handleSubmit() }}
+              placeholder="Titre de l'événement"
+              className="h-8"
+              autoFocus
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-muted-foreground">Date</label>
+              <Input
+                type="date"
+                value={date}
+                onChange={e => setDate(e.target.value)}
+                className="h-8"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-muted-foreground">Heure</label>
+              <Input
+                type="time"
+                value={time}
+                onChange={e => setTime(e.target.value)}
+                className="h-8"
+              />
+            </div>
+          </div>
+
+          {categories.length > 0 && (
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-muted-foreground">Catégorie</label>
+              <div className="flex flex-wrap gap-1.5">
+                {categories.map(cat => (
+                  <button
+                    key={cat.id}
+                    type="button"
+                    onClick={() => setCategoryId(cat.id)}
+                    className={cn(
+                      "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors",
+                      categoryId === cat.id
+                        ? "border-current opacity-100"
+                        : "border-border text-muted-foreground hover:border-current hover:opacity-80"
+                    )}
+                    style={categoryId === cat.id ? { color: cat.color, borderColor: cat.color, backgroundColor: cat.color + "20" } : {}}
+                  >
+                    <span
+                      className="h-1.5 w-1.5 rounded-full shrink-0"
+                      style={{ backgroundColor: cat.color }}
+                    />
+                    {cat.name}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {error && <p className="text-xs text-red-500">{error}</p>}
+
+          <div className="flex justify-end gap-2 pt-1">
+            <Button variant="ghost" size="sm" onClick={onClose}>Annuler</Button>
+            <Button size="sm" disabled={isPending} onClick={handleSubmit}>
+              {isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Créer"}
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 // ── CalendarView (orchestrateur) ──────────────────────────────────────────────
 
-export function CalendarView({ events, className }: { events: CalendarEvent[]; className?: string }) {
-  const [viewMode, setViewMode]     = useState<ViewMode>("month")
+export function CalendarView({
+  events,
+  categories = [],
+  className,
+}: {
+  events: CalendarEvent[]
+  categories?: CalendarCategory[]
+  className?: string
+}) {
+  const [viewMode, setViewMode]       = useState<ViewMode>("month")
   const [currentDate, setCurrentDate] = useState(() => {
     const d = new Date(); d.setHours(0, 0, 0, 0); return d
   })
   const [selectedDay, setSelectedDay] = useState<Date | null>(null)
-  const [mounted, setMounted]       = useState(false)
+  const [mounted, setMounted]         = useState(false)
+  const [newEventOpen, setNewEventOpen] = useState(false)
+  const [newEventDate, setNewEventDate] = useState(() => new Date())
+
+  // Filtre actif : null = tous, string = id catégorie, type string = type fixe
+  const [activeFilter, setActiveFilter] = useState<string | null>(null)
 
   // Restaure la vue sauvegardée
   useEffect(() => {
@@ -115,7 +273,6 @@ export function CalendarView({ events, className }: { events: CalendarEvent[]; c
   }
 
   // Label du header
-  const today = new Date()
   function headerLabel(): string {
     if (viewMode === "month")
       return currentDate.toLocaleDateString("fr-FR", { month: "long", year: "numeric" })
@@ -128,18 +285,25 @@ export function CalendarView({ events, className }: { events: CalendarEvent[]; c
     return `${first.toLocaleDateString("fr-FR", { day: "numeric", month: "short" })} – ${last.toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" })}`
   }
 
-  // Compteurs légende (sur la période visible)
+  // Filtre actif
+  const filteredEvents = activeFilter
+    ? events.filter(e => {
+        if (activeFilter.startsWith("type:")) return e.type === activeFilter.slice(5)
+        return e.categoryId === activeFilter
+      })
+    : events
+
+  // Compteurs sur la période visible
   const visibleEvents = viewMode === "month"
-    ? events.filter(e => { const d = new Date(e.date); return d.getFullYear() === currentDate.getFullYear() && d.getMonth() === currentDate.getMonth() })
-    : events.filter(e => getViewDays().some(d => isSameDay(d, new Date(e.date))))
-  const countByType = Object.fromEntries(Object.keys(typeConfig).map(k => [k, visibleEvents.filter(e => e.type === k).length]))
+    ? filteredEvents.filter(e => { const d = new Date(e.date); return d.getFullYear() === currentDate.getFullYear() && d.getMonth() === currentDate.getMonth() })
+    : filteredEvents.filter(e => getViewDays().some(d => isSameDay(d, new Date(e.date))))
 
   if (!mounted) return <div className={cn("flex flex-col gap-3", className)} />
 
   return (
     <div className={cn("flex flex-col gap-3", className)}>
 
-      {/* ── Barre de navigation ─────────────────────────────────────────── */}
+      {/* ── Barre de navigation ──────────────────────────────────────────── */}
       <div className="flex items-center gap-2 shrink-0 flex-wrap">
         <button
           onClick={() => navigate(-1)}
@@ -181,20 +345,84 @@ export function CalendarView({ events, className }: { events: CalendarEvent[]; c
             </button>
           ))}
         </div>
+
+        {/* Bouton nouvel événement */}
+        <button
+          onClick={() => { setNewEventDate(new Date()); setNewEventOpen(true) }}
+          className="inline-flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-xs font-medium hover:bg-muted transition-colors"
+        >
+          <Plus className="h-3.5 w-3.5" />
+          Événement
+        </button>
       </div>
 
-      {/* ── Légende + compteurs ─────────────────────────────────────────── */}
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 shrink-0">
+      {/* ── Catégories / filtres ─────────────────────────────────────────── */}
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 shrink-0">
+        {/* Filtre "Tous" */}
+        <button
+          type="button"
+          onClick={() => setActiveFilter(null)}
+          className={cn(
+            "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-medium transition-colors",
+            !activeFilter
+              ? "border-foreground/30 bg-foreground/5 text-foreground"
+              : "border-transparent text-muted-foreground hover:text-foreground"
+          )}
+        >
+          Tous
+          <span className="font-semibold">{visibleEvents.length}</span>
+        </button>
+
+        {/* Filtres par type */}
         {Object.entries(typeConfig).map(([k, v]) => {
-          const count = countByType[k] ?? 0
+          const count = visibleEvents.filter(e => e.type === k).length
+          if (count === 0 && activeFilter !== `type:${k}`) return null
           return (
-            <div key={k} className={cn("flex items-center gap-1.5 text-xs transition-opacity", count === 0 ? "opacity-30" : "text-muted-foreground")}>
+            <button
+              key={k}
+              type="button"
+              onClick={() => setActiveFilter(activeFilter === `type:${k}` ? null : `type:${k}`)}
+              className={cn(
+                "inline-flex items-center gap-1.5 text-xs transition-opacity",
+                count === 0 ? "opacity-30" : "text-muted-foreground",
+                activeFilter === `type:${k}` ? "opacity-100 font-semibold" : ""
+              )}
+            >
               <span className={`h-2 w-2 rounded-full shrink-0 ${v.dot}`} />
               <span>{v.label}</span>
               {count > 0 && <span className="font-semibold text-foreground">{count}</span>}
-            </div>
+            </button>
           )
         })}
+
+        {/* Filtres par catégorie (séparé visuellement) */}
+        {categories.length > 0 && (
+          <>
+            <span className="text-muted-foreground/20 mx-1 text-xs">|</span>
+            {categories.map(cat => {
+              const count = visibleEvents.filter(e => e.categoryId === cat.id).length
+              const isActive = activeFilter === cat.id
+              return (
+                <button
+                  key={cat.id}
+                  type="button"
+                  onClick={() => setActiveFilter(isActive ? null : cat.id)}
+                  className={cn(
+                    "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-medium transition-colors",
+                    isActive ? "border-current" : "border-border/50 text-muted-foreground hover:border-current hover:text-foreground"
+                  )}
+                  style={isActive ? { color: cat.color, borderColor: cat.color, backgroundColor: cat.color + "15" } : {}}
+                >
+                  <span className="h-1.5 w-1.5 rounded-full shrink-0" style={{ backgroundColor: cat.color }} />
+                  {cat.name}
+                  {count > 0 && <span className="font-semibold ml-0.5">{count}</span>}
+                </button>
+              )
+            })}
+          </>
+        )}
+
+        {/* Légende heatmap */}
         {viewMode !== "month" && (
           <span className="ml-auto text-[10px] text-muted-foreground/50 flex items-center gap-1">
             <span className="h-2 w-2 rounded-sm bg-emerald-500/30 inline-block" />
@@ -211,15 +439,17 @@ export function CalendarView({ events, className }: { events: CalendarEvent[]; c
       {/* ── Vue ─────────────────────────────────────────────────────────── */}
       {viewMode === "month" ? (
         <MonthView
-          events={events}
+          events={filteredEvents}
           currentDate={currentDate}
           selectedDay={selectedDay}
           setSelectedDay={setSelectedDay}
+          onNewEvent={(date) => { setNewEventDate(date); setNewEventOpen(true) }}
         />
       ) : (
         <MultiDayView
-          events={events}
+          events={filteredEvents}
           days={getViewDays()}
+          onNewEvent={(date) => { setNewEventDate(date); setNewEventOpen(true) }}
         />
       )}
 
@@ -233,12 +463,20 @@ export function CalendarView({ events, className }: { events: CalendarEvent[]; c
               </DialogTitle>
             </DialogHeader>
             <EventList
-              events={selectedDay ? eventsForDay(events, selectedDay) : []}
+              events={selectedDay ? eventsForDay(filteredEvents, selectedDay) : []}
               onNavigate={() => setSelectedDay(null)}
             />
           </DialogContent>
         </Dialog>
       )}
+
+      {/* Dialog nouvel événement */}
+      <NewEventDialog
+        open={newEventOpen}
+        onClose={() => setNewEventOpen(false)}
+        defaultDate={newEventDate}
+        categories={categories}
+      />
     </div>
   )
 }
@@ -246,12 +484,13 @@ export function CalendarView({ events, className }: { events: CalendarEvent[]; c
 // ── Vue Mois ──────────────────────────────────────────────────────────────────
 
 function MonthView({
-  events, currentDate, selectedDay, setSelectedDay,
+  events, currentDate, selectedDay, setSelectedDay, onNewEvent,
 }: {
   events: CalendarEvent[]
   currentDate: Date
   selectedDay: Date | null
   setSelectedDay: (d: Date | null) => void
+  onNewEvent: (date: Date) => void
 }) {
   const year  = currentDate.getFullYear()
   const month = currentDate.getMonth()
@@ -301,6 +540,7 @@ function MonthView({
               key={`d-${day}`}
               type="button"
               onClick={() => setSelectedDay(isSelected ? null : dayDate)}
+              onDoubleClick={() => onNewEvent(dayDate)}
               className={cn(
                 "border-b border-r border-border/30 p-1 text-left transition-colors hover:bg-muted/30 min-w-0 overflow-hidden",
                 isWeekend ? "bg-muted/10" : loadBg(dayEvents.length),
@@ -316,8 +556,17 @@ function MonthView({
               </span>
               <div className="space-y-px">
                 {dayEvents.slice(0, 2).map(ev => (
-                  <div key={ev.id} className={cn("flex items-center gap-1 rounded px-1 py-px text-[10px] leading-tight truncate", ev.isLate ? "bg-red-500/10" : "bg-muted/50")}>
-                    <span className={`h-1.5 w-1.5 rounded-full shrink-0 ${typeConfig[ev.type].dot}`} />
+                  <div
+                    key={ev.id}
+                    className={cn(
+                      "flex items-center gap-1 rounded px-1 py-px text-[10px] leading-tight truncate",
+                      ev.isLate ? "bg-red-500/10" : "bg-muted/50"
+                    )}
+                  >
+                    <span
+                      className={`h-1.5 w-1.5 rounded-full shrink-0 ${ev.categoryColor ? "" : typeConfig[ev.type]?.dot ?? ""}`}
+                      style={ev.categoryColor ? { backgroundColor: ev.categoryColor } : {}}
+                    />
                     <span className="truncate">{ev.title}</span>
                   </div>
                 ))}
@@ -335,7 +584,13 @@ function MonthView({
 
 // ── Vue Multi-jours (Jour / 3j / 7j) ─────────────────────────────────────────
 
-function MultiDayView({ events, days }: { events: CalendarEvent[]; days: Date[] }) {
+function MultiDayView({
+  events, days, onNewEvent,
+}: {
+  events: CalendarEvent[]
+  days: Date[]
+  onNewEvent: (date: Date) => void
+}) {
   const today = new Date()
   const cols  = days.length
 
@@ -399,7 +654,13 @@ function MultiDayView({ events, days }: { events: CalendarEvent[]; days: Date[] 
               )}
             >
               {dayEvents.length === 0 ? (
-                <p className="text-[11px] text-muted-foreground/30 text-center pt-6">—</p>
+                <button
+                  type="button"
+                  onClick={() => onNewEvent(date)}
+                  className="w-full text-[11px] text-muted-foreground/30 text-center pt-6 hover:text-muted-foreground/60 transition-colors"
+                >
+                  <Plus className="h-3 w-3 mx-auto" />
+                </button>
               ) : (
                 <EventList events={dayEvents} compact />
               )}
@@ -433,17 +694,19 @@ function EventList({
   return (
     <div className={cn("space-y-1.5", !compact && "pt-1")}>
       {events.map(ev => {
-        const cfg = typeConfig[ev.type]
+        const cfg = typeConfig[ev.type] ?? typeConfig.manual
+        const dotColor = ev.categoryColor
+          ? <span className="h-1.5 w-1.5 rounded-full shrink-0" style={{ backgroundColor: ev.categoryColor }} />
+          : <span className={`h-1.5 w-1.5 rounded-full shrink-0 ${cfg.dot}`} />
 
         const inner = compact ? (
-          /* Version compacte — colonnes multi-jours */
           <div className={cn(
             "rounded-lg border p-1.5 text-[11px] leading-snug transition-colors group",
             ev.isLate ? "border-red-500/30 bg-red-500/5" : "border-border/50 bg-card",
             ev.href && "hover:bg-muted/30 cursor-pointer"
           )}>
             <div className="flex items-start gap-1.5">
-              <span className={`mt-0.5 h-1.5 w-1.5 rounded-full shrink-0 ${cfg.dot}`} />
+              <span className="mt-0.5 shrink-0">{dotColor}</span>
               <div className="flex-1 min-w-0">
                 <p className="font-medium text-foreground truncate">{ev.title}</p>
                 {ev.subtitle && <p className="text-muted-foreground truncate mt-px">{ev.subtitle}</p>}
@@ -455,13 +718,12 @@ function EventList({
             </div>
           </div>
         ) : (
-          /* Version complète — dialog mois */
           <div className={cn(
             "flex items-start gap-3 rounded-lg border p-3 transition-colors",
             ev.href && "hover:bg-muted/40",
             ev.isLate ? "border-red-500/30 bg-red-500/5" : "border-border/50 bg-card"
           )}>
-            <span className={`mt-1 h-2 w-2 rounded-full shrink-0 ${cfg.dot}`} />
+            <span className="mt-1 shrink-0">{dotColor}</span>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium leading-snug">{ev.title}</p>
               {ev.subtitle && <p className="text-xs text-muted-foreground mt-px">{ev.subtitle}</p>}

@@ -1,6 +1,7 @@
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { CalendarView, type CalendarEvent } from "@/components/modules/calendrier/CalendarView"
+import { getOrCreateDefaultCategories } from "@/actions/calendar"
 
 export default async function CalendrierPage() {
   const session = await auth()
@@ -11,7 +12,12 @@ export default async function CalendrierPage() {
   const to = new Date()
   to.setMonth(to.getMonth() + 2)
 
-  const [tasks, milestones, reminders, invoices, renewals] = await Promise.all([
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const db = prisma as any
+
+  const [categories, tasks, milestones, reminders, invoices, renewals, manualEvents] = await Promise.all([
+    // Catégories : auto-création des défauts au premier accès
+    getOrCreateDefaultCategories(),
     prisma.task.findMany({
       where: {
         project: { userId },
@@ -68,9 +74,29 @@ export default async function CalendrierPage() {
       },
       include: { postDev: { include: { project: { select: { id: true } } } } },
     }),
+    // Événements manuels depuis la table CalendarEvent
+    db.calendarEvent.findMany({
+      where: {
+        userId,
+        sourceType: "MANUAL",
+        startDate: { gte: from, lte: to },
+      },
+      include: { category: true },
+    }).catch(() => []),
   ])
 
   const now = new Date()
+
+  // Index catégories pour lookup rapide
+  const catById = Object.fromEntries(
+    (categories as { id: string; name: string; color: string }[]).map(c => [c.id, c])
+  )
+
+  // Mappage type → catégorie par défaut
+  const catTasks     = (categories as { id: string; name: string; color: string }[]).find(c => c.name === "Tâches")
+  const catBilling   = (categories as { id: string; name: string; color: string }[]).find(c => c.name === "Facturation")
+  const catMilestone = (categories as { id: string; name: string; color: string }[]).find(c => c.name === "Jalons")
+  const catRenewal   = (categories as { id: string; name: string; color: string }[]).find(c => c.name === "Renouvellements")
 
   const events: CalendarEvent[] = [
     ...tasks.map((t) => {
@@ -83,6 +109,8 @@ export default async function CalendrierPage() {
         type: "task" as const,
         href: `/projets/${t.project!.id}/dev`,
         isLate: new Date(t.dueDate!) < now,
+        categoryId: catTasks?.id ?? null,
+        categoryColor: catTasks?.color ?? null,
       }
     }),
     ...milestones.map((m) => {
@@ -95,6 +123,8 @@ export default async function CalendrierPage() {
         type: "milestone" as const,
         href: `/projets/${m.project.id}/dev`,
         isLate: new Date(m.date) < now,
+        categoryId: catMilestone?.id ?? null,
+        categoryColor: catMilestone?.color ?? null,
       }
     }),
     ...reminders.map((r) => ({
@@ -115,6 +145,8 @@ export default async function CalendrierPage() {
         type: "invoice" as const,
         href: `/facturation/factures/${inv.id}`,
         isLate: inv.status === "LATE",
+        categoryId: catBilling?.id ?? null,
+        categoryColor: catBilling?.color ?? null,
       }
     }),
     ...renewals.map((r) => ({
@@ -124,7 +156,22 @@ export default async function CalendrierPage() {
       type: "renewal" as const,
       href: `/projets/${r.postDev.project.id}/post-dev`,
       isLate: new Date(r.expiresAt) < now,
+      categoryId: catRenewal?.id ?? null,
+      categoryColor: catRenewal?.color ?? null,
     })),
+    // Événements manuels créés dans l'app
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ...manualEvents.map((e: any) => {
+      const cat = e.categoryId ? (catById[e.categoryId] ?? e.category) : null
+      return {
+        id: e.id,
+        date: e.startDate,
+        title: e.title,
+        type: "manual" as const,
+        categoryId: e.categoryId ?? null,
+        categoryColor: cat?.color ?? null,
+      }
+    }),
   ]
 
   return (
@@ -136,7 +183,11 @@ export default async function CalendrierPage() {
         </p>
       </div>
 
-      <CalendarView events={events} className="flex-1 min-h-0" />
+      <CalendarView
+        events={events}
+        categories={categories}
+        className="flex-1 min-h-0"
+      />
     </div>
   )
 }

@@ -27,8 +27,9 @@ model User {
   invoices          Invoice[]
   recurringInvoices RecurringInvoice[]
   emailLogs         EmailLog[]
-  calendarEvents    CalendarEvent[]
-  timeEntries       TimeEntry[]
+  calendarEvents      CalendarEvent[]
+  calendarCategories  CalendarCategory[]
+  timeEntries         TimeEntry[]
   tags              Tag[]
   profile           UserProfile?
   projectMemberships ProjectMember[]
@@ -686,6 +687,7 @@ enum CalendarSourceType {
   INTERACTION
   RENEWAL
   REMINDER
+  GOOGLE
 }
 
 model CalendarEvent {
@@ -698,10 +700,26 @@ model CalendarEvent {
   allDay      Boolean            @default(false)
   sourceType  CalendarSourceType @default(MANUAL)
   sourceId    String?
+  categoryId  String?
   createdAt   DateTime           @default(now())
   updatedAt   DateTime           @updatedAt
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user     User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  category CalendarCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+}
+
+model CalendarCategory {
+  id        String   @id @default(cuid())
+  userId    String
+  name      String
+  color     String   // hex couleur, ex: "#6366f1"
+  isDefault Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  user   User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  events CalendarEvent[]
+
+  @@unique([userId, name])
 }
 
 model Notification {

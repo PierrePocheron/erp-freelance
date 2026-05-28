@@ -1,14 +1,17 @@
 "use client"
 
-import { useState, useEffect, useTransition, useRef } from "react"
+import { useState, useEffect, useTransition, useRef, useMemo } from "react"
 import { useRouter } from "next/navigation"
-import { ChevronLeft, ChevronRight, ExternalLink, Plus, Loader2, RefreshCw, Check, AlertCircle, Eye, EyeOff } from "lucide-react"
+import {
+  ChevronLeft, ChevronRight, ExternalLink, Plus, Loader2,
+  RefreshCw, Check, AlertCircle, Eye, EyeOff, Pencil, Trash2,
+} from "lucide-react"
 import { cn } from "@/lib/utils"
 import Link from "next/link"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
-import { createCalendarEvent, syncGoogleEvents, updateCalendarEvent } from "@/actions/calendar"
+import { createCalendarEvent, syncGoogleEvents, updateCalendarEvent, deleteCalendarEvent } from "@/actions/calendar"
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -19,33 +22,43 @@ export type CalendarCategory = {
   isDefault: boolean
 }
 
+export type ProjectOption = {
+  id: string
+  name: string
+  clientId: string
+  clientName: string
+}
+
 export type CalendarEvent = {
   id: string
-  date: Date          // startDate
+  date: Date
   endDate?: Date | null
-  allDay?: boolean    // true = toute la journée, false = heure précise
+  allDay?: boolean
   title: string
   subtitle?: string
+  description?: string | null
   type: "task" | "milestone" | "reminder" | "invoice" | "renewal" | "manual"
   href?: string
   isLate?: boolean
   categoryId?: string | null
   categoryColor?: string | null
   isGoogle?: boolean
+  projectId?: string | null
+  clientId?: string | null
+  projectName?: string | null
+  clientName?: string | null
 }
 
 type ViewMode = "day" | "3day" | "5day" | "week" | "month"
-
 type MoveEventFn = (eventId: string, newStart: Date, newEnd: Date | null, allDay: boolean) => void
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
 const VIEW_STORAGE_KEY = "erp-calendar-view"
-
 const HOUR_START  = 7
 const HOUR_END    = 21
-const HOUR_HEIGHT = 64   // px par heure
-const TIME_COL_W  = 44   // px pour la colonne des heures
+const HOUR_HEIGHT = 64
+const TIME_COL_W  = 44
 
 const typeConfig = {
   task:      { dot: "bg-amber-500",   badge: "bg-amber-500/15 text-amber-700 border-amber-500/20",    color: "#f59e0b", label: "Tâche" },
@@ -70,9 +83,7 @@ function isSameDay(a: Date, b: Date) {
 }
 
 function addDays(date: Date, n: number): Date {
-  const d = new Date(date)
-  d.setDate(d.getDate() + n)
-  return d
+  const d = new Date(date); d.setDate(d.getDate() + n); return d
 }
 
 function getWeekStart(date: Date): Date {
@@ -103,8 +114,7 @@ function isTimedEvent(ev: CalendarEvent): boolean {
 }
 
 function timeToY(date: Date): number {
-  const h = date.getHours()
-  const m = date.getMinutes()
+  const h = date.getHours(), m = date.getMinutes()
   if (h < HOUR_START) return 0
   if (h >= HOUR_END)  return (HOUR_END - HOUR_START) * HOUR_HEIGHT
   return (h - HOUR_START + m / 60) * HOUR_HEIGHT
@@ -120,53 +130,187 @@ function evColor(ev: CalendarEvent): string {
   return ev.categoryColor ?? typeConfig[ev.type]?.color ?? "#8b5cf6"
 }
 
-/** Snap des minutes à l'incrément de 15 min */
 function snapMinutes(totalMin: number): number {
-  return Math.max(0, Math.min(
-    (HOUR_END - HOUR_START) * 60 - 15,
-    Math.round(totalMin / 15) * 15,
-  ))
+  return Math.max(0, Math.min((HOUR_END - HOUR_START) * 60 - 15, Math.round(totalMin / 15) * 15))
+}
+
+/** Helpers de formulaire communs */
+function parseDateTimeFromForm(dateStr: string, timeStr: string): Date {
+  const [y, mo, d] = dateStr.split("-").map(Number)
+  const [hh, mm]   = timeStr ? timeStr.split(":").map(Number) : [0, 0]
+  return new Date(y, mo - 1, d, hh, mm)
+}
+
+function timeStringFromDate(d: Date, allDay: boolean | undefined): string {
+  if (allDay === true) return ""
+  if (d.getHours() === 0 && d.getMinutes() === 0) return ""
+  return `${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`
 }
 
 // ── Dialog Nouvel Événement ───────────────────────────────────────────────────
 
+function EventFormFields({
+  title, setTitle,
+  date, setDate,
+  time, setTime,
+  description, setDescription,
+  categoryId, setCategoryId,
+  projectId, setProjectId,
+  clientId, setClientId,
+  categories,
+  projects,
+  clientOptions,
+}: {
+  title: string; setTitle: (v: string) => void
+  date: string;  setDate:  (v: string) => void
+  time: string;  setTime:  (v: string) => void
+  description: string; setDescription: (v: string) => void
+  categoryId: string;  setCategoryId:  (v: string) => void
+  projectId: string;   setProjectId:   (v: string) => void
+  clientId: string;    setClientId:    (v: string) => void
+  categories: CalendarCategory[]
+  projects: ProjectOption[]
+  clientOptions: { id: string; label: string }[]
+}) {
+  return (
+    <>
+      {/* Titre */}
+      <div className="space-y-1.5">
+        <label className="text-xs font-medium text-muted-foreground">Titre *</label>
+        <Input value={title} onChange={e => setTitle(e.target.value)}
+          placeholder="Titre de l'événement" className="h-8" />
+      </div>
+
+      {/* Date + Heure */}
+      <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-1.5">
+          <label className="text-xs font-medium text-muted-foreground">Date</label>
+          <Input type="date" value={date} onChange={e => setDate(e.target.value)} className="h-8" />
+        </div>
+        <div className="space-y-1.5">
+          <label className="text-xs font-medium text-muted-foreground">
+            Heure <span className="text-muted-foreground/50">(opt.)</span>
+          </label>
+          <Input type="time" value={time} onChange={e => setTime(e.target.value)} className="h-8" />
+        </div>
+      </div>
+
+      {/* Description */}
+      <div className="space-y-1.5">
+        <label className="text-xs font-medium text-muted-foreground">Description</label>
+        <textarea
+          value={description}
+          onChange={e => setDescription(e.target.value)}
+          rows={2}
+          placeholder="Notes, détails…"
+          className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground/50 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring resize-none"
+        />
+      </div>
+
+      {/* Catégorie */}
+      {categories.length > 0 && (
+        <div className="space-y-1.5">
+          <label className="text-xs font-medium text-muted-foreground">Catégorie</label>
+          <div className="flex flex-wrap gap-1.5">
+            {categories.map(cat => (
+              <button key={cat.id} type="button" onClick={() => setCategoryId(cat.id)}
+                className={cn("inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors",
+                  categoryId === cat.id ? "border-current" : "border-border text-muted-foreground hover:border-current hover:opacity-80")}
+                style={categoryId === cat.id ? { color: cat.color, borderColor: cat.color, backgroundColor: cat.color + "20" } : {}}
+              >
+                <span className="h-1.5 w-1.5 rounded-full shrink-0" style={{ backgroundColor: cat.color }} />
+                {cat.name}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Projet */}
+      {projects.length > 0 && (
+        <div className="space-y-1.5">
+          <label className="text-xs font-medium text-muted-foreground">Projet lié</label>
+          <select value={projectId} onChange={e => {
+            setProjectId(e.target.value)
+            if (e.target.value) {
+              const p = projects.find(x => x.id === e.target.value)
+              if (p) setClientId(p.clientId)
+            }
+          }}
+            className="h-8 w-full rounded-md border border-input bg-background px-3 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+          >
+            <option value="">Aucun</option>
+            {projects.map(p => (
+              <option key={p.id} value={p.id}>{p.name} — {p.clientName}</option>
+            ))}
+          </select>
+        </div>
+      )}
+
+      {/* Client (uniquement si pas de projet sélectionné) */}
+      {clientOptions.length > 0 && !projectId && (
+        <div className="space-y-1.5">
+          <label className="text-xs font-medium text-muted-foreground">Client lié</label>
+          <select value={clientId} onChange={e => setClientId(e.target.value)}
+            className="h-8 w-full rounded-md border border-input bg-background px-3 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+          >
+            <option value="">Aucun</option>
+            {clientOptions.map(c => (
+              <option key={c.id} value={c.id}>{c.label}</option>
+            ))}
+          </select>
+        </div>
+      )}
+    </>
+  )
+}
+
 function NewEventDialog({
-  open, onClose, defaultDate, categories,
+  open, onClose, defaultDate, categories, projects,
 }: {
   open: boolean
   onClose: () => void
   defaultDate: Date
   categories: CalendarCategory[]
+  projects: ProjectOption[]
 }) {
-  const [title, setTitle]            = useState("")
-  const [date, setDate]              = useState(defaultDate.toISOString().slice(0, 10))
-  const [time, setTime]              = useState("")
-  const [categoryId, setCategoryId]  = useState<string>(categories[0]?.id ?? "")
-  const [error, setError]            = useState("")
+  const [title, setTitle]           = useState("")
+  const [date, setDate]             = useState(defaultDate.toISOString().slice(0, 10))
+  const [time, setTime]             = useState("")
+  const [description, setDescription] = useState("")
+  const [categoryId, setCategoryId] = useState<string>(categories[0]?.id ?? "")
+  const [projectId, setProjectId]   = useState("")
+  const [clientId, setClientId]     = useState("")
+  const [error, setError]           = useState("")
   const [isPending, startTransition] = useTransition()
+
+  const clientOptions = useMemo(() => {
+    const seen = new Set<string>()
+    return projects.filter(p => { if (seen.has(p.clientId)) return false; seen.add(p.clientId); return true })
+      .map(p => ({ id: p.clientId, label: p.clientName }))
+  }, [projects])
 
   useEffect(() => {
     if (open) {
-      setTitle("")
+      setTitle(""); setDescription(""); setProjectId(""); setClientId(""); setError("")
       setDate(defaultDate.toISOString().slice(0, 10))
-      const h = defaultDate.getHours(), m = defaultDate.getMinutes()
-      setTime(h || m ? `${String(h).padStart(2,"0")}:${String(m).padStart(2,"0")}` : "")
+      setTime(timeStringFromDate(defaultDate, undefined))
       setCategoryId(categories[0]?.id ?? "")
-      setError("")
     }
   }, [open, defaultDate, categories])
 
   function handleSubmit() {
     if (!title.trim()) { setError("Le titre est requis"); return }
     startTransition(async () => {
-      const [y, mo, d] = date.split("-").map(Number)
-      const [hh, mm]   = time ? time.split(":").map(Number) : [0, 0]
-      const startDate  = new Date(y, mo - 1, d, hh, mm)
+      const startDate = parseDateTimeFromForm(date, time)
       const res = await createCalendarEvent({
         title: title.trim(),
+        description: description || undefined,
         startDate,
         allDay: !time,
         categoryId: categoryId || undefined,
+        projectId: projectId || undefined,
+        clientId: clientId || undefined,
       })
       if (res.error) { setError(res.error); return }
       onClose()
@@ -179,63 +323,18 @@ function NewEventDialog({
         <DialogHeader>
           <DialogTitle>Nouvel événement</DialogTitle>
         </DialogHeader>
-        <div className="space-y-4 pt-2">
-          <div className="space-y-1.5">
-            <label className="text-xs font-medium text-muted-foreground">Titre *</label>
-            <Input
-              value={title}
-              onChange={e => { setTitle(e.target.value); setError("") }}
-              onKeyDown={e => { if (e.key === "Enter") handleSubmit() }}
-              placeholder="Titre de l'événement"
-              className="h-8"
-              autoFocus
-            />
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <label className="text-xs font-medium text-muted-foreground">Date</label>
-              <Input type="date" value={date} onChange={e => setDate(e.target.value)} className="h-8" />
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-xs font-medium text-muted-foreground">
-                Heure <span className="text-muted-foreground/50">(optionnel)</span>
-              </label>
-              <Input
-                type="time"
-                value={time}
-                onChange={e => setTime(e.target.value)}
-                className="h-8"
-                placeholder="--:--"
-              />
-            </div>
-          </div>
-
-          {categories.length > 0 && (
-            <div className="space-y-1.5">
-              <label className="text-xs font-medium text-muted-foreground">Catégorie</label>
-              <div className="flex flex-wrap gap-1.5">
-                {categories.map(cat => (
-                  <button
-                    key={cat.id}
-                    type="button"
-                    onClick={() => setCategoryId(cat.id)}
-                    className={cn(
-                      "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors",
-                      categoryId === cat.id ? "border-current opacity-100" : "border-border text-muted-foreground hover:border-current hover:opacity-80"
-                    )}
-                    style={categoryId === cat.id ? { color: cat.color, borderColor: cat.color, backgroundColor: cat.color + "20" } : {}}
-                  >
-                    <span className="h-1.5 w-1.5 rounded-full shrink-0" style={{ backgroundColor: cat.color }} />
-                    {cat.name}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-
+        <div className="space-y-3 pt-2">
+          <EventFormFields
+            title={title} setTitle={v => { setTitle(v); setError("") }}
+            date={date} setDate={setDate}
+            time={time} setTime={setTime}
+            description={description} setDescription={setDescription}
+            categoryId={categoryId} setCategoryId={setCategoryId}
+            projectId={projectId} setProjectId={setProjectId}
+            clientId={clientId} setClientId={setClientId}
+            categories={categories} projects={projects} clientOptions={clientOptions}
+          />
           {error && <p className="text-xs text-red-500">{error}</p>}
-
           <div className="flex justify-end gap-2 pt-1">
             <Button variant="ghost" size="sm" onClick={onClose}>Annuler</Button>
             <Button size="sm" disabled={isPending} onClick={handleSubmit}>
@@ -248,16 +347,167 @@ function NewEventDialog({
   )
 }
 
+// ── Dialog Détail / Modification d'un événement ──────────────────────────────
+
+function EventDetailDialog({
+  event, onClose, categories, projects,
+}: {
+  event: CalendarEvent
+  onClose: () => void
+  categories: CalendarCategory[]
+  projects: ProjectOption[]
+}) {
+  const router = useRouter()
+  const d0 = new Date(event.date)
+
+  const [title, setTitle]             = useState(event.title)
+  const [date, setDate]               = useState(d0.toISOString().slice(0, 10))
+  const [time, setTime]               = useState(timeStringFromDate(d0, event.allDay))
+  const [description, setDescription] = useState(event.description ?? "")
+  const [categoryId, setCategoryId]   = useState(event.categoryId ?? "")
+  const [projectId, setProjectId]     = useState(event.projectId ?? "")
+  const [clientId, setClientId]       = useState(event.clientId ?? "")
+  const [confirmDelete, setConfirmDelete] = useState(false)
+  const [error, setError]             = useState("")
+  const [isSaving, startSave]         = useTransition()
+  const [isDeleting, startDelete]     = useTransition()
+
+  const clientOptions = useMemo(() => {
+    const seen = new Set<string>()
+    return projects.filter(p => { if (seen.has(p.clientId)) return false; seen.add(p.clientId); return true })
+      .map(p => ({ id: p.clientId, label: p.clientName }))
+  }, [projects])
+
+  const linkedProject = projects.find(p => p.id === projectId)
+  const linkedClient  = !projectId ? clientOptions.find(c => c.id === clientId) : null
+
+  function handleSave() {
+    if (!title.trim()) { setError("Le titre est requis"); return }
+    startSave(async () => {
+      const startDate = parseDateTimeFromForm(date, time)
+      await updateCalendarEvent(event.id, {
+        title: title.trim(),
+        description: description || null,
+        startDate,
+        allDay: !time,
+        categoryId: categoryId || null,
+        projectId: projectId || null,
+        clientId: clientId || null,
+      })
+      router.refresh()
+      onClose()
+    })
+  }
+
+  function handleDelete() {
+    startDelete(async () => {
+      await deleteCalendarEvent(event.id)
+      router.refresh()
+      onClose()
+    })
+  }
+
+  const color = evColor(event)
+
+  return (
+    <Dialog open onOpenChange={v => { if (!v) onClose() }}>
+      <DialogContent className="sm:max-w-sm">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <span className="h-2.5 w-2.5 rounded-full shrink-0" style={{ backgroundColor: color }} />
+            Modifier l'événement
+          </DialogTitle>
+        </DialogHeader>
+
+        <div className="space-y-3 pt-1">
+          <EventFormFields
+            title={title} setTitle={v => { setTitle(v); setError("") }}
+            date={date} setDate={setDate}
+            time={time} setTime={setTime}
+            description={description} setDescription={setDescription}
+            categoryId={categoryId} setCategoryId={setCategoryId}
+            projectId={projectId} setProjectId={setProjectId}
+            clientId={clientId} setClientId={setClientId}
+            categories={categories} projects={projects} clientOptions={clientOptions}
+          />
+
+          {/* Liens de navigation */}
+          {(linkedProject || linkedClient) && (
+            <div className="flex flex-col gap-1 pt-0.5">
+              {linkedProject && (
+                <Link
+                  href={`/projets/${linkedProject.id}`}
+                  onClick={onClose}
+                  className="inline-flex items-center gap-1.5 text-xs text-primary hover:underline"
+                >
+                  <ExternalLink className="h-3 w-3" />
+                  Voir le projet — {linkedProject.name}
+                  {linkedProject.clientName && (
+                    <span className="text-muted-foreground">· {linkedProject.clientName}</span>
+                  )}
+                </Link>
+              )}
+              {linkedClient && (
+                <Link
+                  href={`/client/${linkedClient.id}`}
+                  onClick={onClose}
+                  className="inline-flex items-center gap-1.5 text-xs text-primary hover:underline"
+                >
+                  <ExternalLink className="h-3 w-3" />
+                  Voir le client — {linkedClient.label}
+                </Link>
+              )}
+            </div>
+          )}
+
+          {error && <p className="text-xs text-red-500">{error}</p>}
+
+          {/* Actions */}
+          <div className="flex items-center justify-between pt-1">
+            {/* Supprimer */}
+            {!confirmDelete ? (
+              <Button variant="ghost" size="sm" onClick={() => setConfirmDelete(true)}
+                className="text-destructive hover:text-destructive hover:bg-destructive/10 gap-1.5">
+                <Trash2 className="h-3.5 w-3.5" />
+                Supprimer
+              </Button>
+            ) : (
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs text-muted-foreground">Confirmer ?</span>
+                <Button variant="ghost" size="sm" disabled={isDeleting} onClick={handleDelete}
+                  className="h-7 px-2 text-destructive hover:bg-destructive/10">
+                  {isDeleting ? <Loader2 className="h-3 w-3 animate-spin" /> : "Oui"}
+                </Button>
+                <Button variant="ghost" size="sm" onClick={() => setConfirmDelete(false)} className="h-7 px-2">
+                  Non
+                </Button>
+              </div>
+            )}
+            <div className="flex gap-2">
+              <Button variant="ghost" size="sm" onClick={onClose}>Annuler</Button>
+              <Button size="sm" disabled={isSaving} onClick={handleSave}>
+                {isSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Enregistrer"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 // ── CalendarView (orchestrateur) ──────────────────────────────────────────────
 
 export function CalendarView({
   events,
   categories = [],
+  projects = [],
   hasGoogleCalendar = false,
   className,
 }: {
   events: CalendarEvent[]
   categories?: CalendarCategory[]
+  projects?: ProjectOption[]
   hasGoogleCalendar?: boolean
   className?: string
 }) {
@@ -268,6 +518,7 @@ export function CalendarView({
   const [newEventOpen, setNewEventOpen] = useState(false)
   const [newEventDate, setNewEventDate] = useState(() => new Date())
   const [activeFilter, setActiveFilter] = useState<string | null>(null)
+  const [editingEvent, setEditingEvent] = useState<CalendarEvent | null>(null)
   const [isSyncing, startSync]          = useTransition()
   const [syncStatus, setSyncStatus]     = useState<"idle" | "success" | "error" | "noPermission">("idle")
   const [syncCount, setSyncCount]       = useState(0)
@@ -331,7 +582,6 @@ export function CalendarView({
     })
   }
 
-  /** Déplace un événement manual vers une nouvelle date/heure */
   function handleMoveEvent(eventId: string, newStart: Date, newEnd: Date | null, allDay: boolean) {
     startRefresh(async () => {
       await updateCalendarEvent(eventId, { startDate: newStart, endDate: newEnd, allDay })
@@ -339,12 +589,16 @@ export function CalendarView({
     })
   }
 
+  function handleEventClick(ev: CalendarEvent) {
+    if (ev.type === "manual") setEditingEvent(ev)
+  }
+
   const baseEvents = (hasGoogleCalendar && !showGoogleEvents)
     ? events.filter(e => !e.isGoogle)
     : events
 
   const filteredEvents = activeFilter
-    ? baseEvents.filter(e => activeFilter.startsWith("type:") ? e.type === activeFilter.slice(5) : e.categoryId === activeFilter)
+    ? baseEvents.filter(e => e.categoryId === activeFilter)
     : baseEvents
 
   const viewDays = getViewDays()
@@ -359,7 +613,6 @@ export function CalendarView({
 
       {/* ── Barre de navigation ──────────────────────────────────────────── */}
       <div className="flex items-center gap-2 shrink-0 flex-wrap">
-
         <div className="flex items-center gap-1">
           <button onClick={() => navigate(-1)} className="rounded-lg border border-border p-1.5 hover:bg-muted transition-colors">
             <ChevronLeft className="h-4 w-4" />
@@ -374,135 +627,92 @@ export function CalendarView({
 
         <h2 className="text-base font-semibold capitalize flex-1 min-w-0 truncate">{headerLabel()}</h2>
 
-        {/* Bouton Actualiser */}
-        <button
-          onClick={handleRefresh}
-          disabled={isRefreshing}
-          title="Actualiser les données"
-          className="inline-flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-xs font-medium text-muted-foreground hover:bg-muted transition-colors disabled:opacity-50"
-        >
-          {isRefreshing
-            ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
-            : <RefreshCw className="h-3.5 w-3.5" />
-          }
+        <button onClick={handleRefresh} disabled={isRefreshing} title="Actualiser"
+          className="inline-flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-xs font-medium text-muted-foreground hover:bg-muted transition-colors disabled:opacity-50">
+          {isRefreshing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
           Actualiser
         </button>
 
-        {/* Contrôles Google Calendar */}
         {hasGoogleCalendar && (
           <div className="flex items-center rounded-lg border border-border overflow-hidden">
             <button
               onClick={() => setShowGoogleEvents(v => !v)}
-              title={showGoogleEvents ? "Masquer les événements Google Calendar" : "Afficher les événements Google Calendar"}
-              className={cn(
-                "inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium transition-colors border-r border-border/50",
-                showGoogleEvents
-                  ? "text-foreground bg-background hover:bg-muted"
-                  : "text-muted-foreground bg-muted/40 hover:bg-muted"
-              )}
+              title={showGoogleEvents ? "Masquer Google Calendar" : "Afficher Google Calendar"}
+              className={cn("inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium transition-colors border-r border-border/50",
+                showGoogleEvents ? "text-foreground bg-background hover:bg-muted" : "text-muted-foreground bg-muted/40 hover:bg-muted")}
             >
               {showGoogleEvents ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}
               <span>Google</span>
             </button>
-
-            <button
-              onClick={handleSync}
-              disabled={isSyncing}
-              title="Synchroniser avec Google Calendar"
-              className={cn(
-                "inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium transition-colors",
+            <button onClick={handleSync} disabled={isSyncing} title="Synchroniser avec Google Calendar"
+              className={cn("inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium transition-colors",
                 syncStatus === "success"      ? "text-emerald-600 bg-emerald-500/5"
                   : syncStatus === "error"        ? "text-red-600 bg-red-500/5"
                   : syncStatus === "noPermission" ? "text-amber-600 bg-amber-500/5"
-                  : "text-muted-foreground hover:bg-muted"
-              )}
+                  : "text-muted-foreground hover:bg-muted")}
             >
-              {isSyncing
-                ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                : syncStatus === "success"
-                  ? <Check className="h-3.5 w-3.5" />
-                  : (syncStatus === "error" || syncStatus === "noPermission")
-                    ? <AlertCircle className="h-3.5 w-3.5" />
-                    : <RefreshCw className="h-3.5 w-3.5" />
-              }
-              <span>
-                {isSyncing                      ? "Sync…"
-                  : syncStatus === "success"      ? `${syncCount} sync`
-                  : syncStatus === "error"        ? "Erreur"
-                  : syncStatus === "noPermission" ? "Autorisation"
-                  : "Sync"}
-              </span>
+              {isSyncing ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                : syncStatus === "success" ? <Check className="h-3.5 w-3.5" />
+                : (syncStatus === "error" || syncStatus === "noPermission") ? <AlertCircle className="h-3.5 w-3.5" />
+                : <RefreshCw className="h-3.5 w-3.5" />}
+              <span>{isSyncing ? "Sync…" : syncStatus === "success" ? `${syncCount} sync` : syncStatus === "error" ? "Erreur" : syncStatus === "noPermission" ? "Autorisation" : "Sync"}</span>
             </button>
           </div>
         )}
 
-        {/* Sélecteur de vue */}
         <div className="flex items-center rounded-lg border border-border overflow-hidden">
           {(["day","3day","5day","week","month"] as ViewMode[]).map(v => (
-            <button
-              key={v}
-              onClick={() => changeView(v)}
-              className={cn(
-                "px-2.5 py-1.5 text-xs font-medium transition-colors border-r border-border/50 last:border-r-0",
-                viewMode === v ? "bg-primary text-primary-foreground" : "hover:bg-muted text-muted-foreground"
-              )}
-            >
+            <button key={v} onClick={() => changeView(v)}
+              className={cn("px-2.5 py-1.5 text-xs font-medium transition-colors border-r border-border/50 last:border-r-0",
+                viewMode === v ? "bg-primary text-primary-foreground" : "hover:bg-muted text-muted-foreground")}>
               {VIEW_LABELS[v]}
             </button>
           ))}
         </div>
 
-        <button
-          onClick={() => { setNewEventDate(new Date()); setNewEventOpen(true) }}
-          className="inline-flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-xs font-medium hover:bg-muted transition-colors"
-        >
+        <button onClick={() => { setNewEventDate(new Date()); setNewEventOpen(true) }}
+          className="inline-flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-xs font-medium hover:bg-muted transition-colors">
           <Plus className="h-3.5 w-3.5" />
           Événement
         </button>
-
       </div>
 
-      {/* ── Filtres / catégories ─────────────────────────────────────────── */}
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 shrink-0">
-        <button
-          type="button"
-          onClick={() => setActiveFilter(null)}
-          className={cn(
-            "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-medium transition-colors",
-            !activeFilter ? "border-foreground/30 bg-foreground/5 text-foreground" : "border-transparent text-muted-foreground hover:text-foreground"
-          )}
-        >
-          Tous <span className="font-semibold">{visibleEvents.length}</span>
-        </button>
+      {/* ── Compteurs + filtres catégories ───────────────────────────────── */}
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 shrink-0 text-xs">
 
-        {Object.entries(typeConfig).map(([k, v]) => {
-          const count = visibleEvents.filter(e => e.type === k).length
-          if (count === 0 && activeFilter !== `type:${k}`) return null
-          return (
-            <button key={k} type="button"
-              onClick={() => setActiveFilter(activeFilter === `type:${k}` ? null : `type:${k}`)}
-              className={cn("inline-flex items-center gap-1.5 text-xs transition-opacity", count === 0 ? "opacity-30" : "text-muted-foreground", activeFilter === `type:${k}` && "opacity-100 font-semibold")}
-            >
-              <span className={`h-2 w-2 rounded-full shrink-0 ${v.dot}`} />
-              <span>{v.label}</span>
-              {count > 0 && <span className="font-semibold text-foreground">{count}</span>}
-            </button>
-          )
-        })}
+        {/* Compteurs par type (non-interactifs) */}
+        <div className="flex items-center gap-x-3 gap-y-1 flex-wrap text-muted-foreground">
+          {visibleEvents.length === 0
+            ? <span className="italic text-muted-foreground/50">Aucun événement</span>
+            : Object.entries(typeConfig).map(([k, v]) => {
+                const count = visibleEvents.filter(e => e.type === k).length
+                if (count === 0) return null
+                return (
+                  <span key={k} className="flex items-center gap-1">
+                    <span className={cn("h-1.5 w-1.5 rounded-full shrink-0", v.dot)} />
+                    {count} {v.label.toLowerCase()}{count > 1 && k !== "renewal" ? "s" : ""}
+                  </span>
+                )
+              })
+          }
+        </div>
 
+        {/* Filtres catégories */}
         {categories.length > 0 && (
           <>
-            <span className="text-muted-foreground/20 mx-1 text-xs">|</span>
+            <span className="text-border/60">|</span>
+            <button type="button" onClick={() => setActiveFilter(null)}
+              className={cn("transition-colors", !activeFilter ? "text-foreground font-semibold" : "text-muted-foreground hover:text-foreground")}>
+              Tout
+            </button>
             {categories.map(cat => {
               const count = visibleEvents.filter(e => e.categoryId === cat.id).length
               const isActive = activeFilter === cat.id
               return (
                 <button key={cat.id} type="button"
                   onClick={() => setActiveFilter(isActive ? null : cat.id)}
-                  className={cn(
-                    "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-medium transition-colors",
-                    isActive ? "border-current" : "border-border/50 text-muted-foreground hover:border-current hover:text-foreground"
-                  )}
+                  className={cn("inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 font-medium transition-colors",
+                    isActive ? "border-current" : "border-border/50 text-muted-foreground hover:border-current hover:text-foreground")}
                   style={isActive ? { color: cat.color, borderColor: cat.color, backgroundColor: cat.color + "15" } : {}}
                 >
                   <span className="h-1.5 w-1.5 rounded-full shrink-0" style={{ backgroundColor: cat.color }} />
@@ -512,15 +722,6 @@ export function CalendarView({
               )
             })}
           </>
-        )}
-
-        {viewMode !== "month" && (
-          <span className="ml-auto text-[10px] text-muted-foreground/50 flex items-center gap-1">
-            <span className="h-2 w-2 rounded-sm bg-emerald-500/30 inline-block" />1–2
-            <span className="h-2 w-2 rounded-sm bg-orange-500/30 inline-block ml-1" />3–4
-            <span className="h-2 w-2 rounded-sm bg-red-500/30 inline-block ml-1" />5+
-            <span className="ml-1">événements</span>
-          </span>
         )}
       </div>
 
@@ -533,6 +734,7 @@ export function CalendarView({
           setSelectedDay={setSelectedDay}
           onNewEvent={date => { setNewEventDate(date); setNewEventOpen(true) }}
           onMoveEvent={handleMoveEvent}
+          onEventClick={handleEventClick}
         />
       ) : (
         <TimeGridView
@@ -540,6 +742,7 @@ export function CalendarView({
           days={viewDays}
           onNewEvent={date => { setNewEventDate(date); setNewEventOpen(true) }}
           onMoveEvent={handleMoveEvent}
+          onEventClick={handleEventClick}
         />
       )}
 
@@ -555,6 +758,7 @@ export function CalendarView({
             <EventList
               events={selectedDay ? eventsForDay(filteredEvents, selectedDay) : []}
               onNavigate={() => setSelectedDay(null)}
+              onEventClick={ev => { setSelectedDay(null); handleEventClick(ev) }}
             />
           </DialogContent>
         </Dialog>
@@ -565,7 +769,17 @@ export function CalendarView({
         onClose={() => setNewEventOpen(false)}
         defaultDate={newEventDate}
         categories={categories}
+        projects={projects}
       />
+
+      {editingEvent && (
+        <EventDetailDialog
+          event={editingEvent}
+          onClose={() => setEditingEvent(null)}
+          categories={categories}
+          projects={projects}
+        />
+      )}
     </div>
   )
 }
@@ -573,7 +787,7 @@ export function CalendarView({
 // ── Vue Mois ──────────────────────────────────────────────────────────────────
 
 function MonthView({
-  events, currentDate, selectedDay, setSelectedDay, onNewEvent, onMoveEvent,
+  events, currentDate, selectedDay, setSelectedDay, onNewEvent, onMoveEvent, onEventClick,
 }: {
   events: CalendarEvent[]
   currentDate: Date
@@ -581,6 +795,7 @@ function MonthView({
   setSelectedDay: (d: Date | null) => void
   onNewEvent: (date: Date) => void
   onMoveEvent: MoveEventFn
+  onEventClick: (ev: CalendarEvent) => void
 }) {
   const year  = currentDate.getFullYear()
   const month = currentDate.getMonth()
@@ -621,19 +836,14 @@ function MonthView({
 
           return (
             <button
-              key={`d-${day}`}
-              type="button"
+              key={`d-${day}`} type="button"
               onClick={() => setSelectedDay(isSelected ? null : dayDate)}
               onDoubleClick={() => onNewEvent(dayDate)}
-              /* ── Drop zone ── */
               onDragEnter={e => { e.preventDefault(); setDragOverDay(day) }}
-              onDragLeave={e => {
-                if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOverDay(null)
-              }}
+              onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOverDay(null) }}
               onDragOver={e => { e.preventDefault(); e.dataTransfer.dropEffect = "move" }}
               onDrop={e => {
-                e.preventDefault()
-                setDragOverDay(null)
+                e.preventDefault(); setDragOverDay(null)
                 const eventId = e.dataTransfer.getData("eventId")
                 if (!eventId) return
                 const ev = events.find(x => x.id === eventId)
@@ -654,15 +864,12 @@ function MonthView({
                 isDragOver && "ring-2 ring-inset ring-blue-400/70 bg-blue-50/10",
               )}
             >
-              <span className={cn(
-                "flex h-5 w-5 items-center justify-center rounded-full text-[11px] font-medium mb-0.5",
-                isToday(day) ? "bg-primary text-primary-foreground" : "text-foreground"
-              )}>
+              <span className={cn("flex h-5 w-5 items-center justify-center rounded-full text-[11px] font-medium mb-0.5",
+                isToday(day) ? "bg-primary text-primary-foreground" : "text-foreground")}>
                 {day}
               </span>
               <div className="space-y-px">
                 {dayEvents.slice(0, 2).map(ev => (
-                  /* Chip draggable uniquement pour les événements manuels */
                   <div
                     key={ev.id}
                     draggable={ev.type === "manual"}
@@ -671,10 +878,14 @@ function MonthView({
                       e.dataTransfer.setData("eventId", ev.id)
                       e.dataTransfer.effectAllowed = "move"
                     } : undefined}
+                    onClick={ev.type === "manual" ? e => {
+                      e.stopPropagation()
+                      onEventClick(ev)
+                    } : undefined}
                     className={cn(
                       "flex items-center gap-1 rounded px-1 py-px text-[10px] leading-tight truncate",
                       ev.isLate ? "bg-red-500/10" : "bg-muted/50",
-                      ev.type === "manual" && "cursor-grab active:cursor-grabbing",
+                      ev.type === "manual" && "cursor-pointer hover:opacity-80 group",
                     )}
                   >
                     <span
@@ -682,6 +893,9 @@ function MonthView({
                       style={ev.categoryColor ? { backgroundColor: ev.categoryColor } : {}}
                     />
                     <span className="truncate">{ev.title}</span>
+                    {ev.type === "manual" && (
+                      <Pencil className="h-2 w-2 shrink-0 opacity-0 group-hover:opacity-50 ml-auto" />
+                    )}
                   </div>
                 ))}
                 {dayEvents.length > 2 && (
@@ -699,29 +913,22 @@ function MonthView({
 // ── Vue grille horaire (Jour / 3j / 5j / 7j) ─────────────────────────────────
 
 function TimeGridView({
-  events, days, onNewEvent, onMoveEvent,
+  events, days, onNewEvent, onMoveEvent, onEventClick,
 }: {
   events: CalendarEvent[]
   days: Date[]
   onNewEvent: (date: Date) => void
   onMoveEvent: MoveEventFn
+  onEventClick: (ev: CalendarEvent) => void
 }) {
   const today   = new Date()
   const cols    = days.length
   const totalH  = (HOUR_END - HOUR_START) * HOUR_HEIGHT
 
-  // Ref pour calculer la position Y lors du drop (getBoundingClientRect gère le scroll)
   const grabOffsetRef = useRef(0)
-  // ID de l'événement en cours de drag (pour le feedback visuel)
   const [draggingId, setDraggingId]   = useState<string | null>(null)
-  // Prévisualisation du point de dépôt dans la grille
-  const [dropPreview, setDropPreview] = useState<{
-    colIdx: number
-    snapY: number
-    timeLabel: string
-  } | null>(null)
+  const [dropPreview, setDropPreview] = useState<{ colIdx: number; snapY: number; timeLabel: string } | null>(null)
 
-  // Réinitialise le drag si l'utilisateur annule (escape, drop hors zone valide…)
   useEffect(() => {
     const onEnd = () => { setDraggingId(null); setDropPreview(null) }
     window.addEventListener("dragend", onEnd)
@@ -732,48 +939,37 @@ function TimeGridView({
   const timedByDay   = days.map(d => eventsForDay(events, d).filter(isTimedEvent))
   const hasAnyAllDay = allDayByDay.some(arr => arr.length > 0)
 
-  // ── Helpers DnD ──────────────────────────────────────────────────────────
-
   function startDrag(e: React.DragEvent, ev: CalendarEvent, fromAllDay = false) {
     if (ev.type !== "manual") { e.preventDefault(); return }
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
     grabOffsetRef.current = fromAllDay ? 0 : Math.max(0, e.clientY - rect.top)
     e.dataTransfer.setData("eventId", ev.id)
-    e.dataTransfer.setData("fromAllDay", fromAllDay ? "1" : "0")
     e.dataTransfer.effectAllowed = "move"
     setDraggingId(ev.id)
   }
 
-  /** Calcule la position snappée depuis un DragEvent sur une colonne */
-  function calcSnapFromCol(e: React.DragEvent): { snapY: number; totalMin: number; timeLabel: string } {
-    const colRect = (e.currentTarget as HTMLElement).getBoundingClientRect()
-    const relY    = Math.max(0, e.clientY - colRect.top - grabOffsetRef.current)
-    const rawMin  = relY / HOUR_HEIGHT * 60
-    const totalMin = snapMinutes(rawMin)
+  function calcSnap(e: React.DragEvent): { totalMin: number; snapY: number; timeLabel: string } {
+    const colRect  = (e.currentTarget as HTMLElement).getBoundingClientRect()
+    const relY     = Math.max(0, e.clientY - colRect.top - grabOffsetRef.current)
+    const totalMin = snapMinutes(relY / HOUR_HEIGHT * 60)
     const h = Math.floor(totalMin / 60) + HOUR_START
     const m = totalMin % 60
-    return {
-      totalMin,
-      snapY: (totalMin / 60) * HOUR_HEIGHT,
-      timeLabel: `${String(h).padStart(2,"0")}:${String(m).padStart(2,"0")}`,
-    }
+    return { totalMin, snapY: (totalMin / 60) * HOUR_HEIGHT, timeLabel: `${String(h).padStart(2,"0")}:${String(m).padStart(2,"0")}` }
   }
 
   function handleColDragOver(e: React.DragEvent, colIdx: number) {
-    e.preventDefault()
-    e.dataTransfer.dropEffect = "move"
-    const { snapY, timeLabel } = calcSnapFromCol(e)
+    e.preventDefault(); e.dataTransfer.dropEffect = "move"
+    const { snapY, timeLabel } = calcSnap(e)
     setDropPreview({ colIdx, snapY, timeLabel })
   }
 
-  function handleColDrop(e: React.DragEvent, date: Date, colIdx: number) {
+  function handleColDrop(e: React.DragEvent, date: Date) {
     e.preventDefault()
-    const eventId    = e.dataTransfer.getData("eventId")
+    const eventId = e.dataTransfer.getData("eventId")
     if (!eventId) { clearDrag(); return }
     const ev = events.find(x => x.id === eventId)
     if (!ev || ev.type !== "manual") { clearDrag(); return }
-
-    const { totalMin } = calcSnapFromCol(e)
+    const { totalMin } = calcSnap(e)
     const h = Math.floor(totalMin / 60) + HOUR_START
     const m = totalMin % 60
     const newStart = new Date(date)
@@ -791,44 +987,30 @@ function TimeGridView({
     if (!eventId) { clearDrag(); return }
     const ev = events.find(x => x.id === eventId)
     if (!ev || ev.type !== "manual") { clearDrag(); return }
-    const newDate = new Date(date)
-    newDate.setHours(0, 0, 0, 0)
+    const newDate = new Date(date); newDate.setHours(0, 0, 0, 0)
     onMoveEvent(eventId, newDate, null, true)
     clearDrag()
   }
 
-  function clearDrag() {
-    setDraggingId(null)
-    setDropPreview(null)
-  }
-
-  // ── Render ────────────────────────────────────────────────────────────────
+  function clearDrag() { setDraggingId(null); setDropPreview(null) }
 
   return (
     <div className="rounded-xl border border-border/50 bg-card overflow-hidden flex flex-col flex-1 min-h-0">
 
-      {/* ── En-têtes des jours ─────────────────────────────────────────── */}
+      {/* En-têtes des jours */}
       <div className="flex border-b border-border shrink-0">
         <div style={{ width: TIME_COL_W }} className="shrink-0" />
         {days.map(date => {
           const isToday   = isSameDay(date, today)
           const isWeekend = date.getDay() === 0 || date.getDay() === 6
           return (
-            <div
-              key={date.toISOString()}
-              className={cn(
-                "flex-1 py-2.5 text-center border-l border-border/30",
-                isWeekend && "bg-muted/10",
-                isToday && "bg-primary/5"
-              )}
-            >
+            <div key={date.toISOString()}
+              className={cn("flex-1 py-2.5 text-center border-l border-border/30", isWeekend && "bg-muted/10", isToday && "bg-primary/5")}>
               <p className="text-xs text-muted-foreground capitalize">
                 {date.toLocaleDateString("fr-FR", { weekday: cols <= 3 ? "long" : "short" })}
               </p>
-              <span className={cn(
-                "inline-flex h-7 w-7 items-center justify-center rounded-full text-sm font-semibold mt-0.5",
-                isToday ? "bg-primary text-primary-foreground" : "text-foreground"
-              )}>
+              <span className={cn("inline-flex h-7 w-7 items-center justify-center rounded-full text-sm font-semibold mt-0.5",
+                isToday ? "bg-primary text-primary-foreground" : "text-foreground")}>
                 {date.getDate()}
               </span>
               {cols <= 3 && (
@@ -841,30 +1023,24 @@ function TimeGridView({
         })}
       </div>
 
-      {/* ── Bandeau All-day ────────────────────────────────────────────── */}
+      {/* Bandeau All-day */}
       {hasAnyAllDay && (
         <div className="flex border-b border-border/50 shrink-0 bg-muted/20">
-          <div
-            style={{ width: TIME_COL_W }}
-            className="shrink-0 flex items-center justify-end pr-2 text-[10px] text-muted-foreground/50 font-medium"
-          >
+          <div style={{ width: TIME_COL_W }}
+            className="shrink-0 flex items-center justify-end pr-2 text-[10px] text-muted-foreground/50 font-medium">
             Jour
           </div>
           {allDayByDay.map((dayEvs, i) => (
-            <div
-              key={i}
-              className="flex-1 border-l border-border/30 p-1 space-y-px min-h-[28px]"
+            <div key={i} className="flex-1 border-l border-border/30 p-1 space-y-px min-h-[28px]"
               onDragOver={e => { e.preventDefault(); e.dataTransfer.dropEffect = "move" }}
-              onDrop={e => handleAllDayDrop(e, days[i])}
-            >
+              onDrop={e => handleAllDayDrop(e, days[i])}>
               {dayEvs.map(ev => (
-                <div
-                  key={ev.id}
+                <div key={ev.id}
                   draggable={ev.type === "manual"}
                   onDragStart={ev.type === "manual" ? e => { e.stopPropagation(); startDrag(e, ev, true) } : undefined}
-                  className={cn(ev.type === "manual" && "cursor-grab active:cursor-grabbing")}
-                >
-                  <AllDayChip ev={ev} isDragging={draggingId === ev.id} />
+                  className={cn(ev.type === "manual" && "cursor-grab active:cursor-grabbing")}>
+                  <AllDayChip ev={ev} isDragging={draggingId === ev.id}
+                    onClick={ev.type === "manual" ? () => onEventClick(ev) : undefined} />
                 </div>
               ))}
             </div>
@@ -872,17 +1048,12 @@ function TimeGridView({
         </div>
       )}
 
-      {/* ── Grille horaire ────────────────────────────────────────────── */}
+      {/* Grille horaire */}
       <div className="flex flex-1 overflow-y-auto">
-
-        {/* Colonne heures */}
         <div className="shrink-0 relative" style={{ width: TIME_COL_W, height: totalH }}>
           {Array.from({ length: HOUR_END - HOUR_START }, (_, i) => (
-            <div
-              key={i}
-              style={{ top: i * HOUR_HEIGHT }}
-              className="absolute w-full flex items-start justify-end pr-2 pt-0.5"
-            >
+            <div key={i} style={{ top: i * HOUR_HEIGHT }}
+              className="absolute w-full flex items-start justify-end pr-2 pt-0.5">
               <span className="text-[10px] text-muted-foreground/50 tabular-nums leading-none">
                 {String(HOUR_START + i).padStart(2, "0")}h
               </span>
@@ -890,61 +1061,45 @@ function TimeGridView({
           ))}
         </div>
 
-        {/* Colonnes par jour */}
         {days.map((date, di) => {
           const isToday   = isSameDay(date, today)
           const isWeekend = date.getDay() === 0 || date.getDay() === 6
           const dayTimed  = timedByDay[di]
           const now       = new Date()
-          const nowY      = isToday && now.getHours() >= HOUR_START && now.getHours() < HOUR_END
-            ? timeToY(now)
-            : null
+          const nowY      = isToday && now.getHours() >= HOUR_START && now.getHours() < HOUR_END ? timeToY(now) : null
           const preview   = dropPreview?.colIdx === di ? dropPreview : null
 
           return (
-            <div
-              key={date.toISOString()}
-              className={cn(
-                "flex-1 relative border-l border-border/30",
-                isToday   && "bg-primary/5",
+            <div key={date.toISOString()}
+              className={cn("flex-1 relative border-l border-border/30",
+                isToday && "bg-primary/5",
                 !isToday && isWeekend && "bg-muted/10",
-                preview   && "bg-blue-500/3",
-              )}
+                preview && "bg-blue-500/3")}
               style={{ height: totalH }}
               onDragOver={e => handleColDragOver(e, di)}
-              onDragLeave={e => {
-                if (!e.currentTarget.contains(e.relatedTarget as Node)) {
-                  setDropPreview(null)
-                }
-              }}
-              onDrop={e => handleColDrop(e, date, di)}
+              onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDropPreview(null) }}
+              onDrop={e => handleColDrop(e, date)}
             >
-              {/* Lignes d'heures */}
               {Array.from({ length: HOUR_END - HOUR_START }, (_, i) => (
                 <div key={i} style={{ top: i * HOUR_HEIGHT }}
                   className="absolute inset-x-0 border-t border-border/20 pointer-events-none" />
               ))}
-              {/* Demi-heures */}
               {Array.from({ length: HOUR_END - HOUR_START }, (_, i) => (
                 <div key={`h-${i}`} style={{ top: i * HOUR_HEIGHT + HOUR_HEIGHT / 2 }}
                   className="absolute inset-x-0 border-t border-border/10 pointer-events-none" />
               ))}
 
-              {/* Ligne heure actuelle */}
               {nowY !== null && (
-                <div style={{ top: nowY }}
-                  className="absolute inset-x-0 z-10 flex items-center pointer-events-none">
+                <div style={{ top: nowY }} className="absolute inset-x-0 z-10 flex items-center pointer-events-none">
                   <span className="h-2 w-2 rounded-full bg-primary shrink-0 -ml-1" />
                   <div className="flex-1 h-px bg-primary" />
                 </div>
               )}
 
-              {/* ── Ligne de prévisualisation du drop ────────────────── */}
+              {/* Prévisualisation drop */}
               {preview && (
-                <div
-                  style={{ top: preview.snapY }}
-                  className="absolute inset-x-0 z-30 flex items-center pointer-events-none"
-                >
+                <div style={{ top: preview.snapY }}
+                  className="absolute inset-x-0 z-30 flex items-center pointer-events-none">
                   <span className="h-2.5 w-2.5 rounded-full bg-blue-500 shrink-0 -ml-1.5 shadow-sm" />
                   <div className="flex-1 h-0.5 bg-blue-500" />
                   <span className="text-[10px] font-semibold text-blue-600 bg-background border border-blue-200 rounded px-1 py-px ml-1 mr-1 shadow-sm tabular-nums">
@@ -953,18 +1108,9 @@ function TimeGridView({
                 </div>
               )}
 
-              {/* Zone cliquable pour créer un événement */}
-              <button
-                type="button"
-                className="absolute inset-0 w-full opacity-0 hover:opacity-100 hover:bg-primary/3 transition-opacity z-0"
-                onClick={() => {
-                  const d = new Date(date)
-                  d.setHours(9, 0, 0, 0)
-                  onNewEvent(d)
-                }}
-              />
+              <button type="button" className="absolute inset-0 w-full opacity-0 hover:opacity-100 hover:bg-primary/3 transition-opacity z-0"
+                onClick={() => { const d = new Date(date); d.setHours(9, 0, 0, 0); onNewEvent(d) }} />
 
-              {/* Événements positionnés */}
               {dayTimed.map(ev => {
                 const top    = timeToY(new Date(ev.date))
                 const height = eventHeightPx(ev)
@@ -973,21 +1119,14 @@ function TimeGridView({
                 const isDragging = draggingId === ev.id
 
                 return (
-                  <div
-                    key={ev.id}
+                  <div key={ev.id}
                     draggable={ev.type === "manual"}
                     onDragStart={ev.type === "manual" ? e => { e.stopPropagation(); startDrag(e, ev) } : undefined}
-                    style={{
-                      top,
-                      height,
-                      backgroundColor: color + "20",
-                      borderColor: color + "60",
-                    }}
-                    className={cn(
-                      "absolute left-1 right-1 rounded-md border px-1.5 py-0.5 overflow-hidden z-20 group transition-opacity",
-                      ev.type === "manual" && "cursor-grab active:cursor-grabbing",
-                      isDragging && "opacity-30",
-                    )}
+                    style={{ top, height, backgroundColor: color + "20", borderColor: color + "60" }}
+                    className={cn("absolute left-1 right-1 rounded-md border px-1.5 py-0.5 overflow-hidden z-20 group transition-opacity",
+                      ev.type === "manual" && "cursor-pointer",
+                      isDragging && "opacity-30")}
+                    onClick={ev.type === "manual" ? e => { e.stopPropagation(); onEventClick(ev) } : undefined}
                   >
                     {ev.href ? (
                       <Link href={ev.href} className="block h-full">
@@ -1010,14 +1149,11 @@ function TimeGridView({
 // ── Contenu d'un événement dans la grille horaire ─────────────────────────────
 
 function TimedEventContent({ ev, height, color, cfg }: {
-  ev: CalendarEvent
-  height: number
-  color: string
+  ev: CalendarEvent; height: number; color: string
   cfg: typeof typeConfig[keyof typeof typeConfig]
 }) {
   const timeStr = new Date(ev.date).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })
   const compact = height < 40
-
   return (
     <div className="h-full flex flex-col min-w-0 pointer-events-none">
       <p className="text-[11px] font-semibold leading-tight truncate" style={{ color }}>
@@ -1026,50 +1162,46 @@ function TimedEventContent({ ev, height, color, cfg }: {
       {!compact && (
         <>
           <p className="text-[10px] leading-tight" style={{ color: color + "cc" }}>{timeStr}</p>
-          {ev.subtitle && (
-            <p className="text-[10px] truncate mt-px" style={{ color: color + "99" }}>{ev.subtitle}</p>
-          )}
+          {ev.subtitle && <p className="text-[10px] truncate mt-px" style={{ color: color + "99" }}>{ev.subtitle}</p>}
         </>
       )}
-      {ev.isLate && !compact && (
-        <span className="text-[9px] text-red-500 font-medium mt-auto">En retard</span>
-      )}
+      {ev.isLate && !compact && <span className="text-[9px] text-red-500 font-medium mt-auto">En retard</span>}
     </div>
   )
 }
 
 // ── Chip événement all-day dans le bandeau ────────────────────────────────────
 
-function AllDayChip({ ev, isDragging = false }: { ev: CalendarEvent; isDragging?: boolean }) {
+function AllDayChip({ ev, isDragging = false, onClick }: {
+  ev: CalendarEvent; isDragging?: boolean; onClick?: () => void
+}) {
   const color = evColor(ev)
-
   const inner = (
-    <div
-      className={cn(
-        "flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium leading-tight truncate transition-opacity",
-        ev.isLate ? "bg-red-500/10 border border-red-500/20" : "border",
-        isDragging && "opacity-30",
-      )}
-      style={ev.isLate ? {} : { backgroundColor: color + "18", borderColor: color + "40", color }}
-    >
+    <div className={cn(
+      "flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium leading-tight truncate transition-opacity group",
+      ev.isLate ? "bg-red-500/10 border border-red-500/20" : "border",
+      isDragging && "opacity-30",
+      onClick && "cursor-pointer hover:opacity-80",
+    )}
+      style={ev.isLate ? {} : { backgroundColor: color + "18", borderColor: color + "40", color }}>
       <span className="h-1.5 w-1.5 rounded-full shrink-0" style={{ backgroundColor: color }} />
       <span className="truncate">{ev.title}</span>
+      {onClick && <Pencil className="h-2 w-2 shrink-0 opacity-0 group-hover:opacity-50 ml-auto" />}
     </div>
   )
-
-  return ev.href
-    ? <Link href={ev.href}>{inner}</Link>
-    : inner
+  if (onClick) return <button type="button" onClick={onClick} className="w-full text-left">{inner}</button>
+  return ev.href ? <Link href={ev.href}>{inner}</Link> : inner
 }
 
 // ── Liste d'événements (dialog mois) ─────────────────────────────────────────
 
 function EventList({
-  events, compact = false, onNavigate,
+  events, compact = false, onNavigate, onEventClick,
 }: {
   events: CalendarEvent[]
   compact?: boolean
   onNavigate?: () => void
+  onEventClick?: (ev: CalendarEvent) => void
 }) {
   if (events.length === 0) {
     return <p className="text-sm text-muted-foreground italic py-6 text-center">Aucun événement ce jour</p>
@@ -1084,9 +1216,12 @@ function EventList({
         const timeStr = isTimedEvent(ev)
           ? new Date(ev.date).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })
           : null
+        const isManual = ev.type === "manual"
 
         const inner = compact ? (
-          <div className={cn("rounded-lg border p-1.5 text-[11px] leading-snug transition-colors group", ev.isLate ? "border-red-500/30 bg-red-500/5" : "border-border/50 bg-card", ev.href && "hover:bg-muted/30 cursor-pointer")}>
+          <div className={cn("rounded-lg border p-1.5 text-[11px] leading-snug transition-colors group",
+            ev.isLate ? "border-red-500/30 bg-red-500/5" : "border-border/50 bg-card",
+            (ev.href || isManual) && "hover:bg-muted/30 cursor-pointer")}>
             <div className="flex items-start gap-1.5">
               <span className="mt-0.5 shrink-0">{dotEl}</span>
               <div className="flex-1 min-w-0">
@@ -1095,25 +1230,35 @@ function EventList({
                 {ev.subtitle && <p className="text-muted-foreground truncate">{ev.subtitle}</p>}
                 <span className={cn("inline-block text-[10px] rounded-full border px-1.5 py-px mt-1 font-medium", cfg.badge)}>{cfg.label}</span>
               </div>
-              {ev.href && <ExternalLink className="h-3 w-3 text-muted-foreground/50 shrink-0 mt-0.5 group-hover:text-muted-foreground" />}
+              {(ev.href || isManual) && <ExternalLink className="h-3 w-3 text-muted-foreground/50 shrink-0 mt-0.5 group-hover:text-muted-foreground" />}
             </div>
           </div>
         ) : (
-          <div className={cn("flex items-start gap-3 rounded-lg border p-3 transition-colors", ev.href && "hover:bg-muted/40", ev.isLate ? "border-red-500/30 bg-red-500/5" : "border-border/50 bg-card")}>
+          <div className={cn("flex items-start gap-3 rounded-lg border p-3 transition-colors group",
+            (ev.href || isManual) && "hover:bg-muted/40 cursor-pointer",
+            ev.isLate ? "border-red-500/30 bg-red-500/5" : "border-border/50 bg-card")}>
             <span className="mt-1 shrink-0">{dotEl}</span>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium leading-snug">{ev.title}</p>
               {timeStr && <p className="text-xs text-muted-foreground mt-px">{timeStr}</p>}
               {ev.subtitle && <p className="text-xs text-muted-foreground mt-px">{ev.subtitle}</p>}
+              {ev.description && <p className="text-xs text-muted-foreground/70 mt-px truncate">{ev.description}</p>}
               <div className="flex items-center gap-2 mt-1 flex-wrap">
                 <span className={cn("text-xs rounded-full border px-2 py-px font-medium", cfg.badge)}>{cfg.label}</span>
                 {ev.isLate && <span className="text-xs text-red-500 font-medium">En retard</span>}
               </div>
             </div>
-            {ev.href && <ExternalLink className="h-3.5 w-3.5 text-muted-foreground shrink-0 mt-1" />}
+            {(ev.href || isManual) && (
+              isManual
+                ? <Pencil className="h-3.5 w-3.5 text-muted-foreground shrink-0 mt-1 opacity-50 group-hover:opacity-100" />
+                : <ExternalLink className="h-3.5 w-3.5 text-muted-foreground shrink-0 mt-1" />
+            )}
           </div>
         )
 
+        if (isManual && onEventClick) {
+          return <div key={ev.id} onClick={() => onEventClick(ev)}>{inner}</div>
+        }
         return ev.href
           ? <Link key={ev.id} href={ev.href} onClick={onNavigate}>{inner}</Link>
           : <div key={ev.id}>{inner}</div>

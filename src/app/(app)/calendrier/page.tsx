@@ -1,8 +1,18 @@
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
-import { CalendarView, type CalendarEvent } from "@/components/modules/calendrier/CalendarView"
+import { CalendarView, type CalendarEvent, type CalendarCategory } from "@/components/modules/calendrier/CalendarView"
 import { getOrCreateDefaultCategories } from "@/actions/calendar"
 import { hasCalendarScope } from "@/lib/google-calendar"
+
+// Shape des événements bruts retournés par $queryRaw
+type RawCalEvent = {
+  id: string
+  title: string
+  startDate: Date
+  sourceType: string
+  categoryId: string | null
+  category: CalendarCategory | null
+}
 
 export default async function CalendrierPage() {
   const session = await auth()
@@ -13,11 +23,7 @@ export default async function CalendrierPage() {
   const to = new Date()
   to.setMonth(to.getMonth() + 2)
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const db = prisma as any
-
-  const [categories, googleScope, tasks, milestones, reminders, invoices, renewals, manualEvents] = await Promise.all([
-    // Catégories : auto-création des défauts au premier accès
+  const [categories, googleScope, tasks, milestones, reminders, invoices, renewals, calEvents] = await Promise.all([
     getOrCreateDefaultCategories(),
     hasCalendarScope(userId),
     prisma.task.findMany({
@@ -76,28 +82,36 @@ export default async function CalendrierPage() {
       },
       include: { postDev: { include: { project: { select: { id: true } } } } },
     }),
-    // Événements CalendarEvent (manuels + Google synchro)
-    db.calendarEvent.findMany({
-      where: {
-        userId,
-        startDate: { gte: from, lte: to },
-      },
-      include: { category: true },
-    }).catch(() => []),
+    // $queryRaw car CalendarCategory n'est pas encore dans le client généré
+    prisma.$queryRaw<RawCalEvent[]>`
+      SELECT
+        e.id, e.title, e."startDate", e."sourceType", e."categoryId",
+        CASE WHEN c.id IS NOT NULL THEN
+          jsonb_build_object(
+            'id', c.id, 'userId', c."userId",
+            'name', c.name, 'color', c.color,
+            'isDefault', c."isDefault"
+          )
+        ELSE NULL END AS category
+      FROM "CalendarEvent" e
+      LEFT JOIN "CalendarCategory" c ON c.id = e."categoryId"
+      WHERE e."userId" = ${userId}
+        AND e."startDate" >= ${from}
+        AND e."startDate" <= ${to}
+      ORDER BY e."startDate" ASC
+    `.catch(() => [] as RawCalEvent[]),
   ])
 
   const now = new Date()
 
-  // Index catégories pour lookup rapide
-  const catById = Object.fromEntries(
-    (categories as { id: string; name: string; color: string }[]).map(c => [c.id, c])
-  )
+  // Index catégories par id pour lookup O(1)
+  const catById = Object.fromEntries(categories.map(c => [c.id, c]))
 
-  // Mappage type → catégorie par défaut
-  const catTasks     = (categories as { id: string; name: string; color: string }[]).find(c => c.name === "Tâches")
-  const catBilling   = (categories as { id: string; name: string; color: string }[]).find(c => c.name === "Facturation")
-  const catMilestone = (categories as { id: string; name: string; color: string }[]).find(c => c.name === "Jalons")
-  const catRenewal   = (categories as { id: string; name: string; color: string }[]).find(c => c.name === "Renouvellements")
+  // Catégories par défaut mappées sur les types ERP
+  const catTasks     = categories.find(c => c.name === "Tâches")
+  const catBilling   = categories.find(c => c.name === "Facturation")
+  const catMilestone = categories.find(c => c.name === "Jalons")
+  const catRenewal   = categories.find(c => c.name === "Renouvellements")
 
   const events: CalendarEvent[] = [
     ...tasks.map((t) => {
@@ -161,18 +175,18 @@ export default async function CalendrierPage() {
       categoryColor: catRenewal?.color ?? null,
     })),
     // Événements CalendarEvent (manuels + Google synchro)
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    ...manualEvents.map((e: any) => {
-      const cat = e.categoryId ? (catById[e.categoryId] ?? e.category) : null
-      const isGoogle = e.sourceType === "GOOGLE"
+    ...calEvents.map((e) => {
+      const cat = e.categoryId
+        ? (catById[e.categoryId] ?? e.category ?? null)
+        : null
       return {
         id: e.id,
         date: e.startDate,
         title: e.title,
-        subtitle: isGoogle ? "Google Calendar" : undefined,
+        subtitle: e.sourceType === "GOOGLE" ? "Google Calendar" : undefined,
         type: "manual" as const,
-        categoryId: e.categoryId ?? null,
-        categoryColor: cat?.color ?? null,
+        categoryId: e.categoryId,
+        categoryColor: (cat as { color?: string } | null)?.color ?? null,
       }
     }),
   ]

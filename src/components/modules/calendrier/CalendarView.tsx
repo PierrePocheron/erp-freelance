@@ -1,7 +1,8 @@
 "use client"
 
 import { useState, useEffect, useTransition } from "react"
-import { ChevronLeft, ChevronRight, ExternalLink, Plus, Loader2, RefreshCw, Check, AlertCircle } from "lucide-react"
+import { useRouter } from "next/navigation"
+import { ChevronLeft, ChevronRight, ExternalLink, Plus, Loader2, RefreshCw, Check, AlertCircle, Eye, EyeOff } from "lucide-react"
 import { cn } from "@/lib/utils"
 import Link from "next/link"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -30,6 +31,7 @@ export type CalendarEvent = {
   isLate?: boolean
   categoryId?: string | null
   categoryColor?: string | null
+  isGoogle?: boolean
 }
 
 type ViewMode = "day" | "3day" | "5day" | "week" | "month"
@@ -266,6 +268,9 @@ export function CalendarView({
   const [isSyncing, startSync]          = useTransition()
   const [syncStatus, setSyncStatus]     = useState<"idle" | "success" | "error" | "noPermission">("idle")
   const [syncCount, setSyncCount]       = useState(0)
+  const [showGoogleEvents, setShowGoogleEvents] = useState(true)
+  const [isRefreshing, startRefresh]    = useTransition()
+  const router = useRouter()
 
   useEffect(() => {
     const stored = localStorage.getItem(VIEW_STORAGE_KEY) as ViewMode | null
@@ -309,6 +314,10 @@ export function CalendarView({
     return `${first.toLocaleDateString("fr-FR", { day: "numeric", month: "short" })} – ${last.toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" })}`
   }
 
+  function handleRefresh() {
+    startRefresh(() => { router.refresh() })
+  }
+
   function handleSync() {
     startSync(async () => {
       const result = await syncGoogleEvents()
@@ -319,9 +328,14 @@ export function CalendarView({
     })
   }
 
-  const filteredEvents = activeFilter
-    ? events.filter(e => activeFilter.startsWith("type:") ? e.type === activeFilter.slice(5) : e.categoryId === activeFilter)
+  // Masque les événements Google si le toggle est désactivé
+  const baseEvents = (hasGoogleCalendar && !showGoogleEvents)
+    ? events.filter(e => !e.isGoogle)
     : events
+
+  const filteredEvents = activeFilter
+    ? baseEvents.filter(e => activeFilter.startsWith("type:") ? e.type === activeFilter.slice(5) : e.categoryId === activeFilter)
+    : baseEvents
 
   const viewDays = getViewDays()
   const visibleEvents = viewMode === "month"
@@ -335,6 +349,8 @@ export function CalendarView({
 
       {/* ── Barre de navigation ──────────────────────────────────────────── */}
       <div className="flex items-center gap-2 shrink-0 flex-wrap">
+
+        {/* Navigation temporelle */}
         <div className="flex items-center gap-1">
           <button onClick={() => navigate(-1)} className="rounded-lg border border-border p-1.5 hover:bg-muted transition-colors">
             <ChevronLeft className="h-4 w-4" />
@@ -347,7 +363,75 @@ export function CalendarView({
           </button>
         </div>
 
+        {/* Titre période */}
         <h2 className="text-base font-semibold capitalize flex-1 min-w-0 truncate">{headerLabel()}</h2>
+
+        {/* Bouton Actualiser */}
+        <button
+          onClick={handleRefresh}
+          disabled={isRefreshing}
+          title="Actualiser les données"
+          className="inline-flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-xs font-medium text-muted-foreground hover:bg-muted transition-colors disabled:opacity-50"
+        >
+          {isRefreshing
+            ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            : <RefreshCw className="h-3.5 w-3.5" />
+          }
+          Actualiser
+        </button>
+
+        {/* Contrôles Google Calendar */}
+        {hasGoogleCalendar && (
+          <div className="flex items-center rounded-lg border border-border overflow-hidden">
+            {/* Toggle affichage événements Google */}
+            <button
+              onClick={() => setShowGoogleEvents(v => !v)}
+              title={showGoogleEvents ? "Masquer les événements Google Calendar" : "Afficher les événements Google Calendar"}
+              className={cn(
+                "inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium transition-colors border-r border-border/50",
+                showGoogleEvents
+                  ? "text-foreground bg-background hover:bg-muted"
+                  : "text-muted-foreground bg-muted/40 hover:bg-muted"
+              )}
+            >
+              {showGoogleEvents
+                ? <Eye className="h-3.5 w-3.5" />
+                : <EyeOff className="h-3.5 w-3.5" />
+              }
+              <span>Google</span>
+            </button>
+
+            {/* Synchronisation */}
+            <button
+              onClick={handleSync}
+              disabled={isSyncing}
+              title="Synchroniser avec Google Calendar"
+              className={cn(
+                "inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium transition-colors",
+                syncStatus === "success"      ? "text-emerald-600 bg-emerald-500/5"
+                  : syncStatus === "error"        ? "text-red-600 bg-red-500/5"
+                  : syncStatus === "noPermission" ? "text-amber-600 bg-amber-500/5"
+                  : "text-muted-foreground hover:bg-muted"
+              )}
+            >
+              {isSyncing
+                ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                : syncStatus === "success"
+                  ? <Check className="h-3.5 w-3.5" />
+                  : (syncStatus === "error" || syncStatus === "noPermission")
+                    ? <AlertCircle className="h-3.5 w-3.5" />
+                    : <RefreshCw className="h-3.5 w-3.5" />
+              }
+              <span>
+                {isSyncing                      ? "Sync…"
+                  : syncStatus === "success"      ? `${syncCount} sync`
+                  : syncStatus === "error"        ? "Erreur"
+                  : syncStatus === "noPermission" ? "Autorisation"
+                  : "Sync"}
+              </span>
+            </button>
+          </div>
+        )}
 
         {/* Sélecteur de vue */}
         <div className="flex items-center rounded-lg border border-border overflow-hidden">
@@ -365,6 +449,7 @@ export function CalendarView({
           ))}
         </div>
 
+        {/* Nouvel événement */}
         <button
           onClick={() => { setNewEventDate(new Date()); setNewEventOpen(true) }}
           className="inline-flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-xs font-medium hover:bg-muted transition-colors"
@@ -373,36 +458,6 @@ export function CalendarView({
           Événement
         </button>
 
-        {hasGoogleCalendar && (
-          <button
-            onClick={handleSync}
-            disabled={isSyncing}
-            title="Synchroniser avec Google Calendar"
-            className={cn(
-              "inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-colors",
-              syncStatus === "success"      && "border-emerald-500/50 text-emerald-600 bg-emerald-500/5",
-              syncStatus === "error"        && "border-red-500/50 text-red-600 bg-red-500/5",
-              syncStatus === "noPermission" && "border-amber-500/50 text-amber-600 bg-amber-500/5",
-              syncStatus === "idle"         && "border-border hover:bg-muted text-muted-foreground"
-            )}
-          >
-            {isSyncing
-              ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              : syncStatus === "success"
-                ? <Check className="h-3.5 w-3.5" />
-                : (syncStatus === "error" || syncStatus === "noPermission")
-                  ? <AlertCircle className="h-3.5 w-3.5" />
-                  : <RefreshCw className="h-3.5 w-3.5" />
-            }
-            <span>
-              {isSyncing              ? "Sync…"
-                : syncStatus === "success"      ? `${syncCount} synchronisés`
-                : syncStatus === "error"        ? "Erreur"
-                : syncStatus === "noPermission" ? "Autorisation requise"
-                : "Sync Google"}
-            </span>
-          </button>
-        )}
       </div>
 
       {/* ── Filtres / catégories ─────────────────────────────────────────── */}

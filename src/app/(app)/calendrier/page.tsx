@@ -196,6 +196,7 @@ export default async function CalendrierPage() {
         title: e.title,
         subtitle: e.sourceType === "GOOGLE" ? "Google Calendar" : undefined,
         type: "manual" as const,
+        isGoogle: e.sourceType === "GOOGLE",
         categoryId: e.categoryId,
         categoryColor: (cat as { color?: string } | null)?.color ?? null,
       }

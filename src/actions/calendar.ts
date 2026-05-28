@@ -27,7 +27,7 @@ const db = prisma as any
 
 // ─── Catégories par défaut ───────────────────────────────────────────────────
 
-export const DEFAULT_CATEGORIES = [
+const DEFAULT_CATEGORIES = [
   { name: "Tâches",          color: "#6366f1", isDefault: true }, // indigo
   { name: "Facturation",     color: "#10b981", isDefault: true }, // emerald
   { name: "Jalons",          color: "#f59e0b", isDefault: true }, // amber

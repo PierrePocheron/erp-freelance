@@ -1,6 +1,6 @@
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
-import { CalendarView, type CalendarEvent, type CalendarCategory, type ProjectOption } from "@/components/modules/calendrier/CalendarView"
+import { CalendarView, type CalendarEvent, type CalendarCategory, type ProjectOption, type ClientOption } from "@/components/modules/calendrier/CalendarView"
 import { getOrCreateDefaultCategories } from "@/actions/calendar"
 import { hasCalendarScope } from "@/lib/google-calendar"
 
@@ -30,7 +30,7 @@ export default async function CalendrierPage() {
   const to = new Date()
   to.setMonth(to.getMonth() + 2)
 
-  const [categories, googleScope, projects, tasks, milestones, reminders, interactions, invoices, renewals, calEvents] = await Promise.all([
+  const [categories, googleScope, projects, clients, tasks, milestones, reminders, interactions, invoices, renewals, calEvents] = await Promise.all([
     getOrCreateDefaultCategories(),
     hasCalendarScope(userId),
     prisma.project.findMany({
@@ -40,6 +40,11 @@ export default async function CalendrierPage() {
         name: true,
         client: { select: { id: true, name: true, company: true } },
       },
+      orderBy: { name: "asc" },
+    }),
+    prisma.client.findMany({
+      where: { userId },
+      select: { id: true, name: true, company: true, type: true },
       orderBy: { name: "asc" },
     }),
     prisma.task.findMany({
@@ -144,6 +149,13 @@ export default async function CalendrierPage() {
     name: p.name,
     clientId: p.client.id,
     clientName: p.client.company ?? p.client.name,
+  }))
+
+  // Liste de clients (tous, groupables par type côté UI)
+  const clientOptions: ClientOption[] = clients.map(c => ({
+    id: c.id,
+    label: c.company ?? c.name,
+    type: c.type,
   }))
 
   // Catégories par défaut mappées sur les types ERP
@@ -290,6 +302,7 @@ export default async function CalendrierPage() {
         events={events}
         categories={categories}
         projects={projectOptions}
+        clients={clientOptions}
         hasGoogleCalendar={googleScope}
         className="flex-1 min-h-0"
       />

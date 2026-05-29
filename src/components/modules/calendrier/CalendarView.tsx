@@ -6,7 +6,7 @@ import { signIn } from "next-auth/react"
 import {
   ChevronLeft, ChevronRight, ExternalLink, Plus, Loader2,
   RefreshCw, Check, AlertCircle, Eye, EyeOff, Pencil, Trash2,
-  Settings2, KeyRound,
+  Settings2, KeyRound, CheckSquare, Square,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import Link from "next/link"
@@ -955,15 +955,6 @@ export function CalendarView({
 
         {hasGoogleCalendar ? (
           <div className="flex items-center rounded-lg border border-border overflow-hidden">
-            <button
-              onClick={() => setShowGoogleEvents(v => !v)}
-              title={showGoogleEvents ? "Masquer Google Calendar" : "Afficher Google Calendar"}
-              className={cn("inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium transition-colors border-r border-border/50",
-                showGoogleEvents ? "text-foreground bg-background hover:bg-muted" : "text-muted-foreground bg-muted/40 hover:bg-muted")}
-            >
-              {showGoogleEvents ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}
-              <span>Google</span>
-            </button>
             <button onClick={handleSync} disabled={isSyncing} title="Synchroniser avec Google Calendar"
               className={cn("inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium transition-colors border-r border-border/50",
                 syncStatus === "success"      ? "text-emerald-600 bg-emerald-500/5"
@@ -1057,6 +1048,23 @@ export function CalendarView({
                 Tout afficher
               </button>
             )}
+          </>
+        )}
+
+        {/* Coche d'affichage des événements Google Calendar */}
+        {hasGoogleCalendar && (
+          <>
+            {periodEvents.length > 0 && <span className="mx-1 h-3.5 w-px bg-border/60" />}
+            <button type="button" onClick={() => setShowGoogleEvents(v => !v)}
+              title={showGoogleEvents ? "Masquer les événements Google Calendar" : "Afficher les événements Google Calendar"}
+              className={cn(
+                "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 font-medium transition-colors",
+                showGoogleEvents ? "border-border/60 text-foreground hover:bg-muted" : "border-border/40 text-muted-foreground/50"
+              )}>
+              {showGoogleEvents ? <CheckSquare className="h-3.5 w-3.5 text-primary" /> : <Square className="h-3.5 w-3.5" />}
+              <GoogleIcon className="h-3 w-3" />
+              <span className={cn(!showGoogleEvents && "line-through")}>Google Calendar</span>
+            </button>
           </>
         )}
       </div>

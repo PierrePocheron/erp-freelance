@@ -24,6 +24,17 @@ export type GoogleCalendarEvent = {
   end: { dateTime?: string; date?: string }
   status: string
   htmlLink: string
+  updated?: string
+}
+
+/** Charge utile pour créer / mettre à jour un événement Google. */
+export type GooglePushPayload = {
+  summary: string
+  description?: string
+  /** ISO datetime pour un événement horaire ; sinon utiliser allDay + startDate/endDate. */
+  start: Date
+  end: Date
+  allDay: boolean
 }
 
 export type SyncResult = {
@@ -135,4 +146,104 @@ export async function fetchGoogleEvents(
 
   const data = await res.json() as { items?: GoogleCalendarEvent[] }
   return data.items ?? []
+}
+
+// ── Écriture (ERP → Google) ────────────────────────────────────────────────────
+
+/** Formate une date au format YYYY-MM-DD (événement journée entière). */
+function toDateString(d: Date): string {
+  return d.toISOString().slice(0, 10)
+}
+
+/**
+ * Construit le corps JSON attendu par l'API Google à partir d'une charge ERP.
+ */
+function buildGoogleEventBody(payload: GooglePushPayload) {
+  const body: Record<string, unknown> = {
+    summary: payload.summary,
+    description: payload.description ?? undefined,
+  }
+  if (payload.allDay) {
+    // Google : la date de fin (exclusive) doit être >= au lendemain du début.
+    const endExclusive = new Date(payload.end)
+    if (endExclusive.getTime() <= payload.start.getTime()) {
+      endExclusive.setDate(endExclusive.getDate() + 1)
+    }
+    body.start = { date: toDateString(payload.start) }
+    body.end = { date: toDateString(endExclusive) }
+  } else {
+    body.start = { dateTime: payload.start.toISOString() }
+    body.end = { dateTime: payload.end.toISOString() }
+  }
+  return body
+}
+
+/**
+ * Crée (POST) ou met à jour (PATCH) un événement dans Google Calendar.
+ * Retourne l'id Google et la date `updated` renvoyée par l'API.
+ * Lève une erreur en cas d'échec — l'appelant gère le best-effort.
+ */
+export async function pushGoogleEvent(
+  accessToken: string,
+  payload: GooglePushPayload,
+  googleEventId?: string | null
+): Promise<{ id: string; updated: string }> {
+  const body = buildGoogleEventBody(payload)
+  const isUpdate = Boolean(googleEventId)
+  const url = isUpdate
+    ? `${GOOGLE_CALENDAR_API}/calendars/primary/events/${googleEventId}`
+    : `${GOOGLE_CALENDAR_API}/calendars/primary/events`
+
+  const res = await fetch(url, {
+    method: isUpdate ? "PATCH" : "POST",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
+  })
+
+  // Si la mise à jour cible un événement disparu côté Google (404/410),
+  // on le recrée pour ne pas perdre la synchro.
+  if (isUpdate && (res.status === 404 || res.status === 410)) {
+    return pushGoogleEvent(accessToken, payload, null)
+  }
+
+  if (!res.ok) {
+    let detail = ""
+    try {
+      const errBody = await res.json() as { error?: { message?: string } }
+      detail = errBody?.error?.message ?? ""
+    } catch { /* corps non-JSON */ }
+    throw new Error(`Google Calendar push ${res.status}${detail ? ` — ${detail}` : ""}`)
+  }
+
+  const data = await res.json() as { id: string; updated: string }
+  return { id: data.id, updated: data.updated }
+}
+
+/**
+ * Supprime un événement dans Google Calendar.
+ * Les statuts 404/410 (déjà supprimé) sont considérés comme un succès.
+ */
+export async function deleteGoogleEvent(
+  accessToken: string,
+  googleEventId: string
+): Promise<void> {
+  const res = await fetch(
+    `${GOOGLE_CALENDAR_API}/calendars/primary/events/${googleEventId}`,
+    {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${accessToken}` },
+    }
+  )
+
+  if (res.ok || res.status === 404 || res.status === 410) return
+
+  let detail = ""
+  try {
+    const errBody = await res.json() as { error?: { message?: string } }
+    detail = errBody?.error?.message ?? ""
+  } catch { /* corps non-JSON */ }
+  throw new Error(`Google Calendar delete ${res.status}${detail ? ` — ${detail}` : ""}`)
 }

@@ -14,7 +14,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import {
-  DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator,
+  DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu"
 import { createCalendarItem, moveCalendarItem, updateCalendarItem, deleteCalendarItem, syncGoogleEvents } from "@/actions/calendar"
 
@@ -974,9 +974,9 @@ export function CalendarView({
                 <Settings2 className="h-3.5 w-3.5" />
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-56">
-                <DropdownMenuLabel className="flex items-center gap-1.5 text-emerald-600">
+                <div className="flex items-center gap-1.5 px-1.5 py-1 text-xs font-medium text-emerald-600">
                   <Check className="h-3.5 w-3.5" /> Google Agenda autorisé
-                </DropdownMenuLabel>
+                </div>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={() => setShowGoogleEvents(v => !v)}>
                   {showGoogleEvents ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
@@ -1280,9 +1280,22 @@ function TimeGridView({
   onEventClick: (ev: CalendarEvent) => void
   onSelectDay: (d: Date) => void
 }) {
-  const today   = new Date()
   const cols    = days.length
   const totalH  = (HOUR_END - HOUR_START) * HOUR_HEIGHT
+
+  // Horloge vivante : se rafraîchit chaque minute pour faire avancer la barre
+  // de l'heure actuelle.
+  const [now, setNow] = useState(() => new Date())
+  useEffect(() => {
+    const id = setInterval(() => setNow(new Date()), 60_000)
+    return () => clearInterval(id)
+  }, [])
+  const today = now
+
+  // Position verticale de la barre « maintenant » (null si hors plage horaire affichée)
+  const nowInRange = now.getHours() >= HOUR_START && now.getHours() < HOUR_END
+  const nowYGutter = nowInRange && days.some(d => isSameDay(d, now)) ? timeToY(now) : null
+  const nowLabel   = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`
 
   const grabOffsetRef = useRef(0)
   const [draggingId, setDraggingId]   = useState<string | null>(null)
@@ -1420,14 +1433,21 @@ function TimeGridView({
               </span>
             </div>
           ))}
+          {/* Étiquette de l'heure actuelle */}
+          {nowYGutter !== null && (
+            <div style={{ top: nowYGutter }} className="absolute inset-x-0 z-20 flex justify-end pr-1 -translate-y-1/2 pointer-events-none">
+              <span className="rounded bg-red-500 px-1 py-px text-[10px] font-semibold text-white tabular-nums leading-none shadow-sm">
+                {nowLabel}
+              </span>
+            </div>
+          )}
         </div>
 
         {days.map((date, di) => {
           const isToday   = isSameDay(date, today)
           const isWeekend = date.getDay() === 0 || date.getDay() === 6
           const dayTimed  = timedByDay[di]
-          const now       = new Date()
-          const nowY      = isToday && now.getHours() >= HOUR_START && now.getHours() < HOUR_END ? timeToY(now) : null
+          const nowY      = isToday && nowInRange ? timeToY(now) : null
           const preview   = dropPreview?.colIdx === di ? dropPreview : null
 
           return (
@@ -1451,9 +1471,9 @@ function TimeGridView({
               ))}
 
               {nowY !== null && (
-                <div style={{ top: nowY }} className="absolute inset-x-0 z-10 flex items-center pointer-events-none">
-                  <span className="h-2 w-2 rounded-full bg-primary shrink-0 -ml-1" />
-                  <div className="flex-1 h-px bg-primary" />
+                <div style={{ top: nowY }} className="absolute inset-x-0 z-10 flex items-center pointer-events-none -translate-y-1/2">
+                  <span className="h-2.5 w-2.5 rounded-full bg-red-500 shrink-0 -ml-1.5 ring-2 ring-card" />
+                  <div className="flex-1 h-0.5 bg-red-500" />
                 </div>
               )}
 

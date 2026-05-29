@@ -11,7 +11,13 @@ import Link from "next/link"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
-import { createCalendarEvent, syncGoogleEvents, updateCalendarEvent, deleteCalendarEvent } from "@/actions/calendar"
+import { createCalendarItem, moveCalendarItem, updateCalendarItem, deleteCalendarItem, syncGoogleEvents } from "@/actions/calendar"
+
+// Natures de création (rattachement → nature)
+type CalNature = "event" | "task" | "interaction" | "reminder" | "milestone" | "note"
+// Types d'entité éditables/déplaçables depuis le calendrier
+type CalItemType = "task" | "milestone" | "reminder" | "interaction" | "manual"
+type Rattachement = "none" | "client" | "project"
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -37,7 +43,7 @@ export type CalendarEvent = {
   title: string
   subtitle?: string
   description?: string | null
-  type: "task" | "milestone" | "reminder" | "invoice" | "renewal" | "manual"
+  type: "task" | "milestone" | "reminder" | "interaction" | "invoice" | "renewal" | "manual"
   href?: string
   isLate?: boolean
   categoryId?: string | null
@@ -64,6 +70,7 @@ const typeConfig = {
   task:      { dot: "bg-amber-500",   badge: "bg-amber-500/15 text-amber-700 border-amber-500/20",    color: "#f59e0b", label: "Tâche" },
   milestone: { dot: "bg-indigo-500",  badge: "bg-indigo-500/15 text-indigo-700 border-indigo-500/20", color: "#6366f1", label: "Jalon" },
   reminder:  { dot: "bg-orange-500",  badge: "bg-orange-500/15 text-orange-700 border-orange-500/20", color: "#f97316", label: "Rappel" },
+  interaction: { dot: "bg-teal-500",  badge: "bg-teal-500/15 text-teal-700 border-teal-500/20",       color: "#14b8a6", label: "Interaction" },
   invoice:   { dot: "bg-blue-500",    badge: "bg-blue-500/15 text-blue-700 border-blue-500/20",       color: "#3b82f6", label: "Facture" },
   renewal:   { dot: "bg-red-500",     badge: "bg-red-500/15 text-red-700 border-red-500/20",          color: "#ef4444", label: "Renouvellement" },
   manual:    { dot: "bg-purple-500",  badge: "bg-purple-500/15 text-purple-700 border-purple-500/20", color: "#8b5cf6", label: "Événement" },
@@ -128,6 +135,50 @@ function eventHeightPx(ev: CalendarEvent): number {
 
 function evColor(ev: CalendarEvent): string {
   return ev.categoryColor ?? typeConfig[ev.type]?.color ?? "#8b5cf6"
+}
+
+// Un événement est éditable / déplaçable s'il correspond à une vraie entité
+// modifiable (tâche, jalon, rappel, interaction, événement manuel). Les factures
+// et renouvellements ont des dates contractuelles → lecture seule (navigation).
+const EDITABLE_TYPES: readonly string[] = ["task", "milestone", "reminder", "interaction", "manual"]
+function isEditable(ev: CalendarEvent): boolean {
+  return EDITABLE_TYPES.includes(ev.type)
+}
+
+// Options de création par rattachement
+const NATURES_BY_RATT: Record<Rattachement, { value: CalNature; label: string }[]> = {
+  none:    [{ value: "event", label: "Événement" }],
+  client:  [
+    { value: "task",        label: "Tâche" },
+    { value: "interaction", label: "Interaction" },
+    { value: "reminder",    label: "Rappel" },
+    { value: "event",       label: "Événement" },
+  ],
+  project: [
+    { value: "task",      label: "Tâche" },
+    { value: "milestone", label: "Jalon" },
+    { value: "note",      label: "Note rapide" },
+    { value: "event",     label: "Événement" },
+  ],
+}
+const CHANNELS: [string, string][] = [
+  ["EMAIL", "Email"], ["CALL", "Appel"], ["MEETING", "Réunion"],
+  ["LINKEDIN", "LinkedIn"], ["SMS", "SMS"], ["OTHER", "Autre"],
+]
+const PRIORITIES: [string, string][] = [
+  ["LOW", "Basse"], ["MEDIUM", "Moyenne"], ["HIGH", "Haute"], ["URGENT", "Urgente"],
+]
+const TITLE_LABEL: Record<CalNature, string> = {
+  event: "Titre", task: "Intitulé de la tâche", interaction: "Objet de l'interaction",
+  reminder: "Intitulé du rappel", milestone: "Nom du jalon", note: "Titre de la note",
+}
+const DATE_LABEL: Record<CalNature, string> = {
+  event: "Date", task: "Échéance", interaction: "Date",
+  reminder: "Échéance", milestone: "Date", note: "Date",
+}
+const EDIT_TITLE: Record<CalItemType, string> = {
+  task: "Modifier la tâche", milestone: "Modifier le jalon", reminder: "Modifier le rappel",
+  interaction: "Modifier l'interaction", manual: "Modifier l'événement",
 }
 
 function snapMinutes(totalMin: number): number {
@@ -265,6 +316,25 @@ function EventFormFields({
   )
 }
 
+/** Petit sélecteur segmenté réutilisable */
+function Segmented<T extends string>({ value, onChange, options }: {
+  value: T; onChange: (v: T) => void; options: { value: T; label: string }[]
+}) {
+  return (
+    <div className="flex flex-wrap gap-1">
+      {options.map(o => (
+        <button key={o.value} type="button" onClick={() => onChange(o.value)}
+          className={cn("rounded-md border px-2.5 py-1 text-xs font-medium transition-colors",
+            value === o.value
+              ? "border-primary bg-primary/10 text-primary"
+              : "border-border text-muted-foreground hover:border-foreground/30 hover:text-foreground")}>
+          {o.label}
+        </button>
+      ))}
+    </div>
+  )
+}
+
 function NewEventDialog({
   open, onClose, defaultDate, categories, projects,
 }: {
@@ -274,6 +344,9 @@ function NewEventDialog({
   categories: CalendarCategory[]
   projects: ProjectOption[]
 }) {
+  const router = useRouter()
+  const [rattachement, setRattachement] = useState<Rattachement>("none")
+  const [nature, setNature]         = useState<CalNature>("event")
   const [title, setTitle]           = useState("")
   const [date, setDate]             = useState(defaultDate.toISOString().slice(0, 10))
   const [time, setTime]             = useState("")
@@ -281,6 +354,8 @@ function NewEventDialog({
   const [categoryId, setCategoryId] = useState<string>(categories[0]?.id ?? "")
   const [projectId, setProjectId]   = useState("")
   const [clientId, setClientId]     = useState("")
+  const [channel, setChannel]       = useState("EMAIL")
+  const [priority, setPriority]     = useState("MEDIUM")
   const [error, setError]           = useState("")
   const [isPending, startTransition] = useTransition()
 
@@ -290,29 +365,47 @@ function NewEventDialog({
       .map(p => ({ id: p.clientId, label: p.clientName }))
   }, [projects])
 
+  const natureOptions = NATURES_BY_RATT[rattachement]
+
   useEffect(() => {
     if (open) {
+      setRattachement("none"); setNature("event")
       setTitle(""); setDescription(""); setProjectId(""); setClientId(""); setError("")
+      setChannel("EMAIL"); setPriority("MEDIUM")
       setDate(defaultDate.toISOString().slice(0, 10))
       setTime(timeStringFromDate(defaultDate, undefined))
       setCategoryId(categories[0]?.id ?? "")
     }
   }, [open, defaultDate, categories])
 
+  function changeRattachement(r: Rattachement) {
+    setRattachement(r)
+    setNature(NATURES_BY_RATT[r][0].value)
+    setProjectId(""); setClientId(""); setError("")
+  }
+
+  const showCategory = nature === "event" || nature === "note"
+
   function handleSubmit() {
     if (!title.trim()) { setError("Le titre est requis"); return }
+    if (rattachement === "project" && !projectId) { setError("Choisis un projet"); return }
+    if (rattachement === "client"  && !clientId)  { setError("Choisis un client"); return }
     startTransition(async () => {
       const startDate = parseDateTimeFromForm(date, time)
-      const res = await createCalendarEvent({
+      const res = await createCalendarItem({
+        nature,
         title: title.trim(),
-        description: description || undefined,
+        description: description || null,
         startDate,
         allDay: !time,
-        categoryId: categoryId || undefined,
-        projectId: projectId || undefined,
-        clientId: clientId || undefined,
+        categoryId: showCategory ? (categoryId || null) : null,
+        projectId: rattachement === "project" ? (projectId || null) : null,
+        clientId:  rattachement === "client"  ? (clientId  || null) : null,
+        channel:  nature === "interaction" ? channel : null,
+        priority: nature === "task" ? priority : null,
       })
       if (res.error) { setError(res.error); return }
+      router.refresh()
       onClose()
     })
   }
@@ -324,16 +417,127 @@ function NewEventDialog({
           <DialogTitle>Nouvel événement</DialogTitle>
         </DialogHeader>
         <div className="space-y-3 pt-2">
-          <EventFormFields
-            title={title} setTitle={v => { setTitle(v); setError("") }}
-            date={date} setDate={setDate}
-            time={time} setTime={setTime}
-            description={description} setDescription={setDescription}
-            categoryId={categoryId} setCategoryId={setCategoryId}
-            projectId={projectId} setProjectId={setProjectId}
-            clientId={clientId} setClientId={setClientId}
-            categories={categories} projects={projects} clientOptions={clientOptions}
-          />
+
+          {/* Rattachement */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-muted-foreground">Rattacher à</label>
+            <Segmented<Rattachement> value={rattachement} onChange={changeRattachement}
+              options={[
+                { value: "none", label: "Aucun" },
+                { value: "client", label: "Client" },
+                { value: "project", label: "Projet" },
+              ]} />
+          </div>
+
+          {/* Sélecteur projet */}
+          {rattachement === "project" && (
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-muted-foreground">Projet</label>
+              <select value={projectId} onChange={e => {
+                  setProjectId(e.target.value)
+                  const p = projects.find(x => x.id === e.target.value)
+                  if (p) setClientId(p.clientId)
+                }}
+                className="h-8 w-full rounded-md border border-input bg-background px-3 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">
+                <option value="">Sélectionner…</option>
+                {projects.map(p => <option key={p.id} value={p.id}>{p.name} — {p.clientName}</option>)}
+              </select>
+            </div>
+          )}
+
+          {/* Sélecteur client */}
+          {rattachement === "client" && (
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-muted-foreground">Client</label>
+              <select value={clientId} onChange={e => setClientId(e.target.value)}
+                className="h-8 w-full rounded-md border border-input bg-background px-3 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">
+                <option value="">Sélectionner…</option>
+                {clientOptions.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
+              </select>
+            </div>
+          )}
+
+          {/* Nature (si plus d'une option) */}
+          {natureOptions.length > 1 && (
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-muted-foreground">Type</label>
+              <Segmented<CalNature> value={nature} onChange={setNature} options={natureOptions} />
+            </div>
+          )}
+
+          {/* Titre */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-muted-foreground">{TITLE_LABEL[nature]} *</label>
+            <Input value={title} onChange={e => { setTitle(e.target.value); setError("") }}
+              placeholder={TITLE_LABEL[nature]} className="h-8" />
+          </div>
+
+          {/* Date + Heure */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-muted-foreground">{DATE_LABEL[nature]}</label>
+              <Input type="date" value={date} onChange={e => setDate(e.target.value)} className="h-8" />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-muted-foreground">
+                Heure <span className="text-muted-foreground/50">(opt.)</span>
+              </label>
+              <Input type="time" value={time} onChange={e => setTime(e.target.value)} className="h-8" />
+            </div>
+          </div>
+
+          {/* Champ spécifique : priorité (tâche) */}
+          {nature === "task" && (
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-muted-foreground">Priorité</label>
+              <Segmented value={priority} onChange={setPriority}
+                options={PRIORITIES.map(([v, l]) => ({ value: v, label: l }))} />
+            </div>
+          )}
+
+          {/* Champ spécifique : canal (interaction) */}
+          {nature === "interaction" && (
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-muted-foreground">Canal</label>
+              <Segmented value={channel} onChange={setChannel}
+                options={CHANNELS.map(([v, l]) => ({ value: v, label: l }))} />
+            </div>
+          )}
+
+          {/* Description */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-muted-foreground">
+              {nature === "interaction" ? "Réponse / notes" : "Description"}
+            </label>
+            <textarea value={description} onChange={e => setDescription(e.target.value)} rows={2}
+              placeholder="Notes, détails…"
+              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground/50 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring resize-none" />
+          </div>
+
+          {/* Catégorie (événement / note uniquement) */}
+          {showCategory && categories.length > 0 && (
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-muted-foreground">Catégorie</label>
+              <div className="flex flex-wrap gap-1.5">
+                {categories.map(cat => (
+                  <button key={cat.id} type="button" onClick={() => setCategoryId(cat.id)}
+                    className={cn("inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors",
+                      categoryId === cat.id ? "border-current" : "border-border text-muted-foreground hover:border-current hover:opacity-80")}
+                    style={categoryId === cat.id ? { color: cat.color, borderColor: cat.color, backgroundColor: cat.color + "20" } : {}}>
+                    <span className="h-1.5 w-1.5 rounded-full shrink-0" style={{ backgroundColor: cat.color }} />
+                    {cat.name}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {nature === "note" && (
+            <p className="text-[11px] text-muted-foreground/70">
+              Crée une entrée dans le journal du projet + un repère daté dans l'agenda.
+            </p>
+          )}
+
           {error && <p className="text-xs text-red-500">{error}</p>}
           <div className="flex justify-end gap-2 pt-1">
             <Button variant="ghost" size="sm" onClick={onClose}>Annuler</Button>
@@ -358,6 +562,8 @@ function EventDetailDialog({
   projects: ProjectOption[]
 }) {
   const router = useRouter()
+  const itemType = event.type as CalItemType
+  const isManual = itemType === "manual"
   const d0 = new Date(event.date)
 
   const [title, setTitle]             = useState(event.title)
@@ -378,22 +584,31 @@ function EventDetailDialog({
       .map(p => ({ id: p.clientId, label: p.clientName }))
   }, [projects])
 
-  const linkedProject = projects.find(p => p.id === projectId)
-  const linkedClient  = !projectId ? clientOptions.find(c => c.id === clientId) : null
+  // Liens de navigation : pour un événement manuel, dérivés des sélecteurs ;
+  // pour les autres entités, fournis par la projection (lecture seule).
+  const linkedProject = isManual
+    ? projects.find(p => p.id === projectId)
+    : (event.projectId ? { id: event.projectId, name: event.projectName ?? "Projet", clientName: event.clientName ?? "" } : undefined)
+  const linkedClient = isManual
+    ? (!projectId ? clientOptions.find(c => c.id === clientId) : undefined)
+    : (event.clientId ? { id: event.clientId, label: event.clientName ?? "Client" } : undefined)
 
   function handleSave() {
     if (!title.trim()) { setError("Le titre est requis"); return }
     startSave(async () => {
       const startDate = parseDateTimeFromForm(date, time)
-      await updateCalendarEvent(event.id, {
+      const res = await updateCalendarItem(itemType, event.id, {
         title: title.trim(),
         description: description || null,
         startDate,
         allDay: !time,
-        categoryId: categoryId || null,
-        projectId: projectId || null,
-        clientId: clientId || null,
+        ...(isManual ? {
+          categoryId: categoryId || null,
+          projectId: projectId || null,
+          clientId: clientId || null,
+        } : {}),
       })
+      if (res.error) { setError(res.error); return }
       router.refresh()
       onClose()
     })
@@ -401,7 +616,7 @@ function EventDetailDialog({
 
   function handleDelete() {
     startDelete(async () => {
-      await deleteCalendarEvent(event.id)
+      await deleteCalendarItem(itemType, event.id)
       router.refresh()
       onClose()
     })
@@ -415,44 +630,70 @@ function EventDetailDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <span className="h-2.5 w-2.5 rounded-full shrink-0" style={{ backgroundColor: color }} />
-            Modifier l'événement
+            {EDIT_TITLE[itemType]}
           </DialogTitle>
         </DialogHeader>
 
         <div className="space-y-3 pt-1">
-          <EventFormFields
-            title={title} setTitle={v => { setTitle(v); setError("") }}
-            date={date} setDate={setDate}
-            time={time} setTime={setTime}
-            description={description} setDescription={setDescription}
-            categoryId={categoryId} setCategoryId={setCategoryId}
-            projectId={projectId} setProjectId={setProjectId}
-            clientId={clientId} setClientId={setClientId}
-            categories={categories} projects={projects} clientOptions={clientOptions}
-          />
+          {isManual ? (
+            <EventFormFields
+              title={title} setTitle={v => { setTitle(v); setError("") }}
+              date={date} setDate={setDate}
+              time={time} setTime={setTime}
+              description={description} setDescription={setDescription}
+              categoryId={categoryId} setCategoryId={setCategoryId}
+              projectId={projectId} setProjectId={setProjectId}
+              clientId={clientId} setClientId={setClientId}
+              categories={categories} projects={projects} clientOptions={clientOptions}
+            />
+          ) : (
+            <>
+              {/* Titre */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-muted-foreground">Intitulé *</label>
+                <Input value={title} onChange={e => { setTitle(e.target.value); setError("") }} className="h-8" />
+              </div>
+              {/* Date + Heure */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium text-muted-foreground">
+                    {itemType === "task" || itemType === "reminder" ? "Échéance" : "Date"}
+                  </label>
+                  <Input type="date" value={date} onChange={e => setDate(e.target.value)} className="h-8" />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium text-muted-foreground">
+                    Heure <span className="text-muted-foreground/50">(opt.)</span>
+                  </label>
+                  <Input type="time" value={time} onChange={e => setTime(e.target.value)} className="h-8" />
+                </div>
+              </div>
+              {/* Description */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-muted-foreground">
+                  {itemType === "interaction" ? "Réponse / notes" : "Description"}
+                </label>
+                <textarea value={description} onChange={e => setDescription(e.target.value)} rows={2}
+                  placeholder="Notes, détails…"
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground/50 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring resize-none" />
+              </div>
+            </>
+          )}
 
           {/* Liens de navigation */}
           {(linkedProject || linkedClient) && (
             <div className="flex flex-col gap-1 pt-0.5">
               {linkedProject && (
-                <Link
-                  href={`/projets/${linkedProject.id}`}
-                  onClick={onClose}
-                  className="inline-flex items-center gap-1.5 text-xs text-primary hover:underline"
-                >
+                <Link href={`/projets/${linkedProject.id}`} onClick={onClose}
+                  className="inline-flex items-center gap-1.5 text-xs text-primary hover:underline">
                   <ExternalLink className="h-3 w-3" />
                   Voir le projet — {linkedProject.name}
-                  {linkedProject.clientName && (
-                    <span className="text-muted-foreground">· {linkedProject.clientName}</span>
-                  )}
+                  {linkedProject.clientName && <span className="text-muted-foreground">· {linkedProject.clientName}</span>}
                 </Link>
               )}
               {linkedClient && (
-                <Link
-                  href={`/client/${linkedClient.id}`}
-                  onClick={onClose}
-                  className="inline-flex items-center gap-1.5 text-xs text-primary hover:underline"
-                >
+                <Link href={`/client/${linkedClient.id}`} onClick={onClose}
+                  className="inline-flex items-center gap-1.5 text-xs text-primary hover:underline">
                   <ExternalLink className="h-3 w-3" />
                   Voir le client — {linkedClient.label}
                 </Link>
@@ -464,7 +705,6 @@ function EventDetailDialog({
 
           {/* Actions */}
           <div className="flex items-center justify-between pt-1">
-            {/* Supprimer */}
             {!confirmDelete ? (
               <Button variant="ghost" size="sm" onClick={() => setConfirmDelete(true)}
                 className="text-destructive hover:text-destructive hover:bg-destructive/10 gap-1.5">
@@ -583,14 +823,17 @@ export function CalendarView({
   }
 
   function handleMoveEvent(eventId: string, newStart: Date, newEnd: Date | null, allDay: boolean) {
+    const ev = events.find(x => x.id === eventId)
+    if (!ev || !isEditable(ev)) return
     startRefresh(async () => {
-      await updateCalendarEvent(eventId, { startDate: newStart, endDate: newEnd, allDay })
+      await moveCalendarItem(ev.type as CalItemType, eventId, newStart, newEnd, allDay)
       router.refresh()
     })
   }
 
   function handleEventClick(ev: CalendarEvent) {
-    if (ev.type === "manual") setEditingEvent(ev)
+    if (isEditable(ev)) setEditingEvent(ev)
+    else if (ev.href) router.push(ev.href)
   }
 
   const baseEvents = (hasGoogleCalendar && !showGoogleEvents)
@@ -847,7 +1090,7 @@ function MonthView({
                 const eventId = e.dataTransfer.getData("eventId")
                 if (!eventId) return
                 const ev = events.find(x => x.id === eventId)
-                if (!ev || ev.type !== "manual") return
+                if (!ev || !isEditable(ev)) return
                 const oldDate = new Date(ev.date)
                 const newDate = new Date(year, month, day)
                 newDate.setHours(oldDate.getHours(), oldDate.getMinutes(), 0, 0)
@@ -872,20 +1115,19 @@ function MonthView({
                 {dayEvents.slice(0, 2).map(ev => (
                   <div
                     key={ev.id}
-                    draggable={ev.type === "manual"}
-                    onDragStart={ev.type === "manual" ? e => {
+                    draggable={isEditable(ev)}
+                    onDragStart={isEditable(ev) ? e => {
                       e.stopPropagation()
                       e.dataTransfer.setData("eventId", ev.id)
                       e.dataTransfer.effectAllowed = "move"
                     } : undefined}
-                    onClick={ev.type === "manual" ? e => {
+                    onClick={e => {
                       e.stopPropagation()
                       onEventClick(ev)
-                    } : undefined}
+                    }}
                     className={cn(
-                      "flex items-center gap-1 rounded px-1 py-px text-[10px] leading-tight truncate",
+                      "flex items-center gap-1 rounded px-1 py-px text-[10px] leading-tight truncate cursor-pointer hover:opacity-80 group",
                       ev.isLate ? "bg-red-500/10" : "bg-muted/50",
-                      ev.type === "manual" && "cursor-pointer hover:opacity-80 group",
                     )}
                   >
                     <span
@@ -893,9 +1135,9 @@ function MonthView({
                       style={ev.categoryColor ? { backgroundColor: ev.categoryColor } : {}}
                     />
                     <span className="truncate">{ev.title}</span>
-                    {ev.type === "manual" && (
-                      <Pencil className="h-2 w-2 shrink-0 opacity-0 group-hover:opacity-50 ml-auto" />
-                    )}
+                    {isEditable(ev)
+                      ? <Pencil className="h-2 w-2 shrink-0 opacity-0 group-hover:opacity-50 ml-auto" />
+                      : ev.href ? <ExternalLink className="h-2 w-2 shrink-0 opacity-0 group-hover:opacity-50 ml-auto" /> : null}
                   </div>
                 ))}
                 {dayEvents.length > 2 && (
@@ -940,7 +1182,7 @@ function TimeGridView({
   const hasAnyAllDay = allDayByDay.some(arr => arr.length > 0)
 
   function startDrag(e: React.DragEvent, ev: CalendarEvent, fromAllDay = false) {
-    if (ev.type !== "manual") { e.preventDefault(); return }
+    if (!isEditable(ev)) { e.preventDefault(); return }
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
     grabOffsetRef.current = fromAllDay ? 0 : Math.max(0, e.clientY - rect.top)
     e.dataTransfer.setData("eventId", ev.id)
@@ -968,7 +1210,7 @@ function TimeGridView({
     const eventId = e.dataTransfer.getData("eventId")
     if (!eventId) { clearDrag(); return }
     const ev = events.find(x => x.id === eventId)
-    if (!ev || ev.type !== "manual") { clearDrag(); return }
+    if (!ev || !isEditable(ev)) { clearDrag(); return }
     const { totalMin } = calcSnap(e)
     const h = Math.floor(totalMin / 60) + HOUR_START
     const m = totalMin % 60
@@ -986,7 +1228,7 @@ function TimeGridView({
     const eventId = e.dataTransfer.getData("eventId")
     if (!eventId) { clearDrag(); return }
     const ev = events.find(x => x.id === eventId)
-    if (!ev || ev.type !== "manual") { clearDrag(); return }
+    if (!ev || !isEditable(ev)) { clearDrag(); return }
     const newDate = new Date(date); newDate.setHours(0, 0, 0, 0)
     onMoveEvent(eventId, newDate, null, true)
     clearDrag()
@@ -1036,11 +1278,11 @@ function TimeGridView({
               onDrop={e => handleAllDayDrop(e, days[i])}>
               {dayEvs.map(ev => (
                 <div key={ev.id}
-                  draggable={ev.type === "manual"}
-                  onDragStart={ev.type === "manual" ? e => { e.stopPropagation(); startDrag(e, ev, true) } : undefined}
-                  className={cn(ev.type === "manual" && "cursor-grab active:cursor-grabbing")}>
+                  draggable={isEditable(ev)}
+                  onDragStart={isEditable(ev) ? e => { e.stopPropagation(); startDrag(e, ev, true) } : undefined}
+                  className={cn(isEditable(ev) && "cursor-grab active:cursor-grabbing")}>
                   <AllDayChip ev={ev} isDragging={draggingId === ev.id}
-                    onClick={ev.type === "manual" ? () => onEventClick(ev) : undefined} />
+                    onClick={isEditable(ev) ? () => onEventClick(ev) : undefined} />
                 </div>
               ))}
             </div>
@@ -1118,17 +1360,18 @@ function TimeGridView({
                 const cfg    = typeConfig[ev.type]
                 const isDragging = draggingId === ev.id
 
+                const editable = isEditable(ev)
                 return (
                   <div key={ev.id}
-                    draggable={ev.type === "manual"}
-                    onDragStart={ev.type === "manual" ? e => { e.stopPropagation(); startDrag(e, ev) } : undefined}
+                    draggable={editable}
+                    onDragStart={editable ? e => { e.stopPropagation(); startDrag(e, ev) } : undefined}
                     style={{ top, height, backgroundColor: color + "20", borderColor: color + "60" }}
                     className={cn("absolute left-1 right-1 rounded-md border px-1.5 py-0.5 overflow-hidden z-20 group transition-opacity",
-                      ev.type === "manual" && "cursor-pointer",
+                      (editable || ev.href) && "cursor-pointer",
                       isDragging && "opacity-30")}
-                    onClick={ev.type === "manual" ? e => { e.stopPropagation(); onEventClick(ev) } : undefined}
+                    onClick={editable ? e => { e.stopPropagation(); onEventClick(ev) } : undefined}
                   >
-                    {ev.href ? (
+                    {!editable && ev.href ? (
                       <Link href={ev.href} className="block h-full">
                         <TimedEventContent ev={ev} height={height} color={color} cfg={cfg} />
                       </Link>
@@ -1216,12 +1459,12 @@ function EventList({
         const timeStr = isTimedEvent(ev)
           ? new Date(ev.date).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })
           : null
-        const isManual = ev.type === "manual"
+        const editable = isEditable(ev)
 
         const inner = compact ? (
           <div className={cn("rounded-lg border p-1.5 text-[11px] leading-snug transition-colors group",
             ev.isLate ? "border-red-500/30 bg-red-500/5" : "border-border/50 bg-card",
-            (ev.href || isManual) && "hover:bg-muted/30 cursor-pointer")}>
+            (ev.href || editable) && "hover:bg-muted/30 cursor-pointer")}>
             <div className="flex items-start gap-1.5">
               <span className="mt-0.5 shrink-0">{dotEl}</span>
               <div className="flex-1 min-w-0">
@@ -1230,12 +1473,16 @@ function EventList({
                 {ev.subtitle && <p className="text-muted-foreground truncate">{ev.subtitle}</p>}
                 <span className={cn("inline-block text-[10px] rounded-full border px-1.5 py-px mt-1 font-medium", cfg.badge)}>{cfg.label}</span>
               </div>
-              {(ev.href || isManual) && <ExternalLink className="h-3 w-3 text-muted-foreground/50 shrink-0 mt-0.5 group-hover:text-muted-foreground" />}
+              {(ev.href || editable) && (
+                editable
+                  ? <Pencil className="h-3 w-3 text-muted-foreground/50 shrink-0 mt-0.5 group-hover:text-muted-foreground" />
+                  : <ExternalLink className="h-3 w-3 text-muted-foreground/50 shrink-0 mt-0.5 group-hover:text-muted-foreground" />
+              )}
             </div>
           </div>
         ) : (
           <div className={cn("flex items-start gap-3 rounded-lg border p-3 transition-colors group",
-            (ev.href || isManual) && "hover:bg-muted/40 cursor-pointer",
+            (ev.href || editable) && "hover:bg-muted/40 cursor-pointer",
             ev.isLate ? "border-red-500/30 bg-red-500/5" : "border-border/50 bg-card")}>
             <span className="mt-1 shrink-0">{dotEl}</span>
             <div className="flex-1 min-w-0">
@@ -1248,15 +1495,15 @@ function EventList({
                 {ev.isLate && <span className="text-xs text-red-500 font-medium">En retard</span>}
               </div>
             </div>
-            {(ev.href || isManual) && (
-              isManual
+            {(ev.href || editable) && (
+              editable
                 ? <Pencil className="h-3.5 w-3.5 text-muted-foreground shrink-0 mt-1 opacity-50 group-hover:opacity-100" />
                 : <ExternalLink className="h-3.5 w-3.5 text-muted-foreground shrink-0 mt-1" />
             )}
           </div>
         )
 
-        if (isManual && onEventClick) {
+        if (editable && onEventClick) {
           return <div key={ev.id} onClick={() => onEventClick(ev)}>{inner}</div>
         }
         return ev.href

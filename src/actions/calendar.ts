@@ -319,6 +319,436 @@ export async function deleteCalendarEvent(eventId: string): Promise<void> {
   revalidatePath("/calendrier")
 }
 
+// ─── Dispatcher contextuel ────────────────────────────────────────────────────
+// Le bouton "+" du calendrier crée la VRAIE entité métier selon le contexte
+// (rattachement) et la nature choisie, plutôt qu'un simple CalendarEvent cosmétique.
+
+export type CalNature =
+  | "event"        // événement perso  → CalendarEvent MANUAL
+  | "task"         // tâche            → Task (dueDate = date)
+  | "interaction"  // interaction      → Interaction (client uniquement)
+  | "reminder"     // rappel           → Reminder (client uniquement)
+  | "milestone"    // jalon            → Milestone (projet uniquement)
+  | "note"         // note rapide      → JournalEntry + CalendarEvent daté (projet)
+
+export type CalItemInput = {
+  nature: CalNature
+  title: string
+  description?: string | null
+  startDate: Date
+  endDate?: Date | null
+  allDay?: boolean
+  categoryId?: string | null
+  clientId?: string | null
+  projectId?: string | null
+  channel?: string | null   // interaction : EMAIL/CALL/MEETING/...
+  priority?: string | null  // task : LOW/MEDIUM/HIGH/URGENT
+}
+
+/** Vérifie que le client appartient à l'utilisateur. */
+async function assertClientOwnership(userId: string, clientId: string) {
+  const c = await prisma.client.findFirst({ where: { id: clientId, userId }, select: { id: true } })
+  if (!c) throw new Error("Client introuvable")
+}
+
+/** Vérifie que le projet appartient à l'utilisateur. */
+async function assertProjectOwnership(userId: string, projectId: string) {
+  const p = await prisma.project.findFirst({ where: { id: projectId, userId }, select: { id: true } })
+  if (!p) throw new Error("Projet introuvable")
+}
+
+/** Insère un CalendarEvent MANUAL (SQL brut : champs categoryId/projectId/clientId/sourceId hors client généré). */
+async function insertManualEvent(userId: string, data: {
+  title: string
+  description: string | null
+  startDate: Date
+  endDate: Date | null
+  allDay: boolean
+  categoryId: string | null
+  projectId: string | null
+  clientId: string | null
+  sourceId?: string | null
+}) {
+  const id  = crypto.randomUUID()
+  const now = new Date()
+  await prisma.$executeRaw`
+    INSERT INTO "CalendarEvent"
+      (id, "userId", title, description, "startDate", "endDate", "allDay",
+       "sourceType", "sourceId", "categoryId", "projectId", "clientId", "createdAt", "updatedAt")
+    VALUES (
+      ${id}, ${userId}, ${data.title}, ${data.description},
+      ${data.startDate}, ${data.endDate}, ${data.allDay},
+      'MANUAL', ${data.sourceId ?? null}, ${data.categoryId}, ${data.projectId}, ${data.clientId}, ${now}, ${now}
+    )
+  `
+  return id
+}
+
+/**
+ * Crée l'entité adaptée au contexte. Renvoie { error } si validation échoue.
+ */
+export async function createCalendarItem(input: CalItemInput): Promise<{ error?: string }> {
+  const session = await auth()
+  const userId  = session!.user.id
+
+  const title = input.title.trim()
+  if (!title) return { error: "Le titre est requis" }
+
+  const description = input.description?.trim() || null
+  const clientId    = input.clientId ?? null
+  const projectId   = input.projectId ?? null
+  const categoryId  = input.categoryId ?? null
+  const allDay      = input.allDay ?? false
+  const endDate     = input.endDate ?? null
+
+  try {
+    switch (input.nature) {
+      case "task": {
+        if (projectId) await assertProjectOwnership(userId, projectId)
+        if (clientId)  await assertClientOwnership(userId, clientId)
+        await prisma.task.create({
+          data: {
+            userId,
+            projectId: projectId ?? null,
+            clientId:  clientId ?? null,
+            title,
+            description,
+            dueDate: input.startDate,
+            priority: (input.priority ?? "LOW") as never,
+          },
+        })
+        revalidatePath("/taches")
+        if (projectId) revalidatePath(`/projets/${projectId}`)
+        if (clientId)  revalidatePath(`/client/${clientId}`)
+        break
+      }
+
+      case "milestone": {
+        if (!projectId) return { error: "Un jalon doit être rattaché à un projet" }
+        await assertProjectOwnership(userId, projectId)
+        await prisma.milestone.create({
+          data: { projectId, name: title, date: input.startDate },
+        })
+        revalidatePath(`/projets/${projectId}`)
+        break
+      }
+
+      case "interaction": {
+        if (!clientId) return { error: "Une interaction doit être rattachée à un client" }
+        await assertClientOwnership(userId, clientId)
+        await prisma.interaction.create({
+          data: {
+            clientId,
+            date: input.startDate,
+            channel: (input.channel ?? "OTHER") as never,
+            summary: title,
+            response: description,
+          },
+        })
+        revalidatePath(`/client/${clientId}`)
+        break
+      }
+
+      case "reminder": {
+        if (!clientId) return { error: "Un rappel doit être rattaché à un client" }
+        await assertClientOwnership(userId, clientId)
+        await prisma.reminder.create({
+          data: {
+            clientId,
+            dueDate: input.startDate,
+            note: description ? `${title} — ${description}` : title,
+          },
+        })
+        revalidatePath(`/client/${clientId}`)
+        break
+      }
+
+      case "note": {
+        if (!projectId) return { error: "Une note doit être rattachée à un projet" }
+        await assertProjectOwnership(userId, projectId)
+        // 1) entrée canonique dans le journal du projet
+        const entry = await prisma.journalEntry.create({
+          data: { projectId, content: description ? `${title}\n${description}` : title },
+        })
+        // 2) événement daté lié, visible dans l'agenda (sourceId → journal entry)
+        await insertManualEvent(userId, {
+          title, description, startDate: input.startDate, endDate, allDay,
+          categoryId, projectId, clientId: null, sourceId: entry.id,
+        })
+        revalidatePath(`/projets/${projectId}`)
+        break
+      }
+
+      case "event":
+      default: {
+        if (projectId) await assertProjectOwnership(userId, projectId)
+        if (clientId)  await assertClientOwnership(userId, clientId)
+        await insertManualEvent(userId, {
+          title, description, startDate: input.startDate, endDate, allDay,
+          categoryId, projectId, clientId,
+        })
+        break
+      }
+    }
+
+    revalidatePath("/calendrier")
+    return {}
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Erreur inconnue"
+    return { error: message }
+  }
+}
+
+// ─── Move / update / delete contextuels ───────────────────────────────────────
+// Type d'entité tel que projeté côté calendrier.
+export type CalItemType =
+  | "task" | "milestone" | "reminder" | "interaction" | "manual"
+
+/**
+ * Reprogramme une entité par drag-drop. Invoice / Renewal ne sont pas déplaçables
+ * (dates contractuelles) → non gérés ici.
+ */
+export async function moveCalendarItem(
+  type: CalItemType,
+  id: string,
+  newStart: Date,
+  newEnd: Date | null,
+  allDay: boolean,
+): Promise<{ error?: string }> {
+  const session = await auth()
+  const userId  = session!.user.id
+
+  try {
+    switch (type) {
+      case "task": {
+        const t = await prisma.task.findFirst({
+          where: { id, OR: [{ userId }, { project: { userId } }, { client: { userId } }] },
+          select: { id: true, projectId: true, clientId: true },
+        })
+        if (!t) return { error: "Tâche introuvable" }
+        await prisma.task.update({ where: { id }, data: { dueDate: newStart } })
+        revalidatePath("/taches")
+        if (t.projectId) revalidatePath(`/projets/${t.projectId}`)
+        if (t.clientId)  revalidatePath(`/client/${t.clientId}`)
+        break
+      }
+      case "milestone": {
+        const m = await prisma.milestone.findFirst({
+          where: { id, project: { userId } },
+          select: { id: true, projectId: true },
+        })
+        if (!m) return { error: "Jalon introuvable" }
+        await prisma.milestone.update({ where: { id }, data: { date: newStart } })
+        revalidatePath(`/projets/${m.projectId}`)
+        break
+      }
+      case "reminder": {
+        const r = await prisma.reminder.findFirst({
+          where: { id, client: { userId } },
+          select: { id: true, clientId: true },
+        })
+        if (!r) return { error: "Rappel introuvable" }
+        await prisma.reminder.update({ where: { id }, data: { dueDate: newStart } })
+        revalidatePath(`/client/${r.clientId}`)
+        break
+      }
+      case "interaction": {
+        const i = await prisma.interaction.findFirst({
+          where: { id, client: { userId } },
+          select: { id: true, clientId: true },
+        })
+        if (!i) return { error: "Interaction introuvable" }
+        await prisma.interaction.update({ where: { id }, data: { date: newStart } })
+        revalidatePath(`/client/${i.clientId}`)
+        break
+      }
+      case "manual": {
+        await prisma.$executeRaw`
+          UPDATE "CalendarEvent"
+          SET "startDate" = ${newStart}, "endDate" = ${newEnd}, "allDay" = ${allDay}, "updatedAt" = NOW()
+          WHERE id = ${id} AND "userId" = ${userId}
+        `
+        break
+      }
+    }
+    revalidatePath("/calendrier")
+    return {}
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Erreur inconnue"
+    return { error: message }
+  }
+}
+
+/**
+ * Met à jour titre / date / description d'une entité depuis la modale détail.
+ */
+export async function updateCalendarItem(
+  type: CalItemType,
+  id: string,
+  data: {
+    title?: string
+    description?: string | null
+    startDate?: Date
+    endDate?: Date | null
+    allDay?: boolean
+    categoryId?: string | null
+    projectId?: string | null
+    clientId?: string | null
+    channel?: string | null
+    priority?: string | null
+  },
+): Promise<{ error?: string }> {
+  const session = await auth()
+  const userId  = session!.user.id
+
+  try {
+    switch (type) {
+      case "task": {
+        const t = await prisma.task.findFirst({
+          where: { id, OR: [{ userId }, { project: { userId } }, { client: { userId } }] },
+          select: { id: true, projectId: true, clientId: true },
+        })
+        if (!t) return { error: "Tâche introuvable" }
+        await prisma.task.update({
+          where: { id },
+          data: {
+            ...(data.title !== undefined ? { title: data.title } : {}),
+            ...(data.description !== undefined ? { description: data.description } : {}),
+            ...(data.startDate !== undefined ? { dueDate: data.startDate } : {}),
+            ...(data.priority ? { priority: data.priority as never } : {}),
+          },
+        })
+        revalidatePath("/taches")
+        if (t.projectId) revalidatePath(`/projets/${t.projectId}`)
+        if (t.clientId)  revalidatePath(`/client/${t.clientId}`)
+        break
+      }
+      case "milestone": {
+        const m = await prisma.milestone.findFirst({
+          where: { id, project: { userId } }, select: { id: true, projectId: true },
+        })
+        if (!m) return { error: "Jalon introuvable" }
+        await prisma.milestone.update({
+          where: { id },
+          data: {
+            ...(data.title !== undefined ? { name: data.title } : {}),
+            ...(data.startDate !== undefined ? { date: data.startDate } : {}),
+          },
+        })
+        revalidatePath(`/projets/${m.projectId}`)
+        break
+      }
+      case "reminder": {
+        const r = await prisma.reminder.findFirst({
+          where: { id, client: { userId } }, select: { id: true, clientId: true },
+        })
+        if (!r) return { error: "Rappel introuvable" }
+        await prisma.reminder.update({
+          where: { id },
+          data: {
+            ...(data.title !== undefined ? { note: data.title } : {}),
+            ...(data.startDate !== undefined ? { dueDate: data.startDate } : {}),
+          },
+        })
+        revalidatePath(`/client/${r.clientId}`)
+        break
+      }
+      case "interaction": {
+        const i = await prisma.interaction.findFirst({
+          where: { id, client: { userId } }, select: { id: true, clientId: true },
+        })
+        if (!i) return { error: "Interaction introuvable" }
+        await prisma.interaction.update({
+          where: { id },
+          data: {
+            ...(data.title !== undefined ? { summary: data.title } : {}),
+            ...(data.description !== undefined ? { response: data.description } : {}),
+            ...(data.startDate !== undefined ? { date: data.startDate } : {}),
+            ...(data.channel ? { channel: data.channel as never } : {}),
+          },
+        })
+        revalidatePath(`/client/${i.clientId}`)
+        break
+      }
+      case "manual": {
+        await updateCalendarEvent(id, {
+          ...(data.title !== undefined ? { title: data.title } : {}),
+          ...(data.description !== undefined ? { description: data.description } : {}),
+          ...(data.startDate !== undefined ? { startDate: data.startDate } : {}),
+          ...(data.endDate !== undefined ? { endDate: data.endDate } : {}),
+          ...(data.allDay !== undefined ? { allDay: data.allDay } : {}),
+          ...(data.categoryId !== undefined ? { categoryId: data.categoryId } : {}),
+          ...(data.projectId !== undefined ? { projectId: data.projectId } : {}),
+          ...(data.clientId !== undefined ? { clientId: data.clientId } : {}),
+        })
+        break
+      }
+    }
+    revalidatePath("/calendrier")
+    return {}
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Erreur inconnue"
+    return { error: message }
+  }
+}
+
+/**
+ * Supprime une entité depuis la modale détail.
+ */
+export async function deleteCalendarItem(type: CalItemType, id: string): Promise<{ error?: string }> {
+  const session = await auth()
+  const userId  = session!.user.id
+
+  try {
+    switch (type) {
+      case "task": {
+        const t = await prisma.task.findFirst({
+          where: { id, OR: [{ userId }, { project: { userId } }, { client: { userId } }] },
+          select: { id: true, projectId: true, clientId: true },
+        })
+        if (!t) return { error: "Tâche introuvable" }
+        await prisma.task.delete({ where: { id } })
+        revalidatePath("/taches")
+        if (t.projectId) revalidatePath(`/projets/${t.projectId}`)
+        if (t.clientId)  revalidatePath(`/client/${t.clientId}`)
+        break
+      }
+      case "milestone": {
+        const m = await prisma.milestone.findFirst({ where: { id, project: { userId } }, select: { projectId: true } })
+        if (!m) return { error: "Jalon introuvable" }
+        await prisma.milestone.delete({ where: { id } })
+        revalidatePath(`/projets/${m.projectId}`)
+        break
+      }
+      case "reminder": {
+        const r = await prisma.reminder.findFirst({ where: { id, client: { userId } }, select: { clientId: true } })
+        if (!r) return { error: "Rappel introuvable" }
+        await prisma.reminder.delete({ where: { id } })
+        revalidatePath(`/client/${r.clientId}`)
+        break
+      }
+      case "interaction": {
+        const i = await prisma.interaction.findFirst({ where: { id, client: { userId } }, select: { clientId: true } })
+        if (!i) return { error: "Interaction introuvable" }
+        await prisma.interaction.delete({ where: { id } })
+        revalidatePath(`/client/${i.clientId}`)
+        break
+      }
+      case "manual": {
+        await prisma.$executeRaw`
+          DELETE FROM "CalendarEvent" WHERE id = ${id} AND "userId" = ${userId}
+        `
+        break
+      }
+    }
+    revalidatePath("/calendrier")
+    return {}
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Erreur inconnue"
+    return { error: message }
+  }
+}
+
 // ─── Sync Google Calendar ─────────────────────────────────────────────────────
 
 /**

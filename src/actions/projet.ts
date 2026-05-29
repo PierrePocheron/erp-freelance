@@ -191,6 +191,7 @@ export async function createClientTask(
     },
   })
   revalidatePath("/taches")
+  if (clientId) revalidatePath(`/client/${clientId}`)
   return task
 }
 

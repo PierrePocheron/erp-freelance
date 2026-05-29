@@ -30,7 +30,7 @@ export default async function CalendrierPage() {
   const to = new Date()
   to.setMonth(to.getMonth() + 2)
 
-  const [categories, googleScope, projects, tasks, milestones, reminders, invoices, renewals, calEvents] = await Promise.all([
+  const [categories, googleScope, projects, tasks, milestones, reminders, interactions, invoices, renewals, calEvents] = await Promise.all([
     getOrCreateDefaultCategories(),
     hasCalendarScope(userId),
     prisma.project.findMany({
@@ -44,7 +44,7 @@ export default async function CalendrierPage() {
     }),
     prisma.task.findMany({
       where: {
-        project: { userId },
+        OR: [{ project: { userId } }, { client: { userId } }, { userId }],
         dueDate: { gte: from, lte: to },
         status: { not: "DONE" },
         parentTaskId: null,
@@ -57,6 +57,7 @@ export default async function CalendrierPage() {
             client: { select: { name: true, company: true } },
           },
         },
+        client: { select: { id: true, name: true, company: true } },
       },
     }),
     prisma.milestone.findMany({
@@ -82,6 +83,13 @@ export default async function CalendrierPage() {
         isDone: false,
       },
       include: { client: { select: { id: true, name: true } } },
+    }),
+    prisma.interaction.findMany({
+      where: {
+        client: { userId },
+        date: { gte: from, lte: to },
+      },
+      include: { client: { select: { id: true, name: true, company: true } } },
     }),
     prisma.invoice.findMany({
       where: {
@@ -146,20 +154,31 @@ export default async function CalendrierPage() {
 
   const events: CalendarEvent[] = [
     ...tasks.map((t) => {
-      const clientLabel = t.project!.client.company ?? t.project!.client.name
+      // tâche projet OU tâche client directe
+      const proj = t.project
+      const cli  = t.client ?? proj?.client ?? null
+      const clientLabel = cli ? ((cli as { company?: string | null; name: string }).company ?? cli.name) : null
       const d = new Date(t.dueDate!)
       const isAllDay = d.getHours() === 0 && d.getMinutes() === 0
+      const subtitle = proj
+        ? `${proj.name}${clientLabel ? ` · ${clientLabel}` : ""}`
+        : (clientLabel ?? undefined)
       return {
         id: t.id,
         date: t.dueDate!,
         allDay: isAllDay,
         title: t.title,
-        subtitle: `${t.project!.name} · ${clientLabel}`,
+        description: t.description ?? null,
+        subtitle,
         type: "task" as const,
-        href: `/projets/${t.project!.id}/dev`,
+        href: proj ? `/projets/${proj.id}/dev` : (t.clientId ? `/client/${t.clientId}` : undefined),
         isLate: new Date(t.dueDate!) < now,
         categoryId: catTasks?.id ?? null,
         categoryColor: catTasks?.color ?? null,
+        projectId: proj?.id ?? null,
+        clientId: t.clientId ?? null,
+        projectName: proj?.name ?? null,
+        clientName: clientLabel,
       }
     }),
     ...milestones.map((m) => {
@@ -177,6 +196,9 @@ export default async function CalendrierPage() {
         isLate: new Date(m.date) < now,
         categoryId: catMilestone?.id ?? null,
         categoryColor: catMilestone?.color ?? null,
+        projectId: m.project.id,
+        projectName: m.project.name,
+        clientName: clientLabel,
       }
     }),
     ...reminders.map((r) => ({
@@ -186,7 +208,26 @@ export default async function CalendrierPage() {
       type: "reminder" as const,
       href: `/client/${r.client.id}/rappels`,
       isLate: new Date(r.dueDate) < now,
+      clientId: r.client.id,
+      clientName: r.client.name,
     })),
+    ...interactions.map((i) => {
+      const clientLabel = i.client.company ?? i.client.name
+      const d = new Date(i.date)
+      const isAllDay = d.getHours() === 0 && d.getMinutes() === 0
+      return {
+        id: i.id,
+        date: i.date,
+        allDay: isAllDay,
+        title: i.summary,
+        description: i.response ?? null,
+        subtitle: `${clientLabel} · ${i.channel.toLowerCase()}`,
+        type: "interaction" as const,
+        href: `/client/${i.client.id}`,
+        clientId: i.client.id,
+        clientName: clientLabel,
+      }
+    }),
     ...invoices.map((inv) => {
       const net = inv.totalHT - inv.depositDeducted
       return {

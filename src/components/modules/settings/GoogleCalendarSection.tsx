@@ -5,6 +5,8 @@ import { Calendar, Check, ExternalLink } from "lucide-react"
 
 export function GoogleCalendarSection({ hasScope }: { hasScope: boolean }) {
   function handleConnect() {
+    // Le compte Google est déjà connecté (seul provider de connexion).
+    // On demande uniquement l'autorisation incrémentale d'accès à l'agenda.
     signIn("google", { callbackUrl: "/settings" }, {
       scope: [
         "openid",
@@ -13,6 +15,8 @@ export function GoogleCalendarSection({ hasScope }: { hasScope: boolean }) {
         "https://www.googleapis.com/auth/calendar.readonly",
         "https://www.googleapis.com/auth/calendar.events",
       ].join(" "),
+      // conserve les scopes déjà accordés (autorisation incrémentale)
+      include_granted_scopes: "true",
       // Force le consentement pour avoir le refresh_token
       prompt: "consent",
       access_type: "offline",
@@ -30,7 +34,7 @@ export function GoogleCalendarSection({ hasScope }: { hasScope: boolean }) {
         <div className="space-y-3">
           <div className="flex items-center gap-2 text-sm text-emerald-600">
             <Check className="h-4 w-4" />
-            <span>Google Calendar connecté</span>
+            <span>Accès à Google Agenda autorisé</span>
           </div>
           <p className="text-xs text-muted-foreground">
             Vos événements Google Calendar sont synchronisables depuis le module Calendrier
@@ -41,14 +45,15 @@ export function GoogleCalendarSection({ hasScope }: { hasScope: boolean }) {
             onClick={handleConnect}
             className="text-xs text-muted-foreground hover:text-foreground underline-offset-2 hover:underline inline-flex items-center gap-1"
           >
-            Reconnecter / révoquer les droits
+            Réautoriser l&apos;accès
             <ExternalLink className="h-3 w-3" />
           </button>
         </div>
       ) : (
         <div className="space-y-3">
           <p className="text-sm text-muted-foreground">
-            Connectez votre Google Calendar pour synchroniser vos événements dans l&apos;ERP.
+            Autorisez l&apos;accès à votre Google Agenda pour synchroniser vos événements dans l&apos;ERP.
+            Votre compte Google est déjà connecté — il s&apos;agit seulement d&apos;accorder l&apos;accès au calendrier.
             La synchronisation est <strong>manuelle</strong> — aucune donnée n&apos;est modifiée automatiquement.
           </p>
           <ul className="text-xs text-muted-foreground space-y-1">
@@ -88,7 +93,7 @@ export function GoogleCalendarSection({ hasScope }: { hasScope: boolean }) {
                 fill="#EA4335"
               />
             </svg>
-            Connecter Google Calendar
+            Autoriser Google Agenda
           </button>
         </div>
       )}

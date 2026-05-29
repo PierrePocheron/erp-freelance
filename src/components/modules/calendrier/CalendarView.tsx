@@ -6,7 +6,7 @@ import { signIn } from "next-auth/react"
 import {
   ChevronLeft, ChevronRight, ExternalLink, Plus, Loader2,
   RefreshCw, Check, AlertCircle, Eye, EyeOff, Pencil, Trash2,
-  Settings2, Link2, Unlink,
+  Settings2, KeyRound,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import Link from "next/link"
@@ -773,9 +773,16 @@ const GOOGLE_CALENDAR_SCOPES = [
   "https://www.googleapis.com/auth/calendar.events",
 ].join(" ")
 
-function connectGoogleCalendar() {
+// L'utilisateur est déjà authentifié via Google (seul provider de connexion).
+// On ne « reconnecte » donc pas : on demande uniquement l'autorisation
+// incrémentale d'accès à Google Agenda. Google n'affiche que l'écran de
+// consentement pour ces scopes (pas de saisie de mot de passe).
+function grantCalendarAccess() {
   signIn("google", { callbackUrl: "/calendrier" }, {
     scope: GOOGLE_CALENDAR_SCOPES,
+    // conserve les scopes déjà accordés (autorisation incrémentale)
+    include_granted_scopes: "true",
+    // force l'écran de consentement → garantit la réception du refresh_token
     prompt: "consent",
     access_type: "offline",
   })
@@ -965,7 +972,7 @@ export function CalendarView({
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-56">
                 <DropdownMenuLabel className="flex items-center gap-1.5 text-emerald-600">
-                  <Check className="h-3.5 w-3.5" /> Google Calendar connecté
+                  <Check className="h-3.5 w-3.5" /> Google Agenda autorisé
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={() => setShowGoogleEvents(v => !v)}>
@@ -976,18 +983,17 @@ export function CalendarView({
                   <RefreshCw className="h-3.5 w-3.5" /> Synchroniser maintenant
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={connectGoogleCalendar}>
-                  <Unlink className="h-3.5 w-3.5" /> Reconnecter / révoquer les droits
+                <DropdownMenuItem onClick={grantCalendarAccess}>
+                  <KeyRound className="h-3.5 w-3.5" /> Réautoriser l'accès
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
         ) : (
-          <button onClick={connectGoogleCalendar} title="Connecter votre Google Calendar"
+          <button onClick={grantCalendarAccess} title="Autoriser l'accès à votre Google Agenda (votre compte Google est déjà connecté)"
             className="inline-flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-xs font-medium hover:bg-muted transition-colors">
             <GoogleIcon className="h-3.5 w-3.5" />
-            <Link2 className="h-3 w-3 text-muted-foreground" />
-            <span>Connecter Google</span>
+            <span>Autoriser Google Agenda</span>
           </button>
         )}
 

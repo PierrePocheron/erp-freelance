@@ -7,6 +7,8 @@ import {
   getGoogleAccessToken,
   hasCalendarScope,
   fetchGoogleEvents,
+  pushGoogleEvent,
+  deleteGoogleEvent,
   type SyncResult,
 } from "@/lib/google-calendar"
 
@@ -319,6 +321,75 @@ export async function deleteCalendarEvent(eventId: string): Promise<void> {
   revalidatePath("/calendrier")
 }
 
+// ─── Push ERP → Google (événements manuels uniquement) ─────────────────────────
+// Modèle asymétrique décidé : les CalendarEvent MANUAL sont bidirectionnels
+// (last-write-wins + suppression des deux côtés). Les tâches/jalons/factures/
+// renouvellements restent des projections (miroir unidirectionnel — phases B/C).
+// Tout est best-effort : un échec Google ne doit jamais casser l'action ERP.
+
+/**
+ * Pousse un événement manuel vers Google (création ou mise à jour) et mémorise
+ * googleEventId + googleSyncedAt. Silencieux si pas de scope/token (best-effort).
+ */
+async function syncManualEventToGoogle(userId: string, eventId: string): Promise<void> {
+  try {
+    const accessToken = await getGoogleAccessToken(userId)
+    if (!accessToken) return
+
+    const rows = await prisma.$queryRaw<{
+      title: string
+      description: string | null
+      startDate: Date
+      endDate: Date | null
+      allDay: boolean
+      googleEventId: string | null
+    }[]>`
+      SELECT title, description, "startDate", "endDate", "allDay", "googleEventId"
+      FROM "CalendarEvent"
+      WHERE id = ${eventId} AND "userId" = ${userId} AND "sourceType" = 'MANUAL'
+      LIMIT 1
+    `
+    const ev = rows[0]
+    if (!ev) return
+
+    const end = ev.endDate ?? new Date(new Date(ev.startDate).getTime() + 30 * 60_000)
+
+    const { id: googleEventId, updated } = await pushGoogleEvent(
+      accessToken,
+      {
+        summary: ev.title,
+        description: ev.description ?? undefined,
+        start: ev.startDate,
+        end,
+        allDay: ev.allDay,
+      },
+      ev.googleEventId,
+    )
+
+    const syncedAt = updated ? new Date(updated) : new Date()
+    await prisma.$executeRaw`
+      UPDATE "CalendarEvent"
+      SET "googleEventId" = ${googleEventId}, "googleSyncedAt" = ${syncedAt}
+      WHERE id = ${eventId} AND "userId" = ${userId}
+    `
+  } catch {
+    // best-effort : on n'interrompt jamais l'action ERP
+  }
+}
+
+/**
+ * Supprime côté Google l'événement associé. Silencieux si pas de scope/token.
+ */
+async function removeManualEventFromGoogle(userId: string, googleEventId: string): Promise<void> {
+  try {
+    const accessToken = await getGoogleAccessToken(userId)
+    if (!accessToken) return
+    await deleteGoogleEvent(accessToken, googleEventId)
+  } catch {
+    // best-effort
+  }
+}
+
 // ─── Dispatcher contextuel ────────────────────────────────────────────────────
 // Le bouton "+" du calendrier crée la VRAIE entité métier selon le contexte
 // (rattachement) et la nature choisie, plutôt qu'un simple CalendarEvent cosmétique.
@@ -471,10 +542,11 @@ export async function createCalendarItem(input: CalItemInput): Promise<{ error?:
           data: { projectId, content: description ? `${title}\n${description}` : title },
         })
         // 2) événement daté lié, visible dans l'agenda (sourceId → journal entry)
-        await insertManualEvent(userId, {
+        const noteEventId = await insertManualEvent(userId, {
           title, description, startDate: input.startDate, endDate, allDay,
           categoryId, projectId, clientId: null, sourceId: entry.id,
         })
+        await syncManualEventToGoogle(userId, noteEventId)
         revalidatePath(`/projets/${projectId}`)
         break
       }
@@ -483,10 +555,11 @@ export async function createCalendarItem(input: CalItemInput): Promise<{ error?:
       default: {
         if (projectId) await assertProjectOwnership(userId, projectId)
         if (clientId)  await assertClientOwnership(userId, clientId)
-        await insertManualEvent(userId, {
+        const eventId = await insertManualEvent(userId, {
           title, description, startDate: input.startDate, endDate, allDay,
           categoryId, projectId, clientId,
         })
+        await syncManualEventToGoogle(userId, eventId)
         break
       }
     }
@@ -568,6 +641,7 @@ export async function moveCalendarItem(
           SET "startDate" = ${newStart}, "endDate" = ${newEnd}, "allDay" = ${allDay}, "updatedAt" = NOW()
           WHERE id = ${id} AND "userId" = ${userId}
         `
+        await syncManualEventToGoogle(userId, id)
         break
       }
     }
@@ -681,6 +755,7 @@ export async function updateCalendarItem(
           ...(data.projectId !== undefined ? { projectId: data.projectId } : {}),
           ...(data.clientId !== undefined ? { clientId: data.clientId } : {}),
         })
+        await syncManualEventToGoogle(userId, id)
         break
       }
     }
@@ -735,9 +810,16 @@ export async function deleteCalendarItem(type: CalItemType, id: string): Promise
         break
       }
       case "manual": {
+        // Récupère l'id Google avant suppression pour répercuter côté agenda.
+        const rows = await prisma.$queryRaw<{ googleEventId: string | null }[]>`
+          SELECT "googleEventId" FROM "CalendarEvent"
+          WHERE id = ${id} AND "userId" = ${userId} LIMIT 1
+        `
         await prisma.$executeRaw`
           DELETE FROM "CalendarEvent" WHERE id = ${id} AND "userId" = ${userId}
         `
+        const gid = rows[0]?.googleEventId
+        if (gid) await removeManualEventFromGoogle(userId, gid)
         break
       }
     }
@@ -783,6 +865,16 @@ export async function syncGoogleEvents(): Promise<SyncResult> {
       existing.filter(e => e.sourceId).map(e => [e.sourceId, e.id])
     )
 
+    // Événements MANUAL déjà poussés vers Google (pour dédoublonnage + arbitrage).
+    const pushed = await prisma.$queryRaw<{ id: string; googleEventId: string; googleSyncedAt: Date | null }[]>`
+      SELECT id, "googleEventId", "googleSyncedAt"
+      FROM "CalendarEvent"
+      WHERE "userId" = ${userId} AND "sourceType" = 'MANUAL' AND "googleEventId" IS NOT NULL
+    `
+    const pushedByGoogleId = Object.fromEntries(
+      pushed.map(e => [e.googleEventId, e])
+    )
+
     let synced = 0
     for (const gEvent of googleEvents) {
       if (!gEvent.summary || gEvent.status === "cancelled") continue
@@ -795,6 +887,28 @@ export async function syncGoogleEvents(): Promise<SyncResult> {
       const endDate     = endStr ? new Date(endStr) : null
       const allDay      = !gEvent.start.dateTime
       const description = gEvent.description ?? null
+
+      // Cas d'un événement que NOUS avons poussé : ne pas créer de doublon GOOGLE.
+      // Arbitrage "dernière modif gagne" : on ne rapatrie la version Google que si
+      // elle est plus récente que notre dernière synchro (modifié hors ERP).
+      const mine = pushedByGoogleId[gEvent.id]
+      if (mine) {
+        const gUpdated = gEvent.updated ? new Date(gEvent.updated).getTime() : 0
+        const lastSync = mine.googleSyncedAt ? new Date(mine.googleSyncedAt).getTime() : 0
+        if (gUpdated > lastSync) {
+          await prisma.$executeRaw`
+            UPDATE "CalendarEvent"
+            SET title = ${gEvent.summary}, description = ${description},
+                "startDate" = ${startDate}, "endDate" = ${endDate},
+                "allDay" = ${allDay}, "googleSyncedAt" = ${gEvent.updated ? new Date(gEvent.updated) : new Date()},
+                "updatedAt" = NOW()
+            WHERE id = ${mine.id}
+          `
+          synced++
+        }
+        continue
+      }
+
       const existingId  = existingBySourceId[gEvent.id]
 
       if (existingId) {

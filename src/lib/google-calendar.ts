@@ -125,7 +125,12 @@ export async function fetchGoogleEvents(
   })
 
   if (!res.ok) {
-    throw new Error(`Google Calendar API error: ${res.status}`)
+    let detail = ""
+    try {
+      const body = await res.json() as { error?: { message?: string } }
+      detail = body?.error?.message ?? ""
+    } catch { /* corps non-JSON */ }
+    throw new Error(`Google Calendar API ${res.status}${detail ? ` — ${detail}` : ""}`)
   }
 
   const data = await res.json() as { items?: GoogleCalendarEvent[] }

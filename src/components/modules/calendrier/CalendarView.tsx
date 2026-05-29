@@ -827,6 +827,7 @@ export function CalendarView({
   const [isSyncing, startSync]          = useTransition()
   const [syncStatus, setSyncStatus]     = useState<"idle" | "success" | "error" | "noPermission">("idle")
   const [syncCount, setSyncCount]       = useState(0)
+  const [syncError, setSyncError]       = useState<string>("")
   const [showGoogleEvents, setShowGoogleEvents] = useState(true)
   const [isRefreshing, startRefresh]    = useTransition()
   const router = useRouter()
@@ -880,10 +881,20 @@ export function CalendarView({
   function handleSync() {
     startSync(async () => {
       const result = await syncGoogleEvents()
-      if (result.needsPermission) setSyncStatus("noPermission")
-      else if (result.error)      setSyncStatus("error")
-      else { setSyncStatus("success"); setSyncCount(result.synced) }
-      setTimeout(() => setSyncStatus("idle"), 4000)
+      if (result.needsPermission) {
+        setSyncStatus("noPermission")
+        setTimeout(() => setSyncStatus("idle"), 6000)
+      } else if (result.error) {
+        setSyncStatus("error")
+        setSyncError(result.error)
+        // l'erreur reste affichée jusqu'à la prochaine sync (pas d'auto-effacement)
+      } else {
+        setSyncStatus("success")
+        setSyncCount(result.synced)
+        setSyncError("")
+        router.refresh()
+        setTimeout(() => setSyncStatus("idle"), 4000)
+      }
     })
   }
 
@@ -1068,6 +1079,27 @@ export function CalendarView({
           </>
         )}
       </div>
+
+      {/* ── Bandeau d'erreur de synchronisation ──────────────────────────── */}
+      {syncStatus === "error" && syncError && (
+        <div className="shrink-0 flex items-start gap-2 rounded-lg border border-red-500/30 bg-red-500/5 px-3 py-2 text-xs text-red-700">
+          <AlertCircle className="h-4 w-4 shrink-0 mt-px" />
+          <div className="flex-1 min-w-0 space-y-1">
+            <p className="font-medium">Échec de la synchronisation Google Calendar</p>
+            {/(disabled|has not been used|accessNotConfigured)/i.test(syncError) ? (
+              <p className="text-red-600/90">
+                L&apos;API Google Calendar n&apos;est pas activée dans la console Google Cloud.
+                Active-la dans <span className="font-medium">APIs &amp; Services → Library → Google Calendar API</span>,
+                puis réessaie (laisse ~1 min de propagation).
+              </p>
+            ) : (
+              <p className="text-red-600/90 break-words">{syncError}</p>
+            )}
+          </div>
+          <button type="button" onClick={() => { setSyncStatus("idle"); setSyncError("") }}
+            title="Fermer" className="shrink-0 text-red-700/70 hover:text-red-700">✕</button>
+        </div>
+      )}
 
       {/* ── Vue ─────────────────────────────────────────────────────────── */}
       {viewMode === "month" ? (

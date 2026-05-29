@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useTransition, useRef, useMemo } from "react"
+import { useState, useEffect, useTransition, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { signIn } from "next-auth/react"
 import {
@@ -38,6 +38,12 @@ export type ProjectOption = {
   name: string
   clientId: string
   clientName: string
+}
+
+export type ClientOption = {
+  id: string
+  label: string
+  type: string  // ClientType: CLIENT | PROSPECT | TO_COMPLETE | PERSONAL | SELF | INACTIVE
 }
 
 export type CalendarEvent = {
@@ -186,6 +192,45 @@ const EDIT_TITLE: Record<CalItemType, string> = {
   interaction: "Modifier l'interaction", manual: "Modifier l'événement",
 }
 
+// Ordre + libellés des groupes de clients dans les sélecteurs
+const CLIENT_TYPE_GROUPS: [string, string][] = [
+  ["CLIENT", "Clients"],
+  ["PROSPECT", "Prospects"],
+  ["TO_COMPLETE", "À compléter"],
+  ["PERSONAL", "Personnel"],
+  ["SELF", "Moi"],
+  ["INACTIVE", "Inactifs"],
+]
+
+/** Sélecteur de client groupé par type (Clients / Prospects / À compléter…). */
+function ClientSelect({ value, onChange, clients, placeholder = "Sélectionner…", className }: {
+  value: string
+  onChange: (id: string) => void
+  clients: ClientOption[]
+  placeholder?: string
+  className?: string
+}) {
+  const groups = CLIENT_TYPE_GROUPS
+    .map(([type, label]) => ({ label, items: clients.filter(c => c.type === type) }))
+    .filter(g => g.items.length > 0)
+  // Clients dont le type ne fait pas partie des groupes connus (fallback)
+  const known = new Set(CLIENT_TYPE_GROUPS.map(([t]) => t))
+  const others = clients.filter(c => !known.has(c.type))
+  if (others.length > 0) groups.push({ label: "Autres", items: others })
+
+  return (
+    <select value={value} onChange={e => onChange(e.target.value)}
+      className={cn("h-8 w-full rounded-md border border-input bg-background px-3 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring", className)}>
+      <option value="">{placeholder}</option>
+      {groups.map(g => (
+        <optgroup key={g.label} label={g.label}>
+          {g.items.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
+        </optgroup>
+      ))}
+    </select>
+  )
+}
+
 function snapMinutes(totalMin: number): number {
   return Math.max(0, Math.min((HOUR_END - HOUR_START) * 60 - 15, Math.round(totalMin / 15) * 15))
 }
@@ -215,7 +260,7 @@ function EventFormFields({
   clientId, setClientId,
   categories,
   projects,
-  clientOptions,
+  clients,
 }: {
   title: string; setTitle: (v: string) => void
   date: string;  setDate:  (v: string) => void
@@ -226,7 +271,7 @@ function EventFormFields({
   clientId: string;    setClientId:    (v: string) => void
   categories: CalendarCategory[]
   projects: ProjectOption[]
-  clientOptions: { id: string; label: string }[]
+  clients: ClientOption[]
 }) {
   return (
     <>
@@ -304,17 +349,10 @@ function EventFormFields({
       )}
 
       {/* Client (uniquement si pas de projet sélectionné) */}
-      {clientOptions.length > 0 && !projectId && (
+      {clients.length > 0 && !projectId && (
         <div className="space-y-1.5">
           <label className="text-xs font-medium text-muted-foreground">Client lié</label>
-          <select value={clientId} onChange={e => setClientId(e.target.value)}
-            className="h-8 w-full rounded-md border border-input bg-background px-3 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-          >
-            <option value="">Aucun</option>
-            {clientOptions.map(c => (
-              <option key={c.id} value={c.id}>{c.label}</option>
-            ))}
-          </select>
+          <ClientSelect value={clientId} onChange={setClientId} clients={clients} placeholder="Aucun" />
         </div>
       )}
     </>
@@ -341,13 +379,14 @@ function Segmented<T extends string>({ value, onChange, options }: {
 }
 
 function NewEventDialog({
-  open, onClose, defaultDate, categories, projects,
+  open, onClose, defaultDate, categories, projects, clients,
 }: {
   open: boolean
   onClose: () => void
   defaultDate: Date
   categories: CalendarCategory[]
   projects: ProjectOption[]
+  clients: ClientOption[]
 }) {
   const router = useRouter()
   const [rattachement, setRattachement] = useState<Rattachement>("none")
@@ -363,12 +402,6 @@ function NewEventDialog({
   const [priority, setPriority]     = useState("MEDIUM")
   const [error, setError]           = useState("")
   const [isPending, startTransition] = useTransition()
-
-  const clientOptions = useMemo(() => {
-    const seen = new Set<string>()
-    return projects.filter(p => { if (seen.has(p.clientId)) return false; seen.add(p.clientId); return true })
-      .map(p => ({ id: p.clientId, label: p.clientName }))
-  }, [projects])
 
   const natureOptions = NATURES_BY_RATT[rattachement]
 
@@ -454,11 +487,7 @@ function NewEventDialog({
           {rattachement === "client" && (
             <div className="space-y-1.5">
               <label className="text-xs font-medium text-muted-foreground">Client</label>
-              <select value={clientId} onChange={e => setClientId(e.target.value)}
-                className="h-8 w-full rounded-md border border-input bg-background px-3 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">
-                <option value="">Sélectionner…</option>
-                {clientOptions.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
-              </select>
+              <ClientSelect value={clientId} onChange={setClientId} clients={clients} />
             </div>
           )}
 
@@ -559,12 +588,13 @@ function NewEventDialog({
 // ── Dialog Détail / Modification d'un événement ──────────────────────────────
 
 function EventDetailDialog({
-  event, onClose, categories, projects,
+  event, onClose, categories, projects, clients,
 }: {
   event: CalendarEvent
   onClose: () => void
   categories: CalendarCategory[]
   projects: ProjectOption[]
+  clients: ClientOption[]
 }) {
   const router = useRouter()
   const itemType = event.type as CalItemType
@@ -583,19 +613,13 @@ function EventDetailDialog({
   const [isSaving, startSave]         = useTransition()
   const [isDeleting, startDelete]     = useTransition()
 
-  const clientOptions = useMemo(() => {
-    const seen = new Set<string>()
-    return projects.filter(p => { if (seen.has(p.clientId)) return false; seen.add(p.clientId); return true })
-      .map(p => ({ id: p.clientId, label: p.clientName }))
-  }, [projects])
-
   // Liens de navigation : pour un événement manuel, dérivés des sélecteurs ;
   // pour les autres entités, fournis par la projection (lecture seule).
   const linkedProject = isManual
     ? projects.find(p => p.id === projectId)
     : (event.projectId ? { id: event.projectId, name: event.projectName ?? "Projet", clientName: event.clientName ?? "" } : undefined)
   const linkedClient = isManual
-    ? (!projectId ? clientOptions.find(c => c.id === clientId) : undefined)
+    ? (!projectId ? clients.find(c => c.id === clientId) : undefined)
     : (event.clientId ? { id: event.clientId, label: event.clientName ?? "Client" } : undefined)
 
   function handleSave() {
@@ -649,7 +673,7 @@ function EventDetailDialog({
               categoryId={categoryId} setCategoryId={setCategoryId}
               projectId={projectId} setProjectId={setProjectId}
               clientId={clientId} setClientId={setClientId}
-              categories={categories} projects={projects} clientOptions={clientOptions}
+              categories={categories} projects={projects} clients={clients}
             />
           ) : (
             <>
@@ -774,12 +798,14 @@ export function CalendarView({
   events,
   categories = [],
   projects = [],
+  clients = [],
   hasGoogleCalendar = false,
   className,
 }: {
   events: CalendarEvent[]
   categories?: CalendarCategory[]
   projects?: ProjectOption[]
+  clients?: ClientOption[]
   hasGoogleCalendar?: boolean
   className?: string
 }) {
@@ -1054,17 +1080,31 @@ export function CalendarView({
       {/* Dialog détail jour (vue mois) */}
       {viewMode === "month" && (
         <Dialog open={selectedDay !== null} onOpenChange={v => { if (!v) setSelectedDay(null) }}>
-          <DialogContent className="sm:max-w-md">
-            <DialogHeader>
-              <DialogTitle className="capitalize">
-                {selectedDay?.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" }) ?? ""}
+          <DialogContent className="sm:max-w-md max-h-[85vh] flex flex-col overflow-hidden">
+            <DialogHeader className="shrink-0">
+              <DialogTitle className="capitalize flex items-center justify-between gap-2">
+                <span>{selectedDay?.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" }) ?? ""}</span>
+                {selectedDay && (
+                  <span className="text-xs font-normal text-muted-foreground">
+                    {eventsForDay(filteredEvents, selectedDay).length} événement{eventsForDay(filteredEvents, selectedDay).length > 1 ? "s" : ""}
+                  </span>
+                )}
               </DialogTitle>
             </DialogHeader>
-            <EventList
-              events={selectedDay ? eventsForDay(filteredEvents, selectedDay) : []}
-              onNavigate={() => setSelectedDay(null)}
-              onEventClick={ev => { setSelectedDay(null); handleEventClick(ev) }}
-            />
+            <div className="flex-1 min-h-0 overflow-y-auto -mx-1 px-1">
+              <EventList
+                events={selectedDay ? eventsForDay(filteredEvents, selectedDay) : []}
+                onNavigate={() => setSelectedDay(null)}
+                onEventClick={ev => { setSelectedDay(null); handleEventClick(ev) }}
+              />
+            </div>
+            <button
+              type="button"
+              onClick={() => { if (selectedDay) { setNewEventDate(selectedDay); setSelectedDay(null); setNewEventOpen(true) } }}
+              className="shrink-0 inline-flex items-center justify-center gap-1.5 rounded-lg border border-border px-3 py-2 text-xs font-medium hover:bg-muted transition-colors"
+            >
+              <Plus className="h-3.5 w-3.5" /> Ajouter ce jour
+            </button>
           </DialogContent>
         </Dialog>
       )}
@@ -1075,6 +1115,7 @@ export function CalendarView({
         defaultDate={newEventDate}
         categories={categories}
         projects={projects}
+        clients={clients}
       />
 
       {editingEvent && (
@@ -1083,6 +1124,7 @@ export function CalendarView({
           onClose={() => setEditingEvent(null)}
           categories={categories}
           projects={projects}
+          clients={clients}
         />
       )}
     </div>

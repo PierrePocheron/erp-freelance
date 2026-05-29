@@ -1080,12 +1080,12 @@ export function CalendarView({
           onNewEvent={date => { setNewEventDate(date); setNewEventOpen(true) }}
           onMoveEvent={handleMoveEvent}
           onEventClick={handleEventClick}
+          onSelectDay={setSelectedDay}
         />
       )}
 
-      {/* Dialog détail jour (vue mois) */}
-      {viewMode === "month" && (
-        <Dialog open={selectedDay !== null} onOpenChange={v => { if (!v) setSelectedDay(null) }}>
+      {/* Dialog détail jour (toutes vues) */}
+      <Dialog open={selectedDay !== null} onOpenChange={v => { if (!v) setSelectedDay(null) }}>
           <DialogContent className="sm:max-w-md max-h-[85vh] flex flex-col overflow-hidden">
             <DialogHeader className="shrink-0">
               <DialogTitle className="capitalize flex items-center justify-between gap-2">
@@ -1113,7 +1113,6 @@ export function CalendarView({
             </button>
           </DialogContent>
         </Dialog>
-      )}
 
       <NewEventDialog
         open={newEventOpen}
@@ -1265,13 +1264,14 @@ function MonthView({
 // ── Vue grille horaire (Jour / 3j / 5j / 7j) ─────────────────────────────────
 
 function TimeGridView({
-  events, days, onNewEvent, onMoveEvent, onEventClick,
+  events, days, onNewEvent, onMoveEvent, onEventClick, onSelectDay,
 }: {
   events: CalendarEvent[]
   days: Date[]
   onNewEvent: (date: Date) => void
   onMoveEvent: MoveEventFn
   onEventClick: (ev: CalendarEvent) => void
+  onSelectDay: (d: Date) => void
 }) {
   const today   = new Date()
   const cols    = days.length
@@ -1356,8 +1356,10 @@ function TimeGridView({
           const isToday   = isSameDay(date, today)
           const isWeekend = date.getDay() === 0 || date.getDay() === 6
           return (
-            <div key={date.toISOString()}
-              className={cn("flex-1 py-2.5 text-center border-l border-border/30", isWeekend && "bg-muted/10", isToday && "bg-primary/5")}>
+            <button key={date.toISOString()} type="button"
+              onClick={() => onSelectDay(date)}
+              title="Voir le détail de la journée"
+              className={cn("flex-1 py-2.5 text-center border-l border-border/30 transition-colors hover:bg-muted/40 cursor-pointer", isWeekend && "bg-muted/10", isToday && "bg-primary/5")}>
               <p className="text-xs text-muted-foreground capitalize">
                 {date.toLocaleDateString("fr-FR", { weekday: cols <= 3 ? "long" : "short" })}
               </p>
@@ -1370,7 +1372,7 @@ function TimeGridView({
                   {date.toLocaleDateString("fr-FR", { month: "long" })}
                 </p>
               )}
-            </div>
+            </button>
           )
         })}
       </div>

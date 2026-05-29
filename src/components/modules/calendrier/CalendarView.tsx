@@ -144,6 +144,51 @@ function eventHeightPx(ev: CalendarEvent): number {
   return Math.max(HOUR_HEIGHT / 2, dur * HOUR_HEIGHT)
 }
 
+// Fin effective d'un événement (défaut 30 min si pas de date de fin, min 15 min)
+function effectiveEndMs(ev: CalendarEvent): number {
+  const start = new Date(ev.date).getTime()
+  const end   = ev.endDate ? new Date(ev.endDate).getTime() : start + 30 * 60_000
+  return Math.max(end, start + 15 * 60_000)
+}
+
+// Calcule la disposition en colonnes des événements qui se chevauchent.
+// Renvoie une Map id → { col, cols } : col = index de colonne, cols = nb total
+// de colonnes dans le « paquet » de chevauchement. Algorithme glouton type
+// Google Agenda (paquets transitifs + packing par colonne).
+function computeOverlapLayout(events: CalendarEvent[]): Map<string, { col: number; cols: number }> {
+  const layout = new Map<string, { col: number; cols: number }>()
+  const sorted = [...events].sort((a, b) =>
+    new Date(a.date).getTime() - new Date(b.date).getTime() || effectiveEndMs(b) - effectiveEndMs(a)
+  )
+
+  let cluster: CalendarEvent[] = []
+  let clusterEnd = 0
+
+  const flush = (group: CalendarEvent[]) => {
+    const colEnds: number[] = []          // fin du dernier event de chaque colonne
+    const colOf = new Map<string, number>()
+    for (const ev of group) {
+      const start = new Date(ev.date).getTime()
+      let placed = false
+      for (let i = 0; i < colEnds.length; i++) {
+        if (colEnds[i] <= start) { colEnds[i] = effectiveEndMs(ev); colOf.set(ev.id, i); placed = true; break }
+      }
+      if (!placed) { colOf.set(ev.id, colEnds.length); colEnds.push(effectiveEndMs(ev)) }
+    }
+    const cols = colEnds.length
+    for (const ev of group) layout.set(ev.id, { col: colOf.get(ev.id) ?? 0, cols })
+  }
+
+  for (const ev of sorted) {
+    const start = new Date(ev.date).getTime()
+    if (cluster.length && start >= clusterEnd) { flush(cluster); cluster = []; clusterEnd = 0 }
+    cluster.push(ev)
+    clusterEnd = Math.max(clusterEnd, effectiveEndMs(ev))
+  }
+  if (cluster.length) flush(cluster)
+  return layout
+}
+
 function evColor(ev: CalendarEvent): string {
   return ev.categoryColor ?? typeConfig[ev.type]?.color ?? "#8b5cf6"
 }
@@ -1479,6 +1524,7 @@ function TimeGridView({
           const isToday   = isSameDay(date, today)
           const isWeekend = date.getDay() === 0 || date.getDay() === 6
           const dayTimed  = timedByDay[di]
+          const dayLayout = computeOverlapLayout(dayTimed)
           const nowY      = isToday && nowInRange ? timeToY(now) : null
           const preview   = dropPreview?.colIdx === di ? dropPreview : null
 
@@ -1531,13 +1577,23 @@ function TimeGridView({
                 const cfg    = typeConfig[ev.type]
                 const isDragging = draggingId === ev.id
 
+                // Disposition côte à côte en cas de chevauchement
+                const pos      = dayLayout.get(ev.id) ?? { col: 0, cols: 1 }
+                const widthPct = 100 / pos.cols
+                const leftPct  = pos.col * widthPct
+
                 const editable = isEditable(ev)
                 return (
                   <div key={ev.id}
                     draggable={editable}
                     onDragStart={editable ? e => { e.stopPropagation(); startDrag(e, ev) } : undefined}
-                    style={{ top, height, backgroundColor: color + "20", borderColor: color + "60" }}
-                    className={cn("absolute left-1 right-1 rounded-md border px-1.5 py-0.5 overflow-hidden z-20 group transition-opacity",
+                    style={{
+                      top, height,
+                      left: `calc(${leftPct}% + 2px)`,
+                      width: `calc(${widthPct}% - 4px)`,
+                      backgroundColor: color + "20", borderColor: color + "60",
+                    }}
+                    className={cn("absolute rounded-md border px-1.5 py-0.5 overflow-hidden z-20 group transition-opacity hover:z-40",
                       (editable || ev.href) && "cursor-pointer",
                       isDragging && "opacity-30")}
                     onClick={editable ? e => { e.stopPropagation(); onEventClick(ev) } : undefined}

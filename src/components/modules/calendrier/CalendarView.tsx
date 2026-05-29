@@ -822,7 +822,7 @@ export function CalendarView({
   const [mounted, setMounted]           = useState(false)
   const [newEventOpen, setNewEventOpen] = useState(false)
   const [newEventDate, setNewEventDate] = useState(() => new Date())
-  const [activeFilter, setActiveFilter] = useState<string | null>(null)
+  const [hiddenTypes, setHiddenTypes] = useState<Set<string>>(new Set())
   const [editingEvent, setEditingEvent] = useState<CalendarEvent | null>(null)
   const [isSyncing, startSync]          = useTransition()
   const [syncStatus, setSyncStatus]     = useState<"idle" | "success" | "error" | "noPermission">("idle")
@@ -901,18 +901,30 @@ export function CalendarView({
     else if (ev.href) router.push(ev.href)
   }
 
+  function toggleType(t: string) {
+    setHiddenTypes(prev => {
+      const next = new Set(prev)
+      if (next.has(t)) next.delete(t)
+      else next.add(t)
+      return next
+    })
+  }
+
   const baseEvents = (hasGoogleCalendar && !showGoogleEvents)
     ? events.filter(e => !e.isGoogle)
     : events
 
-  const filteredEvents = activeFilter
-    ? baseEvents.filter(e => e.categoryId === activeFilter)
+  const filteredEvents = hiddenTypes.size > 0
+    ? baseEvents.filter(e => !hiddenTypes.has(e.type))
     : baseEvents
 
   const viewDays = getViewDays()
-  const visibleEvents = viewMode === "month"
-    ? filteredEvents.filter(e => { const d = new Date(e.date); return d.getFullYear() === currentDate.getFullYear() && d.getMonth() === currentDate.getMonth() })
-    : filteredEvents.filter(e => viewDays.some(d => isSameDay(d, new Date(e.date))))
+
+  // Événements de la période courante (avant filtre par type) → sert aux compteurs
+  // pour que masquer un type n'efface pas son compteur.
+  const periodEvents = viewMode === "month"
+    ? baseEvents.filter(e => { const d = new Date(e.date); return d.getFullYear() === currentDate.getFullYear() && d.getMonth() === currentDate.getMonth() })
+    : baseEvents.filter(e => viewDays.some(d => isSameDay(d, new Date(e.date))))
 
   if (!mounted) return <div className={cn("flex flex-col gap-3", className)} />
 
@@ -1014,50 +1026,37 @@ export function CalendarView({
         </button>
       </div>
 
-      {/* ── Compteurs + filtres catégories ───────────────────────────────── */}
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 shrink-0 text-xs">
-
-        {/* Compteurs par type (non-interactifs) */}
-        <div className="flex items-center gap-x-3 gap-y-1 flex-wrap text-muted-foreground">
-          {visibleEvents.length === 0
-            ? <span className="italic text-muted-foreground/50">Aucun événement</span>
-            : Object.entries(typeConfig).map(([k, v]) => {
-                const count = visibleEvents.filter(e => e.type === k).length
-                if (count === 0) return null
-                return (
-                  <span key={k} className="flex items-center gap-1">
-                    <span className={cn("h-1.5 w-1.5 rounded-full shrink-0", v.dot)} />
-                    {count} {v.label.toLowerCase()}{count > 1 && k !== "renewal" ? "s" : ""}
-                  </span>
-                )
-              })
-          }
-        </div>
-
-        {/* Filtres catégories */}
-        {categories.length > 0 && (
+      {/* ── Filtres par type (chips cliquables = afficher/masquer) ─────────── */}
+      <div className="flex flex-wrap items-center gap-1.5 shrink-0 text-xs">
+        {periodEvents.length === 0 ? (
+          <span className="italic text-muted-foreground/50">Aucun événement sur cette période</span>
+        ) : (
           <>
-            <span className="text-border/60">|</span>
-            <button type="button" onClick={() => setActiveFilter(null)}
-              className={cn("transition-colors", !activeFilter ? "text-foreground font-semibold" : "text-muted-foreground hover:text-foreground")}>
-              Tout
-            </button>
-            {categories.map(cat => {
-              const count = visibleEvents.filter(e => e.categoryId === cat.id).length
-              const isActive = activeFilter === cat.id
+            {Object.entries(typeConfig).map(([k, v]) => {
+              const count = periodEvents.filter(e => e.type === k).length
+              if (count === 0) return null
+              const hidden = hiddenTypes.has(k)
               return (
-                <button key={cat.id} type="button"
-                  onClick={() => setActiveFilter(isActive ? null : cat.id)}
-                  className={cn("inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 font-medium transition-colors",
-                    isActive ? "border-current" : "border-border/50 text-muted-foreground hover:border-current hover:text-foreground")}
-                  style={isActive ? { color: cat.color, borderColor: cat.color, backgroundColor: cat.color + "15" } : {}}
-                >
-                  <span className="h-1.5 w-1.5 rounded-full shrink-0" style={{ backgroundColor: cat.color }} />
-                  {cat.name}
-                  {count > 0 && <span className="font-semibold ml-0.5">{count}</span>}
+                <button key={k} type="button" onClick={() => toggleType(k)}
+                  title={hidden ? `Afficher : ${v.label}` : `Masquer : ${v.label}`}
+                  className={cn(
+                    "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 font-medium transition-colors",
+                    hidden
+                      ? "border-border/40 text-muted-foreground/50"
+                      : "border-border/60 text-foreground hover:bg-muted"
+                  )}>
+                  <span className={cn("h-1.5 w-1.5 rounded-full shrink-0", v.dot, hidden && "opacity-30")} />
+                  <span className={cn(hidden && "line-through")}>{v.label}</span>
+                  <span className="text-muted-foreground font-normal">{count}</span>
                 </button>
               )
             })}
+            {hiddenTypes.size > 0 && (
+              <button type="button" onClick={() => setHiddenTypes(new Set())}
+                className="ml-1 text-muted-foreground hover:text-foreground underline-offset-2 hover:underline">
+                Tout afficher
+              </button>
+            )}
           </>
         )}
       </div>

@@ -73,9 +73,12 @@ type MoveEventFn = (eventId: string, newStart: Date, newEnd: Date | null, allDay
 // ── Constants ─────────────────────────────────────────────────────────────────
 
 const VIEW_STORAGE_KEY = "erp-calendar-view"
-const HOUR_START  = 7
-const HOUR_END    = 21
-const HOUR_HEIGHT = 64
+const HOUR_START  = 0
+const HOUR_END    = 24
+const HOUR_HEIGHT = 56
+// Heure vers laquelle la grille défile automatiquement à l'ouverture (matin),
+// pour éviter de fixer les heures creuses du début de nuit.
+const SCROLL_TO_HOUR = 7
 const TIME_COL_W  = 44
 
 const typeConfig = {
@@ -1595,6 +1598,7 @@ function TimeGridView({
   const nowLabel   = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`
 
   const grabOffsetRef = useRef(0)
+  const scrollRef = useRef<HTMLDivElement>(null)
   const [draggingId, setDraggingId]   = useState<string | null>(null)
   const [dropPreview, setDropPreview] = useState<{ colIdx: number; snapY: number; timeLabel: string } | null>(null)
   // Créneau survolé : affiche un indicateur d'ajout rapide à l'heure pointée.
@@ -1605,6 +1609,20 @@ function TimeGridView({
     window.addEventListener("dragend", onEnd)
     return () => window.removeEventListener("dragend", onEnd)
   }, [])
+
+  // Défile sur le matin (ou l'heure courante si aujourd'hui est affiché) à
+  // l'ouverture / au changement de vue : la journée complète (0-24h) est
+  // disponible au scroll mais on ne fixe pas les heures creuses de la nuit.
+  const daysKey = days.map(d => d.toISOString()).join("|")
+  useEffect(() => {
+    const el = scrollRef.current
+    if (!el) return
+    const target = days.some(d => isSameDay(d, new Date()))
+      ? Math.max(0, new Date().getHours() - 1)
+      : SCROLL_TO_HOUR
+    el.scrollTop = (target - HOUR_START) * HOUR_HEIGHT
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [daysKey])
 
   const timedByDay   = days.map(d => eventsForDay(events, d).filter(isTimedEvent))
   // Bandeau journée entière : barres continues (multi-jours comme mono-jour).
@@ -1744,7 +1762,7 @@ function TimeGridView({
       )}
 
       {/* Grille horaire */}
-      <div className="flex flex-1 overflow-y-auto">
+      <div ref={scrollRef} className="flex flex-1 overflow-y-auto">
         <div className="shrink-0 relative" style={{ width: TIME_COL_W, height: totalH }}>
           {Array.from({ length: HOUR_END - HOUR_START }, (_, i) => (
             <div key={i} style={{ top: i * HOUR_HEIGHT }}

@@ -538,7 +538,13 @@ function NewEventDialog({
         <DialogHeader>
           <DialogTitle>Nouvel événement</DialogTitle>
         </DialogHeader>
-        <div className="space-y-3 pt-2">
+        <div className="space-y-3 pt-2" onKeyDown={e => {
+          // Entrée valide le formulaire (sauf dans la zone de description multi-ligne).
+          if (e.key === "Enter" && (e.target as HTMLElement)?.tagName !== "TEXTAREA" && !isPending) {
+            e.preventDefault()
+            handleSubmit()
+          }
+        }}>
 
           {/* Rattachement */}
           <div className="space-y-1.5">
@@ -769,7 +775,13 @@ function EventDetailDialog({
           </DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-3 pt-1">
+        <div className="space-y-3 pt-1" onKeyDown={e => {
+          // Entrée valide les modifications (sauf dans la description multi-ligne).
+          if (e.key === "Enter" && (e.target as HTMLElement)?.tagName !== "TEXTAREA" && !isSaving) {
+            e.preventDefault()
+            handleSave()
+          }
+        }}>
           {isManual ? (
             <EventFormFields
               title={title} setTitle={v => { setTitle(v); setError("") }}
@@ -945,6 +957,26 @@ export function CalendarView({
     if (stored && ["day","3day","5day","week","month"].includes(stored)) setViewMode(stored)
     setMounted(true)
   }, [])
+
+  // Raccourcis clavier globaux (page calendrier) : "c" ou "n" → nouvel événement.
+  // Ignorés si on tape dans un champ ou si un dialog est déjà ouvert.
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.metaKey || e.ctrlKey || e.altKey) return
+      const el = e.target as HTMLElement | null
+      const tag = el?.tagName
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || el?.isContentEditable) return
+      if (newEventOpen || editingEvent) return
+      const k = e.key.toLowerCase()
+      if (k === "c" || k === "n") {
+        e.preventDefault()
+        setNewEventDate(new Date())
+        setNewEventOpen(true)
+      }
+    }
+    window.addEventListener("keydown", onKeyDown)
+    return () => window.removeEventListener("keydown", onKeyDown)
+  }, [newEventOpen, editingEvent])
 
   function changeView(v: ViewMode) {
     setViewMode(v)
@@ -1131,9 +1163,11 @@ export function CalendarView({
         </div>
 
         <button onClick={() => { setNewEventDate(new Date()); setNewEventOpen(true) }}
+          title="Nouvel événement (C)"
           className="inline-flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-xs font-medium hover:bg-muted transition-colors">
           <Plus className="h-3.5 w-3.5" />
           Événement
+          <kbd className="ml-0.5 rounded border border-border/70 bg-muted px-1 text-[10px] font-mono text-muted-foreground">C</kbd>
         </button>
       </div>
 

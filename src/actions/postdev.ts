@@ -71,6 +71,31 @@ export async function deleteRenewal(renewalId: string, projectId: string) {
 
 // ── Monitoring ────────────────────────────────────────────────────────────────
 
+type ProbeResult = { isUp: boolean; statusCode: number | null; responseTimeMs: number | null }
+
+// SSRF protection — valide l'URL avant tout fetch. Lève sur URL/protocole/hôte interdit.
+function assertSafeUrl(url: string): void {
+  let parsed: URL
+  try { parsed = new URL(url) } catch { throw new Error("URL invalide") }
+  if (!["http:", "https:"].includes(parsed.protocol)) throw new Error("Protocole non autorisé")
+  if (/^(localhost|127\.|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/.test(parsed.hostname)) {
+    throw new Error("URL non autorisée")
+  }
+}
+
+// Sonde une URL en HEAD (timeout 10s). Ne lève jamais une fois l'URL validée :
+// un échec réseau = site down.
+async function probeUrl(url: string): Promise<ProbeResult> {
+  assertSafeUrl(url)
+  try {
+    const start = Date.now()
+    const res = await fetch(url, { method: "HEAD", signal: AbortSignal.timeout(10000), cache: "no-store" })
+    return { isUp: res.ok, statusCode: res.status, responseTimeMs: Date.now() - start }
+  } catch {
+    return { isUp: false, statusCode: null, responseTimeMs: null }
+  }
+}
+
 export async function checkSiteStatus(postDevId: string, projectId: string, url: string) {
   const userId = await requireAuth()
   const postDev = await prisma.postDev.findFirst({
@@ -79,37 +104,32 @@ export async function checkSiteStatus(postDevId: string, projectId: string, url:
   })
   if (!postDev) throw new Error("Non autorisé")
 
-  // SSRF protection — validate URL before fetching
-  let parsedUrl: URL
-  try { parsedUrl = new URL(url) } catch { throw new Error("URL invalide") }
-  if (!["http:", "https:"].includes(parsedUrl.protocol)) throw new Error("Protocole non autorisé")
-  const hostname = parsedUrl.hostname
-  if (/^(localhost|127\.|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/.test(hostname)) {
-    throw new Error("URL non autorisée")
-  }
-
-  let isUp = false
-  let statusCode: number | null = null
-  let responseTimeMs: number | null = null
-
-  try {
-    const start = Date.now()
-    const res = await fetch(url, {
-      method: "HEAD",
-      signal: AbortSignal.timeout(10000),
-      cache: "no-store",
-    })
-    responseTimeMs = Date.now() - start
-    statusCode = res.status
-    isUp = res.ok
-  } catch {
-    isUp = false
-  }
-
-  await prisma.monitoringCheck.create({
-    data: { postDevId, isUp, statusCode, responseTimeMs },
-  })
+  const result = await probeUrl(url)
+  await prisma.monitoringCheck.create({ data: { postDevId, ...result } })
 
   revalidatePath(`/projets/${projectId}/post-dev`)
-  return { isUp, statusCode, responseTimeMs }
+  return result
+}
+
+// Vérifie toutes les prods renseignées (PostDev avec prodUrl) de l'utilisateur, en
+// parallèle. Enregistre un MonitoringCheck par prod et renvoie l'agrégat.
+export async function checkAllProds(): Promise<{ checked: number; up: number; down: number }> {
+  const userId = await requireAuth()
+  const prods = await prisma.postDev.findMany({
+    where: { project: { userId }, prodUrl: { not: null } },
+    select: { id: true, prodUrl: true },
+  })
+
+  let up = 0
+  let down = 0
+  await Promise.all(prods.map(async (pd) => {
+    let result: ProbeResult
+    try { result = await probeUrl(pd.prodUrl!) }
+    catch { result = { isUp: false, statusCode: null, responseTimeMs: null } }
+    await prisma.monitoringCheck.create({ data: { postDevId: pd.id, ...result } })
+    if (result.isUp) up++; else down++
+  }))
+
+  revalidatePath("/")
+  return { checked: prods.length, up, down }
 }

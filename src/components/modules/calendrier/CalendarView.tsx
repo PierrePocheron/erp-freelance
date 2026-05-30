@@ -988,7 +988,8 @@ export function CalendarView({
     <div className={cn("flex flex-col gap-3", className)}>
 
       {/* ── Barre de navigation ──────────────────────────────────────────── */}
-      <div className="flex items-center gap-2 shrink-0 flex-wrap">
+      {/* pr-12 : réserve la place du bouton flottant de notifications (haut-droite) */}
+      <div className="flex items-center gap-2 shrink-0 flex-wrap pr-12">
         <div className="flex items-center gap-1">
           <button onClick={() => navigate(-1)} className="rounded-lg border border-border p-1.5 hover:bg-muted transition-colors">
             <ChevronLeft className="h-4 w-4" />

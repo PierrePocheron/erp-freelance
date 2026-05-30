@@ -347,16 +347,17 @@ async function getErpCalendarId(userId: string, accessToken: string): Promise<st
 }
 
 /**
- * Pousse un événement manuel vers Google (création ou mise à jour) et mémorise
- * googleEventId + googleSyncedAt. Silencieux si pas de scope/token (best-effort).
+ * Pousse un CalendarEvent vers Google (best-effort, silencieux si pas de scope/token).
+ * - sourceType MANUAL : créé/mis à jour dans l'agenda dédié "ERP Freelance"
+ *   (mémorise googleEventId + googleSyncedAt).
+ * - sourceType GOOGLE : mis à jour dans l'agenda d'origine (primaire) via sourceId,
+ *   pour que les modifs faites dans l'ERP soient répercutées et non réécrites au
+ *   prochain import.
  */
-async function syncManualEventToGoogle(userId: string, eventId: string): Promise<void> {
+async function pushEventToGoogle(userId: string, eventId: string): Promise<void> {
   try {
     const accessToken = await getGoogleAccessToken(userId)
     if (!accessToken) return
-
-    const calendarId = await getErpCalendarId(userId, accessToken)
-    if (!calendarId) return
 
     const rows = await prisma.$queryRaw<{
       title: string
@@ -364,28 +365,43 @@ async function syncManualEventToGoogle(userId: string, eventId: string): Promise
       startDate: Date
       endDate: Date | null
       allDay: boolean
+      sourceType: string
+      sourceId: string | null
       googleEventId: string | null
     }[]>`
-      SELECT title, description, "startDate", "endDate", "allDay", "googleEventId"
+      SELECT title, description, "startDate", "endDate", "allDay",
+             "sourceType", "sourceId", "googleEventId"
       FROM "CalendarEvent"
-      WHERE id = ${eventId} AND "userId" = ${userId} AND "sourceType" = 'MANUAL'
+      WHERE id = ${eventId} AND "userId" = ${userId}
       LIMIT 1
     `
     const ev = rows[0]
     if (!ev) return
 
     const end = ev.endDate ?? new Date(new Date(ev.startDate).getTime() + 30 * 60_000)
+    const payload = {
+      summary: ev.title,
+      description: ev.description ?? undefined,
+      start: ev.startDate,
+      end,
+      allDay: ev.allDay,
+    }
+
+    if (ev.sourceType === "GOOGLE") {
+      // Événement importé : on met à jour sa copie dans l'agenda primaire.
+      if (!ev.sourceId) return
+      await pushGoogleEvent(accessToken, "primary", payload, ev.sourceId)
+      return
+    }
+
+    // Événement manuel → agenda dédié ERP.
+    const calendarId = await getErpCalendarId(userId, accessToken)
+    if (!calendarId) return
 
     const { id: googleEventId, updated } = await pushGoogleEvent(
       accessToken,
       calendarId,
-      {
-        summary: ev.title,
-        description: ev.description ?? undefined,
-        start: ev.startDate,
-        end,
-        allDay: ev.allDay,
-      },
+      payload,
       ev.googleEventId,
     )
 
@@ -574,7 +590,7 @@ export async function createCalendarItem(input: CalItemInput): Promise<{ error?:
           title, description, startDate: input.startDate, endDate, allDay,
           categoryId, projectId, clientId: null, sourceId: entry.id,
         })
-        await syncManualEventToGoogle(userId, noteEventId)
+        await pushEventToGoogle(userId, noteEventId)
         revalidatePath(`/projets/${projectId}`)
         break
       }
@@ -587,7 +603,7 @@ export async function createCalendarItem(input: CalItemInput): Promise<{ error?:
           title, description, startDate: input.startDate, endDate, allDay,
           categoryId, projectId, clientId,
         })
-        await syncManualEventToGoogle(userId, eventId)
+        await pushEventToGoogle(userId, eventId)
         break
       }
     }
@@ -669,7 +685,7 @@ export async function moveCalendarItem(
           SET "startDate" = ${newStart}, "endDate" = ${newEnd}, "allDay" = ${allDay}, "updatedAt" = NOW()
           WHERE id = ${id} AND "userId" = ${userId}
         `
-        await syncManualEventToGoogle(userId, id)
+        await pushEventToGoogle(userId, id)
         break
       }
     }
@@ -783,7 +799,7 @@ export async function updateCalendarItem(
           ...(data.projectId !== undefined ? { projectId: data.projectId } : {}),
           ...(data.clientId !== undefined ? { clientId: data.clientId } : {}),
         })
-        await syncManualEventToGoogle(userId, id)
+        await pushEventToGoogle(userId, id)
         break
       }
     }
@@ -985,7 +1001,7 @@ export async function syncGoogleEvents(): Promise<SyncResult> {
         AND "startDate" >= ${from} AND "startDate" <= ${to}
     `
     for (const row of backlog) {
-      await syncManualEventToGoogle(userId, row.id)
+      await pushEventToGoogle(userId, row.id)
       synced++
     }
 

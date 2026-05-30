@@ -220,9 +220,15 @@ export async function getOrCreateErpCalendar(accessToken: string): Promise<strin
 
 // ── Écriture (ERP → Google) ────────────────────────────────────────────────────
 
-/** Formate une date au format YYYY-MM-DD (événement journée entière). */
-function toDateString(d: Date): string {
-  return d.toISOString().slice(0, 10)
+/**
+ * Formate une date au format YYYY-MM-DD en heure LOCALE (événement journée
+ * entière). `toISOString()` utiliserait UTC → décalage d'un jour en fuseau positif.
+ */
+function toLocalDateString(d: Date): string {
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, "0")
+  const day = String(d.getDate()).padStart(2, "0")
+  return `${y}-${m}-${day}`
 }
 
 /**
@@ -234,13 +240,15 @@ function buildGoogleEventBody(payload: GooglePushPayload) {
     description: payload.description ?? undefined,
   }
   if (payload.allDay) {
-    // Google : la date de fin (exclusive) doit être >= au lendemain du début.
-    const endExclusive = new Date(payload.end)
-    if (endExclusive.getTime() <= payload.start.getTime()) {
-      endExclusive.setDate(endExclusive.getDate() + 1)
+    // Google attend des dates de jour (locales). end.date est EXCLUSIF et doit
+    // être strictement après start.date (sinon l'API rejette l'événement).
+    const startDay = new Date(payload.start); startDay.setHours(0, 0, 0, 0)
+    let endDay = new Date(payload.end); endDay.setHours(0, 0, 0, 0)
+    if (endDay.getTime() <= startDay.getTime()) {
+      endDay = new Date(startDay); endDay.setDate(endDay.getDate() + 1)
     }
-    body.start = { date: toDateString(payload.start) }
-    body.end = { date: toDateString(endExclusive) }
+    body.start = { date: toLocalDateString(startDay) }
+    body.end = { date: toLocalDateString(endDay) }
   } else {
     body.start = { dateTime: payload.start.toISOString() }
     body.end = { dateTime: payload.end.toISOString() }

@@ -9,6 +9,7 @@ import {
   fetchGoogleEvents,
   pushGoogleEvent,
   deleteGoogleEvent,
+  getOrCreateErpCalendar,
   type SyncResult,
 } from "@/lib/google-calendar"
 
@@ -328,6 +329,24 @@ export async function deleteCalendarEvent(eventId: string): Promise<void> {
 // Tout est best-effort : un échec Google ne doit jamais casser l'action ERP.
 
 /**
+ * Retourne l'id de l'agenda Google dédié "ERP Freelance", en le créant au besoin,
+ * et le mémorise sur l'utilisateur. Retourne null si indisponible.
+ */
+async function getErpCalendarId(userId: string, accessToken: string): Promise<string | null> {
+  const rows = await prisma.$queryRaw<{ googleErpCalendarId: string | null }[]>`
+    SELECT "googleErpCalendarId" FROM "User" WHERE id = ${userId} LIMIT 1
+  `
+  const stored = rows[0]?.googleErpCalendarId
+  if (stored) return stored
+
+  const calendarId = await getOrCreateErpCalendar(accessToken)
+  await prisma.$executeRaw`
+    UPDATE "User" SET "googleErpCalendarId" = ${calendarId} WHERE id = ${userId}
+  `
+  return calendarId
+}
+
+/**
  * Pousse un événement manuel vers Google (création ou mise à jour) et mémorise
  * googleEventId + googleSyncedAt. Silencieux si pas de scope/token (best-effort).
  */
@@ -335,6 +354,9 @@ async function syncManualEventToGoogle(userId: string, eventId: string): Promise
   try {
     const accessToken = await getGoogleAccessToken(userId)
     if (!accessToken) return
+
+    const calendarId = await getErpCalendarId(userId, accessToken)
+    if (!calendarId) return
 
     const rows = await prisma.$queryRaw<{
       title: string
@@ -356,6 +378,7 @@ async function syncManualEventToGoogle(userId: string, eventId: string): Promise
 
     const { id: googleEventId, updated } = await pushGoogleEvent(
       accessToken,
+      calendarId,
       {
         summary: ev.title,
         description: ev.description ?? undefined,
@@ -384,7 +407,12 @@ async function removeManualEventFromGoogle(userId: string, googleEventId: string
   try {
     const accessToken = await getGoogleAccessToken(userId)
     if (!accessToken) return
-    await deleteGoogleEvent(accessToken, googleEventId)
+    const rows = await prisma.$queryRaw<{ googleErpCalendarId: string | null }[]>`
+      SELECT "googleErpCalendarId" FROM "User" WHERE id = ${userId} LIMIT 1
+    `
+    const calendarId = rows[0]?.googleErpCalendarId
+    if (!calendarId) return
+    await deleteGoogleEvent(accessToken, calendarId, googleEventId)
   } catch {
     // best-effort
   }
@@ -852,7 +880,18 @@ export async function syncGoogleEvents(): Promise<SyncResult> {
     const to = new Date()
     to.setMonth(to.getMonth() + 3)
 
+    // Agenda principal (événements importés) + agenda dédié ERP (nos événements
+    // poussés, pour détecter les modifs faites côté Google → arbitrage).
+    const calRows = await prisma.$queryRaw<{ googleErpCalendarId: string | null }[]>`
+      SELECT "googleErpCalendarId" FROM "User" WHERE id = ${userId} LIMIT 1
+    `
+    const erpCalendarId = calRows[0]?.googleErpCalendarId ?? null
+
     const googleEvents = await fetchGoogleEvents(accessToken, from, to)
+    if (erpCalendarId) {
+      const erpEvents = await fetchGoogleEvents(accessToken, from, to, erpCalendarId)
+      googleEvents.push(...erpEvents)
+    }
 
     // Récupère les sourceId Google déjà stockés
     const existing = await prisma.$queryRaw<{ id: string; sourceId: string }[]>`

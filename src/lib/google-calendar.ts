@@ -12,7 +12,15 @@ const GOOGLE_CALENDAR_API = "https://www.googleapis.com/calendar/v3"
 export const CALENDAR_SCOPES = [
   "https://www.googleapis.com/auth/calendar.readonly",
   "https://www.googleapis.com/auth/calendar.events",
+  // calendar (lecture/écriture complète) : nécessaire pour créer l'agenda dédié
+  "https://www.googleapis.com/auth/calendar",
 ].join(" ")
+
+// Nom de l'agenda Google dédié où sont poussés les événements de l'ERP.
+export const ERP_CALENDAR_NAME = "ERP Freelance"
+// Couleur de base de l'agenda (indigo ERP) — modifiable ensuite dans Google.
+const ERP_CALENDAR_BG = "#4f46e5"
+const ERP_CALENDAR_FG = "#ffffff"
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -121,7 +129,8 @@ export async function getGoogleAccessToken(userId: string): Promise<string | nul
 export async function fetchGoogleEvents(
   accessToken: string,
   from: Date,
-  to: Date
+  to: Date,
+  calendarId: string = "primary"
 ): Promise<GoogleCalendarEvent[]> {
   const params = new URLSearchParams({
     timeMin: from.toISOString(),
@@ -131,9 +140,10 @@ export async function fetchGoogleEvents(
     maxResults: "250",
   })
 
-  const res = await fetch(`${GOOGLE_CALENDAR_API}/calendars/primary/events?${params}`, {
-    headers: { Authorization: `Bearer ${accessToken}` },
-  })
+  const res = await fetch(
+    `${GOOGLE_CALENDAR_API}/calendars/${encodeURIComponent(calendarId)}/events?${params}`,
+    { headers: { Authorization: `Bearer ${accessToken}` } }
+  )
 
   if (!res.ok) {
     let detail = ""
@@ -146,6 +156,66 @@ export async function fetchGoogleEvents(
 
   const data = await res.json() as { items?: GoogleCalendarEvent[] }
   return data.items ?? []
+}
+
+// ── Agenda dédié "ERP Freelance" ────────────────────────────────────────────────
+
+type GoogleCalendarListEntry = { id: string; summary?: string }
+
+/**
+ * Retrouve l'agenda "ERP Freelance" dans la liste de l'utilisateur, ou le crée.
+ * Applique une couleur de base au passage. Retourne son id.
+ * Lève une erreur en cas d'échec API (l'appelant gère le best-effort).
+ */
+export async function getOrCreateErpCalendar(accessToken: string): Promise<string> {
+  // 1) Cherche un agenda existant portant ce nom
+  const listRes = await fetch(`${GOOGLE_CALENDAR_API}/users/me/calendarList`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  })
+  if (listRes.ok) {
+    const data = await listRes.json() as { items?: GoogleCalendarListEntry[] }
+    const found = data.items?.find(c => c.summary === ERP_CALENDAR_NAME)
+    if (found) return found.id
+  }
+
+  // 2) Crée l'agenda
+  const createRes = await fetch(`${GOOGLE_CALENDAR_API}/calendars`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ summary: ERP_CALENDAR_NAME }),
+  })
+  if (!createRes.ok) {
+    let detail = ""
+    try {
+      const errBody = await createRes.json() as { error?: { message?: string } }
+      detail = errBody?.error?.message ?? ""
+    } catch { /* corps non-JSON */ }
+    throw new Error(`Google Calendar create ${createRes.status}${detail ? ` — ${detail}` : ""}`)
+  }
+  const created = await createRes.json() as { id: string }
+
+  // 3) Applique la couleur de base (best-effort : on ignore un éventuel échec)
+  try {
+    await fetch(
+      `${GOOGLE_CALENDAR_API}/users/me/calendarList/${encodeURIComponent(created.id)}?colorRgbFormat=true`,
+      {
+        method: "PATCH",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          backgroundColor: ERP_CALENDAR_BG,
+          foregroundColor: ERP_CALENDAR_FG,
+        }),
+      }
+    )
+  } catch { /* couleur non bloquante */ }
+
+  return created.id
 }
 
 // ── Écriture (ERP → Google) ────────────────────────────────────────────────────
@@ -185,14 +255,14 @@ function buildGoogleEventBody(payload: GooglePushPayload) {
  */
 export async function pushGoogleEvent(
   accessToken: string,
+  calendarId: string,
   payload: GooglePushPayload,
   googleEventId?: string | null
 ): Promise<{ id: string; updated: string }> {
   const body = buildGoogleEventBody(payload)
   const isUpdate = Boolean(googleEventId)
-  const url = isUpdate
-    ? `${GOOGLE_CALENDAR_API}/calendars/primary/events/${googleEventId}`
-    : `${GOOGLE_CALENDAR_API}/calendars/primary/events`
+  const base = `${GOOGLE_CALENDAR_API}/calendars/${encodeURIComponent(calendarId)}/events`
+  const url = isUpdate ? `${base}/${googleEventId}` : base
 
   const res = await fetch(url, {
     method: isUpdate ? "PATCH" : "POST",
@@ -206,7 +276,7 @@ export async function pushGoogleEvent(
   // Si la mise à jour cible un événement disparu côté Google (404/410),
   // on le recrée pour ne pas perdre la synchro.
   if (isUpdate && (res.status === 404 || res.status === 410)) {
-    return pushGoogleEvent(accessToken, payload, null)
+    return pushGoogleEvent(accessToken, calendarId, payload, null)
   }
 
   if (!res.ok) {
@@ -228,10 +298,11 @@ export async function pushGoogleEvent(
  */
 export async function deleteGoogleEvent(
   accessToken: string,
+  calendarId: string,
   googleEventId: string
 ): Promise<void> {
   const res = await fetch(
-    `${GOOGLE_CALENDAR_API}/calendars/primary/events/${googleEventId}`,
+    `${GOOGLE_CALENDAR_API}/calendars/${encodeURIComponent(calendarId)}/events/${googleEventId}`,
     {
       method: "DELETE",
       headers: { Authorization: `Bearer ${accessToken}` },

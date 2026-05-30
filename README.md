@@ -11,9 +11,10 @@ ERP personnel pour freelances — devis, facturation, CRM, projets, tâches, tim
 | Couche | Technologie |
 |---|---|
 | **Framework** | Next.js 16 (App Router, Server Actions, Turbopack) |
-| **UI** | Tailwind CSS v4 + Radix / Base UI |
+| **UI** | Tailwind CSS v4 + Base UI (`@base-ui/react`) |
 | **Base de données** | PostgreSQL + Prisma 7 (output custom `src/generated/prisma`) |
 | **Auth** | NextAuth.js v5 — Google OAuth + PrismaAdapter + JWT |
+| **Calendrier** | Sync Google Agenda (scope `calendar`) — lecture + écriture |
 | **Hébergement** | Vercel (Hobby) |
 | **Database** | Neon (PostgreSQL serverless) |
 | **PDF** | @react-pdf/renderer — couleur accent configurable |
@@ -36,7 +37,7 @@ ERP personnel pour freelances — devis, facturation, CRM, projets, tâches, tim
 | **Facturation / Factures** | Génération depuis devis, types (acompte/solde/récurrent/standalone), suivi paiement, relance |
 | **Facturation / Récurrentes** | Modèles avec fréquence, activation/désactivation, génération manuelle |
 | **Catalogue produits** | Produits/services réutilisables — unité, prix, TVA, type de facturation |
-| **Calendrier** | Vue transversale (tâches, factures, jalons, interactions, renouvellements) |
+| **Calendrier** | Vues mois / semaine / jour (grille 24h), sync Google Agenda bidirectionnelle, drag-drop avec animation d'atterrissage, événements journée entière & multi-jours en barres continues (style Google), sélecteurs date/heure custom, raccourcis clavier (C/N, ↵), vue transversale (tâches, factures, jalons, interactions, renouvellements) |
 | **Notifications** | Cloche temps réel, dropdown, marquage lu individuel/global |
 | **Recherche globale** | `⌘K` — navigation + recherche DB multi-modèles avec debounce 200ms |
 | **Paramètres** | Profil entreprise, SIRET, IBAN, logo, couleur PDF, conditions générales, export/import, déconnexion |

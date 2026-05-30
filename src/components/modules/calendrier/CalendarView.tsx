@@ -1025,7 +1025,7 @@ export function CalendarView({
   const [syncCount, setSyncCount]       = useState(0)
   const [syncError, setSyncError]       = useState<string>("")
   const [showGoogleEvents, setShowGoogleEvents] = useState(true)
-  const [isRefreshing, startRefresh]    = useTransition()
+  const [, startRefresh]                = useTransition()
   const [justMovedId, setJustMovedId]   = useState<string | null>(null)
   const justMovedTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const pendingFlashRef = useRef<string | null>(null)
@@ -1113,10 +1113,6 @@ export function CalendarView({
     return `${first.toLocaleDateString("fr-FR", { day: "numeric", month: "short" })} – ${last.toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" })}`
   }
 
-  function handleRefresh() {
-    startRefresh(() => { router.refresh() })
-  }
-
   function handleSync() {
     startSync(async () => {
       const result = await syncGoogleEvents()
@@ -1198,12 +1194,6 @@ export function CalendarView({
         </div>
 
         <h2 className="text-base font-semibold capitalize flex-1 min-w-0 truncate">{headerLabel()}</h2>
-
-        <button onClick={handleRefresh} disabled={isRefreshing} title="Actualiser"
-          className="inline-flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-xs font-medium text-muted-foreground hover:bg-muted transition-colors disabled:opacity-50">
-          {isRefreshing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
-          Actualiser
-        </button>
 
         {hasGoogleCalendar ? (
           <div className="flex items-center rounded-lg border border-border overflow-hidden">

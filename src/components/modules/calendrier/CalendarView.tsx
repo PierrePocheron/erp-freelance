@@ -17,6 +17,7 @@ import {
   DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu"
 import { createCalendarItem, moveCalendarItem, updateCalendarItem, deleteCalendarItem, syncGoogleEvents } from "@/actions/calendar"
+import { DatePicker, TimePicker } from "./DateTimePicker"
 
 // Natures de création (rattachement → nature)
 type CalNature = "event" | "task" | "interaction" | "reminder" | "milestone" | "note"
@@ -414,13 +415,13 @@ function EventFormFields({
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-1.5">
           <label className="text-xs font-medium text-muted-foreground">Date</label>
-          <Input type="date" value={date} onChange={e => setDate(e.target.value)} className="h-8" />
+          <DatePicker value={date} onChange={setDate} ariaLabel="Date" />
         </div>
         <div className="space-y-1.5">
           <label className="text-xs font-medium text-muted-foreground">
             Heure <span className="text-muted-foreground/50">(opt.)</span>
           </label>
-          <Input type="time" value={time} onChange={e => setTime(e.target.value)} className="h-8" />
+          <TimePicker value={time} onChange={setTime} ariaLabel="Heure" />
         </div>
       </div>
 
@@ -598,7 +599,8 @@ function NewEventDialog({
         </DialogHeader>
         <div className="space-y-3 pt-2" onKeyDown={e => {
           // Entrée valide le formulaire (sauf dans la zone de description multi-ligne).
-          if (e.key === "Enter" && (e.target as HTMLElement)?.tagName !== "TEXTAREA" && !isPending) {
+          const tag = (e.target as HTMLElement)?.tagName
+          if (e.key === "Enter" && tag !== "TEXTAREA" && tag !== "BUTTON" && !isPending) {
             e.preventDefault()
             handleSubmit()
           }
@@ -670,22 +672,22 @@ function NewEventDialog({
               <label className="text-xs font-medium text-muted-foreground">
                 {allowAllDay && allDay ? "Début" : DATE_LABEL[nature]}
               </label>
-              <Input type="date" value={date} onChange={e => setDate(e.target.value)} className="h-8" />
+              <DatePicker value={date} onChange={setDate} ariaLabel={DATE_LABEL[nature]} />
             </div>
             {allowAllDay && allDay ? (
               <div className="space-y-1.5">
                 <label className="text-xs font-medium text-muted-foreground">
                   Fin <span className="text-muted-foreground/50">(opt.)</span>
                 </label>
-                <Input type="date" value={endDate} min={date}
-                  onChange={e => setEndDate(e.target.value)} className="h-8" />
+                <DatePicker value={endDate} onChange={setEndDate} min={date}
+                  placeholder="Même jour" ariaLabel="Date de fin" />
               </div>
             ) : (
               <div className="space-y-1.5">
                 <label className="text-xs font-medium text-muted-foreground">
                   Heure <span className="text-muted-foreground/50">(opt.)</span>
                 </label>
-                <Input type="time" value={time} onChange={e => setTime(e.target.value)} className="h-8" />
+                <TimePicker value={time} onChange={setTime} ariaLabel="Heure" />
               </div>
             )}
           </div>
@@ -743,11 +745,17 @@ function NewEventDialog({
           )}
 
           {error && <p className="text-xs text-red-500">{error}</p>}
-          <div className="flex justify-end gap-2 pt-1">
-            <Button variant="ghost" size="sm" onClick={onClose}>Annuler</Button>
-            <Button size="sm" disabled={isPending} onClick={handleSubmit}>
-              {isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Créer"}
-            </Button>
+          <div className="flex items-center justify-between gap-2 pt-1">
+            <span className="flex items-center gap-1 text-[11px] text-muted-foreground/70">
+              <kbd className="rounded border border-border/70 bg-muted px-1 font-mono text-[10px]">↵</kbd>
+              pour créer
+            </span>
+            <div className="flex gap-2">
+              <Button variant="ghost" size="sm" onClick={onClose}>Annuler</Button>
+              <Button size="sm" disabled={isPending} onClick={handleSubmit}>
+                {isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Créer"}
+              </Button>
+            </div>
           </div>
         </div>
       </DialogContent>
@@ -835,7 +843,8 @@ function EventDetailDialog({
 
         <div className="space-y-3 pt-1" onKeyDown={e => {
           // Entrée valide les modifications (sauf dans la description multi-ligne).
-          if (e.key === "Enter" && (e.target as HTMLElement)?.tagName !== "TEXTAREA" && !isSaving) {
+          const tag = (e.target as HTMLElement)?.tagName
+          if (e.key === "Enter" && tag !== "TEXTAREA" && tag !== "BUTTON" && !isSaving) {
             e.preventDefault()
             handleSave()
           }
@@ -864,13 +873,14 @@ function EventDetailDialog({
                   <label className="text-xs font-medium text-muted-foreground">
                     {itemType === "task" || itemType === "reminder" ? "Échéance" : "Date"}
                   </label>
-                  <Input type="date" value={date} onChange={e => setDate(e.target.value)} className="h-8" />
+                  <DatePicker value={date} onChange={setDate}
+                    ariaLabel={itemType === "task" || itemType === "reminder" ? "Échéance" : "Date"} />
                 </div>
                 <div className="space-y-1.5">
                   <label className="text-xs font-medium text-muted-foreground">
                     Heure <span className="text-muted-foreground/50">(opt.)</span>
                   </label>
-                  <Input type="time" value={time} onChange={e => setTime(e.target.value)} className="h-8" />
+                  <TimePicker value={time} onChange={setTime} ariaLabel="Heure" />
                 </div>
               </div>
               {/* Description */}
@@ -928,7 +938,10 @@ function EventDetailDialog({
                 </Button>
               </div>
             )}
-            <div className="flex gap-2">
+            <div className="flex items-center gap-2">
+              <span className="flex items-center gap-1 text-[11px] text-muted-foreground/70">
+                <kbd className="rounded border border-border/70 bg-muted px-1 font-mono text-[10px]">↵</kbd>
+              </span>
               <Button variant="ghost" size="sm" onClick={onClose}>Annuler</Button>
               <Button size="sm" disabled={isSaving} onClick={handleSave}>
                 {isSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Enregistrer"}

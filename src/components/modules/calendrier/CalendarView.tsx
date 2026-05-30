@@ -1028,14 +1028,27 @@ export function CalendarView({
   const [isRefreshing, startRefresh]    = useTransition()
   const [justMovedId, setJustMovedId]   = useState<string | null>(null)
   const justMovedTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const pendingFlashRef = useRef<string | null>(null)
   const router = useRouter()
 
-  // Déclenche l'animation d'« atterrissage » sur l'événement déplacé / édité.
+  // Demande l'animation d'« atterrissage » pour un événement déplacé / édité.
+  // On ne déclenche pas tout de suite : router.refresh() est asynchrone, donc on
+  // mémorise l'id et on joue l'anim seulement quand les nouvelles données (l'élément
+  // à sa nouvelle place) sont effectivement rendues — sinon l'anim partirait sur
+  // l'ancienne position et ne rejouerait jamais à la bonne.
   function flashEvent(id: string) {
+    pendingFlashRef.current = id
+  }
+  // Quand la liste d'événements change (après refresh), si une animation est en
+  // attente et que l'événement est bien présent, on la joue à sa position finale.
+  useEffect(() => {
+    const id = pendingFlashRef.current
+    if (!id || !events.some(e => e.id === id)) return
+    pendingFlashRef.current = null
     if (justMovedTimer.current) clearTimeout(justMovedTimer.current)
     setJustMovedId(id)
     justMovedTimer.current = setTimeout(() => setJustMovedId(null), 700)
-  }
+  }, [events])
   useEffect(() => () => { if (justMovedTimer.current) clearTimeout(justMovedTimer.current) }, [])
 
   useEffect(() => {

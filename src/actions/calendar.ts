@@ -891,10 +891,15 @@ export async function syncGoogleEvents(): Promise<SyncResult> {
   if (!accessToken) return { synced: 0, needsPermission: true }
 
   try {
-    const from = new Date()
-    from.setMonth(from.getMonth() - 1)
+    // Récupération (pull) : tout le passé → 3 mois dans le futur.
+    const from = new Date(0)
     const to = new Date()
     to.setMonth(to.getMonth() + 3)
+
+    // Push (ERP → Google) : on garde une fenêtre courte pour ne pas déverser tout
+    // l'historique ERP sur l'agenda Google. Seul le pull couvre tout le passé.
+    const pushFrom = new Date()
+    pushFrom.setMonth(pushFrom.getMonth() - 1)
 
     // Agenda principal (événements importés) + agenda dédié ERP (nos événements
     // poussés, pour détecter les modifs faites côté Google → arbitrage).
@@ -998,7 +1003,7 @@ export async function syncGoogleEvents(): Promise<SyncResult> {
       SELECT id FROM "CalendarEvent"
       WHERE "userId" = ${userId} AND "sourceType" = 'MANUAL'
         AND "googleEventId" IS NULL
-        AND "startDate" >= ${from} AND "startDate" <= ${to}
+        AND "startDate" >= ${pushFrom} AND "startDate" <= ${to}
     `
     for (const row of backlog) {
       await pushEventToGoogle(userId, row.id)

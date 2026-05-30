@@ -128,3 +128,29 @@
     @apply font-sans;
   }
 }
+
+/* Calendrier — animation d'« atterrissage » après un drag-drop / une édition :
+   l'événement déplacé pulse brièvement (anneau + léger zoom) à sa nouvelle place. */
+@keyframes cal-event-land {
+  0%   { transform: scale(0.96); box-shadow: 0 0 0 0 var(--primary); }
+  40%  { transform: scale(1.04); box-shadow: 0 0 0 4px color-mix(in oklch, var(--primary) 45%, transparent); }
+  100% { transform: scale(1);    box-shadow: 0 0 0 0 transparent; }
+}
+.cal-event-land {
+  animation: cal-event-land 0.55s cubic-bezier(0.22, 1, 0.36, 1);
+  z-index: 45;
+}
+
+/* Variante discrète pour les barres journée entière (pas de zoom, juste l'anneau). */
+@keyframes cal-bar-land {
+  0%   { box-shadow: 0 0 0 0 var(--primary); }
+  40%  { box-shadow: 0 0 0 3px color-mix(in oklch, var(--primary) 45%, transparent); }
+  100% { box-shadow: 0 0 0 0 transparent; }
+}
+.cal-bar-land {
+  animation: cal-bar-land 0.55s ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cal-event-land, .cal-bar-land { animation: none; }
+}

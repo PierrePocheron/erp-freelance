@@ -141,6 +141,64 @@ function eventsForDay(events: CalendarEvent[], date: Date): CalendarEvent[] {
   })
 }
 
+/** Vrai pour un événement journée entière s'étalant sur ≥ 2 jours. */
+function isMultiDaySpan(ev: CalendarEvent): boolean {
+  if (isTimedEvent(ev)) return false
+  const { first, last } = eventDayRange(ev)
+  return last.getTime() > first.getTime()
+}
+
+/**
+ * Segment d'un événement journée entière dans une rangée de jours contigus :
+ * colonne de début/fin (bornes incluses) + « lane » (rangée d'empilement) pour
+ * dessiner une barre continue à la Google Agenda. `continuesBefore/After`
+ * indiquent que l'événement déborde hors de la plage visible (→ bords ouverts).
+ */
+type DaySpan = {
+  ev: CalendarEvent
+  startCol: number
+  endCol: number
+  lane: number
+  continuesBefore: boolean
+  continuesAfter: boolean
+}
+
+/**
+ * Calcule la disposition des barres journée entière sur une plage de jours
+ * (vue mois : une semaine ; vue grille : tous les jours affichés).
+ * Empilement glouton : chaque barre prend la première lane libre.
+ */
+function layoutSpansForDays(events: CalendarEvent[], days: Date[]): { spans: DaySpan[]; lanes: number } {
+  if (days.length === 0) return { spans: [], lanes: 0 }
+  const dayTimes = days.map(d => startOfDay(d).getTime())
+  const firstT = dayTimes[0]
+  const lastT  = dayTimes[dayTimes.length - 1]
+
+  const items = events
+    .filter(e => !isTimedEvent(e))
+    .map(ev => { const r = eventDayRange(ev); return { ev, first: r.first.getTime(), last: r.last.getTime() } })
+    .filter(it => it.last >= firstT && it.first <= lastT)
+    .sort((a, b) => a.first - b.first || b.last - a.last)
+
+  const laneLastCol: number[] = []   // dernière colonne occupée par chaque lane
+  const spans: DaySpan[] = []
+  for (const it of items) {
+    let startCol = dayTimes.findIndex(t => t >= it.first)
+    if (startCol === -1) startCol = 0
+    let endCol = dayTimes.length - 1
+    for (let i = dayTimes.length - 1; i >= 0; i--) { if (dayTimes[i] <= it.last) { endCol = i; break } }
+    if (endCol < startCol) endCol = startCol
+    let lane = laneLastCol.findIndex(c => c < startCol)
+    if (lane === -1) { lane = laneLastCol.length; laneLastCol.push(endCol) } else laneLastCol[lane] = endCol
+    spans.push({
+      ev: it.ev, startCol, endCol, lane,
+      continuesBefore: it.first < firstT,
+      continuesAfter:  it.last  > lastT,
+    })
+  }
+  return { spans, lanes: laneLastCol.length }
+}
+
 function loadBg(count: number): string {
   if (count === 0) return ""
   if (count === 1) return "bg-emerald-500/8"
@@ -1347,6 +1405,17 @@ function MonthView({
   while (cells.length % 7 !== 0) cells.push(null)
   const numRows = cells.length / 7
 
+  // Barres continues multi-jours : disposition calculée par semaine (style Google).
+  const gridStart = addDays(new Date(year, month, 1), -startOffset)
+  const multiDayEvents = events.filter(isMultiDaySpan)
+  const rowLayouts = Array.from({ length: numRows }, (_, r) => {
+    const weekDates = Array.from({ length: 7 }, (_, c) => addDays(gridStart, r * 7 + c))
+    return layoutSpansForDays(multiDayEvents, weekDates)
+  })
+  const rowLanes = rowLayouts.map(l => l.lanes)
+  const MONTH_BAR_H  = 18   // hauteur d'une lane de barre
+  const MONTH_DATE_H = 24   // espace réservé au numéro du jour avant les barres
+
   const isToday = (day: number) =>
     day === today.getDate() && month === today.getMonth() && year === today.getFullYear()
 
@@ -1357,13 +1426,16 @@ function MonthView({
           <div key={d} className="py-2 text-center text-xs font-medium text-muted-foreground">{d}</div>
         ))}
       </div>
-      <div className="grid grid-cols-7 flex-1" style={{ gridTemplateRows: `repeat(${numRows}, minmax(0, 1fr))` }}>
+      <div className="relative grid grid-cols-7 flex-1" style={{ gridTemplateRows: `repeat(${numRows}, minmax(0, 1fr))` }}>
         {cells.map((day, i) => {
           if (!day) return (
             <div key={`e-${i}`} className={cn("border-b border-r border-border/30 bg-muted/20", i % 7 === 6 && "border-r-0")} />
           )
+          const row        = Math.floor(i / 7)
           const dayDate    = new Date(year, month, day)
           const dayEvents  = eventsForDay(events, dayDate)
+          // Les barres multi-jours sont dessinées par l'overlay → exclues des chips.
+          const dayChips   = dayEvents.filter(e => !isMultiDaySpan(e))
           const isWeekend  = (i % 7) >= 5
           const isSelected = selectedDay ? isSameDay(selectedDay, dayDate) : false
           const isDragOver = dragOverDay === day
@@ -1402,8 +1474,10 @@ function MonthView({
                 isToday(day) ? "bg-primary text-primary-foreground" : "text-foreground")}>
                 {day}
               </span>
+              {/* Espace réservé aux barres multi-jours de la semaine (dessinées en overlay) */}
+              {rowLanes[row] > 0 && <div aria-hidden style={{ height: rowLanes[row] * MONTH_BAR_H }} />}
               <div className="space-y-px">
-                {dayEvents.slice(0, 2).map(ev => (
+                {dayChips.slice(0, 2).map(ev => (
                   <div
                     key={ev.id}
                     draggable={isEditable(ev)}
@@ -1431,13 +1505,48 @@ function MonthView({
                       : ev.href ? <ExternalLink className="h-2 w-2 shrink-0 opacity-0 group-hover:opacity-50 ml-auto" /> : null}
                   </div>
                 ))}
-                {dayEvents.length > 2 && (
-                  <p className="text-[10px] text-muted-foreground pl-1 leading-tight">+{dayEvents.length - 2}</p>
+                {dayChips.length > 2 && (
+                  <p className="text-[10px] text-muted-foreground pl-1 leading-tight">+{dayChips.length - 2}</p>
                 )}
               </div>
             </button>
           )
         })}
+
+        {/* Overlay : barres continues multi-jours (alignées sur la grille des jours) */}
+        <div className="pointer-events-none absolute inset-0 grid grid-cols-7"
+          style={{ gridTemplateRows: `repeat(${numRows}, minmax(0, 1fr))` }}>
+          {rowLayouts.flatMap((layout, r) =>
+            layout.spans.map(s => {
+              const ev = s.ev
+              const editable = isEditable(ev)
+              return (
+                <div key={`${r}-${ev.id}`}
+                  className="min-w-0"
+                  style={{
+                    gridColumn: `${s.startCol + 1} / ${s.endCol + 2}`,
+                    gridRow: `${r + 1}`,
+                    marginTop: MONTH_DATE_H + s.lane * MONTH_BAR_H,
+                    height: MONTH_BAR_H - 3,
+                    paddingLeft:  s.continuesBefore ? 0 : 3,
+                    paddingRight: s.continuesAfter  ? 0 : 3,
+                  }}>
+                  <div className="pointer-events-auto h-full">
+                    <SpanBar ev={ev}
+                      continuesBefore={s.continuesBefore} continuesAfter={s.continuesAfter}
+                      draggable={editable}
+                      onDragStart={editable ? e => {
+                        e.stopPropagation()
+                        e.dataTransfer.setData("eventId", ev.id)
+                        e.dataTransfer.effectAllowed = "move"
+                      } : undefined}
+                      onClick={() => onEventClick(ev)} />
+                  </div>
+                </div>
+              )
+            })
+          )}
+        </div>
       </div>
     </div>
   )
@@ -1484,9 +1593,10 @@ function TimeGridView({
     return () => window.removeEventListener("dragend", onEnd)
   }, [])
 
-  const allDayByDay  = days.map(d => eventsForDay(events, d).filter(e => !isTimedEvent(e)))
   const timedByDay   = days.map(d => eventsForDay(events, d).filter(isTimedEvent))
-  const hasAnyAllDay = allDayByDay.some(arr => arr.length > 0)
+  // Bandeau journée entière : barres continues (multi-jours comme mono-jour).
+  const allDayLayout = layoutSpansForDays(events, days)
+  const BAND_LANE_H  = 22
 
   function startDrag(e: React.DragEvent, ev: CalendarEvent, fromAllDay = false) {
     if (!isEditable(ev)) { e.preventDefault(); return }
@@ -1578,28 +1688,45 @@ function TimeGridView({
         })}
       </div>
 
-      {/* Bandeau All-day */}
-      {hasAnyAllDay && (
+      {/* Bandeau journée entière : barres continues multi-jours (style Google) */}
+      {allDayLayout.lanes > 0 && (
         <div className="flex border-b border-border/50 shrink-0 bg-muted/20">
           <div style={{ width: TIME_COL_W }}
-            className="shrink-0 flex items-center justify-end pr-2 text-[10px] text-muted-foreground/50 font-medium">
+            className="shrink-0 flex items-start justify-end pr-2 pt-1.5 text-[10px] text-muted-foreground/50 font-medium">
             Jour
           </div>
-          {allDayByDay.map((dayEvs, i) => (
-            <div key={i} className="flex-1 border-l border-border/30 p-1 space-y-px min-h-[28px]"
-              onDragOver={e => { e.preventDefault(); e.dataTransfer.dropEffect = "move" }}
-              onDrop={e => handleAllDayDrop(e, days[i])}>
-              {dayEvs.map(ev => (
-                <div key={ev.id}
-                  draggable={isEditable(ev)}
-                  onDragStart={isEditable(ev) ? e => { e.stopPropagation(); startDrag(e, ev, true) } : undefined}
-                  className={cn(isEditable(ev) && "cursor-grab active:cursor-grabbing")}>
-                  <AllDayChip ev={ev} isDragging={draggingId === ev.id}
-                    onClick={isEditable(ev) ? () => onEventClick(ev) : undefined} />
-                </div>
+          <div className="relative flex-1" style={{ height: allDayLayout.lanes * BAND_LANE_H + 6 }}>
+            {/* Cibles de drop par jour (sous les barres) */}
+            <div className="absolute inset-0 flex">
+              {days.map((d, i) => (
+                <div key={i} className="flex-1 border-l border-border/30"
+                  onDragOver={e => { e.preventDefault(); e.dataTransfer.dropEffect = "move" }}
+                  onDrop={e => handleAllDayDrop(e, d)} />
               ))}
             </div>
-          ))}
+            {/* Barres continues */}
+            {allDayLayout.spans.map(s => {
+              const ev = s.ev
+              const editable = isEditable(ev)
+              const span = s.endCol - s.startCol + 1
+              return (
+                <div key={ev.id} className="absolute"
+                  style={{
+                    left:  `calc(${(s.startCol / cols) * 100}% + 3px)`,
+                    width: `calc(${(span / cols) * 100}% - 6px)`,
+                    top:    s.lane * BAND_LANE_H + 3,
+                    height: BAND_LANE_H - 4,
+                  }}>
+                  <SpanBar ev={ev}
+                    continuesBefore={s.continuesBefore} continuesAfter={s.continuesAfter}
+                    isDragging={draggingId === ev.id}
+                    draggable={editable}
+                    onDragStart={editable ? e => { e.stopPropagation(); startDrag(e, ev, true) } : undefined}
+                    onClick={() => onEventClick(ev)} />
+                </div>
+              )
+            })}
+          </div>
         </div>
       )}
 
@@ -1763,25 +1890,46 @@ function TimedEventContent({ ev, height, color, cfg }: {
 
 // ── Chip événement all-day dans le bandeau ────────────────────────────────────
 
-function AllDayChip({ ev, isDragging = false, onClick }: {
-  ev: CalendarEvent; isDragging?: boolean; onClick?: () => void
+/**
+ * Barre continue d'un événement journée entière (vue mois + bandeau).
+ * S'étale sur plusieurs colonnes via un wrapper positionné par l'appelant ;
+ * `continuesBefore/After` ouvrent les bords quand l'événement déborde.
+ */
+function SpanBar({
+  ev, continuesBefore = false, continuesAfter = false, isDragging = false,
+  onClick, draggable = false, onDragStart,
+}: {
+  ev: CalendarEvent
+  continuesBefore?: boolean
+  continuesAfter?: boolean
+  isDragging?: boolean
+  onClick?: () => void
+  draggable?: boolean
+  onDragStart?: React.DragEventHandler
 }) {
   const color = evColor(ev)
-  const inner = (
-    <div className={cn(
-      "flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium leading-tight truncate transition-opacity group",
-      ev.isLate ? "bg-red-500/10 border border-red-500/20" : "border",
-      isDragging && "opacity-30",
-      onClick && "cursor-pointer hover:opacity-80",
-    )}
-      style={ev.isLate ? {} : { backgroundColor: color + "18", borderColor: color + "40", color }}>
-      <span className="h-1.5 w-1.5 rounded-full shrink-0" style={{ backgroundColor: color }} />
+  return (
+    <div
+      draggable={draggable}
+      onDragStart={onDragStart}
+      onClick={onClick ? e => { e.stopPropagation(); onClick() } : undefined}
+      className={cn(
+        "flex h-full items-center gap-1 px-1.5 text-[10px] font-medium leading-none overflow-hidden",
+        continuesBefore ? "rounded-l-none" : "rounded-l",
+        continuesAfter  ? "rounded-r-none" : "rounded-r",
+        onClick && "cursor-pointer hover:opacity-85",
+        draggable && "cursor-grab active:cursor-grabbing",
+        isDragging && "opacity-30",
+      )}
+      style={ev.isLate
+        ? { backgroundColor: "rgb(239 68 68 / 0.14)", color: "rgb(220 38 38)", boxShadow: "inset 3px 0 0 rgb(220 38 38)" }
+        : { backgroundColor: color + "22", color, boxShadow: `inset 3px 0 0 ${color}` }}
+    >
+      {continuesBefore && <span className="shrink-0 opacity-60">‹</span>}
       <span className="truncate">{ev.title}</span>
-      {onClick && <Pencil className="h-2 w-2 shrink-0 opacity-0 group-hover:opacity-50 ml-auto" />}
+      {continuesAfter && <span className="ml-auto shrink-0 opacity-60">›</span>}
     </div>
   )
-  if (onClick) return <button type="button" onClick={onClick} className="w-full text-left">{inner}</button>
-  return ev.href ? <Link href={ev.href}>{inner}</Link> : inner
 }
 
 // ── Liste d'événements (dialog mois) ─────────────────────────────────────────

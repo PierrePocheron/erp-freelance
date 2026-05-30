@@ -112,8 +112,33 @@ function getWeekStart(date: Date): Date {
   return d
 }
 
+function startOfDay(d: Date): Date {
+  const x = new Date(d); x.setHours(0, 0, 0, 0); return x
+}
+
+/**
+ * Plage de jours couverte par un événement (bornes incluses).
+ * Pour les événements journée entière multi-jours, `endDate` est exclusif
+ * (convention Google : end.date = lendemain du dernier jour) → on retire 1 ms.
+ * Les événements horaires restent sur leur seul jour de début.
+ */
+function eventDayRange(ev: CalendarEvent): { first: Date; last: Date } {
+  const first = startOfDay(new Date(ev.date))
+  if (!isTimedEvent(ev) && ev.endDate) {
+    const endIncl = new Date(new Date(ev.endDate).getTime() - 1)
+    const last = startOfDay(endIncl)
+    return { first, last: last.getTime() < first.getTime() ? first : last }
+  }
+  return { first, last: first }
+}
+
 function eventsForDay(events: CalendarEvent[], date: Date): CalendarEvent[] {
-  return events.filter(e => isSameDay(new Date(e.date), date))
+  const d = startOfDay(date).getTime()
+  return events.filter(e => {
+    if (isTimedEvent(e)) return isSameDay(new Date(e.date), date)
+    const { first, last } = eventDayRange(e)
+    return d >= first.getTime() && d <= last.getTime()
+  })
 }
 
 function loadBg(count: number): string {
@@ -439,6 +464,8 @@ function NewEventDialog({
   const [title, setTitle]           = useState("")
   const [date, setDate]             = useState(defaultDate.toISOString().slice(0, 10))
   const [time, setTime]             = useState("")
+  const [allDay, setAllDay]         = useState(false)
+  const [endDate, setEndDate]       = useState("")   // journée entière multi-jours (opt.)
   const [description, setDescription] = useState("")
   const [categoryId, setCategoryId] = useState<string>(categories[0]?.id ?? "")
   const [projectId, setProjectId]   = useState("")
@@ -457,6 +484,7 @@ function NewEventDialog({
       setChannel("EMAIL"); setPriority("MEDIUM")
       setDate(defaultDate.toISOString().slice(0, 10))
       setTime(timeStringFromDate(defaultDate, undefined))
+      setAllDay(false); setEndDate("")
       setCategoryId(categories[0]?.id ?? "")
     }
   }, [open, defaultDate, categories])
@@ -468,19 +496,30 @@ function NewEventDialog({
   }
 
   const showCategory = nature === "event" || nature === "note"
+  const allowAllDay  = nature === "event"   // toggle "journée entière" réservé aux événements
 
   function handleSubmit() {
     if (!title.trim()) { setError("Le titre est requis"); return }
     if (rattachement === "project" && !projectId) { setError("Choisis un projet"); return }
     if (rattachement === "client"  && !clientId)  { setError("Choisis un client"); return }
     startTransition(async () => {
-      const startDate = parseDateTimeFromForm(date, time)
+      // Journée entière (uniquement pour les événements) : start à 00:00, et
+      // endDate stocké en EXCLUSIF (lendemain du dernier jour couvert, façon Google).
+      const isAllDay = allowAllDay && allDay
+      const startDate = parseDateTimeFromForm(date, isAllDay ? "" : time)
+      let endDateVal: Date | null = null
+      if (isAllDay && endDate) {
+        const last = parseDateTimeFromForm(endDate, "")  // dernier jour couvert (00:00)
+        last.setDate(last.getDate() + 1)                 // → exclusif
+        if (last.getTime() > startDate.getTime()) endDateVal = last
+      }
       const res = await createCalendarItem({
         nature,
         title: title.trim(),
         description: description || null,
         startDate,
-        allDay: !time,
+        endDate: endDateVal,
+        allDay: isAllDay || !time,
         categoryId: showCategory ? (categoryId || null) : null,
         projectId: rattachement === "project" ? (projectId || null) : null,
         clientId:  rattachement === "client"  ? (clientId  || null) : null,
@@ -551,18 +590,40 @@ function NewEventDialog({
               placeholder={TITLE_LABEL[nature]} className="h-8" />
           </div>
 
-          {/* Date + Heure */}
+          {/* Journée entière (événements uniquement) */}
+          {allowAllDay && (
+            <label className="flex cursor-pointer items-center gap-2 text-xs font-medium text-muted-foreground">
+              <input type="checkbox" checked={allDay}
+                onChange={e => { setAllDay(e.target.checked); if (e.target.checked) setTime("") }}
+                className="h-3.5 w-3.5 rounded border-input accent-primary" />
+              Journée entière
+            </label>
+          )}
+
+          {/* Date + Heure / Date de fin */}
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <label className="text-xs font-medium text-muted-foreground">{DATE_LABEL[nature]}</label>
+              <label className="text-xs font-medium text-muted-foreground">
+                {allowAllDay && allDay ? "Début" : DATE_LABEL[nature]}
+              </label>
               <Input type="date" value={date} onChange={e => setDate(e.target.value)} className="h-8" />
             </div>
-            <div className="space-y-1.5">
-              <label className="text-xs font-medium text-muted-foreground">
-                Heure <span className="text-muted-foreground/50">(opt.)</span>
-              </label>
-              <Input type="time" value={time} onChange={e => setTime(e.target.value)} className="h-8" />
-            </div>
+            {allowAllDay && allDay ? (
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-muted-foreground">
+                  Fin <span className="text-muted-foreground/50">(opt.)</span>
+                </label>
+                <Input type="date" value={endDate} min={date}
+                  onChange={e => setEndDate(e.target.value)} className="h-8" />
+              </div>
+            ) : (
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-muted-foreground">
+                  Heure <span className="text-muted-foreground/50">(opt.)</span>
+                </label>
+                <Input type="time" value={time} onChange={e => setTime(e.target.value)} className="h-8" />
+              </div>
+            )}
           </div>
 
           {/* Champ spécifique : priorité (tâche) */}

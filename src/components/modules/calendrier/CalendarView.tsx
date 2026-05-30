@@ -1377,6 +1377,8 @@ function TimeGridView({
   const grabOffsetRef = useRef(0)
   const [draggingId, setDraggingId]   = useState<string | null>(null)
   const [dropPreview, setDropPreview] = useState<{ colIdx: number; snapY: number; timeLabel: string } | null>(null)
+  // Créneau survolé : affiche un indicateur d'ajout rapide à l'heure pointée.
+  const [hoverSlot, setHoverSlot]     = useState<{ colIdx: number; snapY: number; h: number; m: number; timeLabel: string } | null>(null)
 
   useEffect(() => {
     const onEnd = () => { setDraggingId(null); setDropPreview(null) }
@@ -1397,13 +1399,17 @@ function TimeGridView({
     setDraggingId(ev.id)
   }
 
-  function calcSnap(e: React.DragEvent): { totalMin: number; snapY: number; timeLabel: string } {
+  function calcSlotAt(e: React.MouseEvent | React.DragEvent, withGrab: boolean) {
     const colRect  = (e.currentTarget as HTMLElement).getBoundingClientRect()
-    const relY     = Math.max(0, e.clientY - colRect.top - grabOffsetRef.current)
+    const relY     = Math.max(0, e.clientY - colRect.top - (withGrab ? grabOffsetRef.current : 0))
     const totalMin = snapMinutes(relY / HOUR_HEIGHT * 60)
     const h = Math.floor(totalMin / 60) + HOUR_START
     const m = totalMin % 60
-    return { totalMin, snapY: (totalMin / 60) * HOUR_HEIGHT, timeLabel: `${String(h).padStart(2,"0")}:${String(m).padStart(2,"0")}` }
+    return { totalMin, snapY: (totalMin / 60) * HOUR_HEIGHT, h, m, timeLabel: `${String(h).padStart(2,"0")}:${String(m).padStart(2,"0")}` }
+  }
+
+  function calcSnap(e: React.DragEvent) {
+    return calcSlotAt(e, true)
   }
 
   function handleColDragOver(e: React.DragEvent, colIdx: number) {
@@ -1567,8 +1573,25 @@ function TimeGridView({
                 </div>
               )}
 
-              <button type="button" className="absolute inset-0 w-full opacity-0 hover:opacity-100 hover:bg-primary/3 transition-opacity z-0"
-                onClick={() => { const d = new Date(date); d.setHours(9, 0, 0, 0); onNewEvent(d) }} />
+              {/* Zone d'ajout rapide : suit le curseur et crée à l'heure pointée */}
+              <button type="button" className="absolute inset-0 w-full z-0 cursor-pointer"
+                onMouseMove={e => { if (!draggingId) setHoverSlot({ colIdx: di, ...calcSlotAt(e, false) }) }}
+                onMouseLeave={() => setHoverSlot(s => (s?.colIdx === di ? null : s))}
+                onClick={e => {
+                  const { h, m } = calcSlotAt(e, false)
+                  const d = new Date(date); d.setHours(h, m, 0, 0); onNewEvent(d)
+                }} />
+
+              {/* Indicateur d'ajout au créneau survolé */}
+              {hoverSlot?.colIdx === di && !draggingId && !preview && (
+                <div style={{ top: hoverSlot.snapY }}
+                  className="absolute inset-x-0 z-10 flex items-center pointer-events-none -translate-y-1/2">
+                  <span className="flex items-center gap-0.5 text-[10px] font-semibold text-primary bg-background border border-primary/30 rounded px-1 py-px ml-1 mr-1 shadow-sm tabular-nums">
+                    <Plus className="h-2.5 w-2.5" />{hoverSlot.timeLabel}
+                  </span>
+                  <div className="flex-1 border-t border-dashed border-primary/50" />
+                </div>
+              )}
 
               {dayTimed.map(ev => {
                 const top    = timeToY(new Date(ev.date))

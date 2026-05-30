@@ -769,10 +769,11 @@ function NewEventDialog({
 // ── Dialog Détail / Modification d'un événement ──────────────────────────────
 
 function EventDetailDialog({
-  event, onClose, categories, projects, clients,
+  event, onClose, onSaved, categories, projects, clients,
 }: {
   event: CalendarEvent
   onClose: () => void
+  onSaved?: (eventId: string) => void
   categories: CalendarCategory[]
   projects: ProjectOption[]
   clients: ClientOption[]
@@ -820,6 +821,7 @@ function EventDetailDialog({
       })
       if (res.error) { setError(res.error); return }
       router.refresh()
+      onSaved?.(event.id)
       onClose()
     })
   }
@@ -1024,7 +1026,17 @@ export function CalendarView({
   const [syncError, setSyncError]       = useState<string>("")
   const [showGoogleEvents, setShowGoogleEvents] = useState(true)
   const [isRefreshing, startRefresh]    = useTransition()
+  const [justMovedId, setJustMovedId]   = useState<string | null>(null)
+  const justMovedTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const router = useRouter()
+
+  // Déclenche l'animation d'« atterrissage » sur l'événement déplacé / édité.
+  function flashEvent(id: string) {
+    if (justMovedTimer.current) clearTimeout(justMovedTimer.current)
+    setJustMovedId(id)
+    justMovedTimer.current = setTimeout(() => setJustMovedId(null), 700)
+  }
+  useEffect(() => () => { if (justMovedTimer.current) clearTimeout(justMovedTimer.current) }, [])
 
   useEffect(() => {
     const stored = localStorage.getItem(VIEW_STORAGE_KEY) as ViewMode | null
@@ -1118,6 +1130,7 @@ export function CalendarView({
     startRefresh(async () => {
       await moveCalendarItem(ev.type as CalItemType, eventId, newStart, newEnd, allDay)
       router.refresh()
+      flashEvent(eventId)
     })
   }
 
@@ -1328,6 +1341,7 @@ export function CalendarView({
           onNewEvent={date => { setNewEventDate(date); setNewEventOpen(true) }}
           onMoveEvent={handleMoveEvent}
           onEventClick={handleEventClick}
+          justMovedId={justMovedId}
         />
       ) : (
         <TimeGridView
@@ -1337,6 +1351,7 @@ export function CalendarView({
           onMoveEvent={handleMoveEvent}
           onEventClick={handleEventClick}
           onSelectDay={setSelectedDay}
+          justMovedId={justMovedId}
         />
       )}
 
@@ -1383,6 +1398,7 @@ export function CalendarView({
         <EventDetailDialog
           event={editingEvent}
           onClose={() => setEditingEvent(null)}
+          onSaved={flashEvent}
           categories={categories}
           projects={projects}
           clients={clients}
@@ -1395,7 +1411,7 @@ export function CalendarView({
 // ── Vue Mois ──────────────────────────────────────────────────────────────────
 
 function MonthView({
-  events, currentDate, selectedDay, setSelectedDay, onNewEvent, onMoveEvent, onEventClick,
+  events, currentDate, selectedDay, setSelectedDay, onNewEvent, onMoveEvent, onEventClick, justMovedId,
 }: {
   events: CalendarEvent[]
   currentDate: Date
@@ -1404,6 +1420,7 @@ function MonthView({
   onNewEvent: (date: Date) => void
   onMoveEvent: MoveEventFn
   onEventClick: (ev: CalendarEvent) => void
+  justMovedId?: string | null
 }) {
   const year  = currentDate.getFullYear()
   const month = currentDate.getMonth()
@@ -1509,6 +1526,7 @@ function MonthView({
                     className={cn(
                       "flex items-center gap-1 rounded px-1 py-px text-[10px] leading-tight truncate cursor-pointer hover:opacity-80 group",
                       ev.isLate ? "bg-red-500/10" : "bg-muted/50",
+                      justMovedId === ev.id && "cal-bar-land",
                     )}
                   >
                     <span
@@ -1550,6 +1568,7 @@ function MonthView({
                   <div className="pointer-events-auto h-full">
                     <SpanBar ev={ev}
                       continuesBefore={s.continuesBefore} continuesAfter={s.continuesAfter}
+                      landing={justMovedId === ev.id}
                       draggable={editable}
                       onDragStart={editable ? e => {
                         e.stopPropagation()
@@ -1571,7 +1590,7 @@ function MonthView({
 // ── Vue grille horaire (Jour / 3j / 5j / 7j) ─────────────────────────────────
 
 function TimeGridView({
-  events, days, onNewEvent, onMoveEvent, onEventClick, onSelectDay,
+  events, days, onNewEvent, onMoveEvent, onEventClick, onSelectDay, justMovedId,
 }: {
   events: CalendarEvent[]
   days: Date[]
@@ -1579,6 +1598,7 @@ function TimeGridView({
   onMoveEvent: MoveEventFn
   onEventClick: (ev: CalendarEvent) => void
   onSelectDay: (d: Date) => void
+  justMovedId?: string | null
 }) {
   const cols    = days.length
   const totalH  = (HOUR_END - HOUR_START) * HOUR_HEIGHT
@@ -1751,6 +1771,7 @@ function TimeGridView({
                   <SpanBar ev={ev}
                     continuesBefore={s.continuesBefore} continuesAfter={s.continuesAfter}
                     isDragging={draggingId === ev.id}
+                    landing={justMovedId === ev.id}
                     draggable={editable}
                     onDragStart={editable ? e => { e.stopPropagation(); startDrag(e, ev, true) } : undefined}
                     onClick={() => onEventClick(ev)} />
@@ -1874,7 +1895,8 @@ function TimeGridView({
                     }}
                     className={cn("absolute rounded-md border px-1.5 py-0.5 overflow-hidden z-20 group transition-opacity hover:z-40",
                       (editable || ev.href) && "cursor-pointer",
-                      isDragging && "opacity-30")}
+                      isDragging && "opacity-30",
+                      justMovedId === ev.id && "cal-event-land")}
                     onClick={editable ? e => { e.stopPropagation(); onEventClick(ev) } : undefined}
                   >
                     {!editable && ev.href ? (
@@ -1928,7 +1950,7 @@ function TimedEventContent({ ev, height, color, cfg }: {
  */
 function SpanBar({
   ev, continuesBefore = false, continuesAfter = false, isDragging = false,
-  onClick, draggable = false, onDragStart,
+  onClick, draggable = false, onDragStart, landing = false,
 }: {
   ev: CalendarEvent
   continuesBefore?: boolean
@@ -1937,6 +1959,7 @@ function SpanBar({
   onClick?: () => void
   draggable?: boolean
   onDragStart?: React.DragEventHandler
+  landing?: boolean
 }) {
   const color = evColor(ev)
   return (
@@ -1951,6 +1974,7 @@ function SpanBar({
         onClick && "cursor-pointer hover:opacity-85",
         draggable && "cursor-grab active:cursor-grabbing",
         isDragging && "opacity-30",
+        landing && "cal-bar-land",
       )}
       style={ev.isLate
         ? { backgroundColor: "rgb(239 68 68 / 0.14)", color: "rgb(220 38 38)", boxShadow: "inset 3px 0 0 rgb(220 38 38)" }

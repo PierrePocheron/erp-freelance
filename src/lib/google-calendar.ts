@@ -132,30 +132,42 @@ export async function fetchGoogleEvents(
   to: Date,
   calendarId: string = "primary"
 ): Promise<GoogleCalendarEvent[]> {
-  const params = new URLSearchParams({
-    timeMin: from.toISOString(),
-    timeMax: to.toISOString(),
-    singleEvents: "true",
-    orderBy: "startTime",
-    maxResults: "250",
-  })
+  const all: GoogleCalendarEvent[] = []
+  let pageToken: string | undefined
 
-  const res = await fetch(
-    `${GOOGLE_CALENDAR_API}/calendars/${encodeURIComponent(calendarId)}/events?${params}`,
-    { headers: { Authorization: `Bearer ${accessToken}` } }
-  )
+  // Pagination : la fenêtre peut couvrir tout le passé, donc on suit nextPageToken
+  // jusqu'à épuisement. Garde-fou à 5000 événements pour éviter un emballement sur
+  // un très gros agenda.
+  do {
+    const params = new URLSearchParams({
+      timeMin: from.toISOString(),
+      timeMax: to.toISOString(),
+      singleEvents: "true",
+      orderBy: "startTime",
+      maxResults: "250",
+    })
+    if (pageToken) params.set("pageToken", pageToken)
 
-  if (!res.ok) {
-    let detail = ""
-    try {
-      const body = await res.json() as { error?: { message?: string } }
-      detail = body?.error?.message ?? ""
-    } catch { /* corps non-JSON */ }
-    throw new Error(`Google Calendar API ${res.status}${detail ? ` — ${detail}` : ""}`)
-  }
+    const res = await fetch(
+      `${GOOGLE_CALENDAR_API}/calendars/${encodeURIComponent(calendarId)}/events?${params}`,
+      { headers: { Authorization: `Bearer ${accessToken}` } }
+    )
 
-  const data = await res.json() as { items?: GoogleCalendarEvent[] }
-  return data.items ?? []
+    if (!res.ok) {
+      let detail = ""
+      try {
+        const body = await res.json() as { error?: { message?: string } }
+        detail = body?.error?.message ?? ""
+      } catch { /* corps non-JSON */ }
+      throw new Error(`Google Calendar API ${res.status}${detail ? ` — ${detail}` : ""}`)
+    }
+
+    const data = await res.json() as { items?: GoogleCalendarEvent[]; nextPageToken?: string }
+    if (data.items) all.push(...data.items)
+    pageToken = data.nextPageToken
+  } while (pageToken && all.length < 5000)
+
+  return all
 }
 
 // ── Agenda dédié "ERP Freelance" ────────────────────────────────────────────────

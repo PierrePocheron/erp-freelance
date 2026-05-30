@@ -814,7 +814,9 @@ function EventDetailDialog({
 
 const GOOGLE_CALENDAR_SCOPES = [
   "openid", "email", "profile",
-  "https://www.googleapis.com/auth/calendar.readonly",
+  // calendar (lecture/écriture complète) : requis pour CRÉER l'agenda dédié
+  // "ERP Freelance" + lui appliquer une couleur. Englobe readonly + events.
+  "https://www.googleapis.com/auth/calendar",
   "https://www.googleapis.com/auth/calendar.events",
 ].join(" ")
 

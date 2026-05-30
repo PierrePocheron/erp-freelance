@@ -975,6 +975,20 @@ export async function syncGoogleEvents(): Promise<SyncResult> {
       synced++
     }
 
+    // Push ERP → Google du backlog : événements manuels de la fenêtre pas encore
+    // poussés (googleEventId NULL). Les nouveaux événements sont déjà poussés à la
+    // création ; ce passage rattrape ceux créés avant l'activation de la synchro.
+    const backlog = await prisma.$queryRaw<{ id: string }[]>`
+      SELECT id FROM "CalendarEvent"
+      WHERE "userId" = ${userId} AND "sourceType" = 'MANUAL'
+        AND "googleEventId" IS NULL
+        AND "startDate" >= ${from} AND "startDate" <= ${to}
+    `
+    for (const row of backlog) {
+      await syncManualEventToGoogle(userId, row.id)
+      synced++
+    }
+
     revalidatePath("/calendrier")
     return { synced }
 

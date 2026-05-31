@@ -456,6 +456,7 @@ model Renewal {
   postDevId       String
   type            RenewalType @default(OTHER)
   name            String
+  amount          Float?
   purchasedAt     DateTime?
   periodMonths    Int?
   expiresAt       DateTime
@@ -612,10 +613,11 @@ model Invoice {
   paidAt           DateTime?
   sentAt           DateTime?
   issuedAt         DateTime?
-  cancelledAt      DateTime?
-  pdfUrl           String?
-  notes            String?
-  createdAt        DateTime      @default(now())
+  cancelledAt       DateTime?
+  pdfUrl            String?
+  notes             String?
+  generalConditions String?
+  createdAt         DateTime      @default(now())
   updatedAt        DateTime      @updatedAt
 
   user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)

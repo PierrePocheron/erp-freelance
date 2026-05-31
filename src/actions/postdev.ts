@@ -39,7 +39,7 @@ export async function upsertPostDev(
 export async function addRenewal(
   postDevId: string,
   projectId: string,
-  data: { type: string; name: string; expiresAt: string; purchasedAt?: string | null; periodMonths?: number | null }
+  data: { type: string; name: string; expiresAt: string; purchasedAt?: string | null; periodMonths?: number | null; amount?: number | null }
 ) {
   const userId = await requireAuth()
   const postDev = await prisma.postDev.findFirst({
@@ -52,6 +52,7 @@ export async function addRenewal(
       postDevId,
       type: data.type as any,
       name: data.name,
+      amount: data.amount ?? null,
       purchasedAt: data.purchasedAt ? new Date(data.purchasedAt) : null,
       periodMonths: data.periodMonths ?? null,
       expiresAt: new Date(data.expiresAt),

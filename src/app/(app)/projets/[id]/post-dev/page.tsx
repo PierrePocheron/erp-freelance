@@ -4,11 +4,13 @@ import { notFound } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { upsertPostDev, deleteRenewal } from "@/actions/postdev"
+import { createInvoiceFromRenewal } from "@/actions/facturation"
+import { redirect } from "next/navigation"
 import { MonitoringButton } from "@/components/modules/projet/MonitoringButton"
 import { RenewalForm } from "@/components/modules/projet/RenewalForm"
 import {
   Globe, ShieldCheck, Server, Building2,
-  Trash2, CheckCircle2, XCircle, Clock, RefreshCw,
+  Trash2, CheckCircle2, XCircle, Clock, RefreshCw, Receipt,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 
@@ -200,9 +202,18 @@ export default async function ProjectPostDevPage({
                           <p className="text-xs mt-0.5 text-muted-foreground">
                             Acheté le {new Date(r.purchasedAt).toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" })}
                             {r.periodMonths ? ` · ${r.periodMonths < 12 ? `${r.periodMonths} mois` : `${r.periodMonths / 12} an${r.periodMonths / 12 > 1 ? "s" : ""}`}` : ""}
+                            {r.amount ? ` · ${r.amount.toLocaleString("fr-FR")} € HT` : ""}
                           </p>
                         )}
                       </div>
+                      {r.amount && r.amount > 0 && (
+                        <form action={async () => { "use server"; const inv = await createInvoiceFromRenewal(r.id, ""); redirect(`/facturation/factures/${inv.id}`) }}>
+                          <Button type="submit" size="sm" variant="outline" className="h-7 gap-1 text-xs">
+                            <Receipt className="h-3.5 w-3.5" />
+                            Facturer
+                          </Button>
+                        </form>
+                      )}
                       <form action={async () => { "use server"; await deleteRenewal(r.id, id) }}>
                         <button type="submit" className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive transition-opacity">
                           <Trash2 className="h-3.5 w-3.5" />

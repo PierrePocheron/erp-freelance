@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { LineItemsEditor } from "@/components/modules/facturation/LineItemsEditor"
 import { DeleteConfirmButton } from "@/components/modules/facturation/DeleteConfirmButton"
 import { InvoicePaymentSection } from "@/components/modules/facturation/InvoicePaymentSection"
+import { InvoiceConditionsForm } from "@/components/modules/facturation/InvoiceConditionsForm"
 import { updateInvoiceStatus, deleteInvoice, updateInvoiceDueDate, updateInvoiceNotes, sendInvoiceEmail, sendInvoiceReminder, issueInvoice, cancelInvoice, duplicateInvoiceAsDraft } from "@/actions/facturation"
 import { redirect } from "next/navigation"
 import { Input } from "@/components/ui/input"
@@ -49,6 +50,12 @@ export default async function FactureDetailPage({
   })
 
   if (!invoice) notFound()
+
+  const conditionsTemplates = await prisma.conditionsTemplate.findMany({
+    where: { userId },
+    select: { id: true, name: true, content: true },
+    orderBy: { name: "asc" },
+  })
 
   const status = statusConfig[invoice.status as keyof typeof statusConfig]
   const isEditable = invoice.status === "DRAFT"
@@ -261,6 +268,26 @@ export default async function FactureDetailPage({
             {invoice.notes && <p className="text-muted-foreground whitespace-pre-wrap">{invoice.notes}</p>}
             <p className="text-xs text-muted-foreground italic">Facture figée — annulez-la pour la corriger.</p>
           </div>
+        )}
+      </div>
+
+      {/* Conditions générales */}
+      <div className="rounded-xl border border-border/50 bg-card p-5 space-y-3">
+        <div>
+          <h2 className="font-semibold text-sm">Conditions générales</h2>
+          <p className="text-xs text-muted-foreground mt-0.5">Apparaissent en bas du PDF (reconduction, nom de domaine…)</p>
+        </div>
+        {isEditable ? (
+          <InvoiceConditionsForm
+            invoiceId={id}
+            userId={userId}
+            defaultValue={invoice.generalConditions ?? ""}
+            templates={conditionsTemplates}
+          />
+        ) : invoice.generalConditions ? (
+          <p className="text-sm text-muted-foreground whitespace-pre-wrap">{invoice.generalConditions}</p>
+        ) : (
+          <p className="text-sm text-muted-foreground italic">Aucune condition renseignée.</p>
         )}
       </div>
 

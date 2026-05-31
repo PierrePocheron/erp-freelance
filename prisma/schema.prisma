@@ -456,6 +456,8 @@ model Renewal {
   postDevId       String
   type            RenewalType @default(OTHER)
   name            String
+  purchasedAt     DateTime?
+  periodMonths    Int?
   expiresAt       DateTime
   reminderSent30  Boolean     @default(false)
   reminderSent7   Boolean     @default(false)
@@ -514,9 +516,11 @@ enum InvoiceType {
 
 enum InvoiceStatus {
   DRAFT
+  ISSUED
   SENT
   PAID
   LATE
+  CANCELLED
 }
 
 enum RecurringFrequency {
@@ -607,6 +611,8 @@ model Invoice {
   dueDate          DateTime?
   paidAt           DateTime?
   sentAt           DateTime?
+  issuedAt         DateTime?
+  cancelledAt      DateTime?
   notes            String?
   createdAt        DateTime      @default(now())
   updatedAt        DateTime      @updatedAt

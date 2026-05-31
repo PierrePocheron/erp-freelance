@@ -371,7 +371,7 @@ export async function createInvoiceFromQuote(quoteId: string, _userId: string, t
       type: isDeposit ? "DEPOSIT" : type === "RECURRING" ? "RECURRING" : "FINAL",
       totalHT: isDeposit ? depositAmount : quote.totalHT,
       depositDeducted,
-      notes: quote.generalConditions ?? null,
+      generalConditions: quote.generalConditions ?? null,
       lines: {
         create: quote.lines.map((l) => ({
           description: l.description,
@@ -387,6 +387,75 @@ export async function createInvoiceFromQuote(quoteId: string, _userId: string, t
   })
   revalidatePath("/facturation/factures")
   revalidatePath("/facturation")
+  return invoice
+}
+
+// Facture un renouvellement (hébergement / domaine) pour sa période. Pré-remplit
+// une clause réutilisable selon le type (reconduction / nom de domaine) et avance
+// l'échéance du renouvellement (tacite reconduction), en réarmant les rappels.
+export async function createInvoiceFromRenewal(renewalId: string, _userId: string): Promise<{ id: string }> {
+  const userId = await requireAuth()
+  const renewal = await prisma.renewal.findFirst({
+    where: { id: renewalId, postDev: { project: { userId } } },
+    include: { postDev: { select: { project: { select: { id: true, clientId: true } } } } },
+  })
+  if (!renewal) throw new Error("Renouvellement introuvable")
+  if (!renewal.amount || renewal.amount <= 0) {
+    throw new Error("Renseignez d'abord un montant sur ce renouvellement")
+  }
+  const project = renewal.postDev.project
+
+  // Clause par défaut : on cherche une condition réutilisable pertinente selon le
+  // type, sinon la condition marquée par défaut.
+  const wanted = renewal.type === "DOMAIN"
+    ? ["domaine", "reconduc", "abonnement"]
+    : ["reconduc", "abonnement", "hébergement", "hebergement"]
+  const templates = await prisma.conditionsTemplate.findMany({
+    where: { userId },
+    select: { name: true, content: true, isDefault: true },
+  })
+  const match =
+    templates.find((t) => wanted.some((w) => t.name.toLowerCase().includes(w))) ??
+    templates.find((t) => t.isDefault)
+  const generalConditions = match?.content ?? null
+
+  const periodLabel = renewal.periodMonths ? ` (${renewal.periodMonths} mois)` : ""
+  const number = await nextInvoiceNumber(userId)
+  const invoice = await prisma.invoice.create({
+    data: {
+      userId,
+      clientId: project.clientId,
+      projectId: project.id,
+      number,
+      type: "RECURRING",
+      status: "DRAFT",
+      totalHT: renewal.amount,
+      depositDeducted: 0,
+      generalConditions,
+      lines: {
+        create: [{
+          description: renewal.name + periodLabel,
+          quantity: 1,
+          unitPrice: renewal.amount,
+          taxRate: 0,
+          total: renewal.amount,
+        }],
+      },
+    },
+  })
+
+  if (renewal.periodMonths) {
+    const next = new Date(renewal.expiresAt)
+    next.setMonth(next.getMonth() + renewal.periodMonths)
+    await prisma.renewal.update({
+      where: { id: renewalId },
+      data: { expiresAt: next, reminderSent30: false, reminderSent7: false },
+    })
+  }
+
+  revalidatePath("/facturation/factures")
+  revalidatePath("/facturation")
+  revalidatePath(`/projets/${project.id}/post-dev`)
   return invoice
 }
 
@@ -569,6 +638,13 @@ export async function updateInvoiceNotes(invoiceId: string, _userId: string, not
   const userId = await requireAuth()
   await assertInvoiceEditable(invoiceId, userId)
   await prisma.invoice.update({ where: { id: invoiceId, userId }, data: { notes } })
+  revalidatePath(`/facturation/factures/${invoiceId}`)
+}
+
+export async function updateInvoiceConditions(invoiceId: string, _userId: string, generalConditions: string | null) {
+  const userId = await requireAuth()
+  await assertInvoiceEditable(invoiceId, userId)
+  await prisma.invoice.update({ where: { id: invoiceId, userId }, data: { generalConditions } })
   revalidatePath(`/facturation/factures/${invoiceId}`)
 }
 

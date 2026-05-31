@@ -56,6 +56,7 @@ export async function buildInvoicePdfBuffer(invoiceId: string, userId: string): 
       total: l.total,
     })),
     notes: invoice.notes,
+    generalConditions: invoice.generalConditions,
     totalHT: invoice.totalHT,
   })
 

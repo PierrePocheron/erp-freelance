@@ -41,6 +41,7 @@ export function RenewalForm({ postDevId, projectId }: { postDevId: string; proje
   const initialPurchase = todayStr()
   const [type, setType] = useState("DOMAIN")
   const [name, setName] = useState("")
+  const [amount, setAmount] = useState("")
   const [purchasedAt, setPurchasedAt] = useState(initialPurchase)
   const [periodMonths, setPeriodMonths] = useState(12)
   const [expiresAt, setExpiresAt] = useState(addMonths(initialPurchase, 12))
@@ -61,11 +62,13 @@ export function RenewalForm({ postDevId, projectId }: { postDevId: string; proje
       await addRenewal(postDevId, projectId, {
         type,
         name: name.trim(),
+        amount: amount ? Number(amount) : null,
         purchasedAt: purchasedAt || null,
         periodMonths,
         expiresAt,
       })
       setName("")
+      setAmount("")
     })
   }
 
@@ -80,6 +83,19 @@ export function RenewalForm({ postDevId, projectId }: { postDevId: string; proje
       </select>
 
       <Input value={name} onChange={(e) => setName(e.target.value)} required placeholder="monsite.com" className="h-8" />
+
+      <div className="space-y-1">
+        <label className="text-xs text-muted-foreground">Montant € HT / période (pour facturer)</label>
+        <Input
+          type="number"
+          step="0.01"
+          min="0"
+          value={amount}
+          onChange={(e) => setAmount(e.target.value)}
+          placeholder="240"
+          className="h-8"
+        />
+      </div>
 
       <div className="space-y-1">
         <label className="text-xs text-muted-foreground">Date d’achat</label>

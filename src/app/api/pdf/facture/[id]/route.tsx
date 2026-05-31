@@ -1,9 +1,7 @@
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
-import { renderToBuffer } from "@react-pdf/renderer"
-import { InvoicePDF } from "@/lib/pdf"
+import { buildInvoicePdfBuffer } from "@/lib/invoice-pdf"
 import { NextRequest } from "next/server"
-import React from "react"
 
 export async function GET(
   _req: NextRequest,
@@ -15,59 +13,27 @@ export async function GET(
   const { id } = await params
   const userId = session.user.id
 
-  const [invoice, profile] = await Promise.all([
-    prisma.invoice.findFirst({
-      where: { id, userId },
-      include: {
-        client: true,
-        lines: { orderBy: { id: "asc" } },
-        user: { select: { name: true, email: true } },
-      },
-    }),
-    prisma.userProfile?.findUnique({ where: { userId } }).catch(() => null),
-  ])
-
+  const invoice = await prisma.invoice.findFirst({
+    where: { id, userId },
+    select: { number: true, pdfUrl: true },
+  })
   if (!invoice) return new Response("Not found", { status: 404 })
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const element: any = React.createElement(InvoicePDF, {
-    type: "FACTURE",
-    number: invoice.number,
-    createdAt: invoice.createdAt,
-    dueDate: invoice.dueDate,
-    sentAt: invoice.sentAt,
-    depositDeducted: invoice.depositDeducted,
-    accentColor: profile?.pdfAccentColor,
-    emitter: {
-      name: invoice.user.name ?? "Freelance",
-      email: invoice.user.email,
-      companyName: profile?.companyName,
-      address: profile?.address,
-      postalCode: profile?.postalCode,
-      city: profile?.city,
-      siret: profile?.siret,
-      phone: profile?.phone,
-      iban: profile?.iban,
-      bic: profile?.bic,
-    },
-    client: {
-      name: invoice.client.name,
-      company: invoice.client.company,
-      email: invoice.client.email,
-    },
-    lines: invoice.lines.map((l) => ({
-      description: l.description,
-      detail: l.detail,
-      quantity: l.quantity,
-      unitPrice: l.unitPrice,
-      taxRate: l.taxRate,
-      total: l.total,
-    })),
-    notes: invoice.notes,
-    totalHT: invoice.totalHT,
-  })
+  // Facture émise → on sert le PDF figé stocké sur Blob (immuable).
+  if (invoice.pdfUrl) {
+    const upstream = await fetch(invoice.pdfUrl)
+    if (upstream.ok) {
+      return new Response(upstream.body, {
+        headers: {
+          "Content-Type": "application/pdf",
+          "Content-Disposition": `inline; filename="${invoice.number}.pdf"`,
+        },
+      })
+    }
+    // Si le blob est inaccessible, on retombe sur un rendu à la volée.
+  }
 
-  const buffer = await renderToBuffer(element)
+  const buffer = await buildInvoicePdfBuffer(id, userId)
 
   return new Response(new Uint8Array(buffer), {
     headers: {

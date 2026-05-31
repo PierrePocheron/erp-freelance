@@ -5,6 +5,8 @@ import { revalidatePath } from "next/cache"
 import { type NumberFormat, buildNumberParts } from "@/lib/number-format"
 import { auth } from "@/lib/auth"
 import { enforceRateLimit } from "@/lib/rate-limit"
+import { put } from "@vercel/blob"
+import { buildInvoicePdfBuffer } from "@/lib/invoice-pdf"
 
 async function requireAuth(): Promise<string> {
   const session = await auth()
@@ -459,15 +461,36 @@ export async function updateInvoiceStatus(invoiceId: string, _userId: string, st
 }
 
 // Émet une facture : passage brouillon → émise. La facture est alors figée
-// (plus éditable). Le gel du PDF sur Blob sera branché au chantier archivage.
+// (plus éditable) et son PDF est rendu une fois puis stocké sur Blob — ce
+// document devient immuable, indépendant des évolutions futures du profil.
 export async function issueInvoice(invoiceId: string, _userId: string) {
   const userId = await requireAuth()
-  const invoice = await prisma.invoice.findFirst({ where: { id: invoiceId, userId }, select: { status: true } })
+  const invoice = await prisma.invoice.findFirst({
+    where: { id: invoiceId, userId },
+    select: { status: true, number: true },
+  })
   if (!invoice) throw new Error("Facture introuvable")
   if (invoice.status !== "DRAFT") throw new Error("Seule une facture en brouillon peut être émise")
+
+  // Gel du PDF : rendu pendant que la facture est encore cohérente, avant le
+  // changement de statut. Un échec Blob ne doit pas bloquer l'émission — la
+  // route PDF retombera sur un rendu à la volée tant que pdfUrl est null.
+  let pdfUrl: string | null = null
+  try {
+    const buffer = await buildInvoicePdfBuffer(invoiceId, userId)
+    const safeNumber = invoice.number.replace(/[^a-zA-Z0-9._-]/g, "-")
+    const blob = await put(`factures/${userId}/${safeNumber}.pdf`, buffer, {
+      access: "public",
+      contentType: "application/pdf",
+    })
+    pdfUrl = blob.url
+  } catch (e) {
+    console.error("Gel PDF facture échoué (émission poursuivie) :", e)
+  }
+
   await prisma.invoice.update({
     where: { id: invoiceId, userId },
-    data: { status: "ISSUED" as never, issuedAt: new Date() },
+    data: { status: "ISSUED" as never, issuedAt: new Date(), ...(pdfUrl ? { pdfUrl } : {}) },
   })
   revalidatePath(`/facturation/factures/${invoiceId}`)
   revalidatePath("/facturation/factures")

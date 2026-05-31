@@ -7,6 +7,21 @@ import { auth } from "@/lib/auth"
 import { enforceRateLimit } from "@/lib/rate-limit"
 import { put } from "@vercel/blob"
 import { buildInvoicePdfBuffer } from "@/lib/invoice-pdf"
+import {
+  computeDepositDeducted,
+  depositAmount,
+  netAmount,
+  sumLineTotals,
+  isInvoiceSettled,
+} from "@/lib/money"
+import {
+  isInvoiceEditable,
+  isQuoteEditable,
+  canIssueInvoice,
+  canCancelInvoice,
+  canRevertQuoteToDraft,
+} from "@/lib/invoice-state"
+import { addMonths, advanceByFrequency } from "@/lib/dates"
 
 async function requireAuth(): Promise<string> {
   const session = await auth()
@@ -22,13 +37,13 @@ async function requireAuth(): Promise<string> {
 async function assertQuoteEditable(quoteId: string, userId: string): Promise<void> {
   const quote = await prisma.quote.findFirst({ where: { id: quoteId, userId }, select: { status: true } })
   if (!quote) throw new Error("Devis introuvable")
-  if (quote.status !== "DRAFT") throw new Error("Devis verrouillé : repassez-le en brouillon pour le modifier")
+  if (!isQuoteEditable(quote.status)) throw new Error("Devis verrouillé : repassez-le en brouillon pour le modifier")
 }
 
 async function assertInvoiceEditable(invoiceId: string, userId: string): Promise<void> {
   const invoice = await prisma.invoice.findFirst({ where: { id: invoiceId, userId }, select: { status: true } })
   if (!invoice) throw new Error("Facture introuvable")
-  if (invoice.status !== "DRAFT") throw new Error("Facture verrouillée : annulez-la pour la corriger")
+  if (!isInvoiceEditable(invoice.status)) throw new Error("Facture verrouillée : annulez-la pour la corriger")
 }
 
 // ── Numérotation ──────────────────────────────────────────────────────────────
@@ -164,7 +179,7 @@ export async function revertQuoteToDraft(quoteId: string, _userId: string) {
   const userId = await requireAuth()
   const quote = await prisma.quote.findFirst({ where: { id: quoteId, userId }, select: { status: true } })
   if (!quote) throw new Error("Devis introuvable")
-  if (quote.status !== "VALIDATED") throw new Error("Seul un devis validé non envoyé peut repasser en brouillon")
+  if (!canRevertQuoteToDraft(quote.status)) throw new Error("Seul un devis validé non envoyé peut repasser en brouillon")
   await prisma.quote.update({
     where: { id: quoteId, userId },
     data: { status: "DRAFT" as never, validatedAt: null },
@@ -218,7 +233,7 @@ export async function deleteQuote(quoteId: string, _userId: string) {
 
 async function recalcQuoteTotal(quoteId: string) {
   const lines = await prisma.quoteLine.findMany({ where: { quoteId } })
-  const totalHT = lines.reduce((s, l) => s + l.total, 0)
+  const totalHT = sumLineTotals(lines)
   await prisma.quote.update({ where: { id: quoteId }, data: { totalHT } })
 }
 
@@ -269,7 +284,7 @@ export async function updateQuoteLine(
     select: { id: true, quoteId: true, quote: { select: { status: true } } },
   })
   if (!existing) throw new Error("Non autorisé")
-  if (existing.quote.status !== "DRAFT") throw new Error("Devis verrouillé : repassez-le en brouillon pour le modifier")
+  if (!isQuoteEditable(existing.quote.status)) throw new Error("Devis verrouillé : repassez-le en brouillon pour le modifier")
   const total = data.quantity * data.unitPrice
   const line = await prisma.quoteLine.update({
     where: { id: lineId },
@@ -294,7 +309,7 @@ export async function deleteQuoteLine(lineId: string) {
     select: { id: true, quote: { select: { status: true } } },
   })
   if (!existing) throw new Error("Non autorisé")
-  if (existing.quote.status !== "DRAFT") throw new Error("Devis verrouillé : repassez-le en brouillon pour le modifier")
+  if (!isQuoteEditable(existing.quote.status)) throw new Error("Devis verrouillé : repassez-le en brouillon pour le modifier")
   const line = await prisma.quoteLine.delete({ where: { id: lineId }, select: { quoteId: true } })
   await recalcQuoteTotal(line.quoteId)
   revalidatePath(`/facturation/devis/${line.quoteId}`)
@@ -344,7 +359,7 @@ export async function createInvoiceFromQuote(quoteId: string, _userId: string, t
 
   const number = await nextInvoiceNumber(userId)
   const isDeposit = type === "DEPOSIT"
-  const depositAmount = isDeposit ? quote.totalHT * (quote.depositPercent / 100) : quote.totalHT
+  const depositTotal = isDeposit ? depositAmount(quote.totalHT, quote.depositPercent) : quote.totalHT
 
   // Sur la facture de solde, on déduit le montant des acomptes réellement facturés
   // (factures DEPOSIT non annulées) plutôt qu'un pourcentage théorique. Faute
@@ -355,10 +370,11 @@ export async function createInvoiceFromQuote(quoteId: string, _userId: string, t
       where: { quoteId: quote.id, type: "DEPOSIT", status: { not: "CANCELLED" } },
       select: { totalHT: true },
     })
-    depositDeducted = deposits.reduce((s, d) => s + d.totalHT, 0)
-    if (depositDeducted === 0 && quote.depositPercent > 0) {
-      depositDeducted = quote.totalHT * (quote.depositPercent / 100)
-    }
+    depositDeducted = computeDepositDeducted(
+      deposits.map((d) => d.totalHT),
+      quote.totalHT,
+      quote.depositPercent
+    )
   }
 
   const invoice = await prisma.invoice.create({
@@ -369,7 +385,7 @@ export async function createInvoiceFromQuote(quoteId: string, _userId: string, t
       quoteId: quote.id,
       number,
       type: isDeposit ? "DEPOSIT" : type === "RECURRING" ? "RECURRING" : "FINAL",
-      totalHT: isDeposit ? depositAmount : quote.totalHT,
+      totalHT: isDeposit ? depositTotal : quote.totalHT,
       depositDeducted,
       generalConditions: quote.generalConditions ?? null,
       lines: {
@@ -377,9 +393,9 @@ export async function createInvoiceFromQuote(quoteId: string, _userId: string, t
           description: l.description,
           detail: l.detail,
           quantity: isDeposit ? 1 : l.quantity,
-          unitPrice: isDeposit ? depositAmount : l.unitPrice,
+          unitPrice: isDeposit ? depositTotal : l.unitPrice,
           taxRate: l.taxRate,
-          total: isDeposit ? depositAmount : l.total,
+          total: isDeposit ? depositTotal : l.total,
           productId: l.productId,
         })),
       },
@@ -445,8 +461,7 @@ export async function createInvoiceFromRenewal(renewalId: string, _userId: strin
   })
 
   if (renewal.periodMonths) {
-    const next = new Date(renewal.expiresAt)
-    next.setMonth(next.getMonth() + renewal.periodMonths)
+    const next = addMonths(renewal.expiresAt, renewal.periodMonths)
     await prisma.renewal.update({
       where: { id: renewalId },
       data: { expiresAt: next, reminderSent30: false, reminderSent7: false },
@@ -480,9 +495,9 @@ export async function recordPayment(
     },
   })
 
-  const netAmount = invoice.totalHT - invoice.depositDeducted
+  const net = netAmount(invoice.totalHT, invoice.depositDeducted)
   const totalPaid = invoice.payments.reduce((s, p) => s + p.amount, 0) + data.amount
-  if (netAmount > 0 && totalPaid >= netAmount - 0.01 && invoice.status !== "PAID") {
+  if (isInvoiceSettled(net, totalPaid) && invoice.status !== "PAID") {
     await prisma.invoice.update({
       where: { id: invoiceId },
       data: { status: "PAID", paidAt: new Date(data.paidAt) },
@@ -539,7 +554,7 @@ export async function issueInvoice(invoiceId: string, _userId: string) {
     select: { status: true, number: true },
   })
   if (!invoice) throw new Error("Facture introuvable")
-  if (invoice.status !== "DRAFT") throw new Error("Seule une facture en brouillon peut être émise")
+  if (!canIssueInvoice(invoice.status)) throw new Error("Seule une facture en brouillon peut être émise")
 
   // Gel du PDF : rendu pendant que la facture est encore cohérente, avant le
   // changement de statut. Un échec Blob ne doit pas bloquer l'émission — la
@@ -572,7 +587,7 @@ export async function cancelInvoice(invoiceId: string, _userId: string) {
   const userId = await requireAuth()
   const invoice = await prisma.invoice.findFirst({ where: { id: invoiceId, userId }, select: { status: true } })
   if (!invoice) throw new Error("Facture introuvable")
-  if (invoice.status === "DRAFT" || invoice.status === "CANCELLED") {
+  if (!canCancelInvoice(invoice.status)) {
     throw new Error("Cette facture ne peut pas être annulée")
   }
   await prisma.invoice.update({
@@ -669,7 +684,7 @@ export async function signQuoteWithFile(quoteId: string, _userId: string, fileUr
 
 async function recalcInvoiceTotal(invoiceId: string) {
   const lines = await prisma.invoiceLine.findMany({ where: { invoiceId } })
-  const totalHT = lines.reduce((s, l) => s + l.total, 0)
+  const totalHT = sumLineTotals(lines)
   await prisma.invoice.update({ where: { id: invoiceId }, data: { totalHT } })
 }
 
@@ -720,7 +735,7 @@ export async function updateInvoiceLine(
     select: { id: true, invoice: { select: { status: true } } },
   })
   if (!existing) throw new Error("Non autorisé")
-  if (existing.invoice.status !== "DRAFT") throw new Error("Facture verrouillée : annulez-la pour la corriger")
+  if (!isInvoiceEditable(existing.invoice.status)) throw new Error("Facture verrouillée : annulez-la pour la corriger")
   const total = data.quantity * data.unitPrice
   const line = await prisma.invoiceLine.update({
     where: { id: lineId },
@@ -745,7 +760,7 @@ export async function deleteInvoiceLine(lineId: string) {
     select: { id: true, invoice: { select: { status: true } } },
   })
   if (!existing) throw new Error("Non autorisé")
-  if (existing.invoice.status !== "DRAFT") throw new Error("Facture verrouillée : annulez-la pour la corriger")
+  if (!isInvoiceEditable(existing.invoice.status)) throw new Error("Facture verrouillée : annulez-la pour la corriger")
   const line = await prisma.invoiceLine.delete({ where: { id: lineId }, select: { invoiceId: true } })
   await recalcInvoiceTotal(line.invoiceId)
   revalidatePath(`/facturation/factures/${line.invoiceId}`)
@@ -884,7 +899,7 @@ export async function generateInvoiceFromRecurring(
     recurringId
   )
 
-  const totalHT = lines.reduce((s, l) => s + Number(l.total), 0)
+  const totalHT = sumLineTotals(lines.map((l) => ({ total: Number(l.total) })))
   const number = await nextInvoiceNumber(userId)
 
   const invoice = await prisma.invoice.create({
@@ -910,10 +925,7 @@ export async function generateInvoiceFromRecurring(
   })
 
   // Advance nextGenerationDate
-  const next = new Date(recurring.nextGenerationDate)
-  if (recurring.frequency === "MONTHLY") next.setMonth(next.getMonth() + 1)
-  else if (recurring.frequency === "QUARTERLY") next.setMonth(next.getMonth() + 3)
-  else if (recurring.frequency === "YEARLY") next.setFullYear(next.getFullYear() + 1)
+  const next = advanceByFrequency(recurring.nextGenerationDate, recurring.frequency)
 
   await (prisma as never as { recurringInvoice: { update: (args: unknown) => Promise<unknown> } }).recurringInvoice.update({
     where: { id: recurringId } as never,
@@ -1152,6 +1164,6 @@ export async function getMonthlyRevenue(year: number): Promise<number[]> {
   return Array.from({ length: 12 }, (_, m) =>
     invoices
       .filter((i) => new Date(i.paidAt ?? i.createdAt).getMonth() === m)
-      .reduce((s, i) => s + i.totalHT - i.depositDeducted, 0)
+      .reduce((s, i) => s + netAmount(i.totalHT, i.depositDeducted), 0)
   )
 }

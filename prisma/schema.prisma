@@ -613,6 +613,7 @@ model Invoice {
   sentAt           DateTime?
   issuedAt         DateTime?
   cancelledAt      DateTime?
+  pdfUrl           String?
   notes            String?
   createdAt        DateTime      @default(now())
   updatedAt        DateTime      @updatedAt

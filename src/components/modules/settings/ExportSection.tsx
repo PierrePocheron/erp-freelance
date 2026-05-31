@@ -3,7 +3,7 @@
 import { useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
 import {
-  Download, Loader2, FileJson, Upload,
+  Download, Loader2, FileJson, FileArchive, Upload,
   ShieldCheck, CheckCircle2, XCircle, AlertTriangle,
 } from "lucide-react"
 import { exportAllData } from "@/actions/export"
@@ -24,6 +24,7 @@ interface Props {
 
 export function ExportSection({ stats }: Props) {
   const [isExporting, setIsExporting] = useState(false)
+  const [isArchiving, setIsArchiving] = useState(false)
   const [isImporting, setIsImporting] = useState(false)
   const [importResult, setImportResult] = useState<ImportResult | null>(null)
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
@@ -50,6 +51,29 @@ export function ExportSection({ stats }: Props) {
       toast.error("Erreur lors de l'export")
     } finally {
       setIsExporting(false)
+    }
+  }
+
+  async function handleExportArchive() {
+    try {
+      setIsArchiving(true)
+      const res = await fetch("/api/export/archive")
+      if (!res.ok) throw new Error("archive failed")
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement("a")
+      a.href = url
+      const date = new Date().toISOString().slice(0, 10)
+      a.download = `erp-archive-${date}.zip`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+      toast.success("Archive complète téléchargée")
+    } catch {
+      toast.error("Erreur lors de la création de l'archive")
+    } finally {
+      setIsArchiving(false)
     }
   }
 
@@ -136,12 +160,30 @@ export function ExportSection({ stats }: Props) {
           </span>
         </div>
 
-        <Button onClick={handleExport} disabled={isExporting} className="gap-2">
-          {isExporting
-            ? <Loader2 className="h-4 w-4 animate-spin" />
-            : <Download className="h-4 w-4" />}
-          {isExporting ? "Préparation..." : "Télécharger mes données"}
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button onClick={handleExport} disabled={isExporting || isArchiving} className="gap-2">
+            {isExporting
+              ? <Loader2 className="h-4 w-4 animate-spin" />
+              : <Download className="h-4 w-4" />}
+            {isExporting ? "Préparation..." : "Télécharger mes données (JSON)"}
+          </Button>
+          <Button
+            onClick={handleExportArchive}
+            disabled={isExporting || isArchiving}
+            variant="outline"
+            className="gap-2"
+          >
+            {isArchiving
+              ? <Loader2 className="h-4 w-4 animate-spin" />
+              : <FileArchive className="h-4 w-4" />}
+            {isArchiving ? "Création de l'archive..." : "Archive complète (ZIP)"}
+          </Button>
+        </div>
+
+        <p className="text-xs text-muted-foreground">
+          Le JSON sert à la restauration (import). L&apos;archive ZIP ajoute les documents :
+          PDF des factures émises (figés), devis signés et fichiers clients téléversés.
+        </p>
       </div>
 
       {/* ── Import ─────────────────────────────────────────────────────────── */}

@@ -5,7 +5,7 @@ import Link from "next/link"
 import {
   ChevronLeft, Download, CheckCircle2, XCircle, FileText,
   Send, ChevronRight, Clock, Check, PenLine, ExternalLink,
-  Banknote, Play,
+  Banknote, Play, Undo2,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { LineItemsEditor } from "@/components/modules/facturation/LineItemsEditor"
@@ -13,6 +13,7 @@ import { DeleteConfirmButton } from "@/components/modules/facturation/DeleteConf
 import { SignedUploadButton } from "@/components/modules/facturation/SignedUploadButton"
 import {
   updateQuoteStatus,
+  revertQuoteToDraft,
   deleteQuote,
   createInvoiceFromQuote,
   updateQuoteSettings,
@@ -224,15 +225,26 @@ export default async function DevisDetailPage({
             )}
 
             {quote.status === "VALIDATED" && (
-              <form action={async () => {
-                "use server"
-                await updateQuoteStatus(id, userId, "SENT")
-              }}>
-                <Button type="submit" size="sm">
-                  <Send className="h-3.5 w-3.5" />
-                  Marquer comme envoyé
-                </Button>
-              </form>
+              <>
+                <form action={async () => {
+                  "use server"
+                  await updateQuoteStatus(id, userId, "SENT")
+                }}>
+                  <Button type="submit" size="sm">
+                    <Send className="h-3.5 w-3.5" />
+                    Marquer comme envoyé
+                  </Button>
+                </form>
+                <form action={async () => {
+                  "use server"
+                  await revertQuoteToDraft(id, userId)
+                }}>
+                  <Button type="submit" size="sm" variant="outline">
+                    <Undo2 className="h-3.5 w-3.5" />
+                    Repasser en brouillon
+                  </Button>
+                </form>
+              </>
             )}
 
             {quote.status === "SENT" && (
@@ -473,9 +485,11 @@ export default async function DevisDetailPage({
                 <span className={`rounded-full px-2 py-0.5 text-xs font-medium ml-auto ${
                   inv.status === "PAID" ? "bg-emerald-500/15 text-emerald-600" :
                   inv.status === "SENT" ? "bg-blue-500/15 text-blue-600" :
+                  inv.status === "ISSUED" ? "bg-violet-500/15 text-violet-600" :
+                  inv.status === "CANCELLED" ? "bg-muted text-muted-foreground line-through" :
                   "bg-muted text-muted-foreground"
                 }`}>
-                  {inv.status === "PAID" ? "Payée" : inv.status === "SENT" ? "Envoyée" : "Brouillon"}
+                  {inv.status === "PAID" ? "Payée" : inv.status === "SENT" ? "Envoyée" : inv.status === "ISSUED" ? "Émise" : inv.status === "CANCELLED" ? "Annulée" : "Brouillon"}
                 </span>
               </Link>
             ))}
@@ -486,44 +500,53 @@ export default async function DevisDetailPage({
       {/* Paramètres */}
       <div className="rounded-xl border border-border/50 bg-card p-5 space-y-4">
         <h2 className="font-semibold text-sm">Paramètres</h2>
-        <form
-          action={async (fd: FormData) => {
-            "use server"
-            await updateQuoteSettings(id, userId, {
-              depositPercent: Number(fd.get("depositPercent")) || 0,
-              expiresAt: (fd.get("expiresAt") as string) || null,
-              notes: (fd.get("notes") as string) || null,
-            })
-          }}
-          className="space-y-3"
-        >
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-1">
-              <label className="text-xs text-muted-foreground">Acompte (%)</label>
-              <Input name="depositPercent" type="number" min="0" max="100" defaultValue={quote.depositPercent} className="h-8 w-full" />
+        {isEditable ? (
+          <form
+            action={async (fd: FormData) => {
+              "use server"
+              await updateQuoteSettings(id, userId, {
+                depositPercent: Number(fd.get("depositPercent")) || 0,
+                expiresAt: (fd.get("expiresAt") as string) || null,
+                notes: (fd.get("notes") as string) || null,
+              })
+            }}
+            className="space-y-3"
+          >
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1">
+                <label className="text-xs text-muted-foreground">Acompte (%)</label>
+                <Input name="depositPercent" type="number" min="0" max="100" defaultValue={quote.depositPercent} className="h-8 w-full" />
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs text-muted-foreground">Date d&apos;expiration</label>
+                <Input
+                  name="expiresAt"
+                  type="date"
+                  defaultValue={quote.expiresAt ? new Date(quote.expiresAt).toISOString().split("T")[0] : ""}
+                  className="h-8"
+                />
+              </div>
             </div>
             <div className="space-y-1">
-              <label className="text-xs text-muted-foreground">Date d&apos;expiration</label>
-              <Input
-                name="expiresAt"
-                type="date"
-                defaultValue={quote.expiresAt ? new Date(quote.expiresAt).toISOString().split("T")[0] : ""}
-                className="h-8"
+              <label className="text-xs text-muted-foreground">Notes internes</label>
+              <textarea
+                name="notes"
+                rows={2}
+                defaultValue={quote.notes ?? ""}
+                placeholder="Notes visibles uniquement par vous"
+                className="flex w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring resize-none"
               />
             </div>
+            <Button type="submit" size="sm" variant="outline">Enregistrer</Button>
+          </form>
+        ) : (
+          <div className="space-y-1.5 text-sm">
+            <div className="flex gap-2"><span className="text-muted-foreground">Acompte :</span><span>{quote.depositPercent} %</span></div>
+            <div className="flex gap-2"><span className="text-muted-foreground">Expiration :</span><span>{quote.expiresAt ? new Date(quote.expiresAt).toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" }) : "—"}</span></div>
+            {quote.notes && <p className="text-muted-foreground whitespace-pre-wrap">{quote.notes}</p>}
+            <p className="text-xs text-muted-foreground italic">Devis figé — repassez-le en brouillon pour le modifier.</p>
           </div>
-          <div className="space-y-1">
-            <label className="text-xs text-muted-foreground">Notes internes</label>
-            <textarea
-              name="notes"
-              rows={2}
-              defaultValue={quote.notes ?? ""}
-              placeholder="Notes visibles uniquement par vous"
-              className="flex w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring resize-none"
-            />
-          </div>
-          <Button type="submit" size="sm" variant="outline">Enregistrer</Button>
-        </form>
+        )}
       </div>
 
       {/* Conditions générales */}
@@ -532,24 +555,30 @@ export default async function DevisDetailPage({
           <h2 className="font-semibold text-sm">Conditions générales</h2>
           <p className="text-xs text-muted-foreground mt-0.5">Apparaissent en bas du document PDF</p>
         </div>
-        <form
-          action={async (fd: FormData) => {
-            "use server"
-            await updateQuoteSettings(id, userId, {
-              generalConditions: (fd.get("generalConditions") as string) || null,
-            })
-          }}
-          className="space-y-3"
-        >
-          <textarea
-            name="generalConditions"
-            rows={5}
-            defaultValue={quote.generalConditions ?? ""}
-            placeholder="Ex : Paiement à 30 jours. En cas de retard, une pénalité de 1,5% par mois sera appliquée..."
-            className="flex w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring resize-none"
-          />
-          <Button type="submit" size="sm" variant="outline">Enregistrer les conditions</Button>
-        </form>
+        {isEditable ? (
+          <form
+            action={async (fd: FormData) => {
+              "use server"
+              await updateQuoteSettings(id, userId, {
+                generalConditions: (fd.get("generalConditions") as string) || null,
+              })
+            }}
+            className="space-y-3"
+          >
+            <textarea
+              name="generalConditions"
+              rows={5}
+              defaultValue={quote.generalConditions ?? ""}
+              placeholder="Ex : Paiement à 30 jours. En cas de retard, une pénalité de 1,5% par mois sera appliquée..."
+              className="flex w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring resize-none"
+            />
+            <Button type="submit" size="sm" variant="outline">Enregistrer les conditions</Button>
+          </form>
+        ) : quote.generalConditions ? (
+          <p className="text-sm text-muted-foreground whitespace-pre-wrap">{quote.generalConditions}</p>
+        ) : (
+          <p className="text-sm text-muted-foreground italic">Aucune condition renseignée.</p>
+        )}
       </div>
 
       {/* Danger */}

@@ -24,9 +24,11 @@ type Quote = { id: string; number: string; clientId: string; projectId: string |
 
 const statusConfig: Record<string, { label: string; cls: string }> = {
   DRAFT: { label: "Brouillon", cls: "bg-muted text-muted-foreground border-border" },
+  ISSUED: { label: "Émise", cls: "bg-violet-500/15 text-violet-600 border-violet-500/20" },
   SENT: { label: "Envoyée", cls: "bg-blue-500/15 text-blue-600 border-blue-500/20" },
   PAID: { label: "Payée", cls: "bg-emerald-500/15 text-emerald-600 border-emerald-500/20" },
   LATE: { label: "En retard", cls: "bg-red-500/15 text-red-600 border-red-500/20" },
+  CANCELLED: { label: "Annulée", cls: "bg-muted text-muted-foreground border-border line-through" },
 }
 
 const typeLabels: Record<string, string> = {
@@ -39,9 +41,11 @@ const typeLabels: Record<string, string> = {
 const STATUS_FILTERS = [
   { value: "ALL", label: "Toutes" },
   { value: "DRAFT", label: "Brouillon" },
+  { value: "ISSUED", label: "Émises" },
   { value: "SENT", label: "Envoyées" },
   { value: "LATE", label: "En retard" },
   { value: "PAID", label: "Payées" },
+  { value: "CANCELLED", label: "Annulées" },
 ]
 
 export function FacturesListView({

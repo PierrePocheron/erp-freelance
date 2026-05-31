@@ -2,20 +2,22 @@ import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { notFound } from "next/navigation"
 import Link from "next/link"
-import { ChevronLeft, Download, Send, CheckCircle2 } from "lucide-react"
+import { ChevronLeft, Download, Send, CheckCircle2, FileCheck2, Ban, Copy } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { LineItemsEditor } from "@/components/modules/facturation/LineItemsEditor"
 import { DeleteConfirmButton } from "@/components/modules/facturation/DeleteConfirmButton"
 import { InvoicePaymentSection } from "@/components/modules/facturation/InvoicePaymentSection"
-import { updateInvoiceStatus, deleteInvoice, updateInvoiceDueDate, updateInvoiceNotes, sendInvoiceEmail, sendInvoiceReminder } from "@/actions/facturation"
+import { updateInvoiceStatus, deleteInvoice, updateInvoiceDueDate, updateInvoiceNotes, sendInvoiceEmail, sendInvoiceReminder, issueInvoice, cancelInvoice, duplicateInvoiceAsDraft } from "@/actions/facturation"
 import { redirect } from "next/navigation"
 import { Input } from "@/components/ui/input"
 
 const statusConfig = {
   DRAFT: { label: "Brouillon", cls: "bg-muted text-muted-foreground border-border" },
+  ISSUED: { label: "Émise", cls: "bg-violet-500/15 text-violet-600 border-violet-500/20" },
   SENT: { label: "Envoyée", cls: "bg-blue-500/15 text-blue-600 border-blue-500/20" },
   PAID: { label: "Payée", cls: "bg-emerald-500/15 text-emerald-600 border-emerald-500/20" },
   LATE: { label: "En retard", cls: "bg-red-500/15 text-red-600 border-red-500/20" },
+  CANCELLED: { label: "Annulée", cls: "bg-muted text-muted-foreground border-border line-through" },
 }
 
 const typeLabels: Record<string, string> = {
@@ -90,6 +92,15 @@ export default async function FactureDetailPage({
           </a>
 
           {invoice.status === "DRAFT" && (
+            <form action={async () => { "use server"; await issueInvoice(id, userId) }}>
+              <Button type="submit" size="sm">
+                <FileCheck2 className="h-3.5 w-3.5" />
+                Émettre la facture
+              </Button>
+            </form>
+          )}
+
+          {invoice.status === "ISSUED" && (
             <form action={async () => { "use server"; await updateInvoiceStatus(id, userId, "SENT") }}>
               <Button type="submit" size="sm" variant="outline">
                 <Send className="h-3.5 w-3.5" />
@@ -98,7 +109,7 @@ export default async function FactureDetailPage({
             </form>
           )}
 
-          {invoice.status === "DRAFT" && invoice.client.email && (
+          {invoice.status === "ISSUED" && invoice.client.email && (
             <form action={async () => { "use server"; await sendInvoiceEmail(id, userId) }}>
               <Button type="submit" size="sm">
                 <Send className="h-3.5 w-3.5" />
@@ -121,6 +132,24 @@ export default async function FactureDetailPage({
               <Button type="submit" size="sm" className="bg-emerald-500 hover:bg-emerald-600 text-white border-none">
                 <CheckCircle2 className="h-3.5 w-3.5" />
                 Marquer payée
+              </Button>
+            </form>
+          )}
+
+          {(invoice.status === "ISSUED" || invoice.status === "SENT" || invoice.status === "LATE") && (
+            <form action={async () => { "use server"; await cancelInvoice(id, userId) }}>
+              <Button type="submit" size="sm" variant="outline" className="text-destructive hover:text-destructive">
+                <Ban className="h-3.5 w-3.5" />
+                Annuler
+              </Button>
+            </form>
+          )}
+
+          {invoice.status === "CANCELLED" && (
+            <form action={async () => { "use server"; const d = await duplicateInvoiceAsDraft(id, userId); redirect(`/facturation/factures/${d.id}`) }}>
+              <Button type="submit" size="sm" variant="outline">
+                <Copy className="h-3.5 w-3.5" />
+                Dupliquer en brouillon
               </Button>
             </form>
           )}
@@ -193,35 +222,46 @@ export default async function FactureDetailPage({
       {/* Paramètres */}
       <div className="rounded-xl border border-border/50 bg-card p-5 space-y-4">
         <h2 className="font-semibold text-sm">Paramètres</h2>
-        <form
-          action={async (fd: FormData) => {
-            "use server"
-            await updateInvoiceDueDate(id, userId, (fd.get("dueDate") as string) || null)
-            await updateInvoiceNotes(id, userId, (fd.get("notes") as string) || null)
-          }}
-          className="space-y-3"
-        >
-          <div className="space-y-1">
-            <label className="text-xs text-muted-foreground">Date d'échéance</label>
-            <Input
-              name="dueDate"
-              type="date"
-              defaultValue={invoice.dueDate ? new Date(invoice.dueDate).toISOString().split("T")[0] : ""}
-              className="h-8 w-48"
-            />
+        {isEditable ? (
+          <form
+            action={async (fd: FormData) => {
+              "use server"
+              await updateInvoiceDueDate(id, userId, (fd.get("dueDate") as string) || null)
+              await updateInvoiceNotes(id, userId, (fd.get("notes") as string) || null)
+            }}
+            className="space-y-3"
+          >
+            <div className="space-y-1">
+              <label className="text-xs text-muted-foreground">Date d'échéance</label>
+              <Input
+                name="dueDate"
+                type="date"
+                defaultValue={invoice.dueDate ? new Date(invoice.dueDate).toISOString().split("T")[0] : ""}
+                className="h-8 w-48"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs text-muted-foreground">Notes / mentions légales</label>
+              <textarea
+                name="notes"
+                rows={3}
+                defaultValue={invoice.notes ?? ""}
+                placeholder="Conditions de paiement, RIB..."
+                className="flex w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring resize-none"
+              />
+            </div>
+            <Button type="submit" size="sm" variant="outline">Enregistrer</Button>
+          </form>
+        ) : (
+          <div className="space-y-2 text-sm">
+            <div className="flex gap-2">
+              <span className="text-muted-foreground">Échéance :</span>
+              <span>{invoice.dueDate ? new Date(invoice.dueDate).toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" }) : "—"}</span>
+            </div>
+            {invoice.notes && <p className="text-muted-foreground whitespace-pre-wrap">{invoice.notes}</p>}
+            <p className="text-xs text-muted-foreground italic">Facture figée — annulez-la pour la corriger.</p>
           </div>
-          <div className="space-y-1">
-            <label className="text-xs text-muted-foreground">Notes / mentions légales</label>
-            <textarea
-              name="notes"
-              rows={3}
-              defaultValue={invoice.notes ?? ""}
-              placeholder="Conditions de paiement, RIB..."
-              className="flex w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring resize-none"
-            />
-          </div>
-          <Button type="submit" size="sm" variant="outline">Enregistrer</Button>
-        </form>
+        )}
       </div>
 
       {/* Paiements */}

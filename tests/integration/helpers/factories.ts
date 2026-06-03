@@ -21,6 +21,12 @@ export async function makeClient(userId: string, overrides: Record<string, unkno
   })
 }
 
+export async function makeCompany(userId: string, overrides: Record<string, unknown> = {}) {
+  return prisma.company.create({
+    data: { userId, name: `Acme ${uniq("co")}`, ...overrides },
+  })
+}
+
 export async function makeProject(userId: string, clientId: string, name = "Site web") {
   return prisma.project.create({ data: { userId, clientId, name } })
 }

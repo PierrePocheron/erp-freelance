@@ -37,6 +37,7 @@ model User {
   conditionsTemplates ConditionsTemplate[]
   projectIdeas      ProjectIdea[]
   tasks             Task[]               @relation("UserTasks")
+  companies         Company[]
 }
 
 model ProjectIdea {
@@ -167,11 +168,50 @@ enum ClientFileType {
   OTHER
 }
 
+// Une société cliente. Peut regrouper plusieurs contacts (Client). Porte les
+// informations légales/de facturation (SIRET, TVA, adresse société).
+model Company {
+  id         String   @id @default(cuid())
+  userId     String
+  name       String
+  siret      String?
+  vatNumber  String?
+  email      String?
+  phone      String?
+  website    String?
+  address    String?
+  postalCode String?
+  city       String?
+  country    String?  @default("France")
+  notes      String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  contacts Client[]
+
+  @@unique([userId, name])
+  @@index([userId])
+}
+
+// Un contact. Source de vérité = firstName/lastName/label + companyId.
+// `name` et `company` (string) sont des CACHES D'AFFICHAGE dénormalisés, maintenus
+// à chaque écriture (cf. lib/contact.ts → computeContactName), pour éviter de
+// toucher les ~40 lectures existantes (listes, dashboards…). Ne jamais écrire
+// `name`/`company` directement ailleurs que via les actions CRM.
 model Client {
   id            String       @id @default(cuid())
   userId        String
   type          ClientType   @default(PROSPECT)
+  // Identité (source de vérité)
+  firstName     String?
+  lastName      String?
+  label         String?
+  // Cache d'affichage = label || "Prénom Nom" || société || "Sans nom"
   name          String
+  // Société (relation) + cache nom dénormalisé pour l'affichage
+  companyId     String?
+  companyRef    Company?     @relation(fields: [companyId], references: [id], onDelete: SetNull)
   company       String?
   email         String?
   phone         String?
@@ -179,6 +219,7 @@ model Client {
   temperature   Temperature  @default(COLD)
   priorityScore Int          @default(1)
   notes         String?
+  // Adresse du CONTACT (optionnelle — distincte de l'adresse société)
   address       String?
   postalCode    String?
   city          String?
@@ -196,6 +237,8 @@ model Client {
   invoices     Invoice[]
   recurringInvoices RecurringInvoice[]
   tasks        Task[]
+
+  @@index([companyId])
 }
 
 model Interaction {

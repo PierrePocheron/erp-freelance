@@ -67,8 +67,8 @@ export default async function ProjetsPage() {
 
   return (
     <div className="space-y-8">
-      <ProjectIdeasPanel userId={userId} initialIdeas={ideas} clients={clientsForIdeas} />
       <ProjetsListView userId={userId} projects={projectsWithStats} clients={clients} />
+      <ProjectIdeasPanel userId={userId} initialIdeas={ideas} clients={clientsForIdeas} />
     </div>
   )
 }

@@ -8,6 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { createClient } from "@/actions/crm"
+import { CompanyCombobox } from "./CompanyCombobox"
 
 export function CreateClientDialog({
   userId,
@@ -20,12 +21,14 @@ export function CreateClientDialog({
 }) {
   const [internalOpen, setInternalOpen] = useState(false)
   const [isPending, startTransition] = useTransition()
+  const [company, setCompany] = useState<{ id: string | null; name: string }>({ id: null, name: "" })
   const router = useRouter()
   const isControlled = controlledOpen !== undefined
   const open = isControlled ? controlledOpen! : internalOpen
 
   function handleOpenChange(v: boolean) {
     if (!isControlled) setInternalOpen(v)
+    if (!v) setCompany({ id: null, name: "" })
     controlledOnOpenChange?.(v)
   }
 
@@ -34,8 +37,11 @@ export function CreateClientDialog({
     const fd = new FormData(e.currentTarget)
     startTransition(async () => {
       const client = await createClient(userId, {
-        name: fd.get("name") as string,
-        company: (fd.get("company") as string) || undefined,
+        label: (fd.get("label") as string) || undefined,
+        firstName: (fd.get("firstName") as string) || undefined,
+        lastName: (fd.get("lastName") as string) || undefined,
+        companyId: company.id || undefined,
+        companyName: company.name.trim() || undefined,
         email: (fd.get("email") as string) || undefined,
         phone: (fd.get("phone") as string) || undefined,
         type: (fd.get("type") as string) || undefined,
@@ -61,86 +67,124 @@ export function CreateClientDialog({
           Nouveau contact
         </DialogTrigger>
       )}
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="sm:max-w-2xl max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Nouveau contact</DialogTitle>
         </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-4 pt-2" autoComplete="off">
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5 col-span-2">
-              <Label>Nom *</Label>
-              <Input name="name" placeholder="Jean Dupont" required autoComplete="off" />
+        <form onSubmit={handleSubmit} className="space-y-5 pt-2" autoComplete="off">
+          {/* ── Identité ── */}
+          <section className="space-y-3">
+            <h3 className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground/70">Identité</h3>
+            <div className="space-y-1.5">
+              <Label>Libellé du contact</Label>
+              <Input name="label" placeholder="Optionnel — nom affiché si renseigné" autoComplete="off" />
             </div>
-            <div className="space-y-1.5 col-span-2">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div className="space-y-1.5">
+                <Label>Prénom</Label>
+                <Input name="firstName" placeholder="Jean" autoComplete="off" />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Nom</Label>
+                <Input name="lastName" placeholder="Dupont" autoComplete="off" />
+              </div>
+            </div>
+            <div className="space-y-1.5">
               <Label>Société</Label>
-              <Input name="company" placeholder="Acme Inc." autoComplete="off" />
+              <CompanyCombobox value={company} onChange={setCompany} />
             </div>
+          </section>
+
+          {/* ── Coordonnées ── */}
+          <section className="space-y-3">
+            <h3 className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground/70">Coordonnées</h3>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div className="space-y-1.5">
+                <Label>Email</Label>
+                <Input name="email" type="email" placeholder="jean@acme.fr" autoComplete="off" />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Téléphone</Label>
+                <Input name="phone" placeholder="+33 6 00 00 00 00" autoComplete="off" />
+              </div>
+            </div>
+          </section>
+
+          {/* ── Qualification ── */}
+          <section className="space-y-3">
+            <h3 className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground/70">Qualification</h3>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+              <div className="space-y-1.5">
+                <Label>Type</Label>
+                <select name="type" className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-ring">
+                  <option value="TO_COMPLETE">À compléter</option>
+                  <option value="PROSPECT">Prospect</option>
+                  <option value="CLIENT">Client</option>
+                  <option value="PERSONAL">Perso</option>
+                  <option value="INACTIVE">Inactif</option>
+                </select>
+              </div>
+              <div className="space-y-1.5">
+                <Label>Source</Label>
+                <select name="source" className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-ring">
+                  <option value="OTHER">Autre</option>
+                  <option value="WORD_OF_MOUTH">Bouche à oreille</option>
+                  <option value="LINKEDIN">LinkedIn</option>
+                  <option value="WEBSITE">Site web</option>
+                  <option value="INBOUND">Entrant</option>
+                </select>
+              </div>
+              <div className="space-y-1.5">
+                <Label>Température</Label>
+                <select name="temperature" className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-ring">
+                  <option value="COLD">Froid</option>
+                  <option value="WARM">Tiède</option>
+                  <option value="HOT">Chaud</option>
+                </select>
+              </div>
+            </div>
+          </section>
+
+          {/* ── Adresse du contact (optionnelle) ── */}
+          <section className="space-y-3">
+            <h3 className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground/70">
+              Adresse du contact <span className="font-normal normal-case text-muted-foreground/60">(optionnelle)</span>
+            </h3>
             <div className="space-y-1.5">
-              <Label>Email</Label>
-              <Input name="email" type="email" placeholder="jean@acme.fr" autoComplete="off" />
-            </div>
-            <div className="space-y-1.5">
-              <Label>Téléphone</Label>
-              <Input name="phone" placeholder="+33 6 00 00 00 00" autoComplete="off" />
-            </div>
-            <div className="space-y-1.5">
-              <Label>Type</Label>
-              <select name="type" className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-ring">
-                <option value="TO_COMPLETE">À compléter</option>
-                <option value="PROSPECT">Prospect</option>
-                <option value="CLIENT">Client</option>
-                <option value="PERSONAL">Perso</option>
-                <option value="INACTIVE">Inactif</option>
-              </select>
-            </div>
-            <div className="space-y-1.5">
-              <Label>Source</Label>
-              <select name="source" className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-ring">
-                <option value="OTHER">Autre</option>
-                <option value="WORD_OF_MOUTH">Bouche à oreille</option>
-                <option value="LINKEDIN">LinkedIn</option>
-                <option value="WEBSITE">Site web</option>
-                <option value="INBOUND">Entrant</option>
-              </select>
-            </div>
-            <div className="space-y-1.5">
-              <Label>Température</Label>
-              <select name="temperature" className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-ring">
-                <option value="COLD">Froid</option>
-                <option value="WARM">Tiède</option>
-                <option value="HOT">Chaud</option>
-              </select>
-            </div>
-            <div className="space-y-1.5 col-span-2">
               <Label>Adresse</Label>
               <Input name="address" placeholder="12 rue de la Paix" autoComplete="off" />
             </div>
-            <div className="space-y-1.5">
-              <Label>Code postal</Label>
-              <Input name="postalCode" placeholder="75001" autoComplete="off" />
-            </div>
-            <div className="space-y-1.5">
-              <Label>Ville</Label>
-              <Input name="city" placeholder="Paris" autoComplete="off" />
-            </div>
-            <div className="space-y-1.5">
-              <Label>Pays</Label>
-              <Input name="country" placeholder="France" autoComplete="off" />
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+              <div className="space-y-1.5">
+                <Label>Code postal</Label>
+                <Input name="postalCode" placeholder="75001" autoComplete="off" />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Ville</Label>
+                <Input name="city" placeholder="Paris" autoComplete="off" />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Pays</Label>
+                <Input name="country" placeholder="France" autoComplete="off" />
+              </div>
             </div>
             <div className="space-y-1.5">
               <Label>SIRET</Label>
               <Input name="siret" placeholder="123 456 789 00012" autoComplete="off" />
             </div>
-            <div className="space-y-1.5 col-span-2">
-              <Label>Notes</Label>
-              <textarea
-                name="notes"
-                rows={2}
-                placeholder="Notes internes..."
-                className="flex w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring resize-none"
-              />
-            </div>
-          </div>
+          </section>
+
+          {/* ── Notes ── */}
+          <section className="space-y-1.5">
+            <Label>Notes</Label>
+            <textarea
+              name="notes"
+              rows={2}
+              placeholder="Notes internes..."
+              className="flex w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring resize-none"
+            />
+          </section>
+
           <div className="flex justify-end gap-2 pt-2">
             <Button type="button" variant="outline" onClick={() => handleOpenChange(false)}>Annuler</Button>
             <Button type="submit" disabled={isPending}>

@@ -68,8 +68,8 @@ export function CreateProjectDialog({
     const fd = new FormData(e.currentTarget)
     startCreatingClient(async () => {
       const client = await createQuickClient(userId, {
-        name: fd.get("clientName") as string,
-        company: (fd.get("clientCompany") as string) || undefined,
+        label: (fd.get("clientName") as string) || undefined,
+        companyName: (fd.get("clientCompany") as string) || undefined,
         email: (fd.get("clientEmail") as string) || undefined,
       })
       setClients((prev) => [...prev, { id: client.id, name: client.name, company: client.company, type: client.type }])

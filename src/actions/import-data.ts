@@ -109,12 +109,31 @@ export async function importData(jsonString: string): Promise<ImportResult> {
       track("Conditions générales", data.conditionsTemplates.length)
     }
 
-    // ── 4. Clients ────────────────────────────────────────────────────────────
+    // ── 3b. Sociétés (avant les contacts : FK companyId) ──────────────────────
+    if (data.companies?.length) {
+      await prisma.company.createMany({
+        data: data.companies.map((c: any) => ({ // eslint-disable-line @typescript-eslint/no-explicit-any
+          id: c.id, userId, name: c.name,
+          siret: c.siret ?? null, vatNumber: c.vatNumber ?? null,
+          email: c.email ?? null, phone: c.phone ?? null, website: c.website ?? null,
+          address: c.address ?? null, postalCode: c.postalCode ?? null,
+          city: c.city ?? null, country: c.country ?? "France", notes: c.notes ?? null,
+          createdAt: toDate(c.createdAt) ?? new Date(),
+          updatedAt: toDate(c.updatedAt) ?? new Date(),
+        })),
+        skipDuplicates: true,
+      })
+      track("Sociétés", data.companies.length)
+    }
+
+    // ── 4. Clients (contacts) ─────────────────────────────────────────────────
     if (data.clients?.length) {
       await prisma.client.createMany({
         data: data.clients.map((c: any) => ({ // eslint-disable-line @typescript-eslint/no-explicit-any
           id: c.id, userId, type: c.type, name: c.name,
-          company: c.company ?? null, email: c.email ?? null, phone: c.phone ?? null,
+          firstName: c.firstName ?? null, lastName: c.lastName ?? null, label: c.label ?? null,
+          companyId: c.companyId ?? null, company: c.company ?? null,
+          email: c.email ?? null, phone: c.phone ?? null,
           source: c.source, temperature: c.temperature, priorityScore: c.priorityScore ?? 1,
           notes: c.notes ?? null,
           address: c.address ?? null, postalCode: c.postalCode ?? null,

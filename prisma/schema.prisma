@@ -38,6 +38,7 @@ model User {
   projectIdeas      ProjectIdea[]
   tasks             Task[]               @relation("UserTasks")
   companies         Company[]
+  emitterProfiles   EmitterProfile[]
 }
 
 model ProjectIdea {
@@ -76,6 +77,43 @@ model UserProfile {
   updatedAt         DateTime @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// Émetteur de devis/factures. Un user peut en avoir plusieurs (« mes sociétés »),
+// dont un par défaut. Porte l'identité, la banque, les CGV et le branding PDF.
+// La numérotation reste globale (UserProfile.quote/invoicePrefix + formats),
+// partagée entre tous les émetteurs.
+model EmitterProfile {
+  id                 String   @id @default(cuid())
+  userId             String
+  name               String   // Libellé interne pour distinguer les profils
+  companyName        String? // Raison sociale
+  legalForm          String? // Forme juridique (SASU, EI, micro…)
+  siret              String?
+  vatNumber          String?
+  address            String?
+  postalCode         String?
+  city               String?
+  country            String   @default("France")
+  phone              String?
+  email              String?
+  website            String?
+  iban               String?
+  bic                String?
+  defaultConditions  String?
+  legalMentions      String?
+  pdfAccentColor     String   @default("#6366f1")
+  customAccentColors String?
+  logoUrl            String?
+  isDefault          Boolean  @default(false)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  quotes   Quote[]
+  invoices Invoice[]
+
+  @@index([userId])
 }
 
 model Tag {
@@ -604,6 +642,7 @@ model Quote {
   userId            String
   clientId          String
   projectId         String?
+  emitterProfileId  String?
   number            String
   status            QuoteStatus @default(DRAFT)
   depositPercent    Float       @default(0)
@@ -618,9 +657,10 @@ model Quote {
   createdAt         DateTime    @default(now())
   updatedAt         DateTime    @updatedAt
 
-  user     User        @relation(fields: [userId], references: [id], onDelete: Cascade)
-  client   Client      @relation(fields: [clientId], references: [id])
-  project  Project?    @relation(fields: [projectId], references: [id])
+  user     User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  client   Client          @relation(fields: [clientId], references: [id])
+  project  Project?        @relation(fields: [projectId], references: [id])
+  emitter  EmitterProfile? @relation(fields: [emitterProfileId], references: [id], onDelete: SetNull)
   lines    QuoteLine[]
   invoices Invoice[]
 }
@@ -647,6 +687,7 @@ model Invoice {
   clientId         String
   projectId        String?
   quoteId          String?
+  emitterProfileId String?
   number           String
   type             InvoiceType   @default(STANDALONE)
   status           InvoiceStatus @default(DRAFT)
@@ -663,10 +704,11 @@ model Invoice {
   createdAt         DateTime      @default(now())
   updatedAt        DateTime      @updatedAt
 
-  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  client    Client        @relation(fields: [clientId], references: [id])
-  project   Project?      @relation(fields: [projectId], references: [id])
-  quote     Quote?        @relation(fields: [quoteId], references: [id])
+  user      User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  client    Client          @relation(fields: [clientId], references: [id])
+  project   Project?        @relation(fields: [projectId], references: [id])
+  quote     Quote?          @relation(fields: [quoteId], references: [id])
+  emitter   EmitterProfile? @relation(fields: [emitterProfileId], references: [id], onDelete: SetNull)
   lines     InvoiceLine[]
   emailLogs EmailLog[]
   payments  Payment[]

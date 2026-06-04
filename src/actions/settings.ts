@@ -146,6 +146,7 @@ export async function deleteAllUserData(_userId: string) {
   await prisma.tag.deleteMany({ where: { userId } })
   await prisma.conditionsTemplate.deleteMany({ where: { userId } })
   await prisma.projectIdea.deleteMany({ where: { userId } })
+  await prisma.emitterProfile.deleteMany({ where: { userId } })
   await prisma.userProfile?.deleteMany({ where: { userId } })
 
   redirect("/")

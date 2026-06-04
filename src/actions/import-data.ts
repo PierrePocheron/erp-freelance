@@ -83,6 +83,29 @@ export async function importData(jsonString: string): Promise<ImportResult> {
       track("Profil professionnel", 1)
     }
 
+    // ── 1b. Profils émetteurs (sociétés) — avant devis/factures (FK) ──────────
+    if (data.emitterProfiles?.length) {
+      await prisma.emitterProfile.createMany({
+        data: data.emitterProfiles.map((e: any) => ({ // eslint-disable-line @typescript-eslint/no-explicit-any
+          id: e.id, userId, name: e.name,
+          companyName: e.companyName ?? null, legalForm: e.legalForm ?? null,
+          siret: e.siret ?? null, vatNumber: e.vatNumber ?? null,
+          address: e.address ?? null, postalCode: e.postalCode ?? null,
+          city: e.city ?? null, country: e.country ?? "France",
+          phone: e.phone ?? null, email: e.email ?? null, website: e.website ?? null,
+          iban: e.iban ?? null, bic: e.bic ?? null,
+          defaultConditions: e.defaultConditions ?? null, legalMentions: e.legalMentions ?? null,
+          pdfAccentColor: e.pdfAccentColor ?? "#6366f1",
+          customAccentColors: e.customAccentColors ?? null, logoUrl: e.logoUrl ?? null,
+          isDefault: e.isDefault ?? false,
+          createdAt: toDate(e.createdAt) ?? new Date(),
+          updatedAt: toDate(e.updatedAt) ?? new Date(),
+        })),
+        skipDuplicates: true,
+      })
+      track("Sociétés (émetteurs)", data.emitterProfiles.length)
+    }
+
     // ── 2. Tags utilisateur ───────────────────────────────────────────────────
     if (data.tags?.length) {
       await prisma.tag.createMany({
@@ -381,6 +404,7 @@ export async function importData(jsonString: string): Promise<ImportResult> {
       await prisma.quote.createMany({
         data: data.quotes.map((q: any) => ({ // eslint-disable-line @typescript-eslint/no-explicit-any
           id: q.id, userId, clientId: q.clientId, projectId: q.projectId ?? null,
+          emitterProfileId: q.emitterProfileId ?? null,
           number: q.number, status: q.status,
           depositPercent: q.depositPercent ?? 0, totalHT: q.totalHT ?? 0,
           notes: q.notes ?? null, generalConditions: q.generalConditions ?? null,
@@ -415,6 +439,7 @@ export async function importData(jsonString: string): Promise<ImportResult> {
         data: data.invoices.map((i: any) => ({ // eslint-disable-line @typescript-eslint/no-explicit-any
           id: i.id, userId, clientId: i.clientId,
           projectId: i.projectId ?? null, quoteId: i.quoteId ?? null,
+          emitterProfileId: i.emitterProfileId ?? null,
           number: i.number, type: i.type, status: i.status,
           totalHT: i.totalHT ?? 0, depositDeducted: i.depositDeducted ?? 0,
           dueDate: toDate(i.dueDate), paidAt: toDate(i.paidAt),

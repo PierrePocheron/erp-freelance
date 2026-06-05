@@ -70,6 +70,7 @@ const CreateProjectSchema = z.object({
   name: z.string().min(1),
   description: z.string().optional(),
   clientId: z.string().min(1),
+  contactId: z.string().optional(),
   startDate: z.string().optional(),
   endDate: z.string().optional(),
   estimatedHours: z.coerce.number().optional(),
@@ -82,6 +83,7 @@ export async function createProject(_userId: string, formData: FormData) {
     data: {
       userId,
       clientId: parsed.clientId,
+      contactId: parsed.contactId || null,
       name: parsed.name,
       description: parsed.description,
       startDate: parsed.startDate ? new Date(parsed.startDate) : undefined,
@@ -91,6 +93,17 @@ export async function createProject(_userId: string, formData: FormData) {
   })
   revalidatePath("/projets")
   return project
+}
+
+export async function updateProjectContact(projectId: string, contactId: string | null) {
+  const userId = await requireAuth()
+  if (contactId) {
+    const contact = await prisma.client.findFirst({ where: { id: contactId, userId }, select: { id: true } })
+    if (!contact) throw new Error("Contact introuvable")
+  }
+  await prisma.project.findFirstOrThrow({ where: { id: projectId, userId } })
+  await prisma.project.update({ where: { id: projectId }, data: { contactId } })
+  revalidatePath(`/projets/${projectId}`)
 }
 
 export async function updateProjectStatus(

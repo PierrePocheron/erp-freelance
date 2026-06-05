@@ -270,7 +270,8 @@ model Client {
   interactions Interaction[]
   reminders    Reminder[]
   files        ClientFile[]
-  projects     Project[]
+  projects        Project[]  @relation("ProjectClient")
+  projectContacts Project[]  @relation("ProjectContact")
   quotes       Quote[]
   invoices     Invoice[]
   recurringInvoices RecurringInvoice[]
@@ -362,6 +363,7 @@ model Project {
   id             String        @id @default(cuid())
   userId         String
   clientId       String
+  contactId      String?
   name           String
   description    String?
   status         ProjectStatus @default(ACTIVE)
@@ -372,7 +374,8 @@ model Project {
   updatedAt      DateTime      @updatedAt
 
   user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
-  client        Client         @relation(fields: [clientId], references: [id])
+  client        Client         @relation("ProjectClient", fields: [clientId], references: [id])
+  contact       Client?        @relation("ProjectContact", fields: [contactId], references: [id], onDelete: SetNull)
   milestones    Milestone[]
   tasks         Task[]
   journalEntries JournalEntry[]
@@ -385,6 +388,8 @@ model Project {
   tags          Tag[]
   taskTags      TaskTag[]
   members       ProjectMember[]
+
+  @@index([contactId])
 }
 
 enum ProjectMemberRole {

@@ -8,6 +8,8 @@ import { ProjectDateBadge } from "@/components/modules/projet/ProjectDateBadge"
 import { ProjectNameEdit, ProjectDescriptionEdit, ProjectHoursEdit, ProjectStatusEdit } from "@/components/modules/projet/ProjectInlineEdit"
 import { TagSelector } from "@/components/modules/projet/TagSelector"
 import { ProjectSettingsDialog } from "@/components/modules/projet/ProjectSettingsDialog"
+import { ProjectContactSelect } from "@/components/modules/projet/ProjectContactSelect"
+import { updateProjectContact } from "@/actions/projet"
 
 export default async function ProjectLayout({
   children,
@@ -20,7 +22,7 @@ export default async function ProjectLayout({
   const session = await auth()
   const userId = session!.user.id
 
-  const [project, allTags, projectTagIds] = await Promise.all([
+  const [project, allTags, projectTagIds, contacts] = await Promise.all([
     prisma.project.findFirst({
       where: {
         id,
@@ -28,6 +30,7 @@ export default async function ProjectLayout({
       },
       include: {
         client: { select: { id: true, name: true, company: true, type: true } },
+        contact: { select: { id: true, name: true, company: true } },
         members: {
           include: { user: { select: { name: true, email: true, image: true } } },
           orderBy: { createdAt: "asc" },
@@ -44,6 +47,11 @@ export default async function ProjectLayout({
       where: { id, OR: [{ userId }, { members: { some: { userId } } }] },
       select: { tags: { select: { id: true } } },
     }).catch(() => null),
+    prisma.client.findMany({
+      where: { userId },
+      orderBy: [{ name: "asc" }],
+      select: { id: true, name: true, company: true },
+    }),
   ])
 
   if (!project) notFound()
@@ -76,6 +84,14 @@ export default async function ProjectLayout({
             </Link>
             <ProjectNameEdit projectId={id} value={project.name} />
             <ProjectDescriptionEdit projectId={id} value={project.description} />
+            <ProjectContactSelect
+              contacts={contacts}
+              currentId={project.contact?.id ?? null}
+              action={async (contactId) => {
+                "use server"
+                await updateProjectContact(id, contactId)
+              }}
+            />
 
             <div className="flex flex-wrap items-center gap-2 pt-1">
               <ProjectDateBadge projectId={id} field="startDate" value={project.startDate} label="Début" />

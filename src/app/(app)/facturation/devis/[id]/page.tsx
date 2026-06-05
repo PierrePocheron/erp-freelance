@@ -11,12 +11,14 @@ import { Button } from "@/components/ui/button"
 import { LineItemsEditor } from "@/components/modules/facturation/LineItemsEditor"
 import { DeleteConfirmButton } from "@/components/modules/facturation/DeleteConfirmButton"
 import { SignedUploadButton } from "@/components/modules/facturation/SignedUploadButton"
+import { EmitterSelect } from "@/components/modules/facturation/EmitterSelect"
 import {
   updateQuoteStatus,
   revertQuoteToDraft,
   deleteQuote,
   createInvoiceFromQuote,
   updateQuoteSettings,
+  updateQuoteEmitter,
   signQuoteWithFile,
   sendQuoteEmail,
   resendQuoteEmail,
@@ -93,15 +95,22 @@ export default async function DevisDetailPage({
   const session = await auth()
   const userId = session!.user.id
 
-  const quote = await prisma.quote.findFirst({
-    where: { id, userId },
-    include: {
-      client: true,
-      project: { select: { id: true, name: true } },
-      lines: { orderBy: { id: "asc" } },
-      invoices: { select: { id: true, number: true, type: true, status: true } },
-    },
-  })
+  const [quote, emitters] = await Promise.all([
+    prisma.quote.findFirst({
+      where: { id, userId },
+      include: {
+        client: true,
+        project: { select: { id: true, name: true } },
+        lines: { orderBy: { id: "asc" } },
+        invoices: { select: { id: true, number: true, type: true, status: true } },
+      },
+    }),
+    prisma.emitterProfile.findMany({
+      where: { userId },
+      orderBy: [{ isDefault: "desc" }, { name: "asc" }],
+      select: { id: true, name: true, companyName: true },
+    }),
+  ])
 
   if (!quote) notFound()
 
@@ -496,6 +505,25 @@ export default async function DevisDetailPage({
           </div>
         </div>
       )}
+
+      {/* Société émettrice */}
+      <div className="rounded-xl border border-border/50 bg-card p-5 space-y-3">
+        <div>
+          <h2 className="font-semibold text-sm">Société émettrice</h2>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Identité affichée sur le PDF. {isEditable ? "Modifiable tant que le devis est en brouillon." : "Figée — repassez le devis en brouillon pour la changer."}
+          </p>
+        </div>
+        <EmitterSelect
+          emitters={emitters}
+          currentId={quote.emitterProfileId}
+          editable={isEditable}
+          action={async (emitterProfileId: string | null) => {
+            "use server"
+            await updateQuoteEmitter(id, emitterProfileId)
+          }}
+        />
+      </div>
 
       {/* Paramètres */}
       <div className="rounded-xl border border-border/50 bg-card p-5 space-y-4">

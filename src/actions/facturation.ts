@@ -76,6 +76,19 @@ async function nextInvoiceNumber(userId: string) {
   return `${scopePrefix}${String(count + 1).padStart(digits, "0")}`
 }
 
+// ── Émetteur ────────────────────────────────────────────────────────────────────
+// Société émettrice par défaut, pré-renseignée à la création d'un document.
+// Retombe sur le premier profil si aucun n'est marqué par défaut, null si aucun.
+async function defaultEmitterId(userId: string): Promise<string | null> {
+  const def = await prisma.emitterProfile.findFirst({
+    where: { userId, isDefault: true },
+    select: { id: true },
+  })
+  if (def) return def.id
+  const any = await prisma.emitterProfile.findFirst({ where: { userId }, select: { id: true } })
+  return any?.id ?? null
+}
+
 // ── Devis ─────────────────────────────────────────────────────────────────────
 
 export async function createQuoteWithLines(
@@ -108,6 +121,7 @@ export async function createQuoteWithLines(
       userId,
       clientId: data.clientId,
       projectId: data.projectId || null,
+      emitterProfileId: await defaultEmitterId(userId),
       number,
       depositPercent: data.depositPercent ?? 0,
       expiresAt,
@@ -152,6 +166,7 @@ export async function createQuote(
       userId,
       clientId: data.clientId,
       projectId: data.projectId || null,
+      emitterProfileId: await defaultEmitterId(userId),
       number,
       depositPercent: data.depositPercent ?? 0,
       notes: data.notes || null,
@@ -209,6 +224,18 @@ export async function updateQuoteSettings(
       ...(data.notes !== undefined && { notes: data.notes }),
     },
   })
+  revalidatePath(`/facturation/devis/${quoteId}`)
+}
+
+// Change la société émettrice d'un devis (uniquement tant qu'il est en brouillon).
+export async function updateQuoteEmitter(quoteId: string, emitterProfileId: string | null) {
+  const userId = await requireAuth()
+  await assertQuoteEditable(quoteId, userId)
+  if (emitterProfileId) {
+    const owned = await prisma.emitterProfile.findFirst({ where: { id: emitterProfileId, userId }, select: { id: true } })
+    if (!owned) throw new Error("Profil émetteur introuvable")
+  }
+  await prisma.quote.update({ where: { id: quoteId, userId }, data: { emitterProfileId } })
   revalidatePath(`/facturation/devis/${quoteId}`)
 }
 
@@ -337,6 +364,7 @@ export async function createInvoice(
       clientId: data.clientId,
       projectId: data.projectId || null,
       quoteId: data.quoteId || null,
+      emitterProfileId: await defaultEmitterId(userId),
       number,
       type: (data.type as never) || "STANDALONE",
       dueDate: data.dueDate ? new Date(data.dueDate) : null,
@@ -383,6 +411,8 @@ export async function createInvoiceFromQuote(quoteId: string, _userId: string, t
       clientId: quote.clientId,
       projectId: quote.projectId,
       quoteId: quote.id,
+      // La facture hérite de l'émetteur du devis (fallback : émetteur par défaut).
+      emitterProfileId: quote.emitterProfileId ?? (await defaultEmitterId(userId)),
       number,
       type: isDeposit ? "DEPOSIT" : type === "RECURRING" ? "RECURRING" : "FINAL",
       totalHT: isDeposit ? depositTotal : quote.totalHT,
@@ -442,6 +472,7 @@ export async function createInvoiceFromRenewal(renewalId: string, _userId: strin
       userId,
       clientId: project.clientId,
       projectId: project.id,
+      emitterProfileId: await defaultEmitterId(userId),
       number,
       type: "RECURRING",
       status: "DRAFT",
@@ -660,6 +691,18 @@ export async function updateInvoiceConditions(invoiceId: string, _userId: string
   const userId = await requireAuth()
   await assertInvoiceEditable(invoiceId, userId)
   await prisma.invoice.update({ where: { id: invoiceId, userId }, data: { generalConditions } })
+  revalidatePath(`/facturation/factures/${invoiceId}`)
+}
+
+// Change la société émettrice d'une facture (uniquement tant qu'elle est en brouillon).
+export async function updateInvoiceEmitter(invoiceId: string, emitterProfileId: string | null) {
+  const userId = await requireAuth()
+  await assertInvoiceEditable(invoiceId, userId)
+  if (emitterProfileId) {
+    const owned = await prisma.emitterProfile.findFirst({ where: { id: emitterProfileId, userId }, select: { id: true } })
+    if (!owned) throw new Error("Profil émetteur introuvable")
+  }
+  await prisma.invoice.update({ where: { id: invoiceId, userId }, data: { emitterProfileId } })
   revalidatePath(`/facturation/factures/${invoiceId}`)
 }
 
@@ -907,6 +950,7 @@ export async function generateInvoiceFromRecurring(
       userId,
       clientId: recurring.clientId,
       projectId: recurring.projectId,
+      emitterProfileId: await defaultEmitterId(userId),
       number,
       type: "RECURRING",
       status: "DRAFT",

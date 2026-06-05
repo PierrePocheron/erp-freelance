@@ -2,6 +2,7 @@ import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { renderToBuffer } from "@react-pdf/renderer"
 import { InvoicePDF } from "@/lib/pdf"
+import { resolveEmitter } from "@/lib/emitter-resolve"
 import { NextRequest } from "next/server"
 import React from "react"
 
@@ -15,19 +16,23 @@ export async function GET(
   const { id } = await params
   const userId = session.user.id
 
-  const [quote, profile] = await Promise.all([
-    prisma.quote.findFirst({
-      where: { id, userId },
-      include: {
-        client: true,
-        lines: { orderBy: { id: "asc" } },
-        user: { select: { name: true, email: true } },
-      },
-    }),
-    prisma.userProfile?.findUnique({ where: { userId } }).catch(() => null),
-  ])
+  const quote = await prisma.quote.findFirst({
+    where: { id, userId },
+    include: {
+      client: true,
+      lines: { orderBy: { id: "asc" } },
+      user: { select: { name: true, email: true } },
+    },
+  })
 
   if (!quote) return new Response("Not found", { status: 404 })
+
+  const { emitter, accentColor } = await resolveEmitter({
+    userId,
+    emitterProfileId: quote.emitterProfileId,
+    userName: quote.user.name,
+    userEmail: quote.user.email,
+  })
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const element: any = React.createElement(InvoicePDF, {
@@ -39,17 +44,8 @@ export async function GET(
     acceptedAt: quote.acceptedAt,
     depositPercent: quote.depositPercent,
     generalConditions: quote.generalConditions,
-    accentColor: profile?.pdfAccentColor,
-    emitter: {
-      name: quote.user.name ?? "Freelance",
-      email: quote.user.email,
-      companyName: profile?.companyName,
-      address: profile?.address,
-      postalCode: profile?.postalCode,
-      city: profile?.city,
-      siret: profile?.siret,
-      phone: profile?.phone,
-    },
+    accentColor,
+    emitter,
     client: {
       name: quote.client.name,
       company: quote.client.company,

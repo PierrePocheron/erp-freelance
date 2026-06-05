@@ -8,7 +8,8 @@ import { LineItemsEditor } from "@/components/modules/facturation/LineItemsEdito
 import { DeleteConfirmButton } from "@/components/modules/facturation/DeleteConfirmButton"
 import { InvoicePaymentSection } from "@/components/modules/facturation/InvoicePaymentSection"
 import { InvoiceConditionsForm } from "@/components/modules/facturation/InvoiceConditionsForm"
-import { updateInvoiceStatus, deleteInvoice, updateInvoiceDueDate, updateInvoiceNotes, sendInvoiceEmail, sendInvoiceReminder, issueInvoice, cancelInvoice, duplicateInvoiceAsDraft } from "@/actions/facturation"
+import { EmitterSelect } from "@/components/modules/facturation/EmitterSelect"
+import { updateInvoiceStatus, deleteInvoice, updateInvoiceDueDate, updateInvoiceNotes, updateInvoiceEmitter, sendInvoiceEmail, sendInvoiceReminder, issueInvoice, cancelInvoice, duplicateInvoiceAsDraft } from "@/actions/facturation"
 import { redirect } from "next/navigation"
 import { Input } from "@/components/ui/input"
 
@@ -51,11 +52,18 @@ export default async function FactureDetailPage({
 
   if (!invoice) notFound()
 
-  const conditionsTemplates = await prisma.conditionsTemplate.findMany({
-    where: { userId },
-    select: { id: true, name: true, content: true },
-    orderBy: { name: "asc" },
-  })
+  const [conditionsTemplates, emitters] = await Promise.all([
+    prisma.conditionsTemplate.findMany({
+      where: { userId },
+      select: { id: true, name: true, content: true },
+      orderBy: { name: "asc" },
+    }),
+    prisma.emitterProfile.findMany({
+      where: { userId },
+      orderBy: [{ isDefault: "desc" }, { name: "asc" }],
+      select: { id: true, name: true, companyName: true },
+    }),
+  ])
 
   const status = statusConfig[invoice.status as keyof typeof statusConfig]
   const isEditable = invoice.status === "DRAFT"
@@ -225,6 +233,25 @@ export default async function FactureDetailPage({
           </div>
         )
       })()}
+
+      {/* Société émettrice */}
+      <div className="rounded-xl border border-border/50 bg-card p-5 space-y-3">
+        <div>
+          <h2 className="font-semibold text-sm">Société émettrice</h2>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Identité affichée sur le PDF. {isEditable ? "Modifiable tant que la facture est en brouillon." : "Figée — annulez la facture pour la changer."}
+          </p>
+        </div>
+        <EmitterSelect
+          emitters={emitters}
+          currentId={invoice.emitterProfileId}
+          editable={isEditable}
+          action={async (emitterProfileId: string | null) => {
+            "use server"
+            await updateInvoiceEmitter(id, emitterProfileId)
+          }}
+        />
+      </div>
 
       {/* Paramètres */}
       <div className="rounded-xl border border-border/50 bg-card p-5 space-y-4">

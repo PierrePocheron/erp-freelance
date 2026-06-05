@@ -23,6 +23,10 @@ function clientLabel(c: Client) {
   return c.company ? `${c.name} — ${c.company}` : c.name
 }
 
+function contactLabel(c: { name: string; company: string | null }) {
+  return c.company ? `${c.name} — ${c.company}` : c.name
+}
+
 export function CreateProjectDialog({
   userId,
   clients: initialClients,
@@ -46,6 +50,7 @@ export function CreateProjectDialog({
     controlledOnOpenChange?.(v)
   }
   const [selectedClientId, setSelectedClientId] = useState(defaultClientId ?? initialClients[0]?.id ?? "")
+  const [selectedContactId, setSelectedContactId] = useState("")
   const [showNewClient, setShowNewClient] = useState(false)
   const [startDate, setStartDate] = useState("")
   const [isPending, startTransition] = useTransition()
@@ -56,6 +61,7 @@ export function CreateProjectDialog({
     e.preventDefault()
     const formData = new FormData(e.currentTarget)
     formData.set("clientId", selectedClientId)
+    if (selectedContactId) formData.set("contactId", selectedContactId)
     startTransition(async () => {
       const project = await createProject(userId, formData)
       handleOpenChange(false)
@@ -132,7 +138,7 @@ export function CreateProjectDialog({
             <div className="flex gap-2">
               <select
                 value={selectedClientId}
-                onChange={(e) => setSelectedClientId(e.target.value)}
+                onChange={(e) => { setSelectedClientId(e.target.value); setSelectedContactId("") }}
                 required
                 className="flex h-9 flex-1 rounded-md border border-input bg-transparent px-3 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
               >
@@ -150,6 +156,20 @@ export function CreateProjectDialog({
                 <UserPlus className="h-4 w-4" />
               </Button>
             </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label>Contact (optionnel)</Label>
+            <select
+              value={selectedContactId}
+              onChange={(e) => setSelectedContactId(e.target.value)}
+              className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+            >
+              <option value="">— Aucun contact —</option>
+              {clients.map((c) => (
+                <option key={c.id} value={c.id}>{contactLabel(c)}</option>
+              ))}
+            </select>
           </div>
 
           <div className="space-y-1.5">

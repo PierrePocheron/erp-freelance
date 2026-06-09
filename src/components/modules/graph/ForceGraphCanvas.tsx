@@ -37,6 +37,19 @@ export const ForceGraphCanvas = forwardRef<GraphMethods, Props>(function ForceGr
     zoomToFit: (ms = 600) => fgRef.current?.zoomToFit(ms, 60),
   }))
 
+  // Configure D3 forces : charge réduite + liens courts pour resserrer le graphe
+  useEffect(() => {
+    const fg = fgRef.current
+    if (!fg) return
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const charge = fg.d3Force("charge") as any
+    if (charge?.strength) charge.strength(-60)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const link = fg.d3Force("link") as any
+    if (link?.distance) link.distance(55)
+    fg.d3ReheatSimulation()
+  }, [])
+
   // Initial fit after first render
   useEffect(() => {
     const t = setTimeout(() => fgRef.current?.zoomToFit(600, 60), 500)
@@ -98,10 +111,7 @@ export const ForceGraphCanvas = forwardRef<GraphMethods, Props>(function ForceGr
       ctx.fill()
     }
 
-    // Label
-    const showLabel = n.type === "COMPANY" || globalScale >= 1.2
-    if (!showLabel) return
-
+    // Label — toujours visible pour tous les nœuds
     const fontSize = n.type === "COMPANY"
       ? Math.max(5, 13 / globalScale)
       : Math.max(4, 10 / globalScale)

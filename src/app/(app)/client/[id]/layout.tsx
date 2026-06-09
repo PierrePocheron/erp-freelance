@@ -59,7 +59,7 @@ export default async function ClientLayout({
         <div className="flex items-start justify-between gap-4">
           <div className="space-y-1">
             <p className="text-sm text-muted-foreground">
-              Détail client{client.company ? ` · ${client.company}` : ""}
+              {client.company ? `Société — ${client.company}` : "Contact"}
             </p>
             <h1 className="text-2xl font-bold tracking-tight">{client.name}</h1>
             <div className="flex items-center gap-3 pt-1">

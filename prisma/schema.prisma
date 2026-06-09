@@ -10,13 +10,14 @@ datasource db {
 // ─── Auth (NextAuth.js) ───────────────────────────────────────────────────────
 
 model User {
-  id            String    @id @default(cuid())
-  name          String?
-  email         String    @unique
-  emailVerified DateTime?
-  image         String?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  id                  String    @id @default(cuid())
+  name                String?
+  email               String    @unique
+  emailVerified       DateTime?
+  image               String?
+  googleErpCalendarId String?   // id de l'agenda "ERP Freelance" dans Google Calendar
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
 
   accounts          Account[]
   sessions          Session[]
@@ -795,18 +796,22 @@ enum CalendarSourceType {
 }
 
 model CalendarEvent {
-  id          String             @id @default(cuid())
-  userId      String
-  title       String
-  description String?
-  startDate   DateTime
-  endDate     DateTime?
-  allDay      Boolean            @default(false)
-  sourceType  CalendarSourceType @default(MANUAL)
-  sourceId    String?
-  categoryId  String?
-  createdAt   DateTime           @default(now())
-  updatedAt   DateTime           @updatedAt
+  id             String             @id @default(cuid())
+  userId         String
+  title          String
+  description    String?
+  startDate      DateTime
+  endDate        DateTime?
+  allDay         Boolean            @default(false)
+  sourceType     CalendarSourceType @default(MANUAL)
+  sourceId       String?            // id Google pour sourceType=GOOGLE ; id JournalEntry pour sourceType=MANUAL+note
+  categoryId     String?
+  projectId      String?            // lien optionnel vers un projet
+  clientId       String?            // lien optionnel vers un contact
+  googleEventId  String?            // id de l'événement côté Google (pour les MANUAL poussés)
+  googleSyncedAt DateTime?          // dernière synchro confirmée vers Google
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
 
   user     User              @relation(fields: [userId], references: [id], onDelete: Cascade)
   category CalendarCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)

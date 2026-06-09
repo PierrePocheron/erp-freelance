@@ -13,7 +13,13 @@ import {
   createRecurringRevenue, updateRecurringRevenue, deleteRecurringRevenue,
   generatePendingRecurringRevenues,
 } from "@/actions/revenue"
+import { PAYMENT_METHODS, REVENUE_TYPES } from "@/lib/revenue-constants"
+
 // ── Types ──────────────────────────────────────────────────────────────────────
+
+type Company = { id: string; name: string; city: string | null }
+type Client  = { id: string; name: string; company: string | null; companyId: string | null }
+type Project = { id: string; name: string; clientId: string | null; companyId: string | null }
 
 type Revenue = {
   id: string
@@ -27,9 +33,15 @@ type Revenue = {
   notes: string | null
   period: string | null
   recurringRevenueId: string | null
+  companyId: string | null
+  clientId: string | null
+  projectId: string | null
   createdAt: string
   updatedAt: string
   recurringRevenue: { id: string; label: string } | null
+  company: { name: string } | null
+  client:  { name: string; company: string | null } | null
+  project: { name: string } | null
 }
 
 type RecurringRevenue = {
@@ -42,12 +54,16 @@ type RecurringRevenue = {
   paymentMethod: string | null
   notes: string | null
   isActive: boolean
+  companyId: string | null
+  clientId: string | null
+  projectId: string | null
   createdAt: string
   updatedAt: string
   _count: { revenues: number }
+  company: { name: string } | null
+  client:  { name: string; company: string | null } | null
+  project: { name: string } | null
 }
-
-import { PAYMENT_METHODS, REVENUE_TYPES } from "@/lib/revenue-constants"
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
@@ -72,12 +88,18 @@ function fmt(n: number): string {
 function RevenueForm({
   typeLabels,
   paymentLabels,
+  companies = [],
+  clients = [],
+  projects = [],
   initial,
   onClose,
   onSave,
 }: {
   typeLabels: Record<string, string>
   paymentLabels: Record<string, string>
+  companies?: Company[]
+  clients?: Client[]
+  projects?: Project[]
   initial?: Partial<Revenue>
   onClose: () => void
   onSave: () => void
@@ -93,8 +115,18 @@ function RevenueForm({
   const [paymentMethod, setPaymentMethod] = useState(initial?.paymentMethod ?? "")
   const [notes,         setNotes]         = useState(initial?.notes ?? "")
   const [period,        setPeriod]        = useState(initial?.period ?? defaultPeriod)
+  const [companyId,     setCompanyId]     = useState(initial?.companyId ?? "")
+  const [clientId,      setClientId]      = useState(initial?.clientId ?? "")
+  const [projectId,     setProjectId]     = useState(initial?.projectId ?? "")
   const [error,         setError]         = useState("")
   const [isPending,     start]            = useTransition()
+
+  const filteredClients = companyId ? clients.filter(c => c.companyId === companyId) : clients
+  const filteredProjects = projects.filter(p =>
+    companyId
+      ? p.companyId === companyId || (clientId && p.clientId === clientId)
+      : clientId ? p.clientId === clientId : true
+  )
 
   function handleSubmit() {
     if (!label.trim()) { setError("Le libellé est requis"); return }
@@ -112,6 +144,9 @@ function RevenueForm({
         paymentMethod: paymentMethod || null,
         notes: notes || null,
         period: period || null,
+        companyId: companyId || null,
+        clientId: clientId || null,
+        projectId: projectId || null,
       }
 
       let res: { error?: string }
@@ -233,6 +268,53 @@ function RevenueForm({
             className="h-9"
           />
         </div>
+
+        {/* Association société / contact / projet */}
+        {companies.length > 0 && (
+          <div className="space-y-1">
+            <label className="text-xs font-medium text-muted-foreground">Société</label>
+            <select
+              value={companyId}
+              onChange={e => { setCompanyId(e.target.value); setClientId(""); setProjectId("") }}
+              className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+            >
+              <option value="">— Aucune —</option>
+              {companies.map(c => (
+                <option key={c.id} value={c.id}>{c.name}{c.city ? ` · ${c.city}` : ""}</option>
+              ))}
+            </select>
+          </div>
+        )}
+        {clients.length > 0 && (
+          <div className="space-y-1">
+            <label className="text-xs font-medium text-muted-foreground">Contact</label>
+            <select
+              value={clientId}
+              onChange={e => { setClientId(e.target.value); setProjectId("") }}
+              className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+            >
+              <option value="">— Aucun —</option>
+              {filteredClients.map(c => (
+                <option key={c.id} value={c.id}>{c.company ? `${c.company} — ${c.name}` : c.name}</option>
+              ))}
+            </select>
+          </div>
+        )}
+        {projects.length > 0 && (
+          <div className="space-y-1 sm:col-span-2">
+            <label className="text-xs font-medium text-muted-foreground">Projet</label>
+            <select
+              value={projectId}
+              onChange={e => setProjectId(e.target.value)}
+              className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+            >
+              <option value="">— Aucun —</option>
+              {filteredProjects.map(p => (
+                <option key={p.id} value={p.id}>{p.name}</option>
+              ))}
+            </select>
+          </div>
+        )}
       </div>
 
       {error && <p className="text-xs text-red-500">{error}</p>}
@@ -329,12 +411,18 @@ function MarkReceivedModal({
 function RecurringForm({
   typeLabels,
   paymentLabels,
+  companies = [],
+  clients = [],
+  projects = [],
   initial,
   onClose,
   onSave,
 }: {
   typeLabels: Record<string, string>
   paymentLabels: Record<string, string>
+  companies?: Company[]
+  clients?: Client[]
+  projects?: Project[]
   initial?: Partial<RecurringRevenue>
   onClose: () => void
   onSave: () => void
@@ -345,8 +433,18 @@ function RecurringForm({
   const [dayOfMonth,    setDayOfMonth]    = useState(initial?.dayOfMonth?.toString() ?? "1")
   const [paymentMethod, setPaymentMethod] = useState(initial?.paymentMethod ?? "")
   const [notes,         setNotes]         = useState(initial?.notes ?? "")
+  const [companyId,     setCompanyId]     = useState(initial?.companyId ?? "")
+  const [clientId,      setClientId]      = useState(initial?.clientId ?? "")
+  const [projectId,     setProjectId]     = useState(initial?.projectId ?? "")
   const [error,         setError]         = useState("")
   const [isPending,     start]            = useTransition()
+
+  const filteredClients  = companyId ? clients.filter(c => c.companyId === companyId) : clients
+  const filteredProjects = projects.filter(p =>
+    companyId
+      ? p.companyId === companyId || (clientId && p.clientId === clientId)
+      : clientId ? p.clientId === clientId : true
+  )
 
   function handleSubmit() {
     if (!label.trim()) { setError("Le libellé est requis"); return }
@@ -361,6 +459,9 @@ function RecurringForm({
         dayOfMonth: parseInt(dayOfMonth) || 1,
         paymentMethod: paymentMethod || null,
         notes: notes || null,
+        companyId: companyId || null,
+        clientId: clientId || null,
+        projectId: projectId || null,
       }
       let res: { error?: string }
       if (initial?.id) {
@@ -429,6 +530,53 @@ function RecurringForm({
           <label className="text-xs font-medium text-muted-foreground">Notes</label>
           <Input value={notes} onChange={e => setNotes(e.target.value)} placeholder="Optionnel" className="h-9" />
         </div>
+
+        {/* Association société / contact / projet */}
+        {companies.length > 0 && (
+          <div className="space-y-1">
+            <label className="text-xs font-medium text-muted-foreground">Société</label>
+            <select
+              value={companyId}
+              onChange={e => { setCompanyId(e.target.value); setClientId(""); setProjectId("") }}
+              className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+            >
+              <option value="">— Aucune —</option>
+              {companies.map(c => (
+                <option key={c.id} value={c.id}>{c.name}{c.city ? ` · ${c.city}` : ""}</option>
+              ))}
+            </select>
+          </div>
+        )}
+        {clients.length > 0 && (
+          <div className="space-y-1">
+            <label className="text-xs font-medium text-muted-foreground">Contact</label>
+            <select
+              value={clientId}
+              onChange={e => { setClientId(e.target.value); setProjectId("") }}
+              className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+            >
+              <option value="">— Aucun —</option>
+              {filteredClients.map(c => (
+                <option key={c.id} value={c.id}>{c.company ? `${c.company} — ${c.name}` : c.name}</option>
+              ))}
+            </select>
+          </div>
+        )}
+        {projects.length > 0 && (
+          <div className="space-y-1 sm:col-span-2">
+            <label className="text-xs font-medium text-muted-foreground">Projet</label>
+            <select
+              value={projectId}
+              onChange={e => setProjectId(e.target.value)}
+              className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+            >
+              <option value="">— Aucun —</option>
+              {filteredProjects.map(p => (
+                <option key={p.id} value={p.id}>{p.name}</option>
+              ))}
+            </select>
+          </div>
+        )}
       </div>
 
       {error && <p className="text-xs text-red-500">{error}</p>}
@@ -450,11 +598,17 @@ export function RevenueManager({
   initialRecurring,
   revenueTypeLabels,
   paymentMethodLabels,
+  companies = [],
+  clients = [],
+  projects = [],
 }: {
   initialRevenues:     Revenue[]
   initialRecurring:    RecurringRevenue[]
   revenueTypeLabels:   Record<string, string>
   paymentMethodLabels: Record<string, string>
+  companies?: Company[]
+  clients?: Client[]
+  projects?: Project[]
 }) {
   const router = useRouter()
   const [tab,               setTab]               = useState<"list" | "recurring">("list")
@@ -561,6 +715,9 @@ export function RevenueManager({
             <RevenueForm
               typeLabels={revenueTypeLabels}
               paymentLabels={paymentMethodLabels}
+              companies={companies}
+              clients={clients}
+              projects={projects}
               onClose={() => setShowForm(false)}
               onSave={() => { setShowForm(false); refresh() }}
             />
@@ -570,6 +727,9 @@ export function RevenueManager({
             <RevenueForm
               typeLabels={revenueTypeLabels}
               paymentLabels={paymentMethodLabels}
+              companies={companies}
+              clients={clients}
+              projects={projects}
               initial={editRevenue}
               onClose={() => setEditRevenue(null)}
               onSave={() => { setEditRevenue(null); refresh() }}
@@ -631,7 +791,23 @@ export function RevenueManager({
                                       </span>
                                     )}
                                   </div>
-                                  {r.notes && <p className="text-xs text-muted-foreground mt-0.5 truncate max-w-xs">{r.notes}</p>}
+                                  <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                                    {r.company && (
+                                      <span className="text-xs text-muted-foreground">{r.company.name}</span>
+                                    )}
+                                    {r.client && (
+                                      <span className="text-xs text-muted-foreground">{r.company ? `· ${r.client.name}` : r.client.name}</span>
+                                    )}
+                                    {r.project && (
+                                      <span className="text-xs text-muted-foreground">{(r.company || r.client) ? `· ${r.project.name}` : r.project.name}</span>
+                                    )}
+                                    {r.notes && !r.company && !r.client && !r.project && (
+                                      <span className="text-xs text-muted-foreground truncate max-w-xs">{r.notes}</span>
+                                    )}
+                                  </div>
+                                  {r.notes && (r.company || r.client || r.project) && (
+                                    <p className="text-xs text-muted-foreground mt-0.5 truncate max-w-xs">{r.notes}</p>
+                                  )}
                                 </td>
                                 <td className="px-5 py-3 text-right font-semibold tabular-nums">
                                   {fmt(r.amount)} €
@@ -743,6 +919,9 @@ export function RevenueManager({
             <RecurringForm
               typeLabels={revenueTypeLabels}
               paymentLabels={paymentMethodLabels}
+              companies={companies}
+              clients={clients}
+              projects={projects}
               onClose={() => setShowRecurringForm(false)}
               onSave={() => { setShowRecurringForm(false); refresh() }}
             />
@@ -752,6 +931,9 @@ export function RevenueManager({
             <RecurringForm
               typeLabels={revenueTypeLabels}
               paymentLabels={paymentMethodLabels}
+              companies={companies}
+              clients={clients}
+              projects={projects}
               initial={editRecurring}
               onClose={() => setEditRecurring(null)}
               onSave={() => { setEditRecurring(null); refresh() }}

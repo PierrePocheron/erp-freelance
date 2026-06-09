@@ -43,6 +43,9 @@ export async function createRevenue(data: {
   notes?: string | null
   period?: string | null
   recurringRevenueId?: string | null
+  companyId?: string | null
+  clientId?: string | null
+  projectId?: string | null
 }): Promise<{ error?: string; id?: string }> {
   const session = await auth()
   const userId = session!.user.id
@@ -54,16 +57,19 @@ export async function createRevenue(data: {
     const revenue = await prisma.revenue.create({
       data: {
         userId,
-        type:              data.type as never,
-        label:             data.label.trim(),
-        amount:            data.amount,
-        currency:          data.currency ?? "EUR",
-        status:            (data.status ?? "PENDING") as never,
-        receivedAt:        data.receivedAt ?? null,
-        paymentMethod:     data.paymentMethod ?? null,
-        notes:             data.notes ?? null,
-        period:            data.period ?? null,
+        type:               data.type as never,
+        label:              data.label.trim(),
+        amount:             data.amount,
+        currency:           data.currency ?? "EUR",
+        status:             (data.status ?? "PENDING") as never,
+        receivedAt:         data.receivedAt ?? null,
+        paymentMethod:      data.paymentMethod ?? null,
+        notes:              data.notes ?? null,
+        period:             data.period ?? null,
         recurringRevenueId: data.recurringRevenueId ?? null,
+        companyId:          data.companyId ?? null,
+        clientId:           data.clientId ?? null,
+        projectId:          data.projectId ?? null,
       },
     })
     revalidatePath("/revenus")
@@ -84,6 +90,9 @@ export async function updateRevenue(
     paymentMethod?: string | null
     notes?: string | null
     period?: string | null
+    companyId?: string | null
+    clientId?: string | null
+    projectId?: string | null
   }
 ): Promise<{ error?: string }> {
   const session = await auth()
@@ -95,14 +104,17 @@ export async function updateRevenue(
   await prisma.revenue.update({
     where: { id },
     data: {
-      ...(data.type !== undefined      ? { type: data.type as never } : {}),
-      ...(data.label !== undefined     ? { label: data.label.trim() } : {}),
-      ...(data.amount !== undefined    ? { amount: data.amount }      : {}),
-      ...(data.status !== undefined    ? { status: data.status as never } : {}),
-      ...(data.receivedAt !== undefined ? { receivedAt: data.receivedAt } : {}),
-      ...(data.paymentMethod !== undefined ? { paymentMethod: data.paymentMethod } : {}),
-      ...(data.notes !== undefined     ? { notes: data.notes }        : {}),
-      ...(data.period !== undefined    ? { period: data.period }      : {}),
+      ...(data.type !== undefined          ? { type: data.type as never }           : {}),
+      ...(data.label !== undefined         ? { label: data.label.trim() }           : {}),
+      ...(data.amount !== undefined        ? { amount: data.amount }                : {}),
+      ...(data.status !== undefined        ? { status: data.status as never }       : {}),
+      ...(data.receivedAt !== undefined    ? { receivedAt: data.receivedAt }        : {}),
+      ...(data.paymentMethod !== undefined ? { paymentMethod: data.paymentMethod }  : {}),
+      ...(data.notes !== undefined         ? { notes: data.notes }                  : {}),
+      ...(data.period !== undefined        ? { period: data.period }                : {}),
+      ...(data.companyId !== undefined     ? { companyId: data.companyId }          : {}),
+      ...(data.clientId !== undefined      ? { clientId: data.clientId }            : {}),
+      ...(data.projectId !== undefined     ? { projectId: data.projectId }          : {}),
     },
   })
   revalidatePath("/revenus")
@@ -162,6 +174,9 @@ export async function createRecurringRevenue(data: {
   dayOfMonth?: number
   paymentMethod?: string | null
   notes?: string | null
+  companyId?: string | null
+  clientId?: string | null
+  projectId?: string | null
 }): Promise<{ error?: string; id?: string }> {
   const session = await auth()
   const userId = session!.user.id
@@ -180,6 +195,9 @@ export async function createRecurringRevenue(data: {
         dayOfMonth:    data.dayOfMonth ?? 1,
         paymentMethod: data.paymentMethod ?? null,
         notes:         data.notes ?? null,
+        companyId:     data.companyId ?? null,
+        clientId:      data.clientId ?? null,
+        projectId:     data.projectId ?? null,
       },
     })
     revalidatePath("/revenus")
@@ -199,6 +217,9 @@ export async function updateRecurringRevenue(
     paymentMethod?: string | null
     notes?: string | null
     isActive?: boolean
+    companyId?: string | null
+    clientId?: string | null
+    projectId?: string | null
   }
 ): Promise<{ error?: string }> {
   const session = await auth()
@@ -217,6 +238,9 @@ export async function updateRecurringRevenue(
       ...(data.paymentMethod !== undefined ? { paymentMethod: data.paymentMethod }   : {}),
       ...(data.notes !== undefined         ? { notes: data.notes }                   : {}),
       ...(data.isActive !== undefined      ? { isActive: data.isActive }             : {}),
+      ...(data.companyId !== undefined     ? { companyId: data.companyId }           : {}),
+      ...(data.clientId !== undefined      ? { clientId: data.clientId }             : {}),
+      ...(data.projectId !== undefined     ? { projectId: data.projectId }           : {}),
     },
   })
   revalidatePath("/revenus")

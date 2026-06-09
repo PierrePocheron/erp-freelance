@@ -40,10 +40,10 @@ export const ForceGraphCanvas = forwardRef<GraphMethods, Props>(function ForceGr
       if (!fg) return
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const charge = fg.d3Force("charge") as any
-      if (charge?.strength) charge.strength(-120)
+      if (charge?.strength) charge.strength(-60)
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const link = fg.d3Force("link") as any
-      if (link?.distance) link.distance(70)
+      if (link?.distance) link.distance(45)
       fg.d3ReheatSimulation()
     }, 100)
     return () => clearTimeout(t)

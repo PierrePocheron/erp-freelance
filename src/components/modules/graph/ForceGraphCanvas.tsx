@@ -14,14 +14,15 @@ type Props = {
   collapsedIds:   Set<string>
   onNodeClick:    (node: RawNode) => void
   onNodeDblClick: (node: RawNode) => void
-  width:  number
-  height: number
+  width:   number
+  height:  number
+  isDark?: boolean
 }
 
 const DBL_MS = 280
 
 export const ForceGraphCanvas = forwardRef<GraphMethods, Props>(function ForceGraphCanvas(
-  { nodes, links, collapsedIds, onNodeClick, onNodeDblClick, width, height },
+  { nodes, links, collapsedIds, onNodeClick, onNodeDblClick, width, height, isDark = true },
   ref
 ) {
   const fgRef       = useRef<ForceGraphMethods<NodeObject, object> | undefined>(undefined)
@@ -154,18 +155,26 @@ export const ForceGraphCanvas = forwardRef<GraphMethods, Props>(function ForceGr
 
     const ty = y + r + 5
 
+    // Label colors — adapt to theme
+    const labelColor = isDark
+      ? (isCompany ? "#fde68a"  : "rgba(248,250,252,0.92)")
+      : (isCompany ? "#92400e"  : "rgba(15,23,42,0.88)")
+    const shadowColor = isDark
+      ? "rgba(0,0,0,0.95)"
+      : "rgba(255,255,255,0.85)"
+
     // Shadow for readability (no opaque box)
-    ctx.shadowColor = "rgba(0,0,0,0.95)"
+    ctx.shadowColor = shadowColor
     ctx.shadowBlur  = 5
-    ctx.fillStyle   = isCompany ? "#fde68a" : "rgba(226,232,240,0.95)"
+    ctx.fillStyle   = labelColor
     ctx.fillText(text, x, ty)
     ctx.shadowBlur = 0
 
     // Second pass for crispness
-    ctx.fillStyle = isCompany ? "#fde68a" : "rgba(248,250,252,0.9)"
+    ctx.fillStyle = labelColor
     ctx.fillText(text, x, ty)
 
-  }, [collapsedIds])
+  }, [collapsedIds, isDark])
 
   // ── Link color based on connection depth ──────────────────────────────────
   const getLinkColor = useCallback((link: object) => {

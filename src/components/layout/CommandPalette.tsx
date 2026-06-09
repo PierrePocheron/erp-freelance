@@ -74,16 +74,22 @@ export function CommandPalette() {
 
   useEffect(() => {
     if (open) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setQuery("")
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setResults([])
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setSelected(0)
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setSearching(false)
       setTimeout(() => inputRef.current?.focus(), 30)
     }
   }, [open])
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (query.length < 2) { setResults([]); setSelected(0); setSearching(false); return }
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setSearching(true)
     const t = setTimeout(() => {
       startTransition(async () => {

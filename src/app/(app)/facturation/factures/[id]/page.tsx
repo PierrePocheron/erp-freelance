@@ -266,7 +266,7 @@ export default async function FactureDetailPage({
             className="space-y-3"
           >
             <div className="space-y-1">
-              <label className="text-xs text-muted-foreground">Date d'échéance</label>
+              <label className="text-xs text-muted-foreground">{"Date d'échéance"}</label>
               <Input
                 name="dueDate"
                 type="date"

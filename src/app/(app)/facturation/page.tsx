@@ -87,7 +87,7 @@ export default async function FacturationOverviewPage() {
       <div className="flex items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Facturation</h1>
-          <p className="text-sm text-muted-foreground">Vue d'ensemble {now.getFullYear()}</p>
+          <p className="text-sm text-muted-foreground">{"Vue d'ensemble"} {now.getFullYear()}</p>
         </div>
         <FacturationQuickActions
           userId={userId}
@@ -165,6 +165,7 @@ export default async function FacturationOverviewPage() {
                 <span className="flex-1 text-muted-foreground">{inv.client.company ?? inv.client.name}</span>
                 {inv.dueDate && (
                   <span className="text-xs text-red-500 shrink-0">
+                    {/* eslint-disable-next-line react-hooks/purity */}
                     +{Math.ceil((Date.now() - new Date(inv.dueDate).getTime()) / 86400000)}j
                   </span>
                 )}

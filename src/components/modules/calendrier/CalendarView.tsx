@@ -541,6 +541,7 @@ function NewEventDialog({
 
   useEffect(() => {
     if (open) {
+      /* eslint-disable react-hooks/set-state-in-effect */
       setRattachement("none"); setNature("event")
       setTitle(""); setDescription(""); setProjectId(""); setClientId(""); setError("")
       setChannel("EMAIL"); setPriority("MEDIUM")
@@ -548,6 +549,7 @@ function NewEventDialog({
       setTime(timeStringFromDate(defaultDate, undefined))
       setAllDay(false); setEndDate("")
       setCategoryId(categories[0]?.id ?? "")
+      /* eslint-enable react-hooks/set-state-in-effect */
     }
   }, [open, defaultDate, categories])
 
@@ -743,7 +745,7 @@ function NewEventDialog({
 
           {nature === "note" && (
             <p className="text-[11px] text-muted-foreground/70">
-              Crée une entrée dans le journal du projet + un repère daté dans l'agenda.
+              {"Crée une entrée dans le journal du projet + un repère daté dans l'agenda."}
             </p>
           )}
 
@@ -1053,7 +1055,9 @@ export function CalendarView({
 
   useEffect(() => {
     const stored = localStorage.getItem(VIEW_STORAGE_KEY) as ViewMode | null
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (stored && ["day","3day","5day","week","month"].includes(stored)) setViewMode(stored)
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setMounted(true)
   }, [])
 
@@ -1189,7 +1193,7 @@ export function CalendarView({
             <ChevronRight className="h-4 w-4" />
           </button>
           <button onClick={goToToday} className="rounded-lg border border-border px-2.5 py-1.5 text-xs font-medium hover:bg-muted transition-colors">
-            Aujourd'hui
+            {"Aujourd'hui"}
           </button>
         </div>
 
@@ -1229,7 +1233,7 @@ export function CalendarView({
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={grantCalendarAccess}>
-                  <KeyRound className="h-3.5 w-3.5" /> Réautoriser l'accès
+                  <KeyRound className="h-3.5 w-3.5" /> {"Réautoriser l'accès"}
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>

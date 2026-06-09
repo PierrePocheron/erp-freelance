@@ -14,11 +14,13 @@ export default async function DashboardPage() {
   const userId = session!.user.id
   const firstName = session?.user?.name?.split(" ")[0] ?? "vous"
 
+  /* eslint-disable react-hooks/purity */
   const today = new Date()
   const todayStart = new Date(today.setHours(0, 0, 0, 0))
   const todayEnd = new Date(today.setHours(23, 59, 59, 999))
   const in30Days = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
   const followUpCutoff = new Date(Date.now() - 45 * 24 * 60 * 60 * 1000)
+  /* eslint-enable react-hooks/purity */
   const currentYear = new Date().getFullYear()
   const yearStart = new Date(currentYear, 0, 1)
   const yearEnd   = new Date(currentYear, 11, 31, 23, 59, 59)
@@ -73,6 +75,7 @@ export default async function DashboardPage() {
       where: {
         client: { userId },
         isDone: false,
+        // eslint-disable-next-line react-hooks/purity
         dueDate: { lte: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) },
       },
       include: { client: { select: { id: true, name: true } } },
@@ -482,6 +485,7 @@ export default async function DashboardPage() {
             <Section title="Clients à relancer" icon={<UserMinus className="h-4 w-4" />} href="/client">
               <div className="space-y-1.5">
                 {followUpClients.map((c) => {
+                  // eslint-disable-next-line react-hooks/purity
                   const days = Math.floor((Date.now() - c.lastTouch.getTime()) / (24 * 60 * 60 * 1000))
                   return (
                     <Link key={c.id} href={`/client/${c.id}/interactions`} className="flex items-center gap-3 rounded-lg px-3 py-2 hover:bg-muted/50 transition-colors">

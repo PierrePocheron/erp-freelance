@@ -704,7 +704,7 @@ export function GlobalTasksView({
           >
             <option value="ALL">Toutes dates</option>
             <option value="OVERDUE">En retard</option>
-            <option value="TODAY">Aujourd'hui</option>
+            <option value="TODAY">{"Aujourd'hui"}</option>
             <option value="WEEK">Cette semaine</option>
             <option value="NONE">Sans échéance</option>
           </select>

@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma"
 import { revalidatePath } from "next/cache"
 import { auth } from "@/lib/auth"
 import { computeContactName } from "@/lib/contact"
+import type { ClientType, ClientSource, Temperature, InteractionChannel } from "@/generated/prisma/enums"
 
 async function requireAuth(): Promise<string> {
   const session = await auth()
@@ -214,9 +215,9 @@ export async function createClient(
       name,
       email: data.email?.trim() || null,
       phone: data.phone?.trim() || null,
-      type: (data.type as any) || "TO_COMPLETE",
-      source: (data.source as any) || "OTHER",
-      temperature: (data.temperature as any) || "COLD",
+      type: (data.type as ClientType) || "TO_COMPLETE",
+      source: (data.source as ClientSource) || "OTHER",
+      temperature: (data.temperature as Temperature) || "COLD",
       priorityScore: 1,
       notes: data.notes?.trim() || null,
       address: data.address?.trim() || null,
@@ -245,6 +246,7 @@ export async function updateClient(
   const userId = await requireAuth()
   await prisma.client.update({
     where: { id: clientId, userId },
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     data: data as any,
   })
   revalidatePath(`/client/${clientId}`)
@@ -255,7 +257,7 @@ export async function updateClientType(clientId: string, _userId: string, type: 
   const userId = await requireAuth()
   await prisma.client.update({
     where: { id: clientId, userId },
-    data: { type: type as any },
+    data: { type: type as ClientType },
   })
   revalidatePath(`/client/${clientId}`)
   revalidatePath("/client")
@@ -265,7 +267,7 @@ export async function updateClientTemperature(clientId: string, _userId: string,
   const userId = await requireAuth()
   await prisma.client.update({
     where: { id: clientId, userId },
-    data: { temperature: temperature as any },
+    data: { temperature: temperature as Temperature },
   })
   revalidatePath(`/client/${clientId}`)
   revalidatePath("/client")
@@ -372,7 +374,7 @@ export async function addInteraction(
     data: {
       clientId,
       date: new Date(data.date),
-      channel: data.channel as any,
+      channel: data.channel as InteractionChannel,
       summary: data.summary,
       response: data.response || null,
     },
@@ -393,7 +395,7 @@ export async function updateInteraction(
     where: { id: interactionId },
     data: {
       date: new Date(data.date),
-      channel: data.channel as any,
+      channel: data.channel as InteractionChannel,
       summary: data.summary,
       response: data.response || null,
     },

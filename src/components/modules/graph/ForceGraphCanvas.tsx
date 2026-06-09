@@ -3,8 +3,14 @@
 import ForceGraph2D from "react-force-graph-2d"
 import type { ForceGraphMethods, NodeObject } from "react-force-graph-2d"
 import { useRef, useEffect, useCallback, useMemo, forwardRef, useImperativeHandle } from "react"
-import type { RawNode, RawLink } from "./graph-types"
+import type { RawNode, RawLink, NodeType } from "./graph-types"
 import { nodeColor, NODE_RADIUS } from "./graph-types"
+
+// Ordre de rendu : les nœuds parents sont peints en dernier → leur hitbox gagne
+// face aux enfants qui se superposent (color-picking canvas caché)
+const TYPE_Z: Record<NodeType, number> = {
+  INVOICE: 0, QUOTE: 0, PROJECT: 1, CLIENT: 2, COMPANY: 3,
+}
 
 export type GraphMethods = { zoomToFit: (ms?: number) => void }
 
@@ -176,6 +182,12 @@ export const ForceGraphCanvas = forwardRef<GraphMethods, Props>(function ForceGr
 
   }, [collapsedIds, isDark])
 
+  // Nœuds triés par profondeur croissante → COMPANY rendu en dernier, hitbox prioritaire
+  const sortedNodes = useMemo(
+    () => [...nodes].sort((a, b) => TYPE_Z[a.type] - TYPE_Z[b.type]),
+    [nodes]
+  )
+
   // Index id → type pour résoudre la couleur sans dépendre de la résolution D3
   const nodeTypeMap = useMemo(
     () => new Map(nodes.map(n => [n.id, n.type])),
@@ -208,7 +220,7 @@ export const ForceGraphCanvas = forwardRef<GraphMethods, Props>(function ForceGr
   return (
     <ForceGraph2D
       ref={fgRef as React.MutableRefObject<ForceGraphMethods<NodeObject, object>>}
-      graphData={{ nodes: nodes as NodeObject[], links: links as object[] }}
+      graphData={{ nodes: sortedNodes as NodeObject[], links: links as object[] }}
       width={width}
       height={height}
       backgroundColor="transparent"

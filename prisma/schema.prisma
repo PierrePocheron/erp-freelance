@@ -868,6 +868,7 @@ model ConditionsTemplate {
 
 enum RevenueType {
   SALARY      // Salaire (CDI, CDD, intérim)
+  FREELANCE   // Mission AE (Auto-Entrepreneur)
   STUDY       // Étude / mission rémunérée hors AE
   INVESTMENT  // Investissements (dividendes, intérêts, PEA)
   RENTAL      // Revenus locatifs

@@ -5,11 +5,12 @@ import Link from "next/link"
 import {
   ChevronLeft, Building2, Mail, Phone, Globe, MapPin,
   Users, FolderOpen, Trash2, ExternalLink, Receipt, FileText,
-  TrendingUp, Clock, AlertTriangle, CheckCircle2,
+  TrendingUp, Clock, AlertTriangle, CheckCircle2, ListTodo,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { deleteCompany } from "@/actions/crm"
 import { NewContactForCompanyButton } from "@/components/modules/societes/NewContactForCompanyButton"
+import { NewProjectForCompanyButton } from "@/components/modules/societes/NewProjectForCompanyButton"
 
 const fmt = (n: number) => n.toLocaleString("fr-FR", { minimumFractionDigits: 0, maximumFractionDigits: 0 })
 const fmtDate = (d: Date | string) =>
@@ -24,7 +25,7 @@ export default async function CompanyDetailPage({
   const session = await auth()
   const userId = session!.user.id
 
-  const [company, invoices, quotes] = await Promise.all([
+  const [company, invoices, quotes, tasks, allCompanies, allContacts] = await Promise.all([
     prisma.company.findFirst({
       where: { id, userId },
       include: {
@@ -82,6 +83,41 @@ export default async function CompanyDetailPage({
         project: { select: { id: true, name: true } },
         client: { select: { id: true, name: true } },
       },
+    }),
+
+    // Tâches non terminées via projet.companyId OU client.companyId
+    prisma.task.findMany({
+      where: {
+        status: { not: "DONE" },
+        isGroup: false,
+        OR: [
+          { project: { companyId: id, userId } },
+          { client: { companyId: id, userId } },
+        ],
+      },
+      orderBy: [{ priority: "desc" }, { dueDate: "asc" }, { createdAt: "asc" }],
+      take: 20,
+      select: {
+        id: true,
+        title: true,
+        status: true,
+        priority: true,
+        dueDate: true,
+        project: { select: { id: true, name: true } },
+        client: { select: { id: true, name: true } },
+      },
+    }),
+
+    // Pour le dialog "Nouveau projet"
+    prisma.company.findMany({
+      where: { userId },
+      orderBy: { name: "asc" },
+      select: { id: true, name: true, city: true },
+    }),
+    prisma.client.findMany({
+      where: { userId },
+      orderBy: { name: "asc" },
+      select: { id: true, name: true, company: true, companyId: true },
     }),
   ])
 
@@ -455,6 +491,58 @@ export default async function CompanyDetailPage({
             )}
           </div>
 
+          {/* Tâches */}
+          {tasks.length > 0 && (
+            <div className="rounded-xl border border-border/50 bg-card overflow-hidden">
+              <div className="flex items-center justify-between px-5 py-4 border-b border-border/50">
+                <div className="flex items-center gap-2">
+                  <ListTodo className="h-4 w-4 text-muted-foreground" />
+                  <h2 className="font-semibold text-sm">
+                    Tâches en cours
+                    <span className="text-muted-foreground font-normal ml-1.5">({tasks.length})</span>
+                  </h2>
+                </div>
+              </div>
+              <div className="divide-y divide-border/50">
+                {tasks.map((t) => (
+                  <div key={t.id} className="flex items-center gap-3 px-5 py-3 hover:bg-muted/30 transition-colors">
+                    {/* Priorité */}
+                    <span className={`h-1.5 w-1.5 rounded-full shrink-0 ${
+                      t.priority === "URGENT" ? "bg-red-500" :
+                      t.priority === "HIGH"   ? "bg-amber-500" :
+                      t.priority === "MEDIUM" ? "bg-blue-400" :
+                      "bg-muted-foreground/40"
+                    }`} />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm truncate">{t.title}</p>
+                      {(t.project || t.client) && (
+                        <p className="text-xs text-muted-foreground mt-0.5 truncate">
+                          {t.project ? (
+                            <Link href={`/projets/${t.project.id}`} className="hover:text-primary transition-colors">
+                              {t.project.name}
+                            </Link>
+                          ) : t.client?.name}
+                        </p>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      {t.dueDate && (
+                        <span className={`text-xs ${new Date(t.dueDate) < new Date() ? "text-red-500 font-medium" : "text-muted-foreground"}`}>
+                          {fmtDate(t.dueDate)}
+                        </span>
+                      )}
+                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                        t.status === "IN_PROGRESS" ? "text-blue-600 bg-blue-500/10" : "text-muted-foreground bg-muted"
+                      }`}>
+                        {t.status === "IN_PROGRESS" ? "En cours" : "À faire"}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Projets */}
           <div className="rounded-xl border border-border/50 bg-card overflow-hidden">
             <div className="flex items-center justify-between px-5 py-4 border-b border-border/50">
@@ -465,6 +553,12 @@ export default async function CompanyDetailPage({
                   <span className="text-muted-foreground font-normal ml-1.5">({company._count.projects})</span>
                 </h2>
               </div>
+              <NewProjectForCompanyButton
+                userId={userId}
+                companyId={company.id}
+                companies={allCompanies}
+                contacts={allContacts}
+              />
             </div>
             {company.projects.length === 0 ? (
               <div className="px-5 py-8 text-center">

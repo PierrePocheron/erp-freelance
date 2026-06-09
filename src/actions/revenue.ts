@@ -39,6 +39,7 @@ export async function createRevenue(data: {
   currency?: string
   status?: string
   receivedAt?: Date | null
+  expectedAt?: Date | null
   paymentMethod?: string | null
   notes?: string | null
   period?: string | null
@@ -63,6 +64,7 @@ export async function createRevenue(data: {
         currency:           data.currency ?? "EUR",
         status:             (data.status ?? "PENDING") as never,
         receivedAt:         data.receivedAt ?? null,
+        expectedAt:         data.expectedAt ?? null,
         paymentMethod:      data.paymentMethod ?? null,
         notes:              data.notes ?? null,
         period:             data.period ?? null,
@@ -87,6 +89,7 @@ export async function updateRevenue(
     amount?: number
     status?: string
     receivedAt?: Date | null
+    expectedAt?: Date | null
     paymentMethod?: string | null
     notes?: string | null
     period?: string | null
@@ -109,6 +112,7 @@ export async function updateRevenue(
       ...(data.amount !== undefined        ? { amount: data.amount }                : {}),
       ...(data.status !== undefined        ? { status: data.status as never }       : {}),
       ...(data.receivedAt !== undefined    ? { receivedAt: data.receivedAt }        : {}),
+      ...(data.expectedAt !== undefined    ? { expectedAt: data.expectedAt }        : {}),
       ...(data.paymentMethod !== undefined ? { paymentMethod: data.paymentMethod }  : {}),
       ...(data.notes !== undefined         ? { notes: data.notes }                  : {}),
       ...(data.period !== undefined        ? { period: data.period }                : {}),

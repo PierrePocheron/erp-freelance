@@ -29,6 +29,7 @@ type Revenue = {
   currency: string
   status: string
   receivedAt: string | null
+  expectedAt: string | null
   paymentMethod: string | null
   notes: string | null
   period: string | null
@@ -112,6 +113,7 @@ function RevenueForm({
   const [amount,        setAmount]        = useState(initial?.amount?.toString() ?? "")
   const [status,        setStatus]        = useState(initial?.status ?? "PENDING")
   const [receivedAt,    setReceivedAt]    = useState(initial?.receivedAt ? initial.receivedAt.slice(0, 10) : "")
+  const [expectedAt,    setExpectedAt]    = useState(initial?.expectedAt ? initial.expectedAt.slice(0, 10) : "")
   const [paymentMethod, setPaymentMethod] = useState(initial?.paymentMethod ?? "")
   const [notes,         setNotes]         = useState(initial?.notes ?? "")
   const [period,        setPeriod]        = useState(initial?.period ?? defaultPeriod)
@@ -141,6 +143,7 @@ function RevenueForm({
         amount: amt,
         status,
         receivedAt: receivedAt ? new Date(receivedAt) : null,
+        expectedAt: expectedAt ? new Date(expectedAt) : null,
         paymentMethod: paymentMethod || null,
         notes: notes || null,
         period: period || null,
@@ -231,6 +234,18 @@ function RevenueForm({
             <option value="RECEIVED">Reçu</option>
           </select>
         </div>
+
+        {status === "PENDING" && (
+          <div className="space-y-1">
+            <label className="text-xs font-medium text-muted-foreground">Date prévisionnelle</label>
+            <Input
+              type="date"
+              value={expectedAt}
+              onChange={e => setExpectedAt(e.target.value)}
+              className="h-9"
+            />
+          </div>
+        )}
 
         {status === "RECEIVED" && (
           <>
@@ -824,9 +839,16 @@ export function RevenueManager({
                                       )}
                                     </div>
                                   ) : (
-                                    <div className="flex items-center gap-1 text-xs text-amber-600">
-                                      <Clock className="h-3.5 w-3.5" />
-                                      En attente
+                                    <div className="space-y-0.5">
+                                      <div className="flex items-center gap-1 text-xs text-amber-600">
+                                        <Clock className="h-3.5 w-3.5" />
+                                        En attente
+                                      </div>
+                                      {r.expectedAt && (
+                                        <p className="text-xs text-muted-foreground pl-4">
+                                          prévu {fmtDate(r.expectedAt)}
+                                        </p>
+                                      )}
                                     </div>
                                   )}
                                 </td>

@@ -228,9 +228,11 @@ model Company {
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
-  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  contacts Client[]
-  projects Project[]
+  user              User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  contacts          Client[]
+  projects          Project[]
+  revenues          Revenue[]          @relation("RevenueCompany")
+  recurringRevenues RecurringRevenue[] @relation("RecurringRevenueCompany")
 
   @@unique([userId, name])
   @@index([userId])
@@ -270,16 +272,18 @@ model Client {
   createdAt     DateTime     @default(now())
   updatedAt     DateTime     @updatedAt
 
-  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  interactions Interaction[]
-  reminders    Reminder[]
-  files        ClientFile[]
-  projects        Project[]  @relation("ProjectClient")
-  projectContacts Project[]  @relation("ProjectContact")
-  quotes       Quote[]
-  invoices     Invoice[]
+  user              User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  interactions      Interaction[]
+  reminders         Reminder[]
+  files             ClientFile[]
+  projects          Project[]          @relation("ProjectClient")
+  projectContacts   Project[]          @relation("ProjectContact")
+  quotes            Quote[]
+  invoices          Invoice[]
   recurringInvoices RecurringInvoice[]
-  tasks        Task[]
+  tasks             Task[]
+  revenues          Revenue[]          @relation("RevenueClient")
+  recurringRevenues RecurringRevenue[] @relation("RecurringRevenueClient")
 
   @@index([companyId])
 }
@@ -381,20 +385,22 @@ model Project {
 
   user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
   client        Client?        @relation("ProjectClient", fields: [clientId], references: [id], onDelete: SetNull)
-  company       Company?       @relation(fields: [companyId], references: [id], onDelete: SetNull)
-  contact       Client?        @relation("ProjectContact", fields: [contactId], references: [id], onDelete: SetNull)
-  milestones    Milestone[]
-  tasks         Task[]
-  journalEntries JournalEntry[]
-  deliverables  Deliverable[]
-  usefulLinks   UsefulLink[]
-  postDev       PostDev?
-  quotes        Quote[]
-  invoices      Invoice[]
+  company           Company?           @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  contact           Client?            @relation("ProjectContact", fields: [contactId], references: [id], onDelete: SetNull)
+  milestones        Milestone[]
+  tasks             Task[]
+  journalEntries    JournalEntry[]
+  deliverables      Deliverable[]
+  usefulLinks       UsefulLink[]
+  postDev           PostDev?
+  quotes            Quote[]
+  invoices          Invoice[]
   recurringInvoices RecurringInvoice[]
-  tags          Tag[]
-  taskTags      TaskTag[]
-  members       ProjectMember[]
+  tags              Tag[]
+  taskTags          TaskTag[]
+  members           ProjectMember[]
+  revenues          Revenue[]          @relation("RevenueProject")
+  recurringRevenues RecurringRevenue[] @relation("RecurringRevenueProject")
 
   @@index([companyId])
   @@index([contactId])
@@ -887,15 +893,24 @@ model Revenue {
   notes              String?
   period             String?       // "2026-06" — pour regroupement mensuel
   recurringRevenueId String?       // lien vers le modèle récurrent parent
+  companyId          String?
+  clientId           String?
+  projectId          String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   user             User              @relation(fields: [userId], references: [id], onDelete: Cascade)
   recurringRevenue RecurringRevenue? @relation(fields: [recurringRevenueId], references: [id], onDelete: SetNull)
+  company          Company?          @relation("RevenueCompany", fields: [companyId], references: [id], onDelete: SetNull)
+  client           Client?           @relation("RevenueClient", fields: [clientId], references: [id], onDelete: SetNull)
+  project          Project?          @relation("RevenueProject", fields: [projectId], references: [id], onDelete: SetNull)
 
   @@index([userId])
   @@index([recurringRevenueId])
+  @@index([companyId])
+  @@index([clientId])
+  @@index([projectId])
 }
 
 model RecurringRevenue {
@@ -909,12 +924,21 @@ model RecurringRevenue {
   paymentMethod String?
   notes         String?
   isActive      Boolean     @default(true)
+  companyId     String?
+  clientId      String?
+  projectId     String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   revenues Revenue[]
+  company  Company?  @relation("RecurringRevenueCompany", fields: [companyId], references: [id], onDelete: SetNull)
+  client   Client?   @relation("RecurringRevenueClient", fields: [clientId], references: [id], onDelete: SetNull)
+  project  Project?  @relation("RecurringRevenueProject", fields: [projectId], references: [id], onDelete: SetNull)
 
   @@index([userId])
+  @@index([companyId])
+  @@index([clientId])
+  @@index([projectId])
 }

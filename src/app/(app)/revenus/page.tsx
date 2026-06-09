@@ -13,16 +13,41 @@ export default async function RevenuePage() {
   const now = new Date()
   const currentYear = now.getFullYear()
 
-  const [revenues, recurringRevenues] = await Promise.all([
+  const [revenues, recurringRevenues, companies, clients, projects] = await Promise.all([
     prisma.revenue.findMany({
       where: { userId },
       orderBy: [{ period: "desc" }, { createdAt: "desc" }],
-      include: { recurringRevenue: { select: { id: true, label: true } } },
+      include: {
+        recurringRevenue: { select: { id: true, label: true } },
+        company: { select: { name: true } },
+        client:  { select: { name: true, company: true } },
+        project: { select: { name: true } },
+      },
     }),
     prisma.recurringRevenue.findMany({
       where: { userId },
       orderBy: { createdAt: "asc" },
-      include: { _count: { select: { revenues: true } } },
+      include: {
+        _count:  { select: { revenues: true } },
+        company: { select: { name: true } },
+        client:  { select: { name: true, company: true } },
+        project: { select: { name: true } },
+      },
+    }),
+    prisma.company.findMany({
+      where: { userId },
+      orderBy: { name: "asc" },
+      select: { id: true, name: true, city: true },
+    }),
+    prisma.client.findMany({
+      where: { userId, type: { not: "SELF" } },
+      orderBy: { name: "asc" },
+      select: { id: true, name: true, company: true, companyId: true },
+    }),
+    prisma.project.findMany({
+      where: { userId },
+      orderBy: { name: "asc" },
+      select: { id: true, name: true, clientId: true, companyId: true },
     }),
   ])
 
@@ -105,15 +130,24 @@ export default async function RevenuePage() {
           updatedAt:   r.updatedAt.toISOString(),
           receivedAt:  r.receivedAt?.toISOString() ?? null,
           recurringRevenue: r.recurringRevenue ?? null,
+          company: r.company ?? null,
+          client:  r.client ?? null,
+          project: r.project ?? null,
         }))}
         initialRecurring={recurringRevenues.map(r => ({
           ...r,
           createdAt: r.createdAt.toISOString(),
           updatedAt: r.updatedAt.toISOString(),
           _count:    r._count,
+          company: r.company ?? null,
+          client:  r.client ?? null,
+          project: r.project ?? null,
         }))}
         revenueTypeLabels={REVENUE_TYPE_LABELS}
         paymentMethodLabels={PAYMENT_METHOD_LABELS}
+        companies={companies}
+        clients={clients}
+        projects={projects}
       />
     </div>
   )

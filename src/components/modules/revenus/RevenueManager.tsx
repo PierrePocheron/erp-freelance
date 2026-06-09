@@ -4,14 +4,14 @@ import { useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
 import {
   Plus, Repeat, ChevronDown, ChevronUp, CheckCircle2, Clock,
-  Pencil, Trash2, RefreshCw, AlertTriangle, X,
+  Pencil, Trash2, RefreshCw, AlertTriangle, X, Check,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
   createRevenue, updateRevenue, deleteRevenue, markRevenueReceived,
   createRecurringRevenue, updateRecurringRevenue, deleteRecurringRevenue,
-  generatePendingRecurringRevenues,
+  generatePendingRecurringRevenues, bulkMarkReceived,
 } from "@/actions/revenue"
 import { PAYMENT_METHODS, REVENUE_TYPES } from "@/lib/revenue-constants"
 
@@ -631,8 +631,11 @@ export function RevenueManager({
   const [showRecurringForm, setShowRecurringForm]  = useState(false)
   const [editRevenue,       setEditRevenue]        = useState<Revenue | null>(null)
   const [editRecurring,     setEditRecurring]      = useState<RecurringRevenue | null>(null)
-  const [markReceived,      setMarkReceived]       = useState<Revenue | null>(null)
   const [confirmDelete,     setConfirmDelete]      = useState<string | null>(null)
+  const [selectedIds,       setSelectedIds]        = useState<Set<string>>(new Set())
+  const [bulkDate,          setBulkDate]           = useState(() => new Date().toISOString().slice(0, 10))
+  const [isBulking,         startBulk]             = useTransition()
+  const [quickMarkingId,    setQuickMarkingId]     = useState<string | null>(null)
   const [expandedPeriods,   setExpandedPeriods]    = useState<Set<string>>(new Set([getCurrentPeriod()]))
   const [isPendingGen,      startGen]              = useTransition()
   const [isPendingDel,      startDel]              = useTransition()
@@ -687,6 +690,49 @@ export function RevenueManager({
       refresh()
     })
   }
+
+  function toggleSelect(id: string) {
+    setSelectedIds(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  function selectAllPendingInPeriod(period: string) {
+    const pendingIds = (byPeriod[period] ?? []).filter(r => r.status === "PENDING").map(r => r.id)
+    const allSelected = pendingIds.length > 0 && pendingIds.every(id => selectedIds.has(id))
+    setSelectedIds(prev => {
+      const next = new Set(prev)
+      if (allSelected) pendingIds.forEach(id => next.delete(id))
+      else             pendingIds.forEach(id => next.add(id))
+      return next
+    })
+  }
+
+  function handleQuickMark(id: string) {
+    setQuickMarkingId(id)
+    startBulk(async () => {
+      await markRevenueReceived(id, new Date(), "OTHER")
+      setQuickMarkingId(null)
+      refresh()
+    })
+  }
+
+  function handleBulkMark() {
+    const ids = Array.from(selectedIds)
+    if (!ids.length) return
+    startBulk(async () => {
+      await bulkMarkReceived(ids, bulkDate ? new Date(bulkDate) : new Date())
+      setSelectedIds(new Set())
+      refresh()
+    })
+  }
+
+  const selectedTotal = selectedIds.size > 0
+    ? [...selectedIds].reduce((sum, id) => sum + (initialRevenues.find(r => r.id === id)?.amount ?? 0), 0)
+    : 0
 
   const typeColor: Record<string, string> = {
     SALARY:     "text-blue-600 bg-blue-500/10",
@@ -768,10 +814,11 @@ export function RevenueManager({
 
                 return (
                   <div key={period} className="rounded-xl border border-border/50 bg-card overflow-hidden">
-                    <button
-                      type="button"
+                    {/* eslint-disable-next-line jsx-a11y/no-static-element-interactions */}
+                    <div
+                      className="w-full flex items-center justify-between px-5 py-3.5 hover:bg-muted/30 transition-colors cursor-pointer"
                       onClick={() => togglePeriod(period)}
-                      className="w-full flex items-center justify-between px-5 py-3.5 hover:bg-muted/30 transition-colors"
+                      onKeyDown={e => e.key === "Enter" && togglePeriod(period)}
                     >
                       <div className="flex items-center gap-3">
                         {expanded ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
@@ -780,21 +827,42 @@ export function RevenueManager({
                         </span>
                         <span className="text-xs text-muted-foreground">{items.length} entrée{items.length > 1 ? "s" : ""}</span>
                       </div>
-                      <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-3" onClick={e => e.stopPropagation()}>
+                        {expanded && items.some(r => r.status === "PENDING") && (
+                          <button
+                            type="button"
+                            onClick={() => selectAllPendingInPeriod(period)}
+                            className="text-xs text-muted-foreground hover:text-foreground px-2 py-0.5 rounded border border-border/50 hover:border-border transition-colors"
+                          >
+                            {items.filter(r => r.status === "PENDING").every(r => selectedIds.has(r.id))
+                              ? "Désélectionner"
+                              : "Tout sélectionner"}
+                          </button>
+                        )}
                         {receivedP < totalP && (
                           <span className="text-xs text-amber-600">{fmt(totalP - receivedP)} € en attente</span>
                         )}
                         <span className="font-semibold text-sm tabular-nums text-emerald-600">{fmt(receivedP)} € reçus</span>
                       </div>
-                    </button>
+                    </div>
 
                     {expanded && (
                       <div className="border-t border-border/50">
                         <table className="w-full text-sm">
                           <tbody>
                             {items.map(r => (
-                              <tr key={r.id} className="border-b border-border/50 last:border-0 hover:bg-muted/30 transition-colors">
-                                <td className="px-5 py-3">
+                              <tr key={r.id} className={`border-b border-border/50 last:border-0 hover:bg-muted/30 transition-colors ${selectedIds.has(r.id) ? "bg-emerald-500/5" : ""}`}>
+                                <td className="pl-4 pr-1 py-3 w-8">
+                                  {r.status === "PENDING" && (
+                                    <input
+                                      type="checkbox"
+                                      checked={selectedIds.has(r.id)}
+                                      onChange={() => toggleSelect(r.id)}
+                                      className="h-4 w-4 rounded border-border accent-emerald-600 cursor-pointer"
+                                    />
+                                  )}
+                                </td>
+                                <td className="px-5 py-3 pl-2">
                                   <div className="flex items-center gap-2">
                                     <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${typeColor[r.type] ?? "text-muted-foreground bg-muted"}`}>
                                       {revenueTypeLabels[r.type] ?? r.type}
@@ -857,10 +925,15 @@ export function RevenueManager({
                                     {r.status === "PENDING" && (
                                       <button
                                         type="button"
-                                        onClick={() => setMarkReceived(r)}
-                                        className="text-xs text-emerald-600 hover:text-emerald-700 font-medium border border-emerald-500/30 rounded px-2 py-0.5 hover:bg-emerald-500/10 transition-colors"
+                                        onClick={() => handleQuickMark(r.id)}
+                                        disabled={isBulking}
+                                        title="Marquer reçu aujourd'hui"
+                                        className="inline-flex items-center justify-center h-7 w-7 rounded-full bg-emerald-500/10 hover:bg-emerald-500/25 text-emerald-600 transition-colors disabled:opacity-40"
                                       >
-                                        Marquer reçu
+                                        {quickMarkingId === r.id
+                                          ? <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                                          : <Check className="h-3.5 w-3.5" />
+                                        }
                                       </button>
                                     )}
                                     <button
@@ -1040,14 +1113,44 @@ export function RevenueManager({
         </div>
       )}
 
-      {/* Modal "Marquer reçu" */}
-      {markReceived && (
-        <MarkReceivedModal
-          revenue={markReceived}
-          paymentLabels={paymentMethodLabels}
-          onClose={() => setMarkReceived(null)}
-          onSave={() => { setMarkReceived(null); refresh() }}
-        />
+      {/* Floating bulk-mark bar */}
+      {selectedIds.size > 0 && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 bg-card border border-border shadow-2xl rounded-2xl px-4 py-3">
+          <span className="text-sm font-semibold text-foreground whitespace-nowrap">
+            {selectedIds.size} sélectionné{selectedIds.size > 1 ? "s" : ""}
+          </span>
+          <span className="text-xs text-muted-foreground whitespace-nowrap">
+            · {fmt(selectedTotal)} €
+          </span>
+          <div className="w-px h-5 bg-border shrink-0" />
+          <input
+            type="date"
+            value={bulkDate}
+            onChange={e => setBulkDate(e.target.value)}
+            className="h-8 rounded-md border border-input bg-background px-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+          />
+          <Button
+            type="button"
+            size="sm"
+            disabled={isBulking}
+            onClick={handleBulkMark}
+            className="bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5 shrink-0"
+          >
+            {isBulking
+              ? <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+              : <Check className="h-3.5 w-3.5" />
+            }
+            Valider{selectedIds.size > 1 ? ` (${selectedIds.size})` : ""}
+          </Button>
+          <button
+            type="button"
+            onClick={() => setSelectedIds(new Set())}
+            title="Désélectionner tout"
+            className="text-muted-foreground hover:text-foreground p-1 rounded shrink-0"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
       )}
     </>
   )

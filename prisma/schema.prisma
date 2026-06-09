@@ -38,8 +38,10 @@ model User {
   conditionsTemplates ConditionsTemplate[]
   projectIdeas      ProjectIdea[]
   tasks             Task[]               @relation("UserTasks")
-  companies         Company[]
-  emitterProfiles   EmitterProfile[]
+  companies          Company[]
+  emitterProfiles    EmitterProfile[]
+  revenues           Revenue[]
+  recurringRevenues  RecurringRevenue[]
 }
 
 model ProjectIdea {
@@ -854,4 +856,65 @@ model ConditionsTemplate {
   updatedAt DateTime @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// ─── Revenus hors auto-entreprise ────────────────────────────────────────────
+
+enum RevenueType {
+  SALARY      // Salaire (CDI, CDD, intérim)
+  STUDY       // Étude / mission rémunérée hors AE
+  INVESTMENT  // Investissements (dividendes, intérêts, PEA)
+  RENTAL      // Revenus locatifs
+  PLATFORM    // Plateformes (YouTube, Twitch, Patreon…)
+  OTHER       // Autre
+}
+
+enum RevenueStatus {
+  PENDING   // En attente de réception
+  RECEIVED  // Reçu
+}
+
+model Revenue {
+  id                 String        @id @default(cuid())
+  userId             String
+  type               RevenueType
+  label              String        // ex: "Salaire mai 2026", "Loyer T2 Paris"
+  amount             Float
+  currency           String        @default("EUR")
+  status             RevenueStatus @default(PENDING)
+  receivedAt         DateTime?     // date de réception effective
+  paymentMethod      String?       // VIREMENT, ESPECES, CHEQUE, CARTE, PAYPAL, OTHER
+  notes              String?
+  period             String?       // "2026-06" — pour regroupement mensuel
+  recurringRevenueId String?       // lien vers le modèle récurrent parent
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user             User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  recurringRevenue RecurringRevenue? @relation(fields: [recurringRevenueId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([recurringRevenueId])
+}
+
+model RecurringRevenue {
+  id            String      @id @default(cuid())
+  userId        String
+  type          RevenueType
+  label         String
+  amount        Float
+  currency      String      @default("EUR")
+  dayOfMonth    Int         @default(1)   // jour du mois attendu (1–28)
+  paymentMethod String?
+  notes         String?
+  isActive      Boolean     @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  revenues Revenue[]
+
+  @@index([userId])
 }

@@ -194,6 +194,7 @@ export default async function FacturationOverviewPage() {
                   <th className="px-4 py-2.5 text-left font-medium">Client</th>
                   <th className="px-4 py-2.5 text-left font-medium">Statut</th>
                   <th className="px-4 py-2.5 text-right font-medium">Montant HT</th>
+                  <th className="px-4 py-2.5 text-left font-medium">Créée le</th>
                   <th className="px-4 py-2.5 text-left font-medium">Échéance</th>
                 </tr>
               </thead>
@@ -213,9 +214,10 @@ export default async function FacturationOverviewPage() {
                       {(inv.totalHT - inv.depositDeducted).toLocaleString("fr-FR")} €
                     </td>
                     <td className="px-4 py-2.5 text-xs text-muted-foreground">
-                      {inv.dueDate
-                        ? new Date(inv.dueDate).toLocaleDateString("fr-FR")
-                        : "—"}
+                      {new Date(inv.createdAt).toLocaleDateString("fr-FR")}
+                    </td>
+                    <td className="px-4 py-2.5 text-xs text-muted-foreground">
+                      {inv.dueDate ? new Date(inv.dueDate).toLocaleDateString("fr-FR") : "—"}
                     </td>
                   </tr>
                 ))}
@@ -242,6 +244,7 @@ export default async function FacturationOverviewPage() {
                   <th className="px-4 py-2.5 text-left font-medium">Client</th>
                   <th className="px-4 py-2.5 text-left font-medium">Statut</th>
                   <th className="px-4 py-2.5 text-right font-medium">Total HT</th>
+                  <th className="px-4 py-2.5 text-left font-medium">Créé le</th>
                 </tr>
               </thead>
               <tbody>
@@ -257,6 +260,9 @@ export default async function FacturationOverviewPage() {
                       <QuoteStatusBadge status={q.status} />
                     </td>
                     <td className="px-4 py-2.5 text-right font-medium">{q.totalHT.toLocaleString("fr-FR")} €</td>
+                    <td className="px-4 py-2.5 text-xs text-muted-foreground">
+                      {new Date(q.createdAt).toLocaleDateString("fr-FR")}
+                    </td>
                   </tr>
                 ))}
               </tbody>

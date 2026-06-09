@@ -30,9 +30,9 @@ const navItems = [
   { href: "/facturation", icon: FileText, label: "Facturation" },
   { href: "/revenus", icon: Wallet, label: "Revenus" },
   { href: "/projets", icon: Code2, label: "Projets" },
-  { href: "/graph",   icon: Network, label: "Graphe" },
   { href: "/taches", icon: CheckSquare, label: "Tâches" },
   { href: "/calendrier", icon: Calendar, label: "Calendrier" },
+  { href: "/graph",   icon: Network, label: "Graph" },
   { href: "/settings", icon: Settings, label: "Paramètres" },
 ]
 

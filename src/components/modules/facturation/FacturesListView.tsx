@@ -147,6 +147,7 @@ export function FacturesListView({
                 <th className="px-4 py-3 text-left font-medium">Type</th>
                 <th className="px-4 py-3 text-left font-medium">Statut</th>
                 <th className="px-4 py-3 text-right font-medium">Montant HT</th>
+                <th className="px-4 py-3 text-left font-medium">Créée le</th>
                 <th className="px-4 py-3 text-left font-medium">Échéance</th>
               </tr>
             </thead>
@@ -166,6 +167,9 @@ export function FacturesListView({
                     </td>
                     <td className="px-4 py-3 text-right font-medium">
                       {(inv.totalHT - inv.depositDeducted).toLocaleString("fr-FR")} €
+                    </td>
+                    <td className="px-4 py-3 text-xs text-muted-foreground">
+                      {new Date(inv.createdAt).toLocaleDateString("fr-FR")}
                     </td>
                     <td className={`px-4 py-3 text-xs ${isLate ? "text-red-500 font-medium" : "text-muted-foreground"}`}>
                       {inv.dueDate ? new Date(inv.dueDate).toLocaleDateString("fr-FR") : "—"}
@@ -203,13 +207,20 @@ export function FacturesListView({
                     <p className="text-xs text-muted-foreground mt-0.5">{inv.project.name}</p>
                   )}
                 </div>
-                <div className="flex items-end justify-between pt-1 border-t border-border/50">
-                  <span className={`text-xl font-bold tabular-nums ${isLate ? "text-red-600" : ""}`}>
-                    {amount.toLocaleString("fr-FR")} €
-                  </span>
-                  <span className={`text-xs ${isLate ? "text-red-500 font-medium" : "text-muted-foreground"}`}>
-                    {inv.dueDate ? new Date(inv.dueDate).toLocaleDateString("fr-FR") : new Date(inv.createdAt).toLocaleDateString("fr-FR")}
-                  </span>
+                <div className="pt-1 border-t border-border/50 space-y-1">
+                  <div className="flex items-end justify-between">
+                    <span className={`text-xl font-bold tabular-nums ${isLate ? "text-red-600" : ""}`}>
+                      {amount.toLocaleString("fr-FR")} €
+                    </span>
+                    <span className="text-xs text-muted-foreground">
+                      créée le {new Date(inv.createdAt).toLocaleDateString("fr-FR")}
+                    </span>
+                  </div>
+                  {inv.dueDate && (
+                    <p className={`text-xs text-right ${isLate ? "text-red-500 font-medium" : "text-muted-foreground"}`}>
+                      échéance {new Date(inv.dueDate).toLocaleDateString("fr-FR")}
+                    </p>
+                  )}
                 </div>
               </Link>
             )

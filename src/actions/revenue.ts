@@ -4,29 +4,6 @@ import { prisma } from "@/lib/prisma"
 import { auth } from "@/lib/auth"
 import { revalidatePath } from "next/cache"
 
-// ── Types ──────────────────────────────────────────────────────────────────────
-
-export const REVENUE_TYPE_LABELS: Record<string, string> = {
-  SALARY:     "Salaire",
-  STUDY:      "Étude rémunérée",
-  INVESTMENT: "Investissement",
-  RENTAL:     "Locatif",
-  PLATFORM:   "Plateforme",
-  OTHER:      "Autre",
-}
-
-export const PAYMENT_METHOD_LABELS: Record<string, string> = {
-  VIREMENT:      "Virement",
-  ESPECES:       "Espèces",
-  CHEQUE:        "Chèque",
-  CARTE:         "Carte",
-  PAYPAL:        "PayPal",
-  CARTE_CADEAU:  "Carte cadeau",
-  OTHER:         "Autre",
-}
-
-export const PAYMENT_METHODS = Object.keys(PAYMENT_METHOD_LABELS)
-
 // ── Revenus ────────────────────────────────────────────────────────────────────
 
 export async function getRevenues(params?: {

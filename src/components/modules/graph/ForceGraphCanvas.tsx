@@ -180,13 +180,22 @@ export const ForceGraphCanvas = forwardRef<GraphMethods, Props>(function ForceGr
   const getLinkColor = useCallback((link: object) => {
     const l = link as { source: { type?: string } | string; target: { type?: string } | string }
     const srcType = typeof l.source === "object" ? (l.source as RawNode).type : ""
-    switch (srcType) {
-      case "COMPANY": return "rgba(245,158,11,0.45)"   // amber
-      case "CLIENT":  return "rgba(139,92,246,0.45)"   // violet
-      case "PROJECT": return "rgba(52,211,153,0.45)"   // emerald
-      default:        return "rgba(148,163,184,0.35)"
+    if (isDark) {
+      switch (srcType) {
+        case "COMPANY": return "rgba(245,158,11,0.55)"
+        case "CLIENT":  return "rgba(139,92,246,0.55)"
+        case "PROJECT": return "rgba(52,211,153,0.55)"
+        default:        return "rgba(148,163,184,0.45)"
+      }
+    } else {
+      switch (srcType) {
+        case "COMPANY": return "rgba(180,110,0,0.60)"
+        case "CLIENT":  return "rgba(100,60,200,0.55)"
+        case "PROJECT": return "rgba(16,150,100,0.55)"
+        default:        return "rgba(80,100,130,0.50)"
+      }
     }
-  }, [])
+  }, [isDark])
 
   return (
     <ForceGraph2D

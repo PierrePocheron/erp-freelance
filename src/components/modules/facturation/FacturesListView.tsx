@@ -4,6 +4,7 @@ import { useState } from "react"
 import Link from "next/link"
 import { Receipt, LayoutGrid, List, Download } from "lucide-react"
 import { CreateInvoiceDialog } from "./CreateInvoiceDialog"
+import { ImportInvoiceModal } from "./ImportInvoiceModal"
 
 type Invoice = {
   id: string
@@ -123,6 +124,7 @@ export function FacturesListView({
             <Download className="h-3.5 w-3.5" />
             CSV
           </a>
+          <ImportInvoiceModal userId={userId} clients={clients} projects={projects} />
           <CreateInvoiceDialog userId={userId} clients={clients} companies={companies} projects={projects} quotes={quotes} />
         </div>
       </div>

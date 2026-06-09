@@ -2,7 +2,7 @@
 
 import ForceGraph2D from "react-force-graph-2d"
 import type { ForceGraphMethods, NodeObject } from "react-force-graph-2d"
-import { useRef, useEffect, useCallback, forwardRef, useImperativeHandle } from "react"
+import { useRef, useEffect, useCallback, useMemo, forwardRef, useImperativeHandle } from "react"
 import type { RawNode, RawLink } from "./graph-types"
 import { nodeColor, NODE_RADIUS } from "./graph-types"
 
@@ -176,10 +176,18 @@ export const ForceGraphCanvas = forwardRef<GraphMethods, Props>(function ForceGr
 
   }, [collapsedIds, isDark])
 
-  // ── Link color based on connection depth ──────────────────────────────────
+  // Index id → type pour résoudre la couleur sans dépendre de la résolution D3
+  const nodeTypeMap = useMemo(
+    () => new Map(nodes.map(n => [n.id, n.type])),
+    [nodes]
+  )
+
+  // ── Link color based on source node type ─────────────────────────────────
   const getLinkColor = useCallback((link: object) => {
-    const l = link as { source: { type?: string } | string; target: { type?: string } | string }
-    const srcType = typeof l.source === "object" ? (l.source as RawNode).type : ""
+    const l = link as { source: RawNode | string }
+    // l.source est soit un string (avant résolution D3) soit l'objet nœud (après)
+    const srcId   = typeof l.source === "object" ? l.source.id : l.source
+    const srcType = nodeTypeMap.get(srcId as string) ?? ""
     if (isDark) {
       switch (srcType) {
         case "COMPANY": return "rgba(245,158,11,0.55)"
@@ -195,7 +203,7 @@ export const ForceGraphCanvas = forwardRef<GraphMethods, Props>(function ForceGr
         default:        return "rgba(80,100,130,0.50)"
       }
     }
-  }, [isDark])
+  }, [isDark, nodeTypeMap])
 
   return (
     <ForceGraph2D

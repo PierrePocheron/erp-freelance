@@ -12,7 +12,9 @@ export function GoogleCalendarSection({ hasScope }: { hasScope: boolean }) {
         "openid",
         "email",
         "profile",
-        "https://www.googleapis.com/auth/calendar.readonly",
+        // Scope complet requis pour créer l'agenda dédié "ERP Freelance"
+        // (englobe calendar.readonly + calendar.events)
+        "https://www.googleapis.com/auth/calendar",
         "https://www.googleapis.com/auth/calendar.events",
       ].join(" "),
       // conserve les scopes déjà accordés (autorisation incrémentale)
@@ -38,7 +40,8 @@ export function GoogleCalendarSection({ hasScope }: { hasScope: boolean }) {
           </div>
           <p className="text-xs text-muted-foreground">
             Vos événements Google Calendar sont synchronisables depuis le module Calendrier
-            via le bouton <strong>Sync Google</strong>.
+            via le bouton <strong>Sync Google</strong>. Les événements créés dans l&apos;ERP
+            sont automatiquement poussés dans un agenda dédié <strong>ERP Freelance</strong>.
           </p>
           <button
             type="button"
@@ -59,11 +62,11 @@ export function GoogleCalendarSection({ hasScope }: { hasScope: boolean }) {
           <ul className="text-xs text-muted-foreground space-y-1">
             <li className="flex items-center gap-2">
               <span className="h-1 w-1 rounded-full bg-muted-foreground shrink-0" />
-              Lecture de votre calendrier principal
+              Lecture de votre calendrier principal (Google → ERP)
             </li>
             <li className="flex items-center gap-2">
               <span className="h-1 w-1 rounded-full bg-muted-foreground shrink-0" />
-              Événements importés en lecture seule (pour l&apos;instant)
+              Push des événements ERP dans un agenda dédié (ERP → Google)
             </li>
             <li className="flex items-center gap-2">
               <span className="h-1 w-1 rounded-full bg-muted-foreground shrink-0" />

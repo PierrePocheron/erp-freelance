@@ -157,6 +157,7 @@ export async function getCalendarEvents(params?: {
       e.id, e."userId", e.title, e.description,
       e."startDate", e."endDate", e."allDay",
       e."sourceType", e."sourceId", e."categoryId",
+      e."projectId", e."clientId",
       e."createdAt", e."updatedAt",
       CASE WHEN c.id IS NOT NULL THEN
         jsonb_build_object(

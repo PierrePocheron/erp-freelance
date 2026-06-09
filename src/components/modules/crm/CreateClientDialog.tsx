@@ -12,17 +12,21 @@ import { CompanyCombobox } from "./CompanyCombobox"
 
 export function CreateClientDialog({
   userId,
+  defaultCompany,
   open: controlledOpen,
   onOpenChange: controlledOnOpenChange,
 }: {
   userId: string
+  defaultCompany?: { id: string; name: string } | null
   open?: boolean
   onOpenChange?: (v: boolean) => void
 }) {
   const [internalOpen, setInternalOpen] = useState(false)
   const [isPending, startTransition] = useTransition()
   const [isCreatingCompany, startCreatingCompany] = useTransition()
-  const [company, setCompany] = useState<{ id: string | null; name: string }>({ id: null, name: "" })
+  const [company, setCompany] = useState<{ id: string | null; name: string }>(
+    defaultCompany ? { id: defaultCompany.id, name: defaultCompany.name } : { id: null, name: "" }
+  )
   const [showNewCompany, setShowNewCompany] = useState(false)
   const router = useRouter()
   const isControlled = controlledOpen !== undefined
@@ -30,7 +34,10 @@ export function CreateClientDialog({
 
   function handleOpenChange(v: boolean) {
     if (!isControlled) setInternalOpen(v)
-    if (!v) { setCompany({ id: null, name: "" }); setShowNewCompany(false) }
+    if (!v) {
+      setCompany(defaultCompany ? { id: defaultCompany.id, name: defaultCompany.name } : { id: null, name: "" })
+      setShowNewCompany(false)
+    }
     controlledOnOpenChange?.(v)
   }
 

@@ -4,10 +4,11 @@ import { notFound, redirect } from "next/navigation"
 import Link from "next/link"
 import {
   ChevronLeft, Building2, Mail, Phone, Globe, MapPin,
-  Users, FolderOpen, FileText, Trash2, ExternalLink,
+  Users, FolderOpen, Trash2, ExternalLink,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { deleteCompany } from "@/actions/crm"
+import { NewContactForCompanyButton } from "@/components/modules/societes/NewContactForCompanyButton"
 
 export default async function CompanyDetailPage({
   params,
@@ -177,12 +178,10 @@ export default async function CompanyDetailPage({
                   <span className="text-muted-foreground font-normal ml-1.5">({company._count.contacts})</span>
                 </h2>
               </div>
-              <Link
-                href={`/client/new?companyId=${company.id}`}
-                className="text-xs text-primary hover:underline"
-              >
-                + Nouveau contact
-              </Link>
+              <NewContactForCompanyButton
+                userId={userId}
+                company={{ id: company.id, name: company.name }}
+              />
             </div>
 
             {company.contacts.length === 0 ? (

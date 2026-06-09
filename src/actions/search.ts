@@ -5,7 +5,7 @@ import { prisma } from "@/lib/prisma"
 
 export type SearchResult = {
   id: string
-  type: "client" | "project" | "quote" | "invoice"
+  type: "client" | "project" | "quote" | "invoice" | "company"
   label: string
   sublabel?: string
   href: string
@@ -17,7 +17,16 @@ export async function searchGlobal(query: string): Promise<SearchResult[]> {
   if (!session) return []
   const userId = session.user.id
 
-  const [clients, projects, quotes, invoices] = await Promise.all([
+  const [companies, clients, projects, quotes, invoices] = await Promise.all([
+    prisma.company.findMany({
+      where: { userId, OR: [
+        { name: { contains: query, mode: "insensitive" } },
+        { city: { contains: query, mode: "insensitive" } },
+        { siret: { contains: query, mode: "insensitive" } },
+      ]},
+      take: 4,
+      select: { id: true, name: true, city: true },
+    }),
     prisma.client.findMany({
       where: { userId, type: { not: "SELF" }, OR: [
         { name: { contains: query, mode: "insensitive" } },
@@ -50,6 +59,13 @@ export async function searchGlobal(query: string): Promise<SearchResult[]> {
   ])
 
   return [
+    ...companies.map((c) => ({
+      id: c.id,
+      type: "company" as const,
+      label: c.name,
+      sublabel: c.city ?? undefined,
+      href: `/societes/${c.id}`,
+    })),
     ...clients.map((c) => ({
       id: c.id,
       type: "client" as const,

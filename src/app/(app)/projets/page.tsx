@@ -7,23 +7,30 @@ export default async function ProjetsPage() {
   const session = await auth()
   const userId = session!.user.id
 
-  const [projects, clients, projectTags, projectInvoices, ideas] = await Promise.all([
+  const [projects, companies, contacts, projectTags, projectInvoices, ideas] = await Promise.all([
     prisma.project.findMany({
-      where: { userId },
+      where: { OR: [{ userId }, { members: { some: { userId } } }] },
       orderBy: { createdAt: "desc" },
       include: {
-        client: { select: { name: true, company: true, type: true } },
+        company: { select: { id: true, name: true } },
+        contact: { select: { id: true, name: true, company: true } },
+        members: { select: { userId: true } },
         _count: { select: { tasks: true } },
         tasks: { select: { status: true }, where: { parentTaskId: null } },
       },
     }),
+    prisma.company.findMany({
+      where: { userId },
+      orderBy: { name: "asc" },
+      select: { id: true, name: true, city: true },
+    }),
     prisma.client.findMany({
       where: { userId },
-      orderBy: [{ type: "asc" }, { name: "asc" }],
-      select: { id: true, name: true, company: true, type: true },
+      orderBy: [{ name: "asc" }],
+      select: { id: true, name: true, company: true, companyId: true },
     }),
     prisma.project.findMany({
-      where: { userId },
+      where: { OR: [{ userId }, { members: { some: { userId } } }] },
       select: { id: true, tags: { select: { id: true, name: true, color: true } } },
     }).catch(() => [] as { id: string; tags: { id: string; name: string; color: string }[] }[]),
     prisma.invoice.findMany({
@@ -62,12 +69,10 @@ export default async function ProjetsPage() {
     billing: billingByProject[p.id] ?? { totalFacture: 0, totalEncaisse: 0 },
   }))
 
-  const clientsForIdeas = clients.map((c) => ({ id: c.id, name: c.name, company: c.company }))
-
   return (
     <div className="space-y-8">
-      <ProjectIdeasPanel userId={userId} initialIdeas={ideas} clients={clientsForIdeas} />
-      <ProjetsListView userId={userId} projects={projectsWithStats} clients={clients} />
+      <ProjetsListView userId={userId} projects={projectsWithStats} companies={companies} contacts={contacts} />
+      <ProjectIdeasPanel userId={userId} initialIdeas={ideas} companies={companies} />
     </div>
   )
 }

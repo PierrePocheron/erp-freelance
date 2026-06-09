@@ -26,10 +26,8 @@ export default function RootLayout({
       className={`${poppins.variable} h-full antialiased`}
       suppressHydrationWarning
     >
-      <head>
+      <body className="h-full overflow-hidden bg-background text-foreground" suppressHydrationWarning>
         <Script src="/theme-init.js" strategy="beforeInteractive" />
-      </head>
-      <body className="min-h-full flex flex-col bg-background text-foreground" suppressHydrationWarning>
         {children}
         <Toaster position="bottom-right" richColors />
       </body>

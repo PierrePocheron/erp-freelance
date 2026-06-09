@@ -3,7 +3,7 @@
 import { useState, useTransition, useRef } from "react"
 import { useRouter } from "next/navigation"
 import {
-  Lightbulb, Plus, Trash2, Loader2, ArrowRight, X, ChevronDown, ChevronRight, Copy,
+  Lightbulb, Plus, Trash2, Loader2, ArrowRight, X, ChevronDown, ChevronRight, Copy, Check,
 } from "lucide-react"
 import {
   createProjectIdea, updateProjectIdea, deleteProjectIdea, convertIdeaToProject,
@@ -13,19 +13,19 @@ import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
 
 type Idea = { id: string; title: string; content: string; createdAt: Date }
-type Client = { id: string; name: string; company: string | null }
+type Company = { id: string; name: string; city: string | null }
 
 // ── IdeaCard ─────────────────────────────────────────────────────────────────
 
 function IdeaCard({
   idea,
   userId,
-  clients,
+  companies,
   onDelete,
 }: {
   idea: Idea
   userId: string
-  clients: Client[]
+  companies: Company[]
   onDelete: (id: string) => void
 }) {
   const router = useRouter()
@@ -34,8 +34,9 @@ function IdeaCard({
   const [title, setTitle] = useState(idea.title)
   const [content, setContent] = useState(idea.content)
   const [showConvert, setShowConvert] = useState(false)
-  const [clientId, setClientId] = useState(clients[0]?.id ?? "")
+  const [companyId, setCompanyId] = useState(companies[0]?.id ?? "")
   const [keepIdea, setKeepIdea] = useState(false)
+  const [saved, setSaved] = useState(false)
   const saveTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   function handleTitleBlur() {
@@ -58,15 +59,23 @@ function IdeaCard({
     startTransition(() => deleteProjectIdea(idea.id, userId))
   }
 
+  function handleSave() {
+    if (saveTimeout.current) clearTimeout(saveTimeout.current)
+    startTransition(async () => {
+      await updateProjectIdea(idea.id, userId, { title: title.trim() || idea.title, content })
+      setSaved(true)
+      setTimeout(() => setSaved(false), 2000)
+    })
+  }
+
   function handleCopy() {
     const text = `# ${title}\n\n${content}`
     navigator.clipboard.writeText(text)
   }
 
   function handleConvert() {
-    if (!clientId) return
     startTransition(async () => {
-      const project = await convertIdeaToProject(idea.id, userId, clientId, !keepIdea)
+      const project = await convertIdeaToProject(idea.id, userId, companyId || null, !keepIdea)
       if (!keepIdea) onDelete(idea.id)
       router.push(`/projets/${project.id}`)
     })
@@ -115,6 +124,24 @@ function IdeaCard({
         {isPending && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground shrink-0" />}
 
         <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+          {expanded && (
+            <button
+              type="button"
+              onClick={handleSave}
+              disabled={isPending}
+              className={cn(
+                "p-1 transition-colors",
+                saved ? "text-emerald-500" : "text-muted-foreground hover:text-emerald-600"
+              )}
+              title="Valider les modifications"
+            >
+              {saved
+                ? <Check className="h-3.5 w-3.5" />
+                : isPending
+                  ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  : <Check className="h-3.5 w-3.5" />}
+            </button>
+          )}
           <button
             type="button"
             onClick={handleCopy}
@@ -182,22 +209,19 @@ function IdeaCard({
               </div>
               <div className="space-y-2">
                 <div>
-                  <label className="text-xs text-muted-foreground mb-1 block">Client</label>
-                  {clients.length === 0 ? (
-                    <p className="text-xs text-muted-foreground italic">Aucun client — créez-en un d'abord</p>
-                  ) : (
-                    <select
-                      value={clientId}
-                      onChange={(e) => setClientId(e.target.value)}
-                      className="w-full h-8 rounded-md border border-input bg-transparent px-3 text-sm"
-                    >
-                      {clients.map((c) => (
-                        <option key={c.id} value={c.id}>
-                          {c.company ?? c.name}
-                        </option>
-                      ))}
-                    </select>
-                  )}
+                  <label className="text-xs text-muted-foreground mb-1 block">Société</label>
+                  <select
+                    value={companyId}
+                    onChange={(e) => setCompanyId(e.target.value)}
+                    className="w-full h-8 rounded-md border border-input bg-transparent px-3 text-sm"
+                  >
+                    <option value="">— Aucune société —</option>
+                    {companies.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name}{c.city ? ` (${c.city})` : ""}
+                      </option>
+                    ))}
+                  </select>
                 </div>
                 <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer">
                   <input
@@ -212,7 +236,7 @@ function IdeaCard({
               <div className="flex gap-2">
                 <Button
                   size="sm"
-                  disabled={!clientId || isPending}
+                  disabled={isPending}
                   onClick={handleConvert}
                   className="gap-1.5"
                 >
@@ -243,11 +267,11 @@ function IdeaCard({
 export function ProjectIdeasPanel({
   userId,
   initialIdeas,
-  clients,
+  companies,
 }: {
   userId: string
   initialIdeas: Idea[]
-  clients: Client[]
+  companies: Company[]
 }) {
   const [ideas, setIdeas] = useState(initialIdeas)
   const [newTitle, setNewTitle] = useState("")
@@ -327,7 +351,7 @@ export function ProjectIdeasPanel({
                   key={idea.id}
                   idea={idea}
                   userId={userId}
-                  clients={clients}
+                  companies={companies}
                   onDelete={handleDelete}
                 />
               ))}

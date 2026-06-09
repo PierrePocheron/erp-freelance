@@ -3,6 +3,7 @@
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useEffect, useState } from "react"
+import pkg from "../../../package.json"
 import {
   LayoutDashboard,
   Users,
@@ -15,17 +16,23 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   Search,
+  Building2,
+  Wallet,
+  Network,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { ThemeToggle } from "./ThemeToggle"
 
 const navItems = [
   { href: "/", icon: LayoutDashboard, label: "Dashboard" },
-  { href: "/client", icon: Users, label: "Clients" },
+  { href: "/client", icon: Users, label: "Contacts" },
+  { href: "/societes", icon: Building2, label: "Sociétés" },
   { href: "/facturation", icon: FileText, label: "Facturation" },
+  { href: "/revenus", icon: Wallet, label: "Revenus" },
   { href: "/projets", icon: Code2, label: "Projets" },
   { href: "/taches", icon: CheckSquare, label: "Tâches" },
   { href: "/calendrier", icon: Calendar, label: "Calendrier" },
+  { href: "/graph",   icon: Network, label: "Graph" },
   { href: "/settings", icon: Settings, label: "Paramètres" },
 ]
 
@@ -55,7 +62,7 @@ export function Sidebar() {
   return (
     <aside
       className={cn(
-        "flex h-screen shrink-0 flex-col border-r border-border/50 bg-background/80 backdrop-blur-sm transition-all duration-200",
+        "relative z-20 flex h-screen shrink-0 flex-col border-r border-border/50 bg-background/80 backdrop-blur-sm transition-all duration-200",
         expanded ? "w-52" : "w-16"
       )}
     >
@@ -100,7 +107,7 @@ export function Sidebar() {
               )}
               {/* Tooltip uniquement en mode réduit */}
               {!expanded && (
-                <span className="pointer-events-none absolute left-16 z-50 hidden whitespace-nowrap rounded-md bg-popover px-2 py-1 text-xs text-popover-foreground shadow-md group-hover:block">
+                <span className="pointer-events-none absolute left-16 z-[999] hidden whitespace-nowrap rounded-md bg-popover px-2 py-1 text-xs text-popover-foreground shadow-md group-hover:block">
                   {label}
                 </span>
               )}
@@ -129,7 +136,7 @@ export function Sidebar() {
         </button>
       </div>
 
-      {/* Toggle */}
+      {/* Toggle + version */}
       <div className={cn("px-2 pb-5 space-y-1", expanded ? "" : "flex flex-col items-center")}>
         <ThemeToggle expanded={expanded} />
         <button
@@ -146,6 +153,9 @@ export function Sidebar() {
           }
           {expanded && <span className="text-sm truncate">Réduire</span>}
         </button>
+        {expanded && (
+          <p className="px-2.5 pt-1 text-[10px] text-muted-foreground/40 font-mono select-none">v{pkg.version}</p>
+        )}
       </div>
     </aside>
   )

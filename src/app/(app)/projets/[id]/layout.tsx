@@ -2,12 +2,15 @@ import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { notFound } from "next/navigation"
 import Link from "next/link"
-import { ChevronLeft } from "lucide-react"
+import { ChevronLeft, Users } from "lucide-react"
 import { ProjectTabs } from "@/components/modules/projet/ProjectTabs"
 import { ProjectDateBadge } from "@/components/modules/projet/ProjectDateBadge"
 import { ProjectNameEdit, ProjectDescriptionEdit, ProjectHoursEdit, ProjectStatusEdit } from "@/components/modules/projet/ProjectInlineEdit"
 import { TagSelector } from "@/components/modules/projet/TagSelector"
 import { ProjectSettingsDialog } from "@/components/modules/projet/ProjectSettingsDialog"
+import { ProjectContactSelect } from "@/components/modules/projet/ProjectContactSelect"
+import { updateProjectContact, updateProjectCompany } from "@/actions/projet"
+import { UserAvatar } from "@/components/ui/user-avatar"
 
 export default async function ProjectLayout({
   children,
@@ -20,14 +23,15 @@ export default async function ProjectLayout({
   const session = await auth()
   const userId = session!.user.id
 
-  const [project, allTags, projectTagIds] = await Promise.all([
+  const [project, allTags, projectTagIds, contacts] = await Promise.all([
     prisma.project.findFirst({
       where: {
         id,
         OR: [{ userId }, { members: { some: { userId } } }],
       },
       include: {
-        client: { select: { name: true, company: true, type: true } },
+        company: { select: { id: true, name: true } },
+        contact: { select: { id: true, name: true, company: true } },
         members: {
           include: { user: { select: { name: true, email: true, image: true } } },
           orderBy: { createdAt: "asc" },
@@ -44,16 +48,16 @@ export default async function ProjectLayout({
       where: { id, OR: [{ userId }, { members: { some: { userId } } }] },
       select: { tags: { select: { id: true } } },
     }).catch(() => null),
+    prisma.client.findMany({
+      where: { userId },
+      orderBy: [{ name: "asc" }],
+      select: { id: true, name: true, company: true },
+    }),
   ])
 
   if (!project) notFound()
 
   const isOwner = project.userId === userId
-
-  const clientLabel =
-    project.client.type === "SELF" || project.client.type === "PERSONAL"
-      ? "Perso"
-      : project.client.company || project.client.name
   const selectedTagIds = projectTagIds?.tags?.map((t) => t.id) ?? []
 
   return (
@@ -68,9 +72,26 @@ export default async function ProjectLayout({
 
         <div className="flex items-start justify-between gap-4">
           <div className="space-y-2">
-            <p className="text-sm text-muted-foreground">{clientLabel}</p>
+            {project.company ? (
+              <Link
+                href={`/societes/${project.company.id}`}
+                className="text-sm text-muted-foreground hover:text-primary transition-colors"
+              >
+                {project.company.name}
+              </Link>
+            ) : (
+              <span className="text-sm text-muted-foreground italic">Sans société</span>
+            )}
             <ProjectNameEdit projectId={id} value={project.name} />
             <ProjectDescriptionEdit projectId={id} value={project.description} />
+            <ProjectContactSelect
+              contacts={contacts}
+              currentId={project.contact?.id ?? null}
+              action={async (contactId) => {
+                "use server"
+                await updateProjectContact(id, contactId)
+              }}
+            />
 
             <div className="flex flex-wrap items-center gap-2 pt-1">
               <ProjectDateBadge projectId={id} field="startDate" value={project.startDate} label="Début" />
@@ -86,7 +107,39 @@ export default async function ProjectLayout({
             />
           </div>
 
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex items-center gap-3 shrink-0">
+            {/* Avatars collaborateurs */}
+            {(project.members.length > 0) && (
+              <div className="flex items-center gap-2">
+                <div className="flex items-center -space-x-1.5">
+                  <UserAvatar
+                    name={project.user.name}
+                    email={project.user.email}
+                    image={project.user.image}
+                    size="sm"
+                    variant="primary"
+                    withRing
+                    title={`${project.user.name ?? project.user.email} (propriétaire)`}
+                  />
+                  {project.members.map((m) => (
+                    <UserAvatar
+                      key={m.userId}
+                      name={m.user.name}
+                      email={m.user.email}
+                      image={m.user.image}
+                      size="sm"
+                      variant="muted"
+                      withRing
+                      title={`${m.user.name ?? m.user.email} (${m.role === "VIEWER" ? "lecteur" : "membre"})`}
+                    />
+                  ))}
+                </div>
+                <span className="text-xs text-muted-foreground hidden sm:inline">
+                  {project.members.length + 1} <Users className="h-3 w-3 inline" />
+                </span>
+              </div>
+            )}
+
             <ProjectStatusEdit projectId={id} value={project.status} />
             {isOwner && (
               <ProjectSettingsDialog

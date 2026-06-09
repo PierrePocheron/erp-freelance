@@ -21,7 +21,7 @@ export default async function ClientProjetsPage({
   const session = await auth()
   const userId = session!.user.id
 
-  const [client, allClients] = await Promise.all([
+  const [client, allCompanies, allContacts] = await Promise.all([
   prisma.client.findFirst({
     where: { id, userId: session!.user.id },
     include: {
@@ -35,10 +35,15 @@ export default async function ClientProjetsPage({
       invoices: { orderBy: { createdAt: "desc" }, select: { id: true, number: true, status: true, totalHT: true, createdAt: true } },
     },
   }),
-  prisma.client.findMany({
-    where: { userId, type: { not: "SELF" } },
-    select: { id: true, name: true, company: true, type: true },
+  prisma.company.findMany({
+    where: { userId },
     orderBy: { name: "asc" },
+    select: { id: true, name: true, city: true },
+  }),
+  prisma.client.findMany({
+    where: { userId },
+    orderBy: [{ name: "asc" }],
+    select: { id: true, name: true, company: true, companyId: true },
   }),
   ])
 
@@ -50,7 +55,12 @@ export default async function ClientProjetsPage({
       <section className="space-y-3">
         <div className="flex items-center justify-between">
           <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">Projets</h2>
-          <CreateProjectDialog userId={userId} clients={allClients} defaultClientId={id} />
+          <CreateProjectDialog
+            userId={userId}
+            companies={allCompanies}
+            contacts={allContacts}
+            defaultCompanyId={client.companyId ?? undefined}
+          />
         </div>
         {client.projects.length === 0 ? (
           <p className="text-sm text-muted-foreground">Aucun projet pour ce client</p>

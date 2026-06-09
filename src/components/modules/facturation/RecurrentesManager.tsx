@@ -22,7 +22,7 @@ import {
 import { ClientCombobox } from "./ClientCombobox"
 
 type Client = { id: string; name: string; company: string | null; type: string }
-type Project = { id: string; name: string; clientId: string }
+type Project = { id: string; name: string; clientId: string | null }
 type Product = { id: string; name: string; unitPrice: number; defaultTaxRate: number; unit: string }
 type RecurringLine = {
   id?: string

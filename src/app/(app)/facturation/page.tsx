@@ -4,6 +4,7 @@ import Link from "next/link"
 import { TrendingUp, Clock, AlertCircle, CheckCircle2, Settings } from "lucide-react"
 import { markLateInvoices } from "@/actions/facturation"
 import { MonthlyRevenueChart } from "@/components/modules/facturation/MonthlyRevenueChart"
+import { FacturationQuickActions } from "@/components/modules/facturation/FacturationQuickActions"
 
 export default async function FacturationOverviewPage() {
   const session = await auth()
@@ -16,7 +17,7 @@ export default async function FacturationOverviewPage() {
   const yearStart = new Date(now.getFullYear(), 0, 1)
   const yearEnd = new Date(now.getFullYear(), 11, 31, 23, 59, 59)
 
-  const [invoicesThisYear, allPending, quotes, profile] = await Promise.all([
+  const [invoicesThisYear, allPending, quotes, profile, quickClients, quickCompanies, quickProjects] = await Promise.all([
     prisma.invoice.findMany({
       where: { userId, createdAt: { gte: yearStart, lte: yearEnd } },
       include: { client: { select: { name: true, company: true } } },
@@ -34,6 +35,21 @@ export default async function FacturationOverviewPage() {
       include: { client: { select: { name: true, company: true } } },
     }),
     prisma.userProfile.findUnique({ where: { userId } }),
+    prisma.client.findMany({
+      where: { userId, type: { not: "SELF" } },
+      orderBy: { name: "asc" },
+      select: { id: true, name: true, company: true, type: true, companyId: true },
+    }),
+    prisma.company.findMany({
+      where: { userId },
+      orderBy: { name: "asc" },
+      select: { id: true, name: true, city: true },
+    }),
+    prisma.project.findMany({
+      where: { userId },
+      orderBy: { name: "asc" },
+      select: { id: true, name: true, clientId: true, companyId: true },
+    }),
   ])
 
   const paidThisYear = invoicesThisYear
@@ -68,9 +84,17 @@ export default async function FacturationOverviewPage() {
 
   return (
     <div className="space-y-8">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">Facturation</h1>
-        <p className="text-sm text-muted-foreground">Vue d'ensemble {now.getFullYear()}</p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">Facturation</h1>
+          <p className="text-sm text-muted-foreground">Vue d'ensemble {now.getFullYear()}</p>
+        </div>
+        <FacturationQuickActions
+          userId={userId}
+          clients={quickClients}
+          companies={quickCompanies}
+          projects={quickProjects}
+        />
       </div>
 
       {/* Profil incomplet */}
@@ -170,6 +194,7 @@ export default async function FacturationOverviewPage() {
                   <th className="px-4 py-2.5 text-left font-medium">Client</th>
                   <th className="px-4 py-2.5 text-left font-medium">Statut</th>
                   <th className="px-4 py-2.5 text-right font-medium">Montant HT</th>
+                  <th className="px-4 py-2.5 text-left font-medium">Créée le</th>
                   <th className="px-4 py-2.5 text-left font-medium">Échéance</th>
                 </tr>
               </thead>
@@ -189,9 +214,10 @@ export default async function FacturationOverviewPage() {
                       {(inv.totalHT - inv.depositDeducted).toLocaleString("fr-FR")} €
                     </td>
                     <td className="px-4 py-2.5 text-xs text-muted-foreground">
-                      {inv.dueDate
-                        ? new Date(inv.dueDate).toLocaleDateString("fr-FR")
-                        : "—"}
+                      {new Date(inv.createdAt).toLocaleDateString("fr-FR")}
+                    </td>
+                    <td className="px-4 py-2.5 text-xs text-muted-foreground">
+                      {inv.dueDate ? new Date(inv.dueDate).toLocaleDateString("fr-FR") : "—"}
                     </td>
                   </tr>
                 ))}
@@ -218,6 +244,7 @@ export default async function FacturationOverviewPage() {
                   <th className="px-4 py-2.5 text-left font-medium">Client</th>
                   <th className="px-4 py-2.5 text-left font-medium">Statut</th>
                   <th className="px-4 py-2.5 text-right font-medium">Total HT</th>
+                  <th className="px-4 py-2.5 text-left font-medium">Créé le</th>
                 </tr>
               </thead>
               <tbody>
@@ -233,6 +260,9 @@ export default async function FacturationOverviewPage() {
                       <QuoteStatusBadge status={q.status} />
                     </td>
                     <td className="px-4 py-2.5 text-right font-medium">{q.totalHT.toLocaleString("fr-FR")} €</td>
+                    <td className="px-4 py-2.5 text-xs text-muted-foreground">
+                      {new Date(q.createdAt).toLocaleDateString("fr-FR")}
+                    </td>
                   </tr>
                 ))}
               </tbody>

@@ -8,8 +8,10 @@ import { CreateQuoteDialog } from "@/components/modules/facturation/CreateQuoteD
 import { CreateInvoiceDialog } from "@/components/modules/facturation/CreateInvoiceDialog"
 import { CreateProductDialog } from "@/components/modules/facturation/CreateProductDialog"
 
-type Client = { id: string; name: string; company: string | null; type: string }
-type Project = { id: string; name: string; clientId: string }
+type Client = { id: string; name: string; company: string | null; type: string; companyId: string | null }
+type Company = { id: string; name: string; city: string | null }
+type Contact = { id: string; name: string; company: string | null; companyId: string | null }
+type Project = { id: string; name: string; clientId: string | null; companyId: string | null }
 type Product = { id: string; name: string; description: string | null; unitPrice: number; unit: string; isActive: boolean; billingType: string; defaultTaxRate: number }
 type Quote = { id: string; number: string; clientId: string; projectId: string | null; totalHT: number; depositPercent: number; status: string; client: { name: string; company: string | null } }
 
@@ -29,6 +31,8 @@ type ActionKey = typeof actions[number]["key"]
 export function QuickActionsBar({
   userId,
   clients,
+  companies = [],
+  contacts = [],
   projects,
   products = [],
   quotes = [],
@@ -36,6 +40,8 @@ export function QuickActionsBar({
 }: {
   userId: string
   clients: Client[]
+  companies?: Company[]
+  contacts?: Contact[]
   projects: Project[]
   products?: Product[]
   quotes?: Quote[]
@@ -66,13 +72,15 @@ export function QuickActionsBar({
       />
       <CreateProjectDialog
         userId={userId}
-        clients={clients}
+        companies={companies}
+        contacts={contacts}
         open={openDialog === "projet"}
         onOpenChange={(v) => { if (!v) close() }}
       />
       <CreateQuoteDialog
         userId={userId}
         clients={clients}
+        companies={companies}
         projects={projects}
         products={products}
         defaultConditions={defaultConditions}
@@ -82,6 +90,7 @@ export function QuickActionsBar({
       <CreateInvoiceDialog
         userId={userId}
         clients={clients}
+        companies={companies}
         projects={projects}
         quotes={quotes}
         open={openDialog === "facture"}

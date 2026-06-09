@@ -7,26 +7,53 @@ import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { createClient } from "@/actions/crm"
+import { createClient, createCompany } from "@/actions/crm"
+import { CompanyCombobox } from "./CompanyCombobox"
 
 export function CreateClientDialog({
   userId,
+  defaultCompany,
   open: controlledOpen,
   onOpenChange: controlledOnOpenChange,
 }: {
   userId: string
+  defaultCompany?: { id: string; name: string } | null
   open?: boolean
   onOpenChange?: (v: boolean) => void
 }) {
   const [internalOpen, setInternalOpen] = useState(false)
   const [isPending, startTransition] = useTransition()
+  const [isCreatingCompany, startCreatingCompany] = useTransition()
+  const [company, setCompany] = useState<{ id: string | null; name: string }>(
+    defaultCompany ? { id: defaultCompany.id, name: defaultCompany.name } : { id: null, name: "" }
+  )
+  const [showNewCompany, setShowNewCompany] = useState(false)
   const router = useRouter()
   const isControlled = controlledOpen !== undefined
   const open = isControlled ? controlledOpen! : internalOpen
 
   function handleOpenChange(v: boolean) {
     if (!isControlled) setInternalOpen(v)
+    if (!v) {
+      setCompany(defaultCompany ? { id: defaultCompany.id, name: defaultCompany.name } : { id: null, name: "" })
+      setShowNewCompany(false)
+    }
     controlledOnOpenChange?.(v)
+  }
+
+  function handleCreateCompany(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault()
+    const fd = new FormData(e.currentTarget)
+    startCreatingCompany(async () => {
+      const created = await createCompany({
+        name: (fd.get("companyName") as string).trim(),
+        email: (fd.get("companyEmail") as string) || undefined,
+        phone: (fd.get("companyPhone") as string) || undefined,
+        city: (fd.get("companyCity") as string) || undefined,
+      })
+      setCompany({ id: created.id, name: created.name })
+      setShowNewCompany(false)
+    })
   }
 
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
@@ -34,8 +61,11 @@ export function CreateClientDialog({
     const fd = new FormData(e.currentTarget)
     startTransition(async () => {
       const client = await createClient(userId, {
-        name: fd.get("name") as string,
-        company: (fd.get("company") as string) || undefined,
+        label: (fd.get("label") as string) || undefined,
+        firstName: (fd.get("firstName") as string) || undefined,
+        lastName: (fd.get("lastName") as string) || undefined,
+        companyId: company.id || undefined,
+        companyName: company.name.trim() || undefined,
         email: (fd.get("email") as string) || undefined,
         phone: (fd.get("phone") as string) || undefined,
         type: (fd.get("type") as string) || undefined,
@@ -61,87 +91,184 @@ export function CreateClientDialog({
           Nouveau contact
         </DialogTrigger>
       )}
-      <DialogContent className="sm:max-w-lg">
-        <DialogHeader>
-          <DialogTitle>Nouveau contact</DialogTitle>
-        </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-4 pt-2" autoComplete="off">
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5 col-span-2">
-              <Label>Nom *</Label>
-              <Input name="name" placeholder="Jean Dupont" required autoComplete="off" />
-            </div>
-            <div className="space-y-1.5 col-span-2">
-              <Label>Société</Label>
-              <Input name="company" placeholder="Acme Inc." autoComplete="off" />
-            </div>
-            <div className="space-y-1.5">
-              <Label>Email</Label>
-              <Input name="email" type="email" placeholder="jean@acme.fr" autoComplete="off" />
-            </div>
-            <div className="space-y-1.5">
-              <Label>Téléphone</Label>
-              <Input name="phone" placeholder="+33 6 00 00 00 00" autoComplete="off" />
-            </div>
-            <div className="space-y-1.5">
-              <Label>Type</Label>
-              <select name="type" className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-ring">
-                <option value="TO_COMPLETE">À compléter</option>
-                <option value="PROSPECT">Prospect</option>
-                <option value="CLIENT">Client</option>
-                <option value="PERSONAL">Perso</option>
-                <option value="INACTIVE">Inactif</option>
-              </select>
-            </div>
-            <div className="space-y-1.5">
-              <Label>Source</Label>
-              <select name="source" className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-ring">
-                <option value="OTHER">Autre</option>
-                <option value="WORD_OF_MOUTH">Bouche à oreille</option>
-                <option value="LINKEDIN">LinkedIn</option>
-                <option value="WEBSITE">Site web</option>
-                <option value="INBOUND">Entrant</option>
-              </select>
-            </div>
-            <div className="space-y-1.5">
-              <Label>Température</Label>
-              <select name="temperature" className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-ring">
-                <option value="COLD">Froid</option>
-                <option value="WARM">Tiède</option>
-                <option value="HOT">Chaud</option>
-              </select>
-            </div>
-            <div className="space-y-1.5 col-span-2">
-              <Label>Adresse</Label>
-              <Input name="address" placeholder="12 rue de la Paix" autoComplete="off" />
-            </div>
-            <div className="space-y-1.5">
-              <Label>Code postal</Label>
-              <Input name="postalCode" placeholder="75001" autoComplete="off" />
-            </div>
-            <div className="space-y-1.5">
-              <Label>Ville</Label>
-              <Input name="city" placeholder="Paris" autoComplete="off" />
-            </div>
-            <div className="space-y-1.5">
-              <Label>Pays</Label>
-              <Input name="country" placeholder="France" autoComplete="off" />
-            </div>
-            <div className="space-y-1.5">
-              <Label>SIRET</Label>
-              <Input name="siret" placeholder="123 456 789 00012" autoComplete="off" />
-            </div>
-            <div className="space-y-1.5 col-span-2">
-              <Label>Notes</Label>
-              <textarea
-                name="notes"
-                rows={2}
-                placeholder="Notes internes..."
-                className="flex w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring resize-none"
-              />
+      <DialogContent className="sm:max-w-2xl flex flex-col p-0 gap-0 max-h-[90vh]">
+        <div className="px-4 pt-4 pb-2 shrink-0">
+          <DialogHeader>
+            <DialogTitle>Nouveau contact</DialogTitle>
+          </DialogHeader>
+        </div>
+
+        <form id="create-contact-form" onSubmit={handleSubmit} autoComplete="off" className="contents">
+          <div className="overflow-y-auto flex-1 px-4 pb-2">
+            <div className="space-y-5 pt-1">
+              {/* ── Identité ── */}
+              <section className="space-y-3">
+                <h3 className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground/70">Identité</h3>
+                <div className="space-y-1.5">
+                  <Label>Libellé du contact</Label>
+                  <Input name="label" placeholder="Optionnel — nom affiché si renseigné" autoComplete="off" />
+                </div>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <div className="space-y-1.5">
+                    <Label>Prénom</Label>
+                    <Input name="firstName" placeholder="Jean" autoComplete="off" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>Nom</Label>
+                    <Input name="lastName" placeholder="Dupont" autoComplete="off" />
+                  </div>
+                </div>
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <Label>Société</Label>
+                    {!showNewCompany && (
+                      <button
+                        type="button"
+                        onClick={() => setShowNewCompany(true)}
+                        className="flex items-center gap-1 text-xs text-primary hover:underline"
+                      >
+                        <Plus className="h-3 w-3" />
+                        Nouvelle société
+                      </button>
+                    )}
+                  </div>
+
+                  {showNewCompany ? (
+                    <form onSubmit={handleCreateCompany} className="rounded-lg border border-border bg-muted/40 p-3 space-y-2.5">
+                      <p className="text-xs font-medium text-muted-foreground">Nouvelle société</p>
+                      <div className="space-y-1.5">
+                        <Label className="text-xs">Nom *</Label>
+                        <Input name="companyName" placeholder="Acme Corp" autoFocus autoComplete="off" required />
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div className="space-y-1.5">
+                          <Label className="text-xs">Email</Label>
+                          <Input name="companyEmail" type="email" placeholder="contact@acme.fr" autoComplete="off" />
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label className="text-xs">Téléphone</Label>
+                          <Input name="companyPhone" placeholder="+33 1 00 00 00 00" autoComplete="off" />
+                        </div>
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label className="text-xs">Ville</Label>
+                        <Input name="companyCity" placeholder="Paris" autoComplete="off" />
+                      </div>
+                      <div className="flex gap-2 pt-0.5">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="flex-1"
+                          onClick={() => setShowNewCompany(false)}
+                        >
+                          Annuler
+                        </Button>
+                        <Button type="submit" size="sm" className="flex-1" disabled={isCreatingCompany}>
+                          {isCreatingCompany ? "Création..." : "Créer la société"}
+                        </Button>
+                      </div>
+                    </form>
+                  ) : (
+                    <CompanyCombobox value={company} onChange={setCompany} />
+                  )}
+                </div>
+              </section>
+
+              {/* ── Coordonnées ── */}
+              <section className="space-y-3">
+                <h3 className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground/70">Coordonnées</h3>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <div className="space-y-1.5">
+                    <Label>Email</Label>
+                    <Input name="email" type="email" placeholder="jean@acme.fr" autoComplete="off" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>Téléphone</Label>
+                    <Input name="phone" placeholder="+33 6 00 00 00 00" autoComplete="off" />
+                  </div>
+                </div>
+              </section>
+
+              {/* ── Qualification ── */}
+              <section className="space-y-3">
+                <h3 className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground/70">Qualification</h3>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                  <div className="space-y-1.5">
+                    <Label>Type</Label>
+                    <select name="type" className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-ring">
+                      <option value="TO_COMPLETE">À compléter</option>
+                      <option value="PROSPECT">Prospect</option>
+                      <option value="CLIENT">Client</option>
+                      <option value="PERSONAL">Perso</option>
+                      <option value="INACTIVE">Inactif</option>
+                    </select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>Source</Label>
+                    <select name="source" className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-ring">
+                      <option value="OTHER">Autre</option>
+                      <option value="WORD_OF_MOUTH">Bouche à oreille</option>
+                      <option value="LINKEDIN">LinkedIn</option>
+                      <option value="WEBSITE">Site web</option>
+                      <option value="INBOUND">Entrant</option>
+                    </select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>Température</Label>
+                    <select name="temperature" className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-ring">
+                      <option value="COLD">Froid</option>
+                      <option value="WARM">Tiède</option>
+                      <option value="HOT">Chaud</option>
+                    </select>
+                  </div>
+                </div>
+              </section>
+
+              {/* ── Adresse du contact (optionnelle) ── */}
+              <section className="space-y-3">
+                <h3 className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground/70">
+                  Adresse du contact <span className="font-normal normal-case text-muted-foreground/60">(optionnelle)</span>
+                </h3>
+                <div className="space-y-1.5">
+                  <Label>Adresse</Label>
+                  <Input name="address" placeholder="12 rue de la Paix" autoComplete="off" />
+                </div>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                  <div className="space-y-1.5">
+                    <Label>Code postal</Label>
+                    <Input name="postalCode" placeholder="75001" autoComplete="off" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>Ville</Label>
+                    <Input name="city" placeholder="Paris" autoComplete="off" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>Pays</Label>
+                    <Input name="country" placeholder="France" autoComplete="off" />
+                  </div>
+                </div>
+                <div className="space-y-1.5">
+                  <Label>SIRET</Label>
+                  <Input name="siret" placeholder="123 456 789 00012" autoComplete="off" />
+                </div>
+              </section>
+
+              {/* ── Notes ── */}
+              <section className="space-y-1.5">
+                <Label>Notes</Label>
+                <textarea
+                  name="notes"
+                  rows={2}
+                  placeholder="Notes internes..."
+                  className="flex w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring resize-none"
+                />
+              </section>
             </div>
           </div>
-          <div className="flex justify-end gap-2 pt-2">
+
+          {/* ── Footer toujours visible ── */}
+          <div className="flex justify-end gap-2 px-4 py-3 border-t shrink-0">
             <Button type="button" variant="outline" onClick={() => handleOpenChange(false)}>Annuler</Button>
             <Button type="submit" disabled={isPending}>
               {isPending ? "Création..." : "Créer le contact"}

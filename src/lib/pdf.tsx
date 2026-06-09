@@ -5,6 +5,7 @@ import {
   View,
   StyleSheet,
 } from "@react-pdf/renderer"
+import { computeTaxBreakdown, netAmount } from "@/lib/money"
 
 const DEFAULT_ACCENT = "#6366f1"
 
@@ -227,16 +228,9 @@ export function InvoicePDF({
   const styles = makeStyles(accent)
   const displayName = emitter.companyName || emitter.name
 
-  // Compute TVA breakdown
-  const byRate: Record<number, number> = {}
-  for (const l of lines) {
-    byRate[l.taxRate] = (byRate[l.taxRate] ?? 0) + l.total * (l.taxRate / 100)
-  }
-  const totalTVA = Object.values(byRate).reduce((s, v) => s + v, 0)
-  const totalTTC = totalHT + totalTVA
-  const allZeroTax = totalTVA === 0
-
-  const netAmount = totalHT - (depositDeducted ?? 0)
+  // Ventilation TVA + net (logique centralisée et testée dans @/lib/money).
+  const { byRate, totalTVA, totalTTC, allZeroTax } = computeTaxBreakdown(lines, totalHT)
+  const net = netAmount(totalHT, depositDeducted ?? 0)
   const isFacture = type === "FACTURE"
 
   return (
@@ -364,7 +358,7 @@ export function InvoicePDF({
               </View>
               <View style={[styles.totalRow, { borderTop: 1, borderColor: "#e2e8f0", paddingTop: 6, marginTop: 2 }]}>
                 <Text style={{ fontFamily: "Helvetica-Bold" }}>Net à payer</Text>
-                <Text style={styles.totalNet}>{fmtMoney(netAmount + totalTVA)}</Text>
+                <Text style={styles.totalNet}>{fmtMoney(net + totalTVA)}</Text>
               </View>
             </>
           )}

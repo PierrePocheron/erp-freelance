@@ -6,6 +6,21 @@ import { ChevronLeft } from "lucide-react"
 import { ClientTabs } from "@/components/modules/crm/ClientTabs"
 import { ClientTypeSelect } from "@/components/modules/crm/ClientTypeSelect"
 import { TemperatureSelect } from "@/components/modules/crm/TemperatureSelect"
+import type { Metadata } from "next"
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ id: string }>
+}): Promise<Metadata> {
+  const { id } = await params
+  const client = await prisma.client.findFirst({
+    where: { id },
+    select: { name: true, company: true },
+  })
+  const label = client ? (client.company ? `${client.name} · ${client.company}` : client.name) : "Fiche client"
+  return { title: `${label} — ERP Freelance` }
+}
 
 export default async function ClientLayout({
   children,
@@ -19,7 +34,18 @@ export default async function ClientLayout({
   const userId = session!.user.id
 
   const client = await prisma.client.findFirst({
-    where: { id, userId },
+    where: {
+      id,
+      OR: [
+        { userId },
+        // Collaborateurs d'un projet lié à ce client
+        { projects: { some: { members: { some: { userId } } } } },
+      ],
+    },
+    select: {
+      id: true, userId: true, name: true, company: true, companyId: true,
+      type: true, temperature: true,
+    },
   })
 
   if (!client) notFound()
@@ -36,8 +62,19 @@ export default async function ClientLayout({
 
         <div className="flex items-start justify-between gap-4">
           <div className="space-y-1">
-            {client.company && (
-              <p className="text-sm text-muted-foreground">{client.company}</p>
+            {client.company ? (
+              client.companyId ? (
+                <Link
+                  href={`/societes/${client.companyId}`}
+                  className="text-sm text-muted-foreground hover:text-primary transition-colors"
+                >
+                  {client.company}
+                </Link>
+              ) : (
+                <p className="text-sm text-muted-foreground">{client.company}</p>
+              )
+            ) : (
+              <p className="text-sm text-muted-foreground">Contact</p>
             )}
             <h1 className="text-2xl font-bold tracking-tight">{client.name}</h1>
             <div className="flex items-center gap-3 pt-1">

@@ -4,8 +4,10 @@ import Link from "next/link"
 import {
   CheckSquare, AlertCircle, Clock, Users,
   TrendingUp, Bell, Code2, Calendar, Circle,
+  AlertTriangle, Globe, UserMinus, Wallet, Receipt,
 } from "lucide-react"
 import { QuickActionsBar } from "@/components/modules/dashboard/QuickActionsBar"
+import { ProdMonitorCard } from "@/components/modules/dashboard/ProdMonitorCard"
 
 export default async function DashboardPage() {
   const session = await auth()
@@ -15,6 +17,12 @@ export default async function DashboardPage() {
   const today = new Date()
   const todayStart = new Date(today.setHours(0, 0, 0, 0))
   const todayEnd = new Date(today.setHours(23, 59, 59, 999))
+  const in30Days = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
+  const followUpCutoff = new Date(Date.now() - 45 * 24 * 60 * 60 * 1000)
+  const currentYear = new Date().getFullYear()
+  const yearStart = new Date(currentYear, 0, 1)
+  const yearEnd   = new Date(currentYear, 11, 31, 23, 59, 59)
+  const yearPrefix = `${currentYear}-`
 
   const [
     tasksDueToday,
@@ -31,6 +39,14 @@ export default async function DashboardPage() {
     quickProducts,
     quickQuotes,
     userProfile,
+    prodSites,
+    overdueTasks,
+    upcomingRenewals,
+    followUpCandidates,
+    quickCompanies,
+    quickContacts,
+    paidInvoicesYTD,
+    receivedRevenuesYTD,
   ] = await Promise.all([
     prisma.task.findMany({
       where: {
@@ -90,12 +106,12 @@ export default async function DashboardPage() {
     }),
     prisma.client.findMany({
       where: { userId, type: { not: "SELF" } },
-      select: { id: true, name: true, company: true, type: true },
+      select: { id: true, name: true, company: true, type: true, companyId: true },
       orderBy: { name: "asc" },
     }),
     prisma.project.findMany({
       where: { userId, status: "ACTIVE" },
-      select: { id: true, name: true, clientId: true },
+      select: { id: true, name: true, clientId: true, companyId: true },
       orderBy: { name: "asc" },
     }),
     prisma.product.findMany({
@@ -113,9 +129,96 @@ export default async function DashboardPage() {
       take: 20,
     }),
     prisma.userProfile.findUnique({ where: { userId } }),
+    prisma.postDev.findMany({
+      where: { project: { userId }, prodUrl: { not: null } },
+      select: {
+        id: true,
+        prodUrl: true,
+        project: { select: { id: true, name: true } },
+        monitoringChecks: {
+          orderBy: { checkedAt: "desc" },
+          take: 1,
+          select: { isUp: true, statusCode: true, checkedAt: true },
+        },
+      },
+      orderBy: { updatedAt: "desc" },
+    }),
+    prisma.task.findMany({
+      where: {
+        project: { userId },
+        dueDate: { lt: todayStart },
+        status: { not: "DONE" },
+        parentTaskId: null,
+      },
+      include: { project: { select: { id: true, name: true } } },
+      orderBy: { dueDate: "asc" },
+      take: 6,
+    }),
+    prisma.renewal.findMany({
+      where: { postDev: { project: { userId } }, expiresAt: { lte: in30Days } },
+      include: { postDev: { select: { project: { select: { id: true, name: true } } } } },
+      orderBy: { expiresAt: "asc" },
+      take: 6,
+    }),
+    prisma.client.findMany({
+      where: { userId, type: { not: "SELF" } },
+      select: {
+        id: true,
+        name: true,
+        company: true,
+        createdAt: true,
+        interactions: { orderBy: { date: "desc" }, take: 1, select: { date: true } },
+      },
+    }),
+    prisma.company.findMany({
+      where: { userId },
+      orderBy: { name: "asc" },
+      select: { id: true, name: true, city: true },
+    }),
+    prisma.client.findMany({
+      where: { userId, type: { not: "SELF" } },
+      orderBy: { name: "asc" },
+      select: { id: true, name: true, company: true, companyId: true },
+    }),
+    // Factures AE payées cette année (paidAt ou updatedAt dans l'année)
+    prisma.invoice.findMany({
+      where: { userId, status: "PAID", paidAt: { gte: yearStart, lte: yearEnd } },
+      select: { totalHT: true, depositDeducted: true },
+    }),
+    // Revenus hors-AE reçus cette année (par période)
+    prisma.revenue.findMany({
+      where: { userId, status: "RECEIVED", period: { startsWith: yearPrefix } },
+      select: { amount: true },
+    }),
   ])
 
-  const totalPending = unpaidInvoices.reduce((s, i) => s + i.totalHT - i.depositDeducted, 0)
+  const totalPending   = unpaidInvoices.reduce((s, i) => s + i.totalHT - i.depositDeducted, 0)
+  const encaisseAE     = paidInvoicesYTD.reduce((s, i) => s + i.totalHT - i.depositDeducted, 0)
+  const encaisseAutres = receivedRevenuesYTD.reduce((s, r) => s + r.amount, 0)
+  const encaisseTotal  = encaisseAE + encaisseAutres
+
+  // Prods : aplatit le dernier check pour la carte de monitoring.
+  const prods = prodSites.map((pd) => ({
+    id: pd.id,
+    projectId: pd.project.id,
+    name: pd.project.name,
+    url: pd.prodUrl!,
+    isUp: pd.monitoringChecks[0]?.isUp ?? null,
+    statusCode: pd.monitoringChecks[0]?.statusCode ?? null,
+    checkedAt: pd.monitoringChecks[0]?.checkedAt ?? null,
+  }))
+
+  // Clients à relancer : dernier contact (interaction ou création) plus vieux que 45 j.
+  const followUpClients = followUpCandidates
+    .map((c) => ({
+      id: c.id,
+      name: c.name,
+      company: c.company,
+      lastTouch: c.interactions[0]?.date ?? c.createdAt,
+    }))
+    .filter((c) => c.lastTouch < followUpCutoff)
+    .sort((a, b) => a.lastTouch.getTime() - b.lastTouch.getTime())
+    .slice(0, 5)
 
   const hour = new Date().getHours()
   const greeting = hour < 12 ? "Bonjour" : hour < 18 ? "Bonjour" : "Bonsoir"
@@ -130,7 +233,7 @@ export default async function DashboardPage() {
       </div>
 
       {/* Raccourcis */}
-      <QuickActionsBar userId={userId} clients={quickClients} projects={quickProjects} products={quickProducts} quotes={quickQuotes} defaultConditions={userProfile?.defaultConditions ?? ""} />
+      <QuickActionsBar userId={userId} clients={quickClients} companies={quickCompanies} contacts={quickContacts} projects={quickProjects} products={quickProducts} quotes={quickQuotes} defaultConditions={userProfile?.defaultConditions ?? ""} />
 
       {/* KPI row */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
@@ -142,9 +245,65 @@ export default async function DashboardPage() {
         <KPICard href="/projets" icon={<CheckSquare className="h-4 w-4" />} label="En cours" value={tasksInProgress.length} color="emerald" />
       </div>
 
+      {/* Revenus encaissés {year} */}
+      <div className="rounded-xl border border-border/50 bg-card px-5 py-4">
+        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-3">
+          Revenus encaissés — {currentYear}
+        </p>
+        <div className="grid grid-cols-3 gap-4">
+          <Link href="/facturation/factures" className="group space-y-0.5">
+            <div className="flex items-center gap-1.5 text-xs text-muted-foreground group-hover:text-foreground transition-colors">
+              <Receipt className="h-3.5 w-3.5 text-violet-500" />
+              Auto-entreprise
+            </div>
+            <p className="text-lg font-bold tabular-nums text-violet-600">
+              {encaisseAE.toLocaleString("fr-FR")} €
+            </p>
+          </Link>
+          <Link href="/revenus" className="group space-y-0.5">
+            <div className="flex items-center gap-1.5 text-xs text-muted-foreground group-hover:text-foreground transition-colors">
+              <Wallet className="h-3.5 w-3.5 text-teal-500" />
+              Autres revenus
+            </div>
+            <p className="text-lg font-bold tabular-nums text-teal-600">
+              {encaisseAutres.toLocaleString("fr-FR")} €
+            </p>
+          </Link>
+          <div className="space-y-0.5 border-l border-border/50 pl-4">
+            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              <TrendingUp className="h-3.5 w-3.5 text-emerald-500" />
+              Total
+            </div>
+            <p className="text-lg font-bold tabular-nums text-emerald-600">
+              {encaisseTotal.toLocaleString("fr-FR")} €
+            </p>
+          </div>
+        </div>
+      </div>
+
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         {/* Colonne principale */}
         <div className="lg:col-span-2 space-y-6">
+
+          {/* Tâches en retard */}
+          {overdueTasks.length > 0 && (
+            <Section title="Tâches en retard" icon={<AlertTriangle className="h-4 w-4" />} href="/projets">
+              <div className="space-y-1.5">
+                {overdueTasks.map((task) => (
+                  <Link key={task.id} href={`/projets/${task.project!.id}/dev`} className="flex items-center gap-3 rounded-lg px-3 py-2 hover:bg-muted/50 transition-colors">
+                    <span className="h-2 w-2 rounded-full bg-red-500 shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium truncate">{task.title}</p>
+                      <p className="text-xs text-muted-foreground">{task.project!.name}</p>
+                    </div>
+                    <span className="text-xs text-red-500 font-medium shrink-0">
+                      {new Date(task.dueDate!).toLocaleDateString("fr-FR", { day: "numeric", month: "short" })}
+                    </span>
+                  </Link>
+                ))}
+              </div>
+            </Section>
+          )}
 
           {/* Tâches en cours */}
           {tasksInProgress.length > 0 && (
@@ -235,10 +394,37 @@ export default async function DashboardPage() {
               </div>
             </Section>
           )}
+
+          {/* Renouvellements imminents */}
+          {upcomingRenewals.length > 0 && (
+            <Section title="Renouvellements imminents" icon={<Globe className="h-4 w-4" />} href="/projets">
+              <div className="space-y-1.5">
+                {upcomingRenewals.map((r) => {
+                  const isExpired = new Date(r.expiresAt) < new Date()
+                  return (
+                    <Link key={r.id} href={`/projets/${r.postDev.project.id}/post-dev`} className="flex items-center gap-3 rounded-lg px-3 py-2 hover:bg-muted/50 transition-colors">
+                      <span className={`h-2 w-2 rounded-full shrink-0 ${isExpired ? "bg-red-500" : "bg-amber-500"}`} />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium truncate">{r.name}</p>
+                        <p className="text-xs text-muted-foreground truncate">{r.postDev.project.name}</p>
+                      </div>
+                      <span className={`text-xs shrink-0 ${isExpired ? "text-red-500 font-medium" : "text-amber-600"}`}>
+                        {isExpired ? "Expiré · " : ""}
+                        {new Date(r.expiresAt).toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" })}
+                      </span>
+                    </Link>
+                  )
+                })}
+              </div>
+            </Section>
+          )}
         </div>
 
         {/* Colonne secondaire */}
         <div className="space-y-6">
+          {/* Monitoring des prods */}
+          <ProdMonitorCard prods={prods} />
+
           {/* Rappels */}
           {upcomingReminders.length > 0 && (
             <Section title="Rappels" icon={<Bell className="h-4 w-4" />} href="/client">
@@ -287,6 +473,26 @@ export default async function DashboardPage() {
                     </div>
                   </Link>
                 ))}
+              </div>
+            </Section>
+          )}
+
+          {/* Clients à relancer */}
+          {followUpClients.length > 0 && (
+            <Section title="Clients à relancer" icon={<UserMinus className="h-4 w-4" />} href="/client">
+              <div className="space-y-1.5">
+                {followUpClients.map((c) => {
+                  const days = Math.floor((Date.now() - c.lastTouch.getTime()) / (24 * 60 * 60 * 1000))
+                  return (
+                    <Link key={c.id} href={`/client/${c.id}/interactions`} className="flex items-center gap-3 rounded-lg px-3 py-2 hover:bg-muted/50 transition-colors">
+                      <span className="h-2 w-2 rounded-full bg-muted-foreground/40 shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium truncate">{c.company ?? c.name}</p>
+                        <p className="text-xs text-muted-foreground">Sans contact depuis {days} j</p>
+                      </div>
+                    </Link>
+                  )
+                })}
               </div>
             </Section>
           )}

@@ -4,6 +4,7 @@ import { useState } from "react"
 import Link from "next/link"
 import { Receipt, LayoutGrid, List, Download } from "lucide-react"
 import { CreateInvoiceDialog } from "./CreateInvoiceDialog"
+import { ImportInvoiceModal } from "./ImportInvoiceModal"
 
 type Invoice = {
   id: string
@@ -18,15 +19,18 @@ type Invoice = {
   project: { name: string } | null
 }
 
-type Client = { id: string; name: string; company: string | null; type: string }
-type Project = { id: string; name: string; clientId: string }
+type Company = { id: string; name: string; city: string | null }
+type Client = { id: string; name: string; company: string | null; type: string; companyId: string | null }
+type Project = { id: string; name: string; clientId: string | null; companyId: string | null }
 type Quote = { id: string; number: string; clientId: string; projectId: string | null; totalHT: number; depositPercent: number; status: string; client: { name: string; company: string | null } }
 
 const statusConfig: Record<string, { label: string; cls: string }> = {
   DRAFT: { label: "Brouillon", cls: "bg-muted text-muted-foreground border-border" },
+  ISSUED: { label: "Émise", cls: "bg-violet-500/15 text-violet-600 border-violet-500/20" },
   SENT: { label: "Envoyée", cls: "bg-blue-500/15 text-blue-600 border-blue-500/20" },
   PAID: { label: "Payée", cls: "bg-emerald-500/15 text-emerald-600 border-emerald-500/20" },
   LATE: { label: "En retard", cls: "bg-red-500/15 text-red-600 border-red-500/20" },
+  CANCELLED: { label: "Annulée", cls: "bg-muted text-muted-foreground border-border line-through" },
 }
 
 const typeLabels: Record<string, string> = {
@@ -39,21 +43,25 @@ const typeLabels: Record<string, string> = {
 const STATUS_FILTERS = [
   { value: "ALL", label: "Toutes" },
   { value: "DRAFT", label: "Brouillon" },
+  { value: "ISSUED", label: "Émises" },
   { value: "SENT", label: "Envoyées" },
   { value: "LATE", label: "En retard" },
   { value: "PAID", label: "Payées" },
+  { value: "CANCELLED", label: "Annulées" },
 ]
 
 export function FacturesListView({
   userId,
   invoices,
   clients,
+  companies = [],
   projects,
   quotes = [],
 }: {
   userId: string
   invoices: Invoice[]
   clients: Client[]
+  companies?: Company[]
   projects: Project[]
   quotes?: Quote[]
 }) {
@@ -116,7 +124,8 @@ export function FacturesListView({
             <Download className="h-3.5 w-3.5" />
             CSV
           </a>
-          <CreateInvoiceDialog userId={userId} clients={clients} projects={projects} quotes={quotes} />
+          <ImportInvoiceModal userId={userId} clients={clients} projects={projects} />
+          <CreateInvoiceDialog userId={userId} clients={clients} companies={companies} projects={projects} quotes={quotes} />
         </div>
       </div>
 
@@ -140,6 +149,7 @@ export function FacturesListView({
                 <th className="px-4 py-3 text-left font-medium">Type</th>
                 <th className="px-4 py-3 text-left font-medium">Statut</th>
                 <th className="px-4 py-3 text-right font-medium">Montant HT</th>
+                <th className="px-4 py-3 text-left font-medium">Créée le</th>
                 <th className="px-4 py-3 text-left font-medium">Échéance</th>
               </tr>
             </thead>
@@ -159,6 +169,9 @@ export function FacturesListView({
                     </td>
                     <td className="px-4 py-3 text-right font-medium">
                       {(inv.totalHT - inv.depositDeducted).toLocaleString("fr-FR")} €
+                    </td>
+                    <td className="px-4 py-3 text-xs text-muted-foreground">
+                      {new Date(inv.createdAt).toLocaleDateString("fr-FR")}
                     </td>
                     <td className={`px-4 py-3 text-xs ${isLate ? "text-red-500 font-medium" : "text-muted-foreground"}`}>
                       {inv.dueDate ? new Date(inv.dueDate).toLocaleDateString("fr-FR") : "—"}
@@ -196,13 +209,20 @@ export function FacturesListView({
                     <p className="text-xs text-muted-foreground mt-0.5">{inv.project.name}</p>
                   )}
                 </div>
-                <div className="flex items-end justify-between pt-1 border-t border-border/50">
-                  <span className={`text-xl font-bold tabular-nums ${isLate ? "text-red-600" : ""}`}>
-                    {amount.toLocaleString("fr-FR")} €
-                  </span>
-                  <span className={`text-xs ${isLate ? "text-red-500 font-medium" : "text-muted-foreground"}`}>
-                    {inv.dueDate ? new Date(inv.dueDate).toLocaleDateString("fr-FR") : new Date(inv.createdAt).toLocaleDateString("fr-FR")}
-                  </span>
+                <div className="pt-1 border-t border-border/50 space-y-1">
+                  <div className="flex items-end justify-between">
+                    <span className={`text-xl font-bold tabular-nums ${isLate ? "text-red-600" : ""}`}>
+                      {amount.toLocaleString("fr-FR")} €
+                    </span>
+                    <span className="text-xs text-muted-foreground">
+                      créée le {new Date(inv.createdAt).toLocaleDateString("fr-FR")}
+                    </span>
+                  </div>
+                  {inv.dueDate && (
+                    <p className={`text-xs text-right ${isLate ? "text-red-500 font-medium" : "text-muted-foreground"}`}>
+                      échéance {new Date(inv.dueDate).toLocaleDateString("fr-FR")}
+                    </p>
+                  )}
                 </div>
               </Link>
             )

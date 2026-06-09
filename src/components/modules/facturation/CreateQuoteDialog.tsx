@@ -15,8 +15,9 @@ import {
 import { createQuoteWithLines } from "@/actions/facturation"
 import { ClientCombobox } from "./ClientCombobox"
 
-type Client = { id: string; name: string; company: string | null; type: string }
-type Project = { id: string; name: string; clientId: string }
+type Company = { id: string; name: string; city: string | null }
+type Client = { id: string; name: string; company: string | null; type: string; companyId: string | null }
+type Project = { id: string; name: string; clientId: string | null; companyId: string | null }
 type Product = {
   id: string
   name: string
@@ -286,6 +287,7 @@ function LineForm({
 export function CreateQuoteDialog({
   userId,
   clients,
+  companies = [],
   projects,
   products = [],
   defaultConditions = "",
@@ -294,6 +296,7 @@ export function CreateQuoteDialog({
 }: {
   userId: string
   clients: Client[]
+  companies?: Company[]
   projects: Project[]
   products?: Product[]
   defaultConditions?: string
@@ -303,6 +306,7 @@ export function CreateQuoteDialog({
   const [internalOpen, setInternalOpen] = useState(false)
   const isControlled = controlledOpen !== undefined
   const open = isControlled ? controlledOpen! : internalOpen
+  const [selectedCompanyId, setSelectedCompanyId] = useState("")
   const [selectedClientId, setSelectedClientId] = useState("")
   const [draftLines, setDraftLines] = useState<DraftLine[]>([])
   const [showAddForm, setShowAddForm] = useState(false)
@@ -313,11 +317,21 @@ export function CreateQuoteDialog({
   const [isPending, startTransition] = useTransition()
   const router = useRouter()
 
-  const clientProjects = projects.filter((p) => p.clientId === selectedClientId)
+  const filteredClients = selectedCompanyId
+    ? clients.filter((c) => c.companyId === selectedCompanyId)
+    : clients
+  const clientProjects = projects.filter((p) =>
+    selectedCompanyId
+      ? p.companyId === selectedCompanyId || (selectedClientId && p.clientId === selectedClientId)
+      : selectedClientId
+        ? p.clientId === selectedClientId
+        : false
+  )
   const { totalHT, byRate, totalTVA, totalTTC } = computeTotals(draftLines)
   const allZeroTax = totalTVA === 0
 
   function reset() {
+    setSelectedCompanyId("")
     setSelectedClientId("")
     setDraftLines([])
     setShowAddForm(false)
@@ -423,13 +437,31 @@ export function CreateQuoteDialog({
         <form onSubmit={handleSubmit}>
           <div className="overflow-y-auto max-h-[calc(80vh-10rem)] px-6 py-5 space-y-6">
 
-            {/* Client + Projet */}
+            {/* Société (optionnel) + Client + Projet */}
+            {companies.length > 0 && (
+              <div className="space-y-1.5">
+                <Label>Société</Label>
+                <div className="relative">
+                  <select
+                    value={selectedCompanyId}
+                    onChange={(e) => { setSelectedCompanyId(e.target.value); setSelectedClientId("") }}
+                    className="flex h-9 w-full appearance-none rounded-md border border-input bg-transparent px-3 pr-8 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+                  >
+                    <option value="">— Toutes les sociétés —</option>
+                    {companies.map((c) => (
+                      <option key={c.id} value={c.id}>{c.name}{c.city ? ` · ${c.city}` : ""}</option>
+                    ))}
+                  </select>
+                  <ChevronDown className="absolute right-2.5 top-2.5 h-4 w-4 text-muted-foreground pointer-events-none" />
+                </div>
+              </div>
+            )}
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1.5">
                 <Label>Client *</Label>
                 <ClientCombobox
                   userId={userId}
-                  clients={clients}
+                  clients={filteredClients}
                   value={selectedClientId}
                   onChange={setSelectedClientId}
                 />

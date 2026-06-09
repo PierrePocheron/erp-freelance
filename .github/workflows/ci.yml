@@ -1,0 +1,78 @@
+name: CI
+
+on:
+  push:
+    branches: [dev, main]
+  pull_request:
+    branches: [dev, main]
+
+# Annule les exécutions précédentes encore en cours sur la même réf.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+
+    # Base Postgres jetable pour les tests d'intégration. Le harnais crée la base
+    # « erp_test » à partir de la base de maintenance « postgres » puis y pousse
+    # le schéma Prisma (cf. tests/integration/globalSetup.ts).
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      # Lu en priorité par le harnais et la config Vitest (jamais la prod Neon).
+      TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/erp_test
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/erp_test
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+
+      # npm ci déclenche le postinstall `prisma generate` (Node ≥ 18 requis).
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma Client
+        run: npx prisma generate
+
+      # Gate dur : la compilation TypeScript doit passer.
+      - name: Typecheck
+        run: npx tsc --noEmit
+
+      # Non bloquant pour l'instant : le code legacy porte une dette ESLint
+      # préexistante (entités non échappées, effets, vars inutilisées). On
+      # remonte les problèmes sans rougir la CI ; à durcir une fois la dette purgée.
+      - name: Lint
+        run: npm run lint
+        continue-on-error: true
+
+      # Lance unit + intégration avec couverture (lcov pour SonarCloud plus tard).
+      - name: Tests (unit + integration) + coverage
+        run: npm run test:coverage
+
+      - name: Upload coverage
+        if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: coverage-lcov
+          path: coverage/lcov.info
+          if-no-files-found: warn

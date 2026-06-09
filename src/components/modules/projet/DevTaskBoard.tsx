@@ -116,14 +116,15 @@ export function DevTaskBoard({
   function handleDragEnd({ active, over }: DragEndEvent) {
     setActiveTask(null)
     if (!over || active.id === over.id) return
-    setTasks((prev) => {
-      const activeIdx = prev.findIndex((t) => t.id === String(active.id))
-      const overIdx = prev.findIndex((t) => t.id === String(over.id))
-      if (activeIdx < 0 || overIdx < 0) return prev
-      const next = arrayMove(prev, activeIdx, overIdx)
-      void reorderTasks(projectId, next.map((t) => t.id))
-      return next
-    })
+    const activeIdx = tasks.findIndex((t) => t.id === String(active.id))
+    const overIdx = tasks.findIndex((t) => t.id === String(over.id))
+    if (activeIdx < 0 || overIdx < 0) return
+    const next = arrayMove(tasks, activeIdx, overIdx)
+    // Mise à jour optimiste de l'état local, puis persistance serveur — l'appel
+    // à la server action (qui revalide le Router) doit rester HORS de l'updater
+    // de setState, sinon React déclenche un setState pendant le rendu.
+    setTasks(next)
+    void reorderTasks(projectId, next.map((t) => t.id))
   }
 
   return (

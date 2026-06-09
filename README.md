@@ -11,9 +11,11 @@ ERP personnel pour freelances — devis, facturation, CRM, projets, tâches, tim
 | Couche | Technologie |
 |---|---|
 | **Framework** | Next.js 16 (App Router, Server Actions, Turbopack) |
-| **UI** | Tailwind CSS v4 + Radix / Base UI |
+| **UI** | Tailwind CSS v4 + Base UI (`@base-ui/react`) |
 | **Base de données** | PostgreSQL + Prisma 7 (output custom `src/generated/prisma`) |
 | **Auth** | NextAuth.js v5 — Google OAuth + PrismaAdapter + JWT |
+| **Calendrier** | Sync Google Agenda (scope `calendar`) — lecture + écriture |
+| **Graphe** | `react-force-graph-2d` — simulation D3 force-directed canvas 2D |
 | **Hébergement** | Vercel (Hobby) |
 | **Database** | Neon (PostgreSQL serverless) |
 | **PDF** | @react-pdf/renderer — couleur accent configurable |
@@ -28,18 +30,21 @@ ERP personnel pour freelances — devis, facturation, CRM, projets, tâches, tim
 | Module | Fonctionnalités |
 |---|---|
 | **Dashboard** | Widgets temps réel — tâches du jour, échéances, impayés, alertes renouvellement |
-| **CRM — Clients** | Fiche client (view/edit animé), type & température, interactions, rappels, tâches associées |
-| **Tâches** | Vue globale groupée Client → Projet → Tâches, édition inline du titre, sheet d'édition complète (priorité, importance, échéance, description, heures), sous-tâches |
-| **Projets** | Kanban tâches, jalons, livrables, time tracking intégré, journal, liens utiles, membres |
+| **Sociétés** | Fiche société (SIRET, TVA, adresse, notes), contacts liés, projets liés, tâches en cours, bilan financier (CA encaissé / en attente / en retard), historique factures & devis |
+| **CRM — Contacts** | Fiche contact (view/edit animé), rattachement société, type & température, interactions, rappels, tâches associées |
+| **Tâches** | Vue globale groupée Contact → Projet → Tâches, édition inline du titre, sheet d'édition complète (priorité, importance, échéance, description, heures), sous-tâches |
+| **Projets** | Kanban tâches, jalons, livrables, time tracking intégré, journal, liens utiles, membres — rattachement société + contact |
 | **Post-dev** | URLs prod/admin/hébergement, renouvellements domaine/hosting, monitoring disponibilité |
 | **Facturation / Devis** | Pipeline DRAFT→SIGNED, acomptes, workflow dépôt, envoi email, signature PDF |
-| **Facturation / Factures** | Génération depuis devis, types (acompte/solde/récurrent/standalone), suivi paiement, relance |
+| **Facturation / Factures** | Génération depuis devis, types (acompte/solde/récurrent/standalone), suivi paiement, relance, **import d'historique** (montant + date + paiement reçu, sans regénérer de PDF) |
 | **Facturation / Récurrentes** | Modèles avec fréquence, activation/désactivation, génération manuelle |
 | **Catalogue produits** | Produits/services réutilisables — unité, prix, TVA, type de facturation |
-| **Calendrier** | Vue transversale (tâches, factures, jalons, interactions, renouvellements) |
+| **Revenus** | Suivi multi-source : Salaire, **Freelance/AE**, Étude rémunérée, Investissement, Locatif, Plateforme, Autre — validation en lot, date prévisionnelle, association société/contact/projet |
+| **Calendrier** | Vues mois / semaine / jour (grille 24h), sync Google Agenda bidirectionnelle, drag-drop avec animation d'atterrissage, événements journée entière & multi-jours en barres continues (style Google), sélecteurs date/heure custom, raccourcis clavier (C/N, ↵), vue transversale (tâches, factures, jalons, interactions, renouvellements) |
+| **Graph** | Visualisation relationnelle force-directed 2D — Société → Contacts → Projets → Factures/Devis. Expand/collapse au double-clic, filtres par type, panneau détail latéral, fond dot-grid adaptatif dark/light, liens colorés par profondeur, particules animées |
 | **Notifications** | Cloche temps réel, dropdown, marquage lu individuel/global |
-| **Recherche globale** | `⌘K` — navigation + recherche DB multi-modèles avec debounce 200ms |
-| **Paramètres** | Profil entreprise, SIRET, IBAN, logo, couleur PDF, conditions générales, export/import, déconnexion |
+| **Recherche globale** | `⌘K` — navigation + recherche DB (sociétés, contacts, projets, devis, factures) avec debounce 200ms |
+| **Paramètres** | Profil entreprise, émetteurs multi-société, SIRET, IBAN, logo, couleur PDF, conditions générales, export/import, déconnexion |
 
 ---
 
@@ -133,15 +138,18 @@ src/
 ├── app/
 │   ├── (app)/              # Pages protégées (sidebar + topbar)
 │   │   ├── page.tsx        # Dashboard
-│   │   ├── client/         # CRM
+│   │   ├── societes/       # Sociétés (liste + fiche détail)
+│   │   ├── client/         # CRM — contacts
 │   │   ├── taches/         # Vue globale des tâches
 │   │   ├── projets/        # Projets, kanban, post-dev, time tracking
 │   │   ├── facturation/    # Devis, factures, récurrentes, produits
+│   │   ├── revenus/        # Suivi revenus multi-source
+│   │   ├── graph/          # Graphe relationnel force-directed
 │   │   ├── calendrier/
 │   │   └── settings/
 │   └── api/                # Routes API (PDF, upload, cron, webhooks)
 ├── actions/                # Server Actions
-│   ├── crm.ts              # Clients, interactions, rappels
+│   ├── crm.ts              # Sociétés, contacts, interactions, rappels
 │   ├── export.ts           # Export JSON complet
 │   ├── import-data.ts      # Import JSON (server action)
 │   ├── facturation.ts      # Devis, factures, paiements, produits
@@ -156,6 +164,7 @@ src/
 ├── components/
 │   ├── layout/             # Sidebar, CommandPalette (⌘K), TimerBanner
 │   ├── modules/            # Composants métier par module
+│   │   └── graph/          # ForceGraphCanvas, GraphView, graph-types
 │   └── ui/                 # Button, Input, Dialog…
 ├── generated/prisma/       # Client Prisma généré (ne pas éditer)
 ├── lib/                    # auth, prisma, utils
@@ -170,10 +179,11 @@ src/
 | Domaine | Modèles |
 |---|---|
 | Auth | `User`, `Account`, `Session`, `UserProfile` |
-| CRM | `Client`, `Interaction`, `Reminder`, `ClientFile` |
+| CRM | `Company`, `Client`, `Interaction`, `Reminder`, `ClientFile` |
 | Projets | `Project`, `Task`, `TimeEntry`, `Milestone`, `Deliverable`, `JournalEntry`, `UsefulLink`, `ProjectMember`, `Tag`, `TaskTag` |
 | Post-dev | `PostDev`, `Renewal`, `MonitoringCheck` |
 | Facturation | `Quote`, `QuoteLine`, `Invoice`, `InvoiceLine`, `Payment`, `Product`, `RecurringInvoice`, `EmailLog` |
+| Revenus | `Revenue`, `RecurringRevenue` |
 | Transversal | `CalendarEvent`, `Notification`, `ConditionsTemplate`, `ProjectIdea` |
 
 ---

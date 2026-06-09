@@ -6,7 +6,7 @@ export default async function FacturesListPage() {
   const session = await auth()
   const userId = session!.user.id
 
-  const [invoices, clients, projects, quotes] = await Promise.all([
+  const [invoices, clients, companies, projects, quotes] = await Promise.all([
     prisma.invoice.findMany({
       where: { userId },
       orderBy: { createdAt: "desc" },
@@ -18,12 +18,17 @@ export default async function FacturesListPage() {
     prisma.client.findMany({
       where: { userId, type: { not: "SELF" } },
       orderBy: { name: "asc" },
-      select: { id: true, name: true, company: true, type: true },
+      select: { id: true, name: true, company: true, type: true, companyId: true },
+    }),
+    prisma.company.findMany({
+      where: { userId },
+      orderBy: { name: "asc" },
+      select: { id: true, name: true, city: true },
     }),
     prisma.project.findMany({
       where: { userId },
       orderBy: { name: "asc" },
-      select: { id: true, name: true, clientId: true },
+      select: { id: true, name: true, clientId: true, companyId: true },
     }),
     prisma.quote.findMany({
       where: { userId, status: { notIn: ["DRAFT", "REJECTED"] } },
@@ -42,6 +47,7 @@ export default async function FacturesListPage() {
       userId={userId}
       invoices={invoices}
       clients={clients}
+      companies={companies}
       projects={projects}
       quotes={quotes}
     />

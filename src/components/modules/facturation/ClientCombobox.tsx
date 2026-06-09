@@ -103,7 +103,7 @@ export function ClientCombobox({ userId, clients, value, onChange }: Props) {
     if (!name || creating) return
     setCreating(true)
     try {
-      const client = await createQuickClient(userId, { name })
+      const client = await createQuickClient(userId, { label: name })
       const newClient: Client = {
         id: client.id,
         name: client.name,

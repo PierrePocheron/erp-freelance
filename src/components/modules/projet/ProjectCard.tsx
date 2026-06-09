@@ -22,7 +22,8 @@ type Props = {
     status: keyof typeof statusConfig
     endDate: Date | null
     estimatedHours: number | null
-    client: { name: string; company: string | null; type: string }
+    company: { id: string; name: string } | null
+    contact: { id: string; name: string; company: string | null } | null
     _count: { tasks: number }
     tasksDone: number
     tags: { id: string; name: string; color: string }[]
@@ -32,10 +33,7 @@ type Props = {
 
 export function ProjectCard({ project }: Props) {
   const { label, className } = statusConfig[project.status]
-  const clientLabel =
-    project.client.type === "SELF"
-      ? "Perso"
-      : project.client.company || project.client.name
+  const clientLabel = project.company?.name ?? project.contact?.name ?? "—"
 
   return (
     <Link href={`/projets/${project.id}`}>

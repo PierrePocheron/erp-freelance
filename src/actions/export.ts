@@ -10,8 +10,10 @@ export async function exportAllData(): Promise<string> {
 
   const [
     userProfile,
+    emitterProfiles,
     tags,
     conditionsTemplates,
+    companies,
     clients,
     interactions,
     reminders,
@@ -34,8 +36,10 @@ export async function exportAllData(): Promise<string> {
     projectIdeas,
   ] = await Promise.all([
     prisma.userProfile.findUnique({ where: { userId } }),
+    prisma.emitterProfile.findMany({ where: { userId } }),
     prisma.tag.findMany({ where: { userId } }),
     prisma.conditionsTemplate.findMany({ where: { userId } }),
+    prisma.company.findMany({ where: { userId } }),
     prisma.client.findMany({ where: { userId } }),
     prisma.interaction.findMany({ where: { client: { userId } } }),
     prisma.reminder.findMany({ where: { client: { userId } } }),
@@ -98,8 +102,10 @@ export async function exportAllData(): Promise<string> {
     stats,
     data: {
       userProfile,
+      emitterProfiles,
       tags,
       conditionsTemplates,
+      companies,
       clients,
       interactions,
       reminders,

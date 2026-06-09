@@ -22,11 +22,11 @@ export type RawLink = {
 // ── Visual constants ─────────────────────────────────────────────────────────
 
 export const NODE_RADIUS: Record<NodeType, number> = {
-  COMPANY: 28,
-  CLIENT:  18,
-  PROJECT: 18,
-  INVOICE: 13,
-  QUOTE:   13,
+  COMPANY: 22,
+  CLIENT:  14,
+  PROJECT: 14,
+  INVOICE: 10,
+  QUOTE:   10,
 }
 
 export const NODE_BASE_COLORS: Record<NodeType, string> = {

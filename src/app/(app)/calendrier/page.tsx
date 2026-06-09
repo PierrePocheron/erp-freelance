@@ -143,13 +143,15 @@ export default async function CalendrierPage() {
   // Index catégories par id pour lookup O(1)
   const catById = Object.fromEntries(categories.map(c => [c.id, c]))
 
-  // Prépare la liste de projets pour CalendarView
-  const projectOptions: ProjectOption[] = projects.map(p => ({
-    id: p.id,
-    name: p.name,
-    clientId: p.client.id,
-    clientName: p.client.company ?? p.client.name,
-  }))
+  // Prépare la liste de projets pour CalendarView (projets sans contact sont exclus)
+  const projectOptions: ProjectOption[] = projects
+    .filter((p) => p.client !== null)
+    .map((p) => ({
+      id: p.id,
+      name: p.name,
+      clientId: p.client!.id,
+      clientName: p.client!.company ?? p.client!.name,
+    }))
 
   // Liste de clients (tous, groupables par type côté UI)
   const clientOptions: ClientOption[] = clients.map(c => ({
@@ -194,7 +196,7 @@ export default async function CalendrierPage() {
       }
     }),
     ...milestones.map((m) => {
-      const clientLabel = m.project.client.company ?? m.project.client.name
+      const clientLabel = m.project.client?.company ?? m.project.client?.name ?? ""
       const d = new Date(m.date)
       const isAllDay = d.getHours() === 0 && d.getMinutes() === 0
       return {

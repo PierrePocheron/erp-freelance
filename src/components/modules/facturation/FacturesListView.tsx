@@ -19,7 +19,7 @@ type Invoice = {
 }
 
 type Client = { id: string; name: string; company: string | null; type: string }
-type Project = { id: string; name: string; clientId: string }
+type Project = { id: string; name: string; clientId: string | null }
 type Quote = { id: string; number: string; clientId: string; projectId: string | null; totalHT: number; depositPercent: number; status: string; client: { name: string; company: string | null } }
 
 const statusConfig: Record<string, { label: string; cls: string }> = {

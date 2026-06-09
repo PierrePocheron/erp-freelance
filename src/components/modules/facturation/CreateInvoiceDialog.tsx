@@ -11,7 +11,7 @@ import { createInvoice, createInvoiceFromQuote } from "@/actions/facturation"
 import { cn } from "@/lib/utils"
 
 type Client = { id: string; name: string; company: string | null; type: string }
-type Project = { id: string; name: string; clientId: string }
+type Project = { id: string; name: string; clientId: string | null }
 type Quote = {
   id: string
   number: string

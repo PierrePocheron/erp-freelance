@@ -16,13 +16,15 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   Search,
+  Building2,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { ThemeToggle } from "./ThemeToggle"
 
 const navItems = [
   { href: "/", icon: LayoutDashboard, label: "Dashboard" },
-  { href: "/client", icon: Users, label: "Clients" },
+  { href: "/client", icon: Users, label: "Contacts" },
+  { href: "/societes", icon: Building2, label: "Sociétés" },
   { href: "/facturation", icon: FileText, label: "Facturation" },
   { href: "/projets", icon: Code2, label: "Projets" },
   { href: "/taches", icon: CheckSquare, label: "Tâches" },

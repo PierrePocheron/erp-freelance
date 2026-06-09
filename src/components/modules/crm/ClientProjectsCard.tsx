@@ -5,7 +5,8 @@ import Link from "next/link"
 import { FolderKanban, Plus } from "lucide-react"
 import { CreateProjectDialog } from "@/components/modules/projet/CreateProjectDialog"
 
-type Client = { id: string; name: string; company: string | null; type: string }
+type Company = { id: string; name: string; city: string | null }
+type Contact = { id: string; name: string; company: string | null; companyId: string | null }
 type Project = { id: string; name: string; status: string }
 
 const projectStatusDot: Record<string, string> = {
@@ -19,12 +20,16 @@ export function ClientProjectsCard({
   userId,
   clientId,
   projects,
-  clients,
+  companies,
+  contacts,
+  defaultCompanyId,
 }: {
   userId: string
   clientId: string
   projects: Project[]
-  clients: Client[]
+  companies: Company[]
+  contacts: Contact[]
+  defaultCompanyId?: string | null
 }) {
   const [open, setOpen] = useState(false)
 
@@ -71,8 +76,9 @@ export function ClientProjectsCard({
 
       <CreateProjectDialog
         userId={userId}
-        clients={clients}
-        defaultClientId={clientId}
+        companies={companies}
+        contacts={contacts}
+        defaultCompanyId={defaultCompanyId ?? undefined}
         open={open}
         onOpenChange={setOpen}
       />

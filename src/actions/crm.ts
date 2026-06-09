@@ -82,6 +82,7 @@ export async function createCompany(data: {
       notes: data.notes?.trim() || null,
     },
   })
+  revalidatePath("/societes")
   revalidatePath("/client")
   return company
 }
@@ -117,6 +118,8 @@ export async function updateCompany(
   if (clean.name && clean.name !== before.name) {
     await prisma.client.updateMany({ where: { companyId, userId }, data: { company: clean.name as string } })
   }
+  revalidatePath("/societes")
+  revalidatePath(`/societes/${companyId}`)
   revalidatePath("/client")
 }
 
@@ -125,6 +128,7 @@ export async function deleteCompany(companyId: string) {
   // Détache les contacts (companyId → null via FK SET NULL) puis nettoie le cache.
   await prisma.client.updateMany({ where: { companyId, userId }, data: { company: null } })
   await prisma.company.delete({ where: { id: companyId, userId } })
+  revalidatePath("/societes")
   revalidatePath("/client")
 }
 

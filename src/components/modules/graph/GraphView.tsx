@@ -126,7 +126,14 @@ export function GraphView({ rawNodes, rawLinks }: { rawNodes: RawNode[]; rawLink
   }, [rawNodes])
 
   return (
-    <div className="relative flex h-full w-full overflow-hidden bg-[#06060a]">
+    <div
+      className="relative flex h-full w-full overflow-hidden"
+      style={{
+        backgroundColor: "#0d0f1a",
+        backgroundImage: "radial-gradient(rgba(255,255,255,0.07) 1px, transparent 1px)",
+        backgroundSize: "26px 26px",
+      }}
+    >
 
       {/* ── Canvas ─────────────────────────────────────────────────────────── */}
       <div ref={containerRef} className="flex-1 h-full">

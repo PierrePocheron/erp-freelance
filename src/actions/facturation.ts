@@ -1201,6 +1201,77 @@ export async function sendInvoiceReminder(invoiceId: string, _userId: string) {
 
 // ── Chart ──────────────────────────────────────────────────────────────────
 
+// ── Import historique ─────────────────────────────────────────────────────────
+// Crée une facture à partir d'un document existant (hors ERP).
+// Aucun PDF n'est généré. Le numéro peut être fourni librement (ref externe).
+
+export async function importHistoricalInvoice(_userId: string, data: {
+  clientId:    string
+  projectId?:  string
+  customNumber?: string   // numéro de la facture originale (ex: FAC-2025-001)
+  date:        string     // ISO date de la facture
+  description: string     // libellé de la mission
+  amountHT:    number
+  taxRate:     number     // ex: 0 pour franchise AE, 20 pour TVA
+  isPaid:      boolean
+  paidAt?:     string     // ISO date du paiement
+  paidAmount?: number     // montant reçu (peut différer de amountHT+TVA)
+  notes?:      string
+}): Promise<{ error?: string; id?: string }> {
+  const userId = await requireAuth()
+  if (!data.clientId) return { error: "Client requis" }
+  if (!data.description.trim()) return { error: "Libellé requis" }
+  if (data.amountHT <= 0) return { error: "Montant invalide" }
+
+  const invoiceDate = new Date(data.date)
+  const totalHT = data.amountHT
+  const lineTotalTTC = totalHT * (1 + data.taxRate / 100)
+
+  // Numéro : externe s'il est fourni, sinon auto-généré
+  const number = data.customNumber?.trim() || await nextInvoiceNumber(userId)
+
+  const isPaid = data.isPaid
+  const paidAt = isPaid ? (data.paidAt ? new Date(data.paidAt) : invoiceDate) : null
+
+  const invoice = await prisma.invoice.create({
+    data: {
+      userId,
+      clientId:        data.clientId,
+      projectId:       data.projectId || null,
+      emitterProfileId: await defaultEmitterId(userId),
+      number,
+      type:            "STANDALONE",
+      status:          isPaid ? "PAID" : "SENT",
+      totalHT,
+      depositDeducted: 0,
+      issuedAt:        invoiceDate,
+      sentAt:          invoiceDate,
+      paidAt,
+      notes:           data.notes || null,
+      lines: {
+        create: [{
+          description: data.description,
+          quantity:    1,
+          unitPrice:   totalHT,
+          taxRate:     data.taxRate,
+          total:       totalHT,
+        }],
+      },
+    },
+  })
+
+  if (isPaid) {
+    const amount = data.paidAmount ?? lineTotalTTC
+    await prisma.payment.create({
+      data: { invoiceId: invoice.id, amount, paidAt: paidAt! },
+    })
+  }
+
+  revalidatePath("/facturation")
+  revalidatePath("/facturation/factures")
+  return { id: invoice.id }
+}
+
 export async function getMonthlyRevenue(year: number): Promise<number[]> {
   const { auth } = await import("@/lib/auth")
   const session = await auth()

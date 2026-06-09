@@ -10,6 +10,7 @@ import { TagSelector } from "@/components/modules/projet/TagSelector"
 import { ProjectSettingsDialog } from "@/components/modules/projet/ProjectSettingsDialog"
 import { ProjectContactSelect } from "@/components/modules/projet/ProjectContactSelect"
 import { updateProjectContact, updateProjectCompany } from "@/actions/projet"
+import { UserAvatar } from "@/components/ui/user-avatar"
 
 export default async function ProjectLayout({
   children,
@@ -111,40 +112,27 @@ export default async function ProjectLayout({
             {(project.members.length > 0) && (
               <div className="flex items-center gap-2">
                 <div className="flex items-center -space-x-1.5">
-                  {project.user.image ? (
-                    <img
-                      src={project.user.image}
-                      alt={project.user.name ?? project.user.email ?? ""}
-                      title={`${project.user.name ?? project.user.email} (propriétaire)`}
-                      className="h-6 w-6 rounded-full border-2 border-background object-cover"
+                  <UserAvatar
+                    name={project.user.name}
+                    email={project.user.email}
+                    image={project.user.image}
+                    size="sm"
+                    variant="primary"
+                    withRing
+                    title={`${project.user.name ?? project.user.email} (propriétaire)`}
+                  />
+                  {project.members.map((m) => (
+                    <UserAvatar
+                      key={m.userId}
+                      name={m.user.name}
+                      email={m.user.email}
+                      image={m.user.image}
+                      size="sm"
+                      variant="muted"
+                      withRing
+                      title={`${m.user.name ?? m.user.email} (${m.role === "VIEWER" ? "lecteur" : "membre"})`}
                     />
-                  ) : (
-                    <div
-                      title={`${project.user.name ?? project.user.email} (propriétaire)`}
-                      className="h-6 w-6 rounded-full border-2 border-background bg-primary/20 text-primary text-[9px] font-semibold flex items-center justify-center"
-                    >
-                      {(project.user.name ?? project.user.email ?? "?").slice(0, 1).toUpperCase()}
-                    </div>
-                  )}
-                  {project.members.map((m) =>
-                    m.user.image ? (
-                      <img
-                        key={m.userId}
-                        src={m.user.image}
-                        alt={m.user.name ?? m.user.email ?? ""}
-                        title={`${m.user.name ?? m.user.email} (${m.role === "VIEWER" ? "lecteur" : "membre"})`}
-                        className="h-6 w-6 rounded-full border-2 border-background object-cover"
-                      />
-                    ) : (
-                      <div
-                        key={m.userId}
-                        title={`${m.user.name ?? m.user.email} (${m.role === "VIEWER" ? "lecteur" : "membre"})`}
-                        className="h-6 w-6 rounded-full border-2 border-background bg-muted text-muted-foreground text-[9px] font-semibold flex items-center justify-center"
-                      >
-                        {(m.user.name ?? m.user.email ?? "?").slice(0, 1).toUpperCase()}
-                      </div>
-                    )
-                  )}
+                  ))}
                 </div>
                 <span className="text-xs text-muted-foreground hidden sm:inline">
                   {project.members.length + 1} <Users className="h-3 w-3 inline" />

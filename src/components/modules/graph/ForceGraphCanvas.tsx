@@ -77,10 +77,13 @@ export const ForceGraphCanvas = forwardRef<GraphMethods, Props>(function ForceGr
   // ── Node renderer ──────────────────────────────────────────────────────────
   const drawNode = useCallback((raw: NodeObject, ctx: CanvasRenderingContext2D, globalScale: number) => {
     const n     = raw as RawNode & { x: number; y: number }
-    const r     = NODE_RADIUS[n.type]
-    const color = nodeColor(n)
     const x     = n.x
     const y     = n.y
+    // Coordonnées pas encore assignées par D3 → skip
+    if (!isFinite(x) || !isFinite(y)) return
+
+    const r     = NODE_RADIUS[n.type]
+    const color = nodeColor(n)
 
     // ── Outer glow (company only) ──────────────────────────────────────────
     if (n.type === "COMPANY") {

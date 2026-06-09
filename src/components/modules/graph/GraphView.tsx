@@ -3,7 +3,7 @@
 import { useState, useMemo, useCallback, useRef, useEffect } from "react"
 import dynamic from "next/dynamic"
 import Link from "next/link"
-import { X, Maximize2, RotateCcw, ExternalLink, ChevronDown, ChevronRight } from "lucide-react"
+import { X, Maximize2, ExternalLink, ChevronDown, ChevronRight } from "lucide-react"
 import type { RawNode, RawLink, NodeType } from "./graph-types"
 import { NODE_TYPE_LABELS, NODE_BASE_COLORS } from "./graph-types"
 import type { GraphMethods } from "./ForceGraphCanvas"
@@ -120,13 +120,6 @@ export function GraphView({ rawNodes, rawLinks }: { rawNodes: RawNode[]; rawLink
     })
   }
 
-  function resetAll() {
-    setCollapsed(new Set())
-    setHidden(new Set())
-    setSelected(null)
-    graphRef.current?.zoomToFit(600)
-  }
-
   const childCount = useMemo(() => {
     const counts = new Map<string, number>()
     rawNodes.forEach(n => {
@@ -208,14 +201,6 @@ export function GraphView({ rawNodes, rawLinks }: { rawNodes: RawNode[]; rawLink
           >
             <Maximize2 className="h-3.5 w-3.5" />
             Centrer
-          </button>
-          <button
-            onClick={resetAll}
-            title="Tout réinitialiser"
-            className="flex items-center gap-1.5 rounded-lg border border-border bg-card/80 backdrop-blur px-2.5 py-1.5 text-xs text-muted-foreground hover:text-foreground hover:bg-accent shadow-sm"
-          >
-            <RotateCcw className="h-3.5 w-3.5" />
-            Reset
           </button>
         </div>
 

@@ -4,7 +4,7 @@ import Link from "next/link"
 import {
   CheckSquare, AlertCircle, Clock, Users,
   TrendingUp, Bell, Code2, Calendar, Circle,
-  AlertTriangle, Globe, UserMinus,
+  AlertTriangle, Globe, UserMinus, Wallet, Receipt,
 } from "lucide-react"
 import { QuickActionsBar } from "@/components/modules/dashboard/QuickActionsBar"
 import { ProdMonitorCard } from "@/components/modules/dashboard/ProdMonitorCard"
@@ -19,6 +19,10 @@ export default async function DashboardPage() {
   const todayEnd = new Date(today.setHours(23, 59, 59, 999))
   const in30Days = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
   const followUpCutoff = new Date(Date.now() - 45 * 24 * 60 * 60 * 1000)
+  const currentYear = new Date().getFullYear()
+  const yearStart = new Date(currentYear, 0, 1)
+  const yearEnd   = new Date(currentYear, 11, 31, 23, 59, 59)
+  const yearPrefix = `${currentYear}-`
 
   const [
     tasksDueToday,
@@ -41,6 +45,8 @@ export default async function DashboardPage() {
     followUpCandidates,
     quickCompanies,
     quickContacts,
+    paidInvoicesYTD,
+    receivedRevenuesYTD,
   ] = await Promise.all([
     prisma.task.findMany({
       where: {
@@ -174,9 +180,22 @@ export default async function DashboardPage() {
       orderBy: { name: "asc" },
       select: { id: true, name: true, company: true, companyId: true },
     }),
+    // Factures AE payées cette année (paidAt ou updatedAt dans l'année)
+    prisma.invoice.findMany({
+      where: { userId, status: "PAID", paidAt: { gte: yearStart, lte: yearEnd } },
+      select: { totalHT: true, depositDeducted: true },
+    }),
+    // Revenus hors-AE reçus cette année (par période)
+    prisma.revenue.findMany({
+      where: { userId, status: "RECEIVED", period: { startsWith: yearPrefix } },
+      select: { amount: true },
+    }),
   ])
 
-  const totalPending = unpaidInvoices.reduce((s, i) => s + i.totalHT - i.depositDeducted, 0)
+  const totalPending   = unpaidInvoices.reduce((s, i) => s + i.totalHT - i.depositDeducted, 0)
+  const encaisseAE     = paidInvoicesYTD.reduce((s, i) => s + i.totalHT - i.depositDeducted, 0)
+  const encaisseAutres = receivedRevenuesYTD.reduce((s, r) => s + r.amount, 0)
+  const encaisseTotal  = encaisseAE + encaisseAutres
 
   // Prods : aplatit le dernier check pour la carte de monitoring.
   const prods = prodSites.map((pd) => ({
@@ -224,6 +243,42 @@ export default async function DashboardPage() {
         <KPICard href="/facturation/devis" icon={<Clock className="h-4 w-4" />} label="Devis envoyés" value={pendingQuotes} color="amber" />
         <KPICard href="/client" icon={<Bell className="h-4 w-4" />} label="Rappels" value={upcomingReminders.length} color={upcomingReminders.some(r => new Date(r.dueDate) < new Date()) ? "red" : "muted"} />
         <KPICard href="/projets" icon={<CheckSquare className="h-4 w-4" />} label="En cours" value={tasksInProgress.length} color="emerald" />
+      </div>
+
+      {/* Revenus encaissés {year} */}
+      <div className="rounded-xl border border-border/50 bg-card px-5 py-4">
+        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-3">
+          Revenus encaissés — {currentYear}
+        </p>
+        <div className="grid grid-cols-3 gap-4">
+          <Link href="/facturation/factures" className="group space-y-0.5">
+            <div className="flex items-center gap-1.5 text-xs text-muted-foreground group-hover:text-foreground transition-colors">
+              <Receipt className="h-3.5 w-3.5 text-violet-500" />
+              Auto-entreprise
+            </div>
+            <p className="text-lg font-bold tabular-nums text-violet-600">
+              {encaisseAE.toLocaleString("fr-FR")} €
+            </p>
+          </Link>
+          <Link href="/revenus" className="group space-y-0.5">
+            <div className="flex items-center gap-1.5 text-xs text-muted-foreground group-hover:text-foreground transition-colors">
+              <Wallet className="h-3.5 w-3.5 text-teal-500" />
+              Autres revenus
+            </div>
+            <p className="text-lg font-bold tabular-nums text-teal-600">
+              {encaisseAutres.toLocaleString("fr-FR")} €
+            </p>
+          </Link>
+          <div className="space-y-0.5 border-l border-border/50 pl-4">
+            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              <TrendingUp className="h-3.5 w-3.5 text-emerald-500" />
+              Total
+            </div>
+            <p className="text-lg font-bold tabular-nums text-emerald-600">
+              {encaisseTotal.toLocaleString("fr-FR")} €
+            </p>
+          </div>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">

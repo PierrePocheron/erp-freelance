@@ -18,7 +18,7 @@ type Quote = {
 }
 
 type Client = { id: string; name: string; company: string | null; type: string }
-type Project = { id: string; name: string; clientId: string }
+type Project = { id: string; name: string; clientId: string | null }
 type Product = { id: string; name: string; description: string | null; unitPrice: number; unit: string; isActive: boolean; billingType: string; defaultTaxRate: number }
 
 const statusConfig: Record<string, { label: string; cls: string }> = {

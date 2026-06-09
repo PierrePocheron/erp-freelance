@@ -40,7 +40,7 @@ export async function deleteProjectIdea(ideaId: string, _userId: string) {
 export async function convertIdeaToProject(
   ideaId: string,
   _userId: string,
-  clientId: string,
+  companyId: string | null,
   deleteIdea: boolean
 ) {
   const userId = await requireAuth()
@@ -50,7 +50,7 @@ export async function convertIdeaToProject(
   const project = await prisma.project.create({
     data: {
       userId,
-      clientId,
+      companyId: companyId || null,
       name: idea.title,
       description: idea.content ? idea.content.slice(0, 300) : null,
     },
@@ -69,7 +69,7 @@ export async function convertIdeaToProject(
 const CreateProjectSchema = z.object({
   name: z.string().min(1),
   description: z.string().optional(),
-  clientId: z.string().min(1),
+  companyId: z.string().optional(),
   contactId: z.string().optional(),
   startDate: z.string().optional(),
   endDate: z.string().optional(),
@@ -79,11 +79,14 @@ const CreateProjectSchema = z.object({
 export async function createProject(_userId: string, formData: FormData) {
   const userId = await requireAuth()
   const parsed = CreateProjectSchema.parse(Object.fromEntries(formData))
+  const contactId = parsed.contactId || null
   const project = await prisma.project.create({
     data: {
       userId,
-      clientId: parsed.clientId,
-      contactId: parsed.contactId || null,
+      companyId: parsed.companyId || null,
+      contactId,
+      // clientId conservé pour compat facturation (Phase 2 le retirera)
+      clientId: contactId,
       name: parsed.name,
       description: parsed.description,
       startDate: parsed.startDate ? new Date(parsed.startDate) : undefined,
@@ -93,6 +96,18 @@ export async function createProject(_userId: string, formData: FormData) {
   })
   revalidatePath("/projets")
   return project
+}
+
+export async function updateProjectCompany(projectId: string, companyId: string | null) {
+  const userId = await requireAuth()
+  if (companyId) {
+    const co = await prisma.company.findFirst({ where: { id: companyId, userId }, select: { id: true } })
+    if (!co) throw new Error("Société introuvable")
+  }
+  await prisma.project.findFirstOrThrow({ where: { id: projectId, userId } })
+  await prisma.project.update({ where: { id: projectId }, data: { companyId } })
+  revalidatePath(`/projets/${projectId}`)
+  revalidatePath("/projets")
 }
 
 export async function updateProjectContact(projectId: string, contactId: string | null) {
@@ -610,7 +625,7 @@ export async function addProjectMember(
   })
   if (existing) return { error: "Cet utilisateur est déjà collaborateur" }
 
-  const clientLabel = project.client.company ?? project.client.name
+  const clientLabel = project.client?.company ?? project.client?.name ?? project.name
   const ownerName = project.user.name ?? "Un utilisateur"
 
   await prisma.$transaction([
@@ -642,7 +657,7 @@ export async function removeProjectMember(projectId: string, ownerUserId: string
   if (!project) return
 
   const ownerName = project.user.name ?? "Le propriétaire du projet"
-  const clientLabel = project.client.company ?? project.client.name
+  const clientLabel = project.client?.company ?? project.client?.name ?? project.name
 
   await prisma.$transaction([
     prisma.projectMember.delete({

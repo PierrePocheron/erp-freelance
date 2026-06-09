@@ -39,6 +39,8 @@ export default async function DashboardPage() {
     overdueTasks,
     upcomingRenewals,
     followUpCandidates,
+    quickCompanies,
+    quickContacts,
   ] = await Promise.all([
     prisma.task.findMany({
       where: {
@@ -162,6 +164,16 @@ export default async function DashboardPage() {
         interactions: { orderBy: { date: "desc" }, take: 1, select: { date: true } },
       },
     }),
+    prisma.company.findMany({
+      where: { userId },
+      orderBy: { name: "asc" },
+      select: { id: true, name: true, city: true },
+    }),
+    prisma.client.findMany({
+      where: { userId, type: { not: "SELF" } },
+      orderBy: { name: "asc" },
+      select: { id: true, name: true, company: true, companyId: true },
+    }),
   ])
 
   const totalPending = unpaidInvoices.reduce((s, i) => s + i.totalHT - i.depositDeducted, 0)
@@ -202,7 +214,7 @@ export default async function DashboardPage() {
       </div>
 
       {/* Raccourcis */}
-      <QuickActionsBar userId={userId} clients={quickClients} projects={quickProjects} products={quickProducts} quotes={quickQuotes} defaultConditions={userProfile?.defaultConditions ?? ""} />
+      <QuickActionsBar userId={userId} clients={quickClients} companies={quickCompanies} contacts={quickContacts} projects={quickProjects} products={quickProducts} quotes={quickQuotes} defaultConditions={userProfile?.defaultConditions ?? ""} />
 
       {/* KPI row */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">

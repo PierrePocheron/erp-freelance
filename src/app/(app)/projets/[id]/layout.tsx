@@ -9,7 +9,7 @@ import { ProjectNameEdit, ProjectDescriptionEdit, ProjectHoursEdit, ProjectStatu
 import { TagSelector } from "@/components/modules/projet/TagSelector"
 import { ProjectSettingsDialog } from "@/components/modules/projet/ProjectSettingsDialog"
 import { ProjectContactSelect } from "@/components/modules/projet/ProjectContactSelect"
-import { updateProjectContact } from "@/actions/projet"
+import { updateProjectContact, updateProjectCompany } from "@/actions/projet"
 
 export default async function ProjectLayout({
   children,
@@ -29,7 +29,7 @@ export default async function ProjectLayout({
         OR: [{ userId }, { members: { some: { userId } } }],
       },
       include: {
-        client: { select: { id: true, name: true, company: true, type: true } },
+        company: { select: { id: true, name: true } },
         contact: { select: { id: true, name: true, company: true } },
         members: {
           include: { user: { select: { name: true, email: true, image: true } } },
@@ -57,11 +57,6 @@ export default async function ProjectLayout({
   if (!project) notFound()
 
   const isOwner = project.userId === userId
-
-  const clientLabel =
-    project.client.type === "SELF" || project.client.type === "PERSONAL"
-      ? "Perso"
-      : project.client.company || project.client.name
   const selectedTagIds = projectTagIds?.tags?.map((t) => t.id) ?? []
 
   return (
@@ -76,12 +71,16 @@ export default async function ProjectLayout({
 
         <div className="flex items-start justify-between gap-4">
           <div className="space-y-2">
-            <Link
-              href={`/client/${project.client.id}`}
-              className="text-sm text-muted-foreground hover:text-primary transition-colors"
-            >
-              {clientLabel}
-            </Link>
+            {project.company ? (
+              <Link
+                href={`/societes/${project.company.id}`}
+                className="text-sm text-muted-foreground hover:text-primary transition-colors"
+              >
+                {project.company.name}
+              </Link>
+            ) : (
+              <span className="text-sm text-muted-foreground italic">Sans société</span>
+            )}
             <ProjectNameEdit projectId={id} value={project.name} />
             <ProjectDescriptionEdit projectId={id} value={project.description} />
             <ProjectContactSelect

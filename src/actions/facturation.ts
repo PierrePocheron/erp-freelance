@@ -443,7 +443,7 @@ export async function createInvoiceFromRenewal(renewalId: string, _userId: strin
   const userId = await requireAuth()
   const renewal = await prisma.renewal.findFirst({
     where: { id: renewalId, postDev: { project: { userId } } },
-    include: { postDev: { select: { project: { select: { id: true, clientId: true } } } } },
+    include: { postDev: { select: { project: { select: { id: true, clientId: true, contactId: true, companyId: true } } } } },
   })
   if (!renewal) throw new Error("Renouvellement introuvable")
   if (!renewal.amount || renewal.amount <= 0) {
@@ -467,10 +467,20 @@ export async function createInvoiceFromRenewal(renewalId: string, _userId: strin
 
   const periodLabel = renewal.periodMonths ? ` (${renewal.periodMonths} mois)` : ""
   const number = await nextInvoiceNumber(userId)
+
+  // clientId pour la facture : contact du projet, ou premier contact de la société
+  const billingClientId =
+    project.clientId ??
+    project.contactId ??
+    (project.companyId
+      ? (await prisma.client.findFirst({ where: { companyId: project.companyId, userId }, select: { id: true } }))?.id ?? null
+      : null)
+  if (!billingClientId) throw new Error("Le projet n'a pas de contact facturable — ajoutez un contact ou une société avec un contact")
+
   const invoice = await prisma.invoice.create({
     data: {
       userId,
-      clientId: project.clientId,
+      clientId: billingClientId,
       projectId: project.id,
       emitterProfileId: await defaultEmitterId(userId),
       number,

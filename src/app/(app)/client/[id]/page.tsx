@@ -62,18 +62,24 @@ export default async function ClientOverviewPage({
 
   if (!client) notFound()
 
-  // Liste des contacts pour alimenter le select du dialog « Nouveau projet »
-  // (rattachement modifiable ; le client courant est pré-sélectionné).
-  const allClients = await prisma.client.findMany({
-    where: { userId },
-    orderBy: [{ type: "asc" }, { name: "asc" }],
-    select: { id: true, name: true, company: true, type: true },
-  })
+  // Sociétés et contacts pour alimenter le dialog « Nouveau projet »
+  const [allCompanies, allContacts] = await Promise.all([
+    prisma.company.findMany({
+      where: { userId },
+      orderBy: { name: "asc" },
+      select: { id: true, name: true, city: true },
+    }),
+    prisma.client.findMany({
+      where: { userId },
+      orderBy: [{ name: "asc" }],
+      select: { id: true, name: true, company: true, companyId: true },
+    }),
+  ])
 
   // Récupérer aussi les tâches via les projets du client
   const projectTasks = await prisma.task.findMany({
     where: {
-      project: { clientId: id, userId },
+      project: { OR: [{ contactId: id }, { clientId: id }], userId },
       isGroup: false,
       parentTaskId: null,
       clientId: null, // éviter les doublons
@@ -153,7 +159,9 @@ export default async function ClientOverviewPage({
           userId={userId}
           clientId={id}
           projects={client.projects}
-          clients={allClients}
+          companies={allCompanies}
+          contacts={allContacts}
+          defaultCompanyId={client.companyId}
         />
 
         {/* Stats */}

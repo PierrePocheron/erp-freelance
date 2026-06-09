@@ -101,14 +101,22 @@ export async function deleteAllUserData(_userId: string) {
   // Time tracking
   await prisma.timeEntry.deleteMany({ where: { userId } })
 
+  // Revenus (référencent company, client, project — à supprimer avant eux)
+  await prisma.revenue.deleteMany({ where: { userId } })
+  await prisma.recurringRevenue.deleteMany({ where: { userId } })
+
   // Facturation : lignes & paiements avant les têtes
   await prisma.payment.deleteMany({ where: { invoice: { userId } } })
   await prisma.invoiceLine.deleteMany({ where: { invoice: { userId } } })
   await prisma.quoteLine.deleteMany({ where: { quote: { userId } } })
+  await prisma.recurringInvoice.deleteMany({ where: { userId } })
   await prisma.emailLog.deleteMany({ where: { userId } })
+  await prisma.invoice.deleteMany({ where: { userId } })
+  await prisma.quote.deleteMany({ where: { userId } })
 
   // Calendrier & notifications
   await prisma.calendarEvent.deleteMany({ where: { userId } })
+  await prisma.calendarCategory.deleteMany({ where: { userId } })
   await prisma.notification.deleteMany({ where: { userId } })
 
   // Tâches : passe 1 → effacer parentTaskId (auto-référence circulaire)
@@ -127,19 +135,15 @@ export async function deleteAllUserData(_userId: string) {
   await prisma.usefulLink.deleteMany({ where: { project: { userId } } })
   await prisma.projectMember.deleteMany({ where: { project: { userId } } })
 
-  // Facturation têtes (quotes & invoices référencent clients + projets)
-  await prisma.recurringInvoice.deleteMany({ where: { userId } })
-  await prisma.invoice.deleteMany({ where: { userId } })
-  await prisma.quote.deleteMany({ where: { userId } })
-
   // Projets (maintenant libres de toutes dépendances)
   await prisma.project.deleteMany({ where: { userId } })
 
-  // CRM : interactions, rappels, fichiers puis clients
+  // CRM : interactions, rappels, fichiers puis clients puis sociétés
   await prisma.interaction.deleteMany({ where: { client: { userId } } })
   await prisma.reminder.deleteMany({ where: { client: { userId } } })
   await prisma.clientFile.deleteMany({ where: { client: { userId } } })
   await prisma.client.deleteMany({ where: { userId } })
+  await prisma.company.deleteMany({ where: { userId } })
 
   // Reste utilisateur
   await prisma.product.deleteMany({ where: { userId } })

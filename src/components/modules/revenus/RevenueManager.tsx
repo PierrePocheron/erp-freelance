@@ -53,7 +53,7 @@ const REVENUE_TYPES = [
 ]
 
 const PAYMENT_METHODS = [
-  "VIREMENT", "ESPECES", "CHEQUE", "CARTE", "PAYPAL", "OTHER",
+  "VIREMENT", "ESPECES", "CHEQUE", "CARTE", "PAYPAL", "CARTE_CADEAU", "OTHER",
 ]
 
 // ── Helpers ────────────────────────────────────────────────────────────────────

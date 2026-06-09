@@ -15,11 +15,12 @@ const TYPE_Z: Record<NodeType, number> = {
 export type GraphMethods = { zoomToFit: (ms?: number) => void }
 
 type Props = {
-  nodes:          RawNode[]
-  links:          RawLink[]
-  collapsedIds:   Set<string>
-  onNodeClick:    (node: RawNode) => void
-  onNodeDblClick: (node: RawNode) => void
+  nodes:             RawNode[]
+  links:             RawLink[]
+  collapsedIds:      Set<string>
+  onNodeClick:       (node: RawNode) => void
+  onNodeDblClick:    (node: RawNode) => void
+  onBackgroundClick: () => void
   width:   number
   height:  number
   isDark?: boolean
@@ -28,7 +29,7 @@ type Props = {
 const DBL_MS = 280
 
 export const ForceGraphCanvas = forwardRef<GraphMethods, Props>(function ForceGraphCanvas(
-  { nodes, links, collapsedIds, onNodeClick, onNodeDblClick, width, height, isDark = true },
+  { nodes, links, collapsedIds, onNodeClick, onNodeDblClick, onBackgroundClick, width, height, isDark = true },
   ref
 ) {
   const fgRef       = useRef<ForceGraphMethods<NodeObject, object> | undefined>(undefined)
@@ -237,6 +238,7 @@ export const ForceGraphCanvas = forwardRef<GraphMethods, Props>(function ForceGr
       linkDirectionalParticleColor={getLinkColor}
       linkDirectionalParticleSpeed={0.005}
       onNodeClick={handleClick}
+      onBackgroundClick={onBackgroundClick}
       enableZoomInteraction
       enablePanInteraction
       enableNodeDrag

@@ -145,6 +145,32 @@ export async function markRevenueReceived(
   return {}
 }
 
+export async function bulkMarkReceived(
+  ids: string[],
+  receivedAt: Date
+): Promise<{ error?: string; count?: number }> {
+  const session = await auth()
+  const userId = session!.user.id
+
+  if (!ids.length) return { count: 0 }
+
+  const existing = await prisma.revenue.findMany({
+    where: { id: { in: ids }, userId },
+    select: { id: true },
+  })
+
+  const validIds = existing.map(r => r.id)
+  if (!validIds.length) return { error: "Aucun revenu valide" }
+
+  await prisma.revenue.updateMany({
+    where: { id: { in: validIds }, userId },
+    data: { status: "RECEIVED", receivedAt },
+  })
+
+  revalidatePath("/revenus")
+  return { count: validIds.length }
+}
+
 export async function deleteRevenue(id: string): Promise<{ error?: string }> {
   const session = await auth()
   const userId = session!.user.id

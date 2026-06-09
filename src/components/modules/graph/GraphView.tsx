@@ -89,8 +89,12 @@ export function GraphView({ rawNodes, rawLinks }: { rawNodes: RawNode[]; rawLink
       return isNodeVisible(n.id, nodeMap, collapsedIds)
     })
     const visIds = new Set(visNodes.map(n => n.id))
+    // D3 mute les liens en place : source/target passent de string à objet nœud.
+    // On extrait l'id dans les deux cas pour que le filtre reste valide après mutation.
+    const resolveId = (v: unknown): string =>
+      typeof v === "object" && v !== null ? (v as { id: string }).id : v as string
     const visLinks = rawLinks.filter(l =>
-      visIds.has(l.source as string) && visIds.has(l.target as string)
+      visIds.has(resolveId(l.source)) && visIds.has(resolveId(l.target))
     )
     return { nodes: visNodes, links: visLinks }
   }, [rawNodes, rawLinks, nodeMap, collapsedIds, hiddenTypes])

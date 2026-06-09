@@ -31,12 +31,15 @@ export default async function AppLayout({
   return (
     <div className="flex h-screen overflow-hidden">
       <Sidebar />
-      <div className="flex flex-1 flex-col overflow-hidden">
+      <div className="relative flex flex-1 flex-col overflow-hidden">
         <TimerBanner initialTimer={runningTimer} userId={userId} />
-        <div className="flex items-center justify-end px-6 py-2 border-b border-border/50">
-          <NotificationBell userId={userId} notifications={notifications} />
-        </div>
         <main className="flex-1 overflow-y-auto p-6">{children}</main>
+        {/* Cloche de notifications : bouton flottant (gagne la hauteur de l'ancien header) */}
+        <div className="absolute top-3 right-4 z-50">
+          <div className="rounded-lg border border-border/50 bg-background/80 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-background/60">
+            <NotificationBell userId={userId} notifications={notifications} />
+          </div>
+        </div>
       </div>
       <CommandPalette />
     </div>

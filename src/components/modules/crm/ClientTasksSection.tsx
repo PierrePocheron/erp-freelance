@@ -172,14 +172,17 @@ function QuickAdd({ clientId }: { clientId: string }) {
   const [open, setOpen] = useState(false)
   const [isPending, startTransitionFn] = useTransition()
   const inputRef = useRef<HTMLInputElement>(null)
+  const dateRef = useRef<HTMLInputElement>(null)
 
   function submit(e: React.FormEvent) {
     e.preventDefault()
     const title = inputRef.current?.value.trim()
     if (!title) return
+    const dueDate = dateRef.current?.value || null
     startTransitionFn(async () => {
-      await createClientTask(clientId, title)
+      await createClientTask(clientId, title, dueDate)
       if (inputRef.current) inputRef.current.value = ""
+      if (dateRef.current) dateRef.current.value = ""
       inputRef.current?.focus()
     })
   }
@@ -200,6 +203,13 @@ function QuickAdd({ clientId }: { clientId: string }) {
         autoFocus
         placeholder="Titre de la tâche..."
         className="flex-1 h-8 text-sm px-2 rounded-md border border-border bg-background focus:outline-none focus:ring-1 focus:ring-ring"
+        onKeyDown={(e) => { if (e.key === "Escape") setOpen(false) }}
+      />
+      <input
+        ref={dateRef}
+        type="date"
+        title="Échéance (optionnelle)"
+        className="h-8 text-sm px-2 rounded-md border border-border bg-background text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
         onKeyDown={(e) => { if (e.key === "Escape") setOpen(false) }}
       />
       <button type="submit" disabled={isPending} className="h-8 px-3 text-sm rounded-md bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50">

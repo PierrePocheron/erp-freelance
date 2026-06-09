@@ -3,20 +3,16 @@ import { prisma } from "@/lib/prisma"
 import { notFound } from "next/navigation"
 import { redirect } from "next/navigation"
 import { deleteClient } from "@/actions/crm"
-import { FolderKanban, Receipt, FileText, Bell, MessageSquare, Trash2 } from "lucide-react"
+import { Bell, MessageSquare, Trash2 } from "lucide-react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { ClientInfoCard } from "@/components/modules/crm/ClientInfoCard"
 import { ClientTasksSection } from "@/components/modules/crm/ClientTasksSection"
+import { ClientProjectsCard } from "@/components/modules/crm/ClientProjectsCard"
 
 const channelLabels: Record<string, string> = {
   EMAIL: "Email", CALL: "Appel", LINKEDIN: "LinkedIn",
   MEETING: "Réunion", SMS: "SMS", OTHER: "Autre",
-}
-
-const projectStatusDot: Record<string, string> = {
-  ACTIVE: "bg-emerald-500", PAUSED: "bg-amber-500",
-  COMPLETED: "bg-blue-500", ARCHIVED: "bg-muted-foreground",
 }
 
 export default async function ClientOverviewPage({
@@ -29,7 +25,13 @@ export default async function ClientOverviewPage({
   const userId = session!.user.id
 
   const client = await prisma.client.findFirst({
-    where: { id, userId },
+    where: {
+      id,
+      OR: [
+        { userId },
+        { projects: { some: { members: { some: { userId } } } } },
+      ],
+    },
     include: {
       _count: { select: { interactions: true, projects: true, invoices: true } },
       interactions: { orderBy: { date: "desc" }, take: 3 },
@@ -60,10 +62,24 @@ export default async function ClientOverviewPage({
 
   if (!client) notFound()
 
+  // Sociétés et contacts pour alimenter le dialog « Nouveau projet »
+  const [allCompanies, allContacts] = await Promise.all([
+    prisma.company.findMany({
+      where: { userId },
+      orderBy: { name: "asc" },
+      select: { id: true, name: true, city: true },
+    }),
+    prisma.client.findMany({
+      where: { userId },
+      orderBy: [{ name: "asc" }],
+      select: { id: true, name: true, company: true, companyId: true },
+    }),
+  ])
+
   // Récupérer aussi les tâches via les projets du client
   const projectTasks = await prisma.task.findMany({
     where: {
-      project: { clientId: id, userId },
+      project: { OR: [{ contactId: id }, { clientId: id }], userId },
       isGroup: false,
       parentTaskId: null,
       clientId: null, // éviter les doublons
@@ -86,6 +102,7 @@ export default async function ClientOverviewPage({
     },
   })
 
+  const isOwner = client.userId === userId
   const allTasks = [...client.tasks, ...projectTasks]
 
   const totalBilled = client.invoices
@@ -105,10 +122,14 @@ export default async function ClientOverviewPage({
       <div className="lg:col-span-2 space-y-6">
 
         {/* Fiche informations */}
-        <ClientInfoCard client={{
+        <ClientInfoCard isOwner={isOwner} client={{
           id: client.id,
           name: client.name,
+          firstName: client.firstName,
+          lastName: client.lastName,
+          label: client.label,
           company: client.company,
+          companyId: client.companyId,
           email: client.email,
           phone: client.phone,
           source: client.source,
@@ -133,26 +154,15 @@ export default async function ClientOverviewPage({
       {/* Colonne droite */}
       <div className="space-y-6">
 
-        {/* Projets */}
-        {client.projects.length > 0 && (
-          <div className="rounded-xl border border-border/50 bg-card p-5 space-y-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <FolderKanban className="h-4 w-4 text-muted-foreground" />
-                <h2 className="font-semibold text-sm">Projets</h2>
-              </div>
-              <Link href={`/client/${id}/projets`} className="text-xs text-primary hover:underline">Voir tout</Link>
-            </div>
-            <div className="space-y-1.5">
-              {client.projects.map((p) => (
-                <Link key={p.id} href={`/projets/${p.id}`} className="flex items-center gap-2 text-sm hover:text-primary transition-colors">
-                  <span className={`h-1.5 w-1.5 rounded-full shrink-0 ${projectStatusDot[p.status] ?? "bg-muted-foreground"}`} />
-                  {p.name}
-                </Link>
-              ))}
-            </div>
-          </div>
-        )}
+        {/* Projets — accès rapide + création en 1 clic (pré-rattaché au client) */}
+        <ClientProjectsCard
+          userId={userId}
+          clientId={id}
+          projects={client.projects}
+          companies={allCompanies}
+          contacts={allContacts}
+          defaultCompanyId={client.companyId}
+        />
 
         {/* Stats */}
         <div className="rounded-xl border border-border/50 bg-card p-5 space-y-3">
@@ -227,19 +237,21 @@ export default async function ClientOverviewPage({
           </div>
         )}
 
-        {/* Danger zone */}
-        <form
-          action={async () => {
-            "use server"
-            await deleteClient(id, userId)
-            redirect("/client")
-          }}
-        >
-          <Button type="submit" variant="destructive" size="sm" className="w-full">
-            <Trash2 className="h-3.5 w-3.5" />
-            Supprimer ce contact
-          </Button>
-        </form>
+        {/* Danger zone — propriétaire uniquement */}
+        {isOwner && (
+          <form
+            action={async () => {
+              "use server"
+              await deleteClient(id, userId)
+              redirect("/client")
+            }}
+          >
+            <Button type="submit" variant="destructive" size="sm" className="w-full">
+              <Trash2 className="h-3.5 w-3.5" />
+              Supprimer ce contact
+            </Button>
+          </form>
+        )}
       </div>
     </div>
   )

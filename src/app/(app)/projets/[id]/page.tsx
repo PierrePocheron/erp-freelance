@@ -220,58 +220,6 @@ export default async function ProjectOverviewPage({
         </div>
       </div>
 
-      {/* Collaborateurs */}
-      {project.members.length > 0 && (
-        <div className="flex items-center gap-3">
-          <span className="text-xs text-muted-foreground">Collaborateurs</span>
-          <div className="flex items-center -space-x-1.5">
-            {/* Owner */}
-            {project.user.image ? (
-              <img
-                src={project.user.image}
-                alt={project.user.name ?? project.user.email}
-                title={`${project.user.name ?? project.user.email} (propriétaire)`}
-                className="h-7 w-7 rounded-full border-2 border-background object-cover"
-              />
-            ) : (
-              <div
-                title={`${project.user.name ?? project.user.email} (propriétaire)`}
-                className="h-7 w-7 rounded-full border-2 border-background bg-primary/20 text-primary text-[10px] font-semibold flex items-center justify-center"
-              >
-                {(project.user.name ?? project.user.email).slice(0, 1).toUpperCase()}
-              </div>
-            )}
-            {project.members.map((m) =>
-              m.user.image ? (
-                <img
-                  key={m.userId}
-                  src={m.user.image}
-                  alt={m.user.name ?? m.user.email}
-                  title={`${m.user.name ?? m.user.email} (${m.role === "VIEWER" ? "lecteur" : "membre"})`}
-                  className="h-7 w-7 rounded-full border-2 border-background object-cover"
-                />
-              ) : (
-                <div
-                  key={m.userId}
-                  title={`${m.user.name ?? m.user.email} (${m.role === "VIEWER" ? "lecteur" : "membre"})`}
-                  className="h-7 w-7 rounded-full border-2 border-background bg-muted text-muted-foreground text-[10px] font-semibold flex items-center justify-center"
-                >
-                  {(m.user.name ?? m.user.email).slice(0, 1).toUpperCase()}
-                </div>
-              )
-            )}
-          </div>
-          <div className="flex gap-1 flex-wrap">
-            {project.members.map((m) => (
-              <span key={m.userId} className="text-xs text-muted-foreground">
-                {m.user.name ?? m.user.email}
-                {m.role === "VIEWER" && <span className="ml-0.5 opacity-60">(lecture)</span>}
-              </span>
-            )).reduce((acc: React.ReactNode[], el, i) => i === 0 ? [el] : [...acc, <span key={`sep-${i}`} className="text-muted-foreground/40 text-xs">·</span>, el], [])}
-          </div>
-        </div>
-      )}
-
       {/* Contenu principal : 2 colonnes */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
 

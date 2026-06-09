@@ -10,8 +10,9 @@ import { Label } from "@/components/ui/label"
 import { createInvoice, createInvoiceFromQuote } from "@/actions/facturation"
 import { cn } from "@/lib/utils"
 
-type Client = { id: string; name: string; company: string | null; type: string }
-type Project = { id: string; name: string; clientId: string }
+type Company = { id: string; name: string; city: string | null }
+type Client = { id: string; name: string; company: string | null; type: string; companyId: string | null }
+type Project = { id: string; name: string; clientId: string | null; companyId: string | null }
 type Quote = {
   id: string
   number: string
@@ -35,6 +36,7 @@ function clientLabel(c: Client) {
 export function CreateInvoiceDialog({
   userId,
   clients,
+  companies = [],
   projects,
   quotes = [],
   open: controlledOpen,
@@ -42,6 +44,7 @@ export function CreateInvoiceDialog({
 }: {
   userId: string
   clients: Client[]
+  companies?: Company[]
   projects: Project[]
   quotes?: Quote[]
   open?: boolean
@@ -49,6 +52,7 @@ export function CreateInvoiceDialog({
 }) {
   const [internalOpen, setInternalOpen] = useState(false)
   const [mode, setMode] = useState<"blank" | "from_quote">("blank")
+  const [selectedCompanyId, setSelectedCompanyId] = useState("")
   const [selectedClientId, setSelectedClientId] = useState(clients[0]?.id ?? "")
   const [selectedQuoteId, setSelectedQuoteId] = useState("")
   const [isPending, startTransition] = useTransition()
@@ -61,13 +65,23 @@ export function CreateInvoiceDialog({
     controlledOnOpenChange?.(v)
     if (!v) {
       setMode("blank")
+      setSelectedCompanyId("")
       setSelectedQuoteId("")
       setSelectedClientId(clients[0]?.id ?? "")
     }
   }
 
+  const filteredClients = selectedCompanyId
+    ? clients.filter((c) => c.companyId === selectedCompanyId)
+    : clients
   const selectedQuote = quotes.find((q) => q.id === selectedQuoteId)
-  const clientProjects = projects.filter((p) => p.clientId === selectedClientId)
+  const clientProjects = projects.filter((p) =>
+    selectedCompanyId
+      ? p.companyId === selectedCompanyId || (selectedClientId && p.clientId === selectedClientId)
+      : selectedClientId
+        ? p.clientId === selectedClientId
+        : false
+  )
 
   const defaultDue = new Date()
   defaultDue.setDate(defaultDue.getDate() + 30)
@@ -202,6 +216,21 @@ export function CreateInvoiceDialog({
             </>
           ) : (
             <>
+              {companies.length > 0 && (
+                <div className="space-y-1.5">
+                  <Label>Société</Label>
+                  <select
+                    value={selectedCompanyId}
+                    onChange={(e) => { setSelectedCompanyId(e.target.value); setSelectedClientId("") }}
+                    className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+                  >
+                    <option value="">— Toutes les sociétés —</option>
+                    {companies.map((c) => (
+                      <option key={c.id} value={c.id}>{c.name}{c.city ? ` · ${c.city}` : ""}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
               <div className="space-y-1.5">
                 <Label>Client *</Label>
                 <select
@@ -210,7 +239,8 @@ export function CreateInvoiceDialog({
                   required
                   className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
                 >
-                  {clients.map((c) => (
+                  <option value="">— Choisir un client —</option>
+                  {filteredClients.map((c) => (
                     <option key={c.id} value={c.id}>{clientLabel(c)}</option>
                   ))}
                 </select>

@@ -7,6 +7,7 @@ import {
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { UserAvatar } from "@/components/ui/user-avatar"
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog"
@@ -32,16 +33,6 @@ const ROLE_ICONS: Record<string, React.ReactNode> = {
   VIEWER: <Eye className="h-3 w-3" />,
 }
 
-function Avatar({ name, image, size = "sm" }: { name: string | null; image: string | null; size?: "sm" | "md" }) {
-  const cls = size === "sm" ? "h-6 w-6 text-[10px]" : "h-8 w-8 text-xs"
-  if (image) return <img src={image} alt={name ?? ""} className={`${cls} rounded-full object-cover`} />
-  const initials = (name ?? "?").slice(0, 1).toUpperCase()
-  return (
-    <div className={`${cls} rounded-full bg-primary/20 text-primary font-semibold flex items-center justify-center shrink-0`}>
-      {initials}
-    </div>
-  )
-}
 
 export function ProjectSettingsDialog({
   projectId,
@@ -157,7 +148,7 @@ export function ProjectSettingsDialog({
                 <div className="space-y-2">
                   <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Propriétaire</p>
                   <div className="flex items-center gap-2.5">
-                    <Avatar name={ownerName} image={ownerImage} size="md" />
+                    <UserAvatar name={ownerName} image={ownerImage} size="md" variant="primary" />
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium truncate">{ownerName ?? ownerEmail}</p>
                       <p className="text-xs text-muted-foreground truncate">{ownerEmail}</p>
@@ -175,7 +166,7 @@ export function ProjectSettingsDialog({
                     <div className="space-y-1">
                       {members.map((m) => (
                         <div key={m.userId} className="flex items-center gap-2.5 py-1">
-                          <Avatar name={m.user.name} image={m.user.image} size="md" />
+                          <UserAvatar name={m.user.name} image={m.user.image} size="md" />
                           <div className="flex-1 min-w-0">
                             <p className="text-sm font-medium truncate">{m.user.name ?? m.user.email}</p>
                             <p className="text-xs text-muted-foreground truncate">{m.user.email}</p>

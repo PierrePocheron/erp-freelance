@@ -7,6 +7,7 @@ import {
 } from "lucide-react"
 import { updateClientAll } from "@/actions/crm"
 import { cn } from "@/lib/utils"
+import { CompanyCombobox } from "./CompanyCombobox"
 
 const SOURCE_LABELS: Record<string, string> = {
   WORD_OF_MOUTH: "Bouche à oreille",
@@ -40,7 +41,11 @@ const TEMP_CONFIG: Record<string, { label: string; emoji: string; cls: string }>
 type ClientData = {
   id: string
   name: string
+  firstName: string | null
+  lastName: string | null
+  label: string | null
   company: string | null
+  companyId: string | null
   email: string | null
   phone: string | null
   source: string
@@ -54,12 +59,17 @@ type ClientData = {
   siret: string | null
 }
 
-export function ClientInfoCard({ client }: { client: ClientData }) {
+export function ClientInfoCard({ client, isOwner = true }: { client: ClientData; isOwner?: boolean }) {
   const [editing, setEditing] = useState(false)
   const [isPending, startTransition] = useTransition()
 
-  const [name, setName] = useState(client.name)
-  const [company, setCompany] = useState(client.company ?? "")
+  const [firstName, setFirstName] = useState(client.firstName ?? "")
+  const [lastName, setLastName] = useState(client.lastName ?? "")
+  const [label, setLabel] = useState(client.label ?? "")
+  const [company, setCompany] = useState<{ id: string | null; name: string }>({
+    id: client.companyId,
+    name: client.company ?? "",
+  })
   const [email, setEmail] = useState(client.email ?? "")
   const [phone, setPhone] = useState(client.phone ?? "")
   const [source, setSource] = useState(client.source)
@@ -74,8 +84,10 @@ export function ClientInfoCard({ client }: { client: ClientData }) {
 
   useEffect(() => {
     if (!editing) return
-    setName(client.name)
-    setCompany(client.company ?? "")
+    setFirstName(client.firstName ?? "")
+    setLastName(client.lastName ?? "")
+    setLabel(client.label ?? "")
+    setCompany({ id: client.companyId, name: client.company ?? "" })
     setEmail(client.email ?? "")
     setPhone(client.phone ?? "")
     setSource(client.source)
@@ -92,8 +104,11 @@ export function ClientInfoCard({ client }: { client: ClientData }) {
   function handleSave() {
     startTransition(async () => {
       await updateClientAll(client.id, {
-        name: name.trim() || client.name,
-        company: company.trim() || null,
+        firstName: firstName.trim() || null,
+        lastName: lastName.trim() || null,
+        label: label.trim() || null,
+        companyId: company.id,
+        companyName: company.name.trim() || null,
         email: email.trim() || null,
         phone: phone.trim() || null,
         source,
@@ -123,7 +138,7 @@ export function ClientInfoCard({ client }: { client: ClientData }) {
         <h2 className="font-semibold text-sm">Informations</h2>
         <div className="flex items-center gap-1">
           {isPending && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />}
-          {editing ? (
+          {isOwner && (editing ? (
             <>
               <button
                 onClick={() => setEditing(false)}
@@ -150,22 +165,32 @@ export function ClientInfoCard({ client }: { client: ClientData }) {
             >
               <Pencil className="h-4 w-4" />
             </button>
-          )}
+          ))}
         </div>
       </div>
 
       {editing ? (
         /* ── Mode édition ── */
         <div className="space-y-3">
+          <div className="space-y-1">
+            <label className="text-xs text-muted-foreground">Libellé du contact</label>
+            <input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="Optionnel — ex. « Compta Acme »" className="flex h-8 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-ring" />
+          </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
-              <label className="text-xs text-muted-foreground">Nom *</label>
-              <input value={name} onChange={(e) => setName(e.target.value)} className="flex h-8 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-ring" />
+              <label className="text-xs text-muted-foreground">Prénom</label>
+              <input value={firstName} onChange={(e) => setFirstName(e.target.value)} placeholder="Jean" className="flex h-8 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-ring" />
             </div>
             <div className="space-y-1">
-              <label className="text-xs text-muted-foreground">Société</label>
-              <input value={company} onChange={(e) => setCompany(e.target.value)} className="flex h-8 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-ring" />
+              <label className="text-xs text-muted-foreground">Nom</label>
+              <input value={lastName} onChange={(e) => setLastName(e.target.value)} placeholder="Dupont" className="flex h-8 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-ring" />
             </div>
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs text-muted-foreground">Société</label>
+            <CompanyCombobox value={company} onChange={setCompany} />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
               <label className="text-xs text-muted-foreground">Email</label>
               <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="flex h-8 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-ring" />
@@ -199,6 +224,7 @@ export function ClientInfoCard({ client }: { client: ClientData }) {
             </div>
           </div>
 
+          <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground/70 pt-1">Adresse du contact <span className="font-normal normal-case">(optionnelle)</span></p>
           <div className="space-y-1">
             <label className="text-xs text-muted-foreground">Adresse</label>
             <input value={address} onChange={(e) => setAddress(e.target.value)} placeholder="12 rue de la Paix" className="flex h-8 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-ring" />

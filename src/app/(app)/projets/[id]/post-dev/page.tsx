@@ -3,11 +3,14 @@ import { prisma } from "@/lib/prisma"
 import { notFound } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { upsertPostDev, addRenewal, deleteRenewal } from "@/actions/postdev"
+import { upsertPostDev, deleteRenewal } from "@/actions/postdev"
+import { createInvoiceFromRenewal } from "@/actions/facturation"
+import { redirect } from "next/navigation"
 import { MonitoringButton } from "@/components/modules/projet/MonitoringButton"
+import { RenewalForm } from "@/components/modules/projet/RenewalForm"
 import {
   Globe, ShieldCheck, Server, Building2,
-  Trash2, CheckCircle2, XCircle, Clock, Plus, RefreshCw,
+  Trash2, CheckCircle2, XCircle, Clock, RefreshCw, Receipt,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 
@@ -42,10 +45,6 @@ export default async function ProjectPostDevPage({
 
   const postDev = project.postDev
   const lastCheck = postDev?.monitoringChecks[0]
-
-  const minExpiry = new Date()
-  minExpiry.setFullYear(minExpiry.getFullYear() + 1)
-  const defaultExpiry = minExpiry.toISOString().split("T")[0]
 
   return (
     <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
@@ -157,29 +156,7 @@ export default async function ProjectPostDevPage({
             {/* Formulaire */}
             <div className="space-y-3">
               <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Ajouter</p>
-              <form
-                action={async (fd: FormData) => {
-                  "use server"
-                  await addRenewal(postDev.id, id, {
-                    type: fd.get("type") as string,
-                    name: fd.get("name") as string,
-                    expiresAt: fd.get("expiresAt") as string,
-                  })
-                }}
-                className="space-y-2"
-              >
-                <select name="type" className="flex h-8 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-ring">
-                  {renewalTypes.map((t) => (
-                    <option key={t.value} value={t.value}>{t.label}</option>
-                  ))}
-                </select>
-                <Input name="name" required placeholder="monsite.com" className="h-8" />
-                <Input name="expiresAt" type="date" required defaultValue={defaultExpiry} className="h-8" />
-                <Button type="submit" size="sm" variant="outline" className="w-full">
-                  <Plus className="h-3.5 w-3.5" />
-                  Ajouter
-                </Button>
-              </form>
+              <RenewalForm postDevId={postDev.id} projectId={id} />
             </div>
 
             {/* Liste */}
@@ -221,7 +198,22 @@ export default async function ProjectPostDevPage({
                           {isExpired && " · Expiré !"}
                           {isSoon && !isExpired && ` · Dans ${daysLeft} jour${daysLeft !== 1 ? "s" : ""}`}
                         </p>
+                        {r.purchasedAt && (
+                          <p className="text-xs mt-0.5 text-muted-foreground">
+                            Acheté le {new Date(r.purchasedAt).toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" })}
+                            {r.periodMonths ? ` · ${r.periodMonths < 12 ? `${r.periodMonths} mois` : `${r.periodMonths / 12} an${r.periodMonths / 12 > 1 ? "s" : ""}`}` : ""}
+                            {r.amount ? ` · ${r.amount.toLocaleString("fr-FR")} € HT` : ""}
+                          </p>
+                        )}
                       </div>
+                      {r.amount && r.amount > 0 && (
+                        <form action={async () => { "use server"; const inv = await createInvoiceFromRenewal(r.id, ""); redirect(`/facturation/factures/${inv.id}`) }}>
+                          <Button type="submit" size="sm" variant="outline" className="h-7 gap-1 text-xs">
+                            <Receipt className="h-3.5 w-3.5" />
+                            Facturer
+                          </Button>
+                        </form>
+                      )}
                       <form action={async () => { "use server"; await deleteRenewal(r.id, id) }}>
                         <button type="submit" className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive transition-opacity">
                           <Trash2 className="h-3.5 w-3.5" />

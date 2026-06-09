@@ -6,7 +6,7 @@ export default async function DevisListPage() {
   const session = await auth()
   const userId = session!.user.id
 
-  const [quotes, clients, projects, products, profile] = await Promise.all([
+  const [quotes, clients, companies, projects, products, profile] = await Promise.all([
     prisma.quote.findMany({
       where: { userId },
       orderBy: { createdAt: "desc" },
@@ -19,12 +19,17 @@ export default async function DevisListPage() {
     prisma.client.findMany({
       where: { userId, type: { not: "SELF" } },
       orderBy: { name: "asc" },
-      select: { id: true, name: true, company: true, type: true },
+      select: { id: true, name: true, company: true, type: true, companyId: true },
+    }),
+    prisma.company.findMany({
+      where: { userId },
+      orderBy: { name: "asc" },
+      select: { id: true, name: true, city: true },
     }),
     prisma.project.findMany({
       where: { userId },
       orderBy: { name: "asc" },
-      select: { id: true, name: true, clientId: true },
+      select: { id: true, name: true, clientId: true, companyId: true },
     }),
     prisma.product.findMany({
       where: { userId },
@@ -38,6 +43,7 @@ export default async function DevisListPage() {
       userId={userId}
       quotes={quotes}
       clients={clients}
+      companies={companies}
       projects={projects}
       products={products}
       defaultConditions={profile?.defaultConditions ?? ""}

@@ -5,11 +5,45 @@ import { revalidatePath } from "next/cache"
 import { type NumberFormat, buildNumberParts } from "@/lib/number-format"
 import { auth } from "@/lib/auth"
 import { enforceRateLimit } from "@/lib/rate-limit"
+import { put } from "@vercel/blob"
+import { buildInvoicePdfBuffer } from "@/lib/invoice-pdf"
+import {
+  computeDepositDeducted,
+  depositAmount,
+  netAmount,
+  sumLineTotals,
+  isInvoiceSettled,
+} from "@/lib/money"
+import {
+  isInvoiceEditable,
+  isQuoteEditable,
+  canIssueInvoice,
+  canCancelInvoice,
+  canRevertQuoteToDraft,
+} from "@/lib/invoice-state"
+import { addMonths, advanceByFrequency } from "@/lib/dates"
 
 async function requireAuth(): Promise<string> {
   const session = await auth()
   if (!session?.user?.id) throw new Error("Non autorisé")
   return session.user.id
+}
+
+// ── Verrouillage d'édition ──────────────────────────────────────────────────────
+// Un devis ou une facture n'est modifiable (lignes, montants, conditions) qu'à
+// l'état brouillon. Une fois validé/émis, le document est figé : pour le corriger,
+// on le repasse en brouillon (devis) ou on l'annule puis on le duplique (facture).
+
+async function assertQuoteEditable(quoteId: string, userId: string): Promise<void> {
+  const quote = await prisma.quote.findFirst({ where: { id: quoteId, userId }, select: { status: true } })
+  if (!quote) throw new Error("Devis introuvable")
+  if (!isQuoteEditable(quote.status)) throw new Error("Devis verrouillé : repassez-le en brouillon pour le modifier")
+}
+
+async function assertInvoiceEditable(invoiceId: string, userId: string): Promise<void> {
+  const invoice = await prisma.invoice.findFirst({ where: { id: invoiceId, userId }, select: { status: true } })
+  if (!invoice) throw new Error("Facture introuvable")
+  if (!isInvoiceEditable(invoice.status)) throw new Error("Facture verrouillée : annulez-la pour la corriger")
 }
 
 // ── Numérotation ──────────────────────────────────────────────────────────────
@@ -40,6 +74,19 @@ async function nextInvoiceNumber(userId: string) {
     where: { userId, number: { startsWith: scopePrefix } },
   })
   return `${scopePrefix}${String(count + 1).padStart(digits, "0")}`
+}
+
+// ── Émetteur ────────────────────────────────────────────────────────────────────
+// Société émettrice par défaut, pré-renseignée à la création d'un document.
+// Retombe sur le premier profil si aucun n'est marqué par défaut, null si aucun.
+async function defaultEmitterId(userId: string): Promise<string | null> {
+  const def = await prisma.emitterProfile.findFirst({
+    where: { userId, isDefault: true },
+    select: { id: true },
+  })
+  if (def) return def.id
+  const any = await prisma.emitterProfile.findFirst({ where: { userId }, select: { id: true } })
+  return any?.id ?? null
 }
 
 // ── Devis ─────────────────────────────────────────────────────────────────────
@@ -74,6 +121,7 @@ export async function createQuoteWithLines(
       userId,
       clientId: data.clientId,
       projectId: data.projectId || null,
+      emitterProfileId: await defaultEmitterId(userId),
       number,
       depositPercent: data.depositPercent ?? 0,
       expiresAt,
@@ -118,6 +166,7 @@ export async function createQuote(
       userId,
       clientId: data.clientId,
       projectId: data.projectId || null,
+      emitterProfileId: await defaultEmitterId(userId),
       number,
       depositPercent: data.depositPercent ?? 0,
       notes: data.notes || null,
@@ -140,6 +189,20 @@ export async function updateQuoteStatus(quoteId: string, _userId: string, status
   revalidatePath("/facturation/devis")
 }
 
+// Repasse un devis validé (mais pas encore envoyé) en brouillon pour le corriger.
+export async function revertQuoteToDraft(quoteId: string, _userId: string) {
+  const userId = await requireAuth()
+  const quote = await prisma.quote.findFirst({ where: { id: quoteId, userId }, select: { status: true } })
+  if (!quote) throw new Error("Devis introuvable")
+  if (!canRevertQuoteToDraft(quote.status)) throw new Error("Seul un devis validé non envoyé peut repasser en brouillon")
+  await prisma.quote.update({
+    where: { id: quoteId, userId },
+    data: { status: "DRAFT" as never, validatedAt: null },
+  })
+  revalidatePath(`/facturation/devis/${quoteId}`)
+  revalidatePath("/facturation/devis")
+}
+
 export async function updateQuoteSettings(
   quoteId: string,
   _userId: string,
@@ -151,6 +214,7 @@ export async function updateQuoteSettings(
   }
 ) {
   const userId = await requireAuth()
+  await assertQuoteEditable(quoteId, userId)
   await prisma.quote.update({
     where: { id: quoteId, userId },
     data: {
@@ -163,8 +227,21 @@ export async function updateQuoteSettings(
   revalidatePath(`/facturation/devis/${quoteId}`)
 }
 
+// Change la société émettrice d'un devis (uniquement tant qu'il est en brouillon).
+export async function updateQuoteEmitter(quoteId: string, emitterProfileId: string | null) {
+  const userId = await requireAuth()
+  await assertQuoteEditable(quoteId, userId)
+  if (emitterProfileId) {
+    const owned = await prisma.emitterProfile.findFirst({ where: { id: emitterProfileId, userId }, select: { id: true } })
+    if (!owned) throw new Error("Profil émetteur introuvable")
+  }
+  await prisma.quote.update({ where: { id: quoteId, userId }, data: { emitterProfileId } })
+  revalidatePath(`/facturation/devis/${quoteId}`)
+}
+
 export async function updateQuoteNotes(quoteId: string, _userId: string, notes: string | null, depositPercent?: number) {
   const userId = await requireAuth()
+  await assertQuoteEditable(quoteId, userId)
   await prisma.quote.update({
     where: { id: quoteId, userId },
     data: { notes, ...(depositPercent !== undefined ? { depositPercent } : {}) },
@@ -183,7 +260,7 @@ export async function deleteQuote(quoteId: string, _userId: string) {
 
 async function recalcQuoteTotal(quoteId: string) {
   const lines = await prisma.quoteLine.findMany({ where: { quoteId } })
-  const totalHT = lines.reduce((s, l) => s + l.total, 0)
+  const totalHT = sumLineTotals(lines)
   await prisma.quote.update({ where: { id: quoteId }, data: { totalHT } })
 }
 
@@ -199,7 +276,8 @@ export async function addQuoteLine(
     productId?: string
   }
 ) {
-  await requireAuth()
+  const userId = await requireAuth()
+  await assertQuoteEditable(quoteId, userId)
   const total = data.quantity * data.unitPrice
   await prisma.quoteLine.create({
     data: {
@@ -230,9 +308,10 @@ export async function updateQuoteLine(
   const userId = await requireAuth()
   const existing = await prisma.quoteLine.findFirst({
     where: { id: lineId, quote: { userId } },
-    select: { id: true, quoteId: true },
+    select: { id: true, quoteId: true, quote: { select: { status: true } } },
   })
   if (!existing) throw new Error("Non autorisé")
+  if (!isQuoteEditable(existing.quote.status)) throw new Error("Devis verrouillé : repassez-le en brouillon pour le modifier")
   const total = data.quantity * data.unitPrice
   const line = await prisma.quoteLine.update({
     where: { id: lineId },
@@ -254,9 +333,10 @@ export async function deleteQuoteLine(lineId: string) {
   const userId = await requireAuth()
   const existing = await prisma.quoteLine.findFirst({
     where: { id: lineId, quote: { userId } },
-    select: { id: true },
+    select: { id: true, quote: { select: { status: true } } },
   })
   if (!existing) throw new Error("Non autorisé")
+  if (!isQuoteEditable(existing.quote.status)) throw new Error("Devis verrouillé : repassez-le en brouillon pour le modifier")
   const line = await prisma.quoteLine.delete({ where: { id: lineId }, select: { quoteId: true } })
   await recalcQuoteTotal(line.quoteId)
   revalidatePath(`/facturation/devis/${line.quoteId}`)
@@ -284,6 +364,7 @@ export async function createInvoice(
       clientId: data.clientId,
       projectId: data.projectId || null,
       quoteId: data.quoteId || null,
+      emitterProfileId: await defaultEmitterId(userId),
       number,
       type: (data.type as never) || "STANDALONE",
       dueDate: data.dueDate ? new Date(data.dueDate) : null,
@@ -306,9 +387,23 @@ export async function createInvoiceFromQuote(quoteId: string, _userId: string, t
 
   const number = await nextInvoiceNumber(userId)
   const isDeposit = type === "DEPOSIT"
-  const depositAmount = isDeposit ? quote.totalHT * (quote.depositPercent / 100) : quote.totalHT
-  const depositDeducted =
-    type === "FINAL" && quote.depositPercent > 0 ? quote.totalHT * (quote.depositPercent / 100) : 0
+  const depositTotal = isDeposit ? depositAmount(quote.totalHT, quote.depositPercent) : quote.totalHT
+
+  // Sur la facture de solde, on déduit le montant des acomptes réellement facturés
+  // (factures DEPOSIT non annulées) plutôt qu'un pourcentage théorique. Faute
+  // d'acompte émis, on retombe sur le % du devis s'il est renseigné.
+  let depositDeducted = 0
+  if (type === "FINAL") {
+    const deposits = await prisma.invoice.findMany({
+      where: { quoteId: quote.id, type: "DEPOSIT", status: { not: "CANCELLED" } },
+      select: { totalHT: true },
+    })
+    depositDeducted = computeDepositDeducted(
+      deposits.map((d) => d.totalHT),
+      quote.totalHT,
+      quote.depositPercent
+    )
+  }
 
   const invoice = await prisma.invoice.create({
     data: {
@@ -316,19 +411,21 @@ export async function createInvoiceFromQuote(quoteId: string, _userId: string, t
       clientId: quote.clientId,
       projectId: quote.projectId,
       quoteId: quote.id,
+      // La facture hérite de l'émetteur du devis (fallback : émetteur par défaut).
+      emitterProfileId: quote.emitterProfileId ?? (await defaultEmitterId(userId)),
       number,
       type: isDeposit ? "DEPOSIT" : type === "RECURRING" ? "RECURRING" : "FINAL",
-      totalHT: isDeposit ? depositAmount : quote.totalHT,
+      totalHT: isDeposit ? depositTotal : quote.totalHT,
       depositDeducted,
-      notes: quote.generalConditions ?? null,
+      generalConditions: quote.generalConditions ?? null,
       lines: {
         create: quote.lines.map((l) => ({
           description: l.description,
           detail: l.detail,
           quantity: isDeposit ? 1 : l.quantity,
-          unitPrice: isDeposit ? depositAmount : l.unitPrice,
+          unitPrice: isDeposit ? depositTotal : l.unitPrice,
           taxRate: l.taxRate,
-          total: isDeposit ? depositAmount : l.total,
+          total: isDeposit ? depositTotal : l.total,
           productId: l.productId,
         })),
       },
@@ -336,6 +433,85 @@ export async function createInvoiceFromQuote(quoteId: string, _userId: string, t
   })
   revalidatePath("/facturation/factures")
   revalidatePath("/facturation")
+  return invoice
+}
+
+// Facture un renouvellement (hébergement / domaine) pour sa période. Pré-remplit
+// une clause réutilisable selon le type (reconduction / nom de domaine) et avance
+// l'échéance du renouvellement (tacite reconduction), en réarmant les rappels.
+export async function createInvoiceFromRenewal(renewalId: string, _userId: string): Promise<{ id: string }> {
+  const userId = await requireAuth()
+  const renewal = await prisma.renewal.findFirst({
+    where: { id: renewalId, postDev: { project: { userId } } },
+    include: { postDev: { select: { project: { select: { id: true, clientId: true, contactId: true, companyId: true } } } } },
+  })
+  if (!renewal) throw new Error("Renouvellement introuvable")
+  if (!renewal.amount || renewal.amount <= 0) {
+    throw new Error("Renseignez d'abord un montant sur ce renouvellement")
+  }
+  const project = renewal.postDev.project
+
+  // Clause par défaut : on cherche une condition réutilisable pertinente selon le
+  // type, sinon la condition marquée par défaut.
+  const wanted = renewal.type === "DOMAIN"
+    ? ["domaine", "reconduc", "abonnement"]
+    : ["reconduc", "abonnement", "hébergement", "hebergement"]
+  const templates = await prisma.conditionsTemplate.findMany({
+    where: { userId },
+    select: { name: true, content: true, isDefault: true },
+  })
+  const match =
+    templates.find((t) => wanted.some((w) => t.name.toLowerCase().includes(w))) ??
+    templates.find((t) => t.isDefault)
+  const generalConditions = match?.content ?? null
+
+  const periodLabel = renewal.periodMonths ? ` (${renewal.periodMonths} mois)` : ""
+  const number = await nextInvoiceNumber(userId)
+
+  // clientId pour la facture : contact du projet, ou premier contact de la société
+  const billingClientId =
+    project.clientId ??
+    project.contactId ??
+    (project.companyId
+      ? (await prisma.client.findFirst({ where: { companyId: project.companyId, userId }, select: { id: true } }))?.id ?? null
+      : null)
+  if (!billingClientId) throw new Error("Le projet n'a pas de contact facturable — ajoutez un contact ou une société avec un contact")
+
+  const invoice = await prisma.invoice.create({
+    data: {
+      userId,
+      clientId: billingClientId,
+      projectId: project.id,
+      emitterProfileId: await defaultEmitterId(userId),
+      number,
+      type: "RECURRING",
+      status: "DRAFT",
+      totalHT: renewal.amount,
+      depositDeducted: 0,
+      generalConditions,
+      lines: {
+        create: [{
+          description: renewal.name + periodLabel,
+          quantity: 1,
+          unitPrice: renewal.amount,
+          taxRate: 0,
+          total: renewal.amount,
+        }],
+      },
+    },
+  })
+
+  if (renewal.periodMonths) {
+    const next = addMonths(renewal.expiresAt, renewal.periodMonths)
+    await prisma.renewal.update({
+      where: { id: renewalId },
+      data: { expiresAt: next, reminderSent30: false, reminderSent7: false },
+    })
+  }
+
+  revalidatePath("/facturation/factures")
+  revalidatePath("/facturation")
+  revalidatePath(`/projets/${project.id}/post-dev`)
   return invoice
 }
 
@@ -360,9 +536,9 @@ export async function recordPayment(
     },
   })
 
-  const netAmount = invoice.totalHT - invoice.depositDeducted
+  const net = netAmount(invoice.totalHT, invoice.depositDeducted)
   const totalPaid = invoice.payments.reduce((s, p) => s + p.amount, 0) + data.amount
-  if (netAmount > 0 && totalPaid >= netAmount - 0.01 && invoice.status !== "PAID") {
+  if (isInvoiceSettled(net, totalPaid) && invoice.status !== "PAID") {
     await prisma.invoice.update({
       where: { id: invoiceId },
       data: { status: "PAID", paidAt: new Date(data.paidAt) },
@@ -399,16 +575,114 @@ export async function markLateInvoices(_userId: string) {
 export async function updateInvoiceStatus(invoiceId: string, _userId: string, status: string) {
   const userId = await requireAuth()
   const data: Record<string, unknown> = { status }
+  if (status === "ISSUED") data.issuedAt = new Date()
   if (status === "SENT") data.sentAt = new Date()
   if (status === "PAID") data.paidAt = new Date()
+  if (status === "CANCELLED") data.cancelledAt = new Date()
   await prisma.invoice.update({ where: { id: invoiceId, userId }, data })
   revalidatePath(`/facturation/factures/${invoiceId}`)
   revalidatePath("/facturation/factures")
   revalidatePath("/facturation")
 }
 
+// Émet une facture : passage brouillon → émise. La facture est alors figée
+// (plus éditable) et son PDF est rendu une fois puis stocké sur Blob — ce
+// document devient immuable, indépendant des évolutions futures du profil.
+export async function issueInvoice(invoiceId: string, _userId: string) {
+  const userId = await requireAuth()
+  const invoice = await prisma.invoice.findFirst({
+    where: { id: invoiceId, userId },
+    select: { status: true, number: true },
+  })
+  if (!invoice) throw new Error("Facture introuvable")
+  if (!canIssueInvoice(invoice.status)) throw new Error("Seule une facture en brouillon peut être émise")
+
+  // Gel du PDF : rendu pendant que la facture est encore cohérente, avant le
+  // changement de statut. Un échec Blob ne doit pas bloquer l'émission — la
+  // route PDF retombera sur un rendu à la volée tant que pdfUrl est null.
+  let pdfUrl: string | null = null
+  try {
+    const buffer = await buildInvoicePdfBuffer(invoiceId, userId)
+    const safeNumber = invoice.number.replace(/[^a-zA-Z0-9._-]/g, "-")
+    const blob = await put(`factures/${userId}/${safeNumber}.pdf`, buffer, {
+      access: "public",
+      contentType: "application/pdf",
+    })
+    pdfUrl = blob.url
+  } catch (e) {
+    console.error("Gel PDF facture échoué (émission poursuivie) :", e)
+  }
+
+  await prisma.invoice.update({
+    where: { id: invoiceId, userId },
+    data: { status: "ISSUED" as never, issuedAt: new Date(), ...(pdfUrl ? { pdfUrl } : {}) },
+  })
+  revalidatePath(`/facturation/factures/${invoiceId}`)
+  revalidatePath("/facturation/factures")
+  revalidatePath("/facturation")
+}
+
+// Annule une facture émise (conservée pour la continuité de la séquence légale ;
+// son numéro n'est pas réutilisé). Pour repartir, on la duplique en brouillon.
+export async function cancelInvoice(invoiceId: string, _userId: string) {
+  const userId = await requireAuth()
+  const invoice = await prisma.invoice.findFirst({ where: { id: invoiceId, userId }, select: { status: true } })
+  if (!invoice) throw new Error("Facture introuvable")
+  if (!canCancelInvoice(invoice.status)) {
+    throw new Error("Cette facture ne peut pas être annulée")
+  }
+  await prisma.invoice.update({
+    where: { id: invoiceId, userId },
+    data: { status: "CANCELLED" as never, cancelledAt: new Date() },
+  })
+  revalidatePath(`/facturation/factures/${invoiceId}`)
+  revalidatePath("/facturation/factures")
+  revalidatePath("/facturation")
+}
+
+// Duplique une facture (typiquement annulée) en un nouveau brouillon éditable,
+// avec un nouveau numéro, pour corriger puis ré-émettre.
+export async function duplicateInvoiceAsDraft(invoiceId: string, _userId: string) {
+  const userId = await requireAuth()
+  const source = await prisma.invoice.findFirst({
+    where: { id: invoiceId, userId },
+    include: { lines: true },
+  })
+  if (!source) throw new Error("Facture introuvable")
+  const number = await nextInvoiceNumber(userId)
+  const draft = await prisma.invoice.create({
+    data: {
+      userId,
+      clientId: source.clientId,
+      projectId: source.projectId,
+      quoteId: source.quoteId,
+      number,
+      type: source.type,
+      totalHT: source.totalHT,
+      depositDeducted: source.depositDeducted,
+      dueDate: source.dueDate,
+      notes: source.notes,
+      lines: {
+        create: source.lines.map((l) => ({
+          description: l.description,
+          detail: l.detail,
+          quantity: l.quantity,
+          unitPrice: l.unitPrice,
+          taxRate: l.taxRate,
+          total: l.total,
+          productId: l.productId,
+        })),
+      },
+    },
+  })
+  revalidatePath("/facturation/factures")
+  revalidatePath("/facturation")
+  return draft
+}
+
 export async function updateInvoiceDueDate(invoiceId: string, _userId: string, dueDate: string | null) {
   const userId = await requireAuth()
+  await assertInvoiceEditable(invoiceId, userId)
   await prisma.invoice.update({
     where: { id: invoiceId, userId },
     data: { dueDate: dueDate ? new Date(dueDate) : null },
@@ -418,7 +692,27 @@ export async function updateInvoiceDueDate(invoiceId: string, _userId: string, d
 
 export async function updateInvoiceNotes(invoiceId: string, _userId: string, notes: string | null) {
   const userId = await requireAuth()
+  await assertInvoiceEditable(invoiceId, userId)
   await prisma.invoice.update({ where: { id: invoiceId, userId }, data: { notes } })
+  revalidatePath(`/facturation/factures/${invoiceId}`)
+}
+
+export async function updateInvoiceConditions(invoiceId: string, _userId: string, generalConditions: string | null) {
+  const userId = await requireAuth()
+  await assertInvoiceEditable(invoiceId, userId)
+  await prisma.invoice.update({ where: { id: invoiceId, userId }, data: { generalConditions } })
+  revalidatePath(`/facturation/factures/${invoiceId}`)
+}
+
+// Change la société émettrice d'une facture (uniquement tant qu'elle est en brouillon).
+export async function updateInvoiceEmitter(invoiceId: string, emitterProfileId: string | null) {
+  const userId = await requireAuth()
+  await assertInvoiceEditable(invoiceId, userId)
+  if (emitterProfileId) {
+    const owned = await prisma.emitterProfile.findFirst({ where: { id: emitterProfileId, userId }, select: { id: true } })
+    if (!owned) throw new Error("Profil émetteur introuvable")
+  }
+  await prisma.invoice.update({ where: { id: invoiceId, userId }, data: { emitterProfileId } })
   revalidatePath(`/facturation/factures/${invoiceId}`)
 }
 
@@ -443,7 +737,7 @@ export async function signQuoteWithFile(quoteId: string, _userId: string, fileUr
 
 async function recalcInvoiceTotal(invoiceId: string) {
   const lines = await prisma.invoiceLine.findMany({ where: { invoiceId } })
-  const totalHT = lines.reduce((s, l) => s + l.total, 0)
+  const totalHT = sumLineTotals(lines)
   await prisma.invoice.update({ where: { id: invoiceId }, data: { totalHT } })
 }
 
@@ -459,7 +753,8 @@ export async function addInvoiceLine(
     productId?: string
   }
 ) {
-  await requireAuth()
+  const userId = await requireAuth()
+  await assertInvoiceEditable(invoiceId, userId)
   const total = data.quantity * data.unitPrice
   await prisma.invoiceLine.create({
     data: {
@@ -490,9 +785,10 @@ export async function updateInvoiceLine(
   const userId = await requireAuth()
   const existing = await prisma.invoiceLine.findFirst({
     where: { id: lineId, invoice: { userId } },
-    select: { id: true },
+    select: { id: true, invoice: { select: { status: true } } },
   })
   if (!existing) throw new Error("Non autorisé")
+  if (!isInvoiceEditable(existing.invoice.status)) throw new Error("Facture verrouillée : annulez-la pour la corriger")
   const total = data.quantity * data.unitPrice
   const line = await prisma.invoiceLine.update({
     where: { id: lineId },
@@ -514,9 +810,10 @@ export async function deleteInvoiceLine(lineId: string) {
   const userId = await requireAuth()
   const existing = await prisma.invoiceLine.findFirst({
     where: { id: lineId, invoice: { userId } },
-    select: { id: true },
+    select: { id: true, invoice: { select: { status: true } } },
   })
   if (!existing) throw new Error("Non autorisé")
+  if (!isInvoiceEditable(existing.invoice.status)) throw new Error("Facture verrouillée : annulez-la pour la corriger")
   const line = await prisma.invoiceLine.delete({ where: { id: lineId }, select: { invoiceId: true } })
   await recalcInvoiceTotal(line.invoiceId)
   revalidatePath(`/facturation/factures/${line.invoiceId}`)
@@ -655,7 +952,7 @@ export async function generateInvoiceFromRecurring(
     recurringId
   )
 
-  const totalHT = lines.reduce((s, l) => s + Number(l.total), 0)
+  const totalHT = sumLineTotals(lines.map((l) => ({ total: Number(l.total) })))
   const number = await nextInvoiceNumber(userId)
 
   const invoice = await prisma.invoice.create({
@@ -663,6 +960,7 @@ export async function generateInvoiceFromRecurring(
       userId,
       clientId: recurring.clientId,
       projectId: recurring.projectId,
+      emitterProfileId: await defaultEmitterId(userId),
       number,
       type: "RECURRING",
       status: "DRAFT",
@@ -681,10 +979,7 @@ export async function generateInvoiceFromRecurring(
   })
 
   // Advance nextGenerationDate
-  const next = new Date(recurring.nextGenerationDate)
-  if (recurring.frequency === "MONTHLY") next.setMonth(next.getMonth() + 1)
-  else if (recurring.frequency === "QUARTERLY") next.setMonth(next.getMonth() + 3)
-  else if (recurring.frequency === "YEARLY") next.setFullYear(next.getFullYear() + 1)
+  const next = advanceByFrequency(recurring.nextGenerationDate, recurring.frequency)
 
   await (prisma as never as { recurringInvoice: { update: (args: unknown) => Promise<unknown> } }).recurringInvoice.update({
     where: { id: recurringId } as never,
@@ -906,6 +1201,77 @@ export async function sendInvoiceReminder(invoiceId: string, _userId: string) {
 
 // ── Chart ──────────────────────────────────────────────────────────────────
 
+// ── Import historique ─────────────────────────────────────────────────────────
+// Crée une facture à partir d'un document existant (hors ERP).
+// Aucun PDF n'est généré. Le numéro peut être fourni librement (ref externe).
+
+export async function importHistoricalInvoice(_userId: string, data: {
+  clientId:    string
+  projectId?:  string
+  customNumber?: string   // numéro de la facture originale (ex: FAC-2025-001)
+  date:        string     // ISO date de la facture
+  description: string     // libellé de la mission
+  amountHT:    number
+  taxRate:     number     // ex: 0 pour franchise AE, 20 pour TVA
+  isPaid:      boolean
+  paidAt?:     string     // ISO date du paiement
+  paidAmount?: number     // montant reçu (peut différer de amountHT+TVA)
+  notes?:      string
+}): Promise<{ error?: string; id?: string }> {
+  const userId = await requireAuth()
+  if (!data.clientId) return { error: "Client requis" }
+  if (!data.description.trim()) return { error: "Libellé requis" }
+  if (data.amountHT <= 0) return { error: "Montant invalide" }
+
+  const invoiceDate = new Date(data.date)
+  const totalHT = data.amountHT
+  const lineTotalTTC = totalHT * (1 + data.taxRate / 100)
+
+  // Numéro : externe s'il est fourni, sinon auto-généré
+  const number = data.customNumber?.trim() || await nextInvoiceNumber(userId)
+
+  const isPaid = data.isPaid
+  const paidAt = isPaid ? (data.paidAt ? new Date(data.paidAt) : invoiceDate) : null
+
+  const invoice = await prisma.invoice.create({
+    data: {
+      userId,
+      clientId:        data.clientId,
+      projectId:       data.projectId || null,
+      emitterProfileId: await defaultEmitterId(userId),
+      number,
+      type:            "STANDALONE",
+      status:          isPaid ? "PAID" : "SENT",
+      totalHT,
+      depositDeducted: 0,
+      issuedAt:        invoiceDate,
+      sentAt:          invoiceDate,
+      paidAt,
+      notes:           data.notes || null,
+      lines: {
+        create: [{
+          description: data.description,
+          quantity:    1,
+          unitPrice:   totalHT,
+          taxRate:     data.taxRate,
+          total:       totalHT,
+        }],
+      },
+    },
+  })
+
+  if (isPaid) {
+    const amount = data.paidAmount ?? lineTotalTTC
+    await prisma.payment.create({
+      data: { invoiceId: invoice.id, amount, paidAt: paidAt! },
+    })
+  }
+
+  revalidatePath("/facturation")
+  revalidatePath("/facturation/factures")
+  return { id: invoice.id }
+}
+
 export async function getMonthlyRevenue(year: number): Promise<number[]> {
   const { auth } = await import("@/lib/auth")
   const session = await auth()
@@ -923,6 +1289,6 @@ export async function getMonthlyRevenue(year: number): Promise<number[]> {
   return Array.from({ length: 12 }, (_, m) =>
     invoices
       .filter((i) => new Date(i.paidAt ?? i.createdAt).getMonth() === m)
-      .reduce((s, i) => s + i.totalHT - i.depositDeducted, 0)
+      .reduce((s, i) => s + netAmount(i.totalHT, i.depositDeducted), 0)
   )
 }

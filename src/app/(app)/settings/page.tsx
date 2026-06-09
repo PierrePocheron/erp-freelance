@@ -1,17 +1,24 @@
 import { auth, signOut } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { SettingsForm } from "@/components/modules/settings/SettingsForm"
+import { EmittersManager, type Emitter } from "@/components/modules/settings/EmittersManager"
 import { DangerZone } from "@/components/modules/settings/DangerZone"
 import { ExportSection } from "@/components/modules/settings/ExportSection"
+import { GoogleCalendarSection } from "@/components/modules/settings/GoogleCalendarSection"
+import { hasCalendarScope } from "@/lib/google-calendar"
 import { LogOut } from "lucide-react"
 
 export default async function SettingsPage() {
   const session = await auth()
   const userId = session!.user.id
 
-  const [profile, user, conditionsTemplates, exportStats] = await Promise.all([
+  const [profile, user, emitters, conditionsTemplates, exportStats, googleCalendarScope] = await Promise.all([
     prisma.userProfile?.findUnique({ where: { userId } }).catch(() => null) ?? null,
     prisma.user.findUnique({ where: { id: userId }, select: { name: true, email: true } }),
+    prisma.emitterProfile.findMany({
+      where: { userId },
+      orderBy: [{ isDefault: "desc" }, { name: "asc" }],
+    }),
     prisma.conditionsTemplate.findMany({
       where: { userId },
       orderBy: { createdAt: "asc" },
@@ -27,6 +34,7 @@ export default async function SettingsPage() {
     ]).then(([clients, projects, tasks, quotes, invoices, interactions, timeEntries]) => ({
       clients, projects, tasks, quotes, invoices, interactions, timeEntries,
     })),
+    hasCalendarScope(userId),
   ])
 
   return (
@@ -62,6 +70,10 @@ export default async function SettingsPage() {
         userEmail={user?.email ?? null}
         conditionsTemplates={conditionsTemplates}
       />
+
+      <EmittersManager emitters={emitters as Emitter[]} />
+
+      <GoogleCalendarSection hasScope={googleCalendarScope} />
 
       <ExportSection stats={exportStats} />
 

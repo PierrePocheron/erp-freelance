@@ -10,13 +10,14 @@ datasource db {
 // ─── Auth (NextAuth.js) ───────────────────────────────────────────────────────
 
 model User {
-  id            String    @id @default(cuid())
-  name          String?
-  email         String    @unique
-  emailVerified DateTime?
-  image         String?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  id                  String    @id @default(cuid())
+  name                String?
+  email               String    @unique
+  emailVerified       DateTime?
+  image               String?
+  googleErpCalendarId String?   // id de l'agenda "ERP Freelance" dans Google Calendar
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
 
   accounts          Account[]
   sessions          Session[]
@@ -27,8 +28,9 @@ model User {
   invoices          Invoice[]
   recurringInvoices RecurringInvoice[]
   emailLogs         EmailLog[]
-  calendarEvents    CalendarEvent[]
-  timeEntries       TimeEntry[]
+  calendarEvents      CalendarEvent[]
+  calendarCategories  CalendarCategory[]
+  timeEntries         TimeEntry[]
   tags              Tag[]
   profile           UserProfile?
   projectMemberships ProjectMember[]
@@ -36,6 +38,10 @@ model User {
   conditionsTemplates ConditionsTemplate[]
   projectIdeas      ProjectIdea[]
   tasks             Task[]               @relation("UserTasks")
+  companies          Company[]
+  emitterProfiles    EmitterProfile[]
+  revenues           Revenue[]
+  recurringRevenues  RecurringRevenue[]
 }
 
 model ProjectIdea {
@@ -74,6 +80,43 @@ model UserProfile {
   updatedAt         DateTime @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// Émetteur de devis/factures. Un user peut en avoir plusieurs (« mes sociétés »),
+// dont un par défaut. Porte l'identité, la banque, les CGV et le branding PDF.
+// La numérotation reste globale (UserProfile.quote/invoicePrefix + formats),
+// partagée entre tous les émetteurs.
+model EmitterProfile {
+  id                 String   @id @default(cuid())
+  userId             String
+  name               String   // Libellé interne pour distinguer les profils
+  companyName        String? // Raison sociale
+  legalForm          String? // Forme juridique (SASU, EI, micro…)
+  siret              String?
+  vatNumber          String?
+  address            String?
+  postalCode         String?
+  city               String?
+  country            String   @default("France")
+  phone              String?
+  email              String?
+  website            String?
+  iban               String?
+  bic                String?
+  defaultConditions  String?
+  legalMentions      String?
+  pdfAccentColor     String   @default("#6366f1")
+  customAccentColors String?
+  logoUrl            String?
+  isDefault          Boolean  @default(false)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  quotes   Quote[]
+  invoices Invoice[]
+
+  @@index([userId])
 }
 
 model Tag {
@@ -166,11 +209,53 @@ enum ClientFileType {
   OTHER
 }
 
+// Une société cliente. Peut regrouper plusieurs contacts (Client). Porte les
+// informations légales/de facturation (SIRET, TVA, adresse société).
+model Company {
+  id         String   @id @default(cuid())
+  userId     String
+  name       String
+  siret      String?
+  vatNumber  String?
+  email      String?
+  phone      String?
+  website    String?
+  address    String?
+  postalCode String?
+  city       String?
+  country    String?  @default("France")
+  notes      String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  user              User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  contacts          Client[]
+  projects          Project[]
+  revenues          Revenue[]          @relation("RevenueCompany")
+  recurringRevenues RecurringRevenue[] @relation("RecurringRevenueCompany")
+
+  @@unique([userId, name])
+  @@index([userId])
+}
+
+// Un contact. Source de vérité = firstName/lastName/label + companyId.
+// `name` et `company` (string) sont des CACHES D'AFFICHAGE dénormalisés, maintenus
+// à chaque écriture (cf. lib/contact.ts → computeContactName), pour éviter de
+// toucher les ~40 lectures existantes (listes, dashboards…). Ne jamais écrire
+// `name`/`company` directement ailleurs que via les actions CRM.
 model Client {
   id            String       @id @default(cuid())
   userId        String
   type          ClientType   @default(PROSPECT)
+  // Identité (source de vérité)
+  firstName     String?
+  lastName      String?
+  label         String?
+  // Cache d'affichage = label || "Prénom Nom" || société || "Sans nom"
   name          String
+  // Société (relation) + cache nom dénormalisé pour l'affichage
+  companyId     String?
+  companyRef    Company?     @relation(fields: [companyId], references: [id], onDelete: SetNull)
   company       String?
   email         String?
   phone         String?
@@ -178,6 +263,7 @@ model Client {
   temperature   Temperature  @default(COLD)
   priorityScore Int          @default(1)
   notes         String?
+  // Adresse du CONTACT (optionnelle — distincte de l'adresse société)
   address       String?
   postalCode    String?
   city          String?
@@ -186,15 +272,20 @@ model Client {
   createdAt     DateTime     @default(now())
   updatedAt     DateTime     @updatedAt
 
-  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  interactions Interaction[]
-  reminders    Reminder[]
-  files        ClientFile[]
-  projects     Project[]
-  quotes       Quote[]
-  invoices     Invoice[]
+  user              User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  interactions      Interaction[]
+  reminders         Reminder[]
+  files             ClientFile[]
+  projects          Project[]          @relation("ProjectClient")
+  projectContacts   Project[]          @relation("ProjectContact")
+  quotes            Quote[]
+  invoices          Invoice[]
   recurringInvoices RecurringInvoice[]
-  tasks        Task[]
+  tasks             Task[]
+  revenues          Revenue[]          @relation("RevenueClient")
+  recurringRevenues RecurringRevenue[] @relation("RecurringRevenueClient")
+
+  @@index([companyId])
 }
 
 model Interaction {
@@ -279,7 +370,10 @@ enum LinkCategory {
 model Project {
   id             String        @id @default(cuid())
   userId         String
-  clientId       String
+  // clientId reste nullable pour compatibilité facturation (Phase 2 le supprimera)
+  clientId       String?
+  companyId      String?
+  contactId      String?
   name           String
   description    String?
   status         ProjectStatus @default(ACTIVE)
@@ -290,19 +384,26 @@ model Project {
   updatedAt      DateTime      @updatedAt
 
   user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
-  client        Client         @relation(fields: [clientId], references: [id])
-  milestones    Milestone[]
-  tasks         Task[]
-  journalEntries JournalEntry[]
-  deliverables  Deliverable[]
-  usefulLinks   UsefulLink[]
-  postDev       PostDev?
-  quotes        Quote[]
-  invoices      Invoice[]
+  client        Client?        @relation("ProjectClient", fields: [clientId], references: [id], onDelete: SetNull)
+  company           Company?           @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  contact           Client?            @relation("ProjectContact", fields: [contactId], references: [id], onDelete: SetNull)
+  milestones        Milestone[]
+  tasks             Task[]
+  journalEntries    JournalEntry[]
+  deliverables      Deliverable[]
+  usefulLinks       UsefulLink[]
+  postDev           PostDev?
+  quotes            Quote[]
+  invoices          Invoice[]
   recurringInvoices RecurringInvoice[]
-  tags          Tag[]
-  taskTags      TaskTag[]
-  members       ProjectMember[]
+  tags              Tag[]
+  taskTags          TaskTag[]
+  members           ProjectMember[]
+  revenues          Revenue[]          @relation("RevenueProject")
+  recurringRevenues RecurringRevenue[] @relation("RecurringRevenueProject")
+
+  @@index([companyId])
+  @@index([contactId])
 }
 
 enum ProjectMemberRole {
@@ -455,6 +556,9 @@ model Renewal {
   postDevId       String
   type            RenewalType @default(OTHER)
   name            String
+  amount          Float?
+  purchasedAt     DateTime?
+  periodMonths    Int?
   expiresAt       DateTime
   reminderSent30  Boolean     @default(false)
   reminderSent7   Boolean     @default(false)
@@ -513,9 +617,11 @@ enum InvoiceType {
 
 enum InvoiceStatus {
   DRAFT
+  ISSUED
   SENT
   PAID
   LATE
+  CANCELLED
 }
 
 enum RecurringFrequency {
@@ -555,6 +661,7 @@ model Quote {
   userId            String
   clientId          String
   projectId         String?
+  emitterProfileId  String?
   number            String
   status            QuoteStatus @default(DRAFT)
   depositPercent    Float       @default(0)
@@ -569,9 +676,10 @@ model Quote {
   createdAt         DateTime    @default(now())
   updatedAt         DateTime    @updatedAt
 
-  user     User        @relation(fields: [userId], references: [id], onDelete: Cascade)
-  client   Client      @relation(fields: [clientId], references: [id])
-  project  Project?    @relation(fields: [projectId], references: [id])
+  user     User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  client   Client          @relation(fields: [clientId], references: [id])
+  project  Project?        @relation(fields: [projectId], references: [id])
+  emitter  EmitterProfile? @relation(fields: [emitterProfileId], references: [id], onDelete: SetNull)
   lines    QuoteLine[]
   invoices Invoice[]
 }
@@ -598,6 +706,7 @@ model Invoice {
   clientId         String
   projectId        String?
   quoteId          String?
+  emitterProfileId String?
   number           String
   type             InvoiceType   @default(STANDALONE)
   status           InvoiceStatus @default(DRAFT)
@@ -606,14 +715,19 @@ model Invoice {
   dueDate          DateTime?
   paidAt           DateTime?
   sentAt           DateTime?
-  notes            String?
-  createdAt        DateTime      @default(now())
+  issuedAt         DateTime?
+  cancelledAt       DateTime?
+  pdfUrl            String?
+  notes             String?
+  generalConditions String?
+  createdAt         DateTime      @default(now())
   updatedAt        DateTime      @updatedAt
 
-  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  client    Client        @relation(fields: [clientId], references: [id])
-  project   Project?      @relation(fields: [projectId], references: [id])
-  quote     Quote?        @relation(fields: [quoteId], references: [id])
+  user      User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  client    Client          @relation(fields: [clientId], references: [id])
+  project   Project?        @relation(fields: [projectId], references: [id])
+  quote     Quote?          @relation(fields: [quoteId], references: [id])
+  emitter   EmitterProfile? @relation(fields: [emitterProfileId], references: [id], onDelete: SetNull)
   lines     InvoiceLine[]
   emailLogs EmailLog[]
   payments  Payment[]
@@ -686,22 +800,43 @@ enum CalendarSourceType {
   INTERACTION
   RENEWAL
   REMINDER
+  GOOGLE
 }
 
 model CalendarEvent {
-  id          String             @id @default(cuid())
-  userId      String
-  title       String
-  description String?
-  startDate   DateTime
-  endDate     DateTime?
-  allDay      Boolean            @default(false)
-  sourceType  CalendarSourceType @default(MANUAL)
-  sourceId    String?
-  createdAt   DateTime           @default(now())
-  updatedAt   DateTime           @updatedAt
+  id             String             @id @default(cuid())
+  userId         String
+  title          String
+  description    String?
+  startDate      DateTime
+  endDate        DateTime?
+  allDay         Boolean            @default(false)
+  sourceType     CalendarSourceType @default(MANUAL)
+  sourceId       String?            // id Google pour sourceType=GOOGLE ; id JournalEntry pour sourceType=MANUAL+note
+  categoryId     String?
+  projectId      String?            // lien optionnel vers un projet
+  clientId       String?            // lien optionnel vers un contact
+  googleEventId  String?            // id de l'événement côté Google (pour les MANUAL poussés)
+  googleSyncedAt DateTime?          // dernière synchro confirmée vers Google
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user     User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  category CalendarCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+}
+
+model CalendarCategory {
+  id        String   @id @default(cuid())
+  userId    String
+  name      String
+  color     String   // hex couleur, ex: "#6366f1"
+  isDefault Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  user   User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  events CalendarEvent[]
+
+  @@unique([userId, name])
 }
 
 model Notification {
@@ -727,4 +862,85 @@ model ConditionsTemplate {
   updatedAt DateTime @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// ─── Revenus hors auto-entreprise ────────────────────────────────────────────
+
+enum RevenueType {
+  SALARY      // Salaire (CDI, CDD, intérim)
+  FREELANCE   // Mission AE (Auto-Entrepreneur)
+  STUDY       // Étude / mission rémunérée hors AE
+  INVESTMENT  // Investissements (dividendes, intérêts, PEA)
+  RENTAL      // Revenus locatifs
+  PLATFORM    // Plateformes (YouTube, Twitch, Patreon…)
+  OTHER       // Autre
+}
+
+enum RevenueStatus {
+  PENDING   // En attente de réception
+  RECEIVED  // Reçu
+}
+
+model Revenue {
+  id                 String        @id @default(cuid())
+  userId             String
+  type               RevenueType
+  label              String        // ex: "Salaire mai 2026", "Loyer T2 Paris"
+  amount             Float
+  currency           String        @default("EUR")
+  status             RevenueStatus @default(PENDING)
+  receivedAt         DateTime?     // date de réception effective
+  expectedAt         DateTime?     // date prévisionnelle de réception (revenus en attente)
+  paymentMethod      String?       // VIREMENT, ESPECES, CHEQUE, CARTE, PAYPAL, OTHER
+  notes              String?
+  period             String?       // "2026-06" — pour regroupement mensuel
+  recurringRevenueId String?       // lien vers le modèle récurrent parent
+  companyId          String?
+  clientId           String?
+  projectId          String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user             User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  recurringRevenue RecurringRevenue? @relation(fields: [recurringRevenueId], references: [id], onDelete: SetNull)
+  company          Company?          @relation("RevenueCompany", fields: [companyId], references: [id], onDelete: SetNull)
+  client           Client?           @relation("RevenueClient", fields: [clientId], references: [id], onDelete: SetNull)
+  project          Project?          @relation("RevenueProject", fields: [projectId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([recurringRevenueId])
+  @@index([companyId])
+  @@index([clientId])
+  @@index([projectId])
+}
+
+model RecurringRevenue {
+  id            String      @id @default(cuid())
+  userId        String
+  type          RevenueType
+  label         String
+  amount        Float
+  currency      String      @default("EUR")
+  dayOfMonth    Int         @default(1)   // jour du mois attendu (1–28)
+  paymentMethod String?
+  notes         String?
+  isActive      Boolean     @default(true)
+  companyId     String?
+  clientId      String?
+  projectId     String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  revenues Revenue[]
+  company  Company?  @relation("RecurringRevenueCompany", fields: [companyId], references: [id], onDelete: SetNull)
+  client   Client?   @relation("RecurringRevenueClient", fields: [clientId], references: [id], onDelete: SetNull)
+  project  Project?  @relation("RecurringRevenueProject", fields: [projectId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([companyId])
+  @@index([clientId])
+  @@index([projectId])
 }

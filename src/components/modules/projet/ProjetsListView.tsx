@@ -25,23 +25,27 @@ type Project = {
   status: keyof typeof statusConfig
   endDate: Date | null
   estimatedHours: number | null
-  client: { name: string; company: string | null; type: string }
+  company: { id: string; name: string } | null
+  contact: { id: string; name: string; company: string | null } | null
   _count: { tasks: number }
   tasksDone: number
   tags: { id: string; name: string; color: string }[]
   billing: { totalFacture: number; totalEncaisse: number }
 }
 
-type Client = { id: string; name: string; company: string | null; type: string }
+type Company = { id: string; name: string; city: string | null }
+type Contact = { id: string; name: string; company: string | null; companyId: string | null }
 
 export function ProjetsListView({
   userId,
   projects,
-  clients,
+  companies,
+  contacts,
 }: {
   userId: string
   projects: Project[]
-  clients: Client[]
+  companies: Company[]
+  contacts: Contact[]
 }) {
   const [view, setView] = useState<"cards" | "list">("cards")
   const [search, setSearch] = useState("")
@@ -57,7 +61,7 @@ export function ProjetsListView({
 
   const filtered = projects.filter((p) => {
     const matchStatus = statusFilter === "ALL" || p.status === statusFilter
-    const matchSearch = !search.trim() || p.name.toLowerCase().includes(search.toLowerCase()) || (p.client.company ?? p.client.name).toLowerCase().includes(search.toLowerCase())
+    const matchSearch = !search.trim() || p.name.toLowerCase().includes(search.toLowerCase()) || (p.company?.name ?? p.contact?.name ?? "").toLowerCase().includes(search.toLowerCase())
     return matchStatus && matchSearch
   })
 
@@ -120,7 +124,7 @@ export function ProjetsListView({
               <List className="h-4 w-4" />
             </button>
           </div>
-          <CreateProjectDialog userId={userId} clients={clients} />
+          <CreateProjectDialog userId={userId} companies={companies} contacts={contacts} />
         </div>
       </div>
 
@@ -155,7 +159,7 @@ export function ProjetsListView({
             <thead>
               <tr className="border-b border-border text-xs text-muted-foreground">
                 <th className="px-4 py-3 text-left font-medium">Projet</th>
-                <th className="px-4 py-3 text-left font-medium">Client</th>
+                <th className="px-4 py-3 text-left font-medium">Société</th>
                 <th className="px-4 py-3 text-left font-medium">Statut</th>
                 <th className="px-4 py-3 text-left font-medium">Tâches</th>
                 <th className="px-4 py-3 text-left font-medium">Facturation</th>
@@ -166,7 +170,7 @@ export function ProjetsListView({
               {[...active, ...others].map((p) => {
                 const st = statusConfig[p.status]
                 const progress = p._count.tasks > 0 ? Math.round((p.tasksDone / p._count.tasks) * 100) : 0
-                const clientLabel = p.client.type === "SELF" ? "Perso" : p.client.company || p.client.name
+                const clientLabel = p.company?.name ?? p.contact?.name ?? "—"
                 return (
                   <tr key={p.id} className="border-b border-border/50 last:border-0 hover:bg-muted/30 transition-colors">
                     <td className="px-4 py-3">

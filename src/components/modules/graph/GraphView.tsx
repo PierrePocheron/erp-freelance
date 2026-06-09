@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo, useCallback, useRef, useEffect, useTransition } from "react"
+import { useState, useMemo, useCallback, useRef, useEffect } from "react"
 import dynamic from "next/dynamic"
 import Link from "next/link"
 import { X, Maximize2, RotateCcw, ExternalLink, ChevronDown, ChevronRight } from "lucide-react"
@@ -53,6 +53,17 @@ export function GraphView({ rawNodes, rawLinks }: { rawNodes: RawNode[]; rawLink
   const [collapsedIds, setCollapsed] = useState<Set<string>>(new Set())
   const [hiddenTypes, setHidden]    = useState<Set<NodeType>>(new Set())
   const [selected, setSelected]     = useState<RawNode | null>(null)
+  const [isDark, setIsDark]         = useState(true)
+
+  // Suit le thème en temps réel (classe "dark" sur <html>)
+  useEffect(() => {
+    const html  = document.documentElement
+    const check = () => setIsDark(html.classList.contains("dark"))
+    check()
+    const obs = new MutationObserver(check)
+    obs.observe(html, { attributes: true, attributeFilter: ["class"] })
+    return () => obs.disconnect()
+  }, [])
 
   // Resize observer
   useEffect(() => {
@@ -128,9 +139,13 @@ export function GraphView({ rawNodes, rawLinks }: { rawNodes: RawNode[]; rawLink
   return (
     <div
       className="relative flex h-full w-full overflow-hidden"
-      style={{
+      style={isDark ? {
         backgroundColor: "#0d0f1a",
         backgroundImage: "radial-gradient(rgba(255,255,255,0.07) 1px, transparent 1px)",
+        backgroundSize: "26px 26px",
+      } : {
+        backgroundColor: "#f4f6fb",
+        backgroundImage: "radial-gradient(rgba(0,0,0,0.09) 1px, transparent 1px)",
         backgroundSize: "26px 26px",
       }}
     >
@@ -146,6 +161,7 @@ export function GraphView({ rawNodes, rawLinks }: { rawNodes: RawNode[]; rawLink
           onNodeDblClick={handleDblClick}
           width={size.w}
           height={size.h}
+          isDark={isDark}
         />
       </div>
 

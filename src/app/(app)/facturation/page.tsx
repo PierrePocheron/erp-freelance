@@ -17,7 +17,7 @@ export default async function FacturationOverviewPage() {
   const yearStart = new Date(now.getFullYear(), 0, 1)
   const yearEnd = new Date(now.getFullYear(), 11, 31, 23, 59, 59)
 
-  const [invoicesThisYear, allPending, quotes, profile, quickClients, quickProjects] = await Promise.all([
+  const [invoicesThisYear, allPending, quotes, profile, quickClients, quickCompanies, quickProjects] = await Promise.all([
     prisma.invoice.findMany({
       where: { userId, createdAt: { gte: yearStart, lte: yearEnd } },
       include: { client: { select: { name: true, company: true } } },
@@ -38,12 +38,17 @@ export default async function FacturationOverviewPage() {
     prisma.client.findMany({
       where: { userId, type: { not: "SELF" } },
       orderBy: { name: "asc" },
-      select: { id: true, name: true, company: true, type: true },
+      select: { id: true, name: true, company: true, type: true, companyId: true },
+    }),
+    prisma.company.findMany({
+      where: { userId },
+      orderBy: { name: "asc" },
+      select: { id: true, name: true, city: true },
     }),
     prisma.project.findMany({
       where: { userId },
       orderBy: { name: "asc" },
-      select: { id: true, name: true, clientId: true },
+      select: { id: true, name: true, clientId: true, companyId: true },
     }),
   ])
 
@@ -87,6 +92,7 @@ export default async function FacturationOverviewPage() {
         <FacturationQuickActions
           userId={userId}
           clients={quickClients}
+          companies={quickCompanies}
           projects={quickProjects}
         />
       </div>

@@ -17,8 +17,9 @@ type Quote = {
   _count: { lines: number }
 }
 
-type Client = { id: string; name: string; company: string | null; type: string }
-type Project = { id: string; name: string; clientId: string | null }
+type Company = { id: string; name: string; city: string | null }
+type Client = { id: string; name: string; company: string | null; type: string; companyId: string | null }
+type Project = { id: string; name: string; clientId: string | null; companyId: string | null }
 type Product = { id: string; name: string; description: string | null; unitPrice: number; unit: string; isActive: boolean; billingType: string; defaultTaxRate: number }
 
 const statusConfig: Record<string, { label: string; cls: string }> = {
@@ -37,6 +38,7 @@ export function DevisListView({
   userId,
   quotes,
   clients,
+  companies = [],
   projects,
   products,
   defaultConditions,
@@ -44,6 +46,7 @@ export function DevisListView({
   userId: string
   quotes: Quote[]
   clients: Client[]
+  companies?: Company[]
   projects: Project[]
   products: Product[]
   defaultConditions: string
@@ -118,6 +121,7 @@ export function DevisListView({
           <CreateQuoteDialog
             userId={userId}
             clients={clients}
+            companies={companies}
             projects={projects}
             products={products}
             defaultConditions={defaultConditions}

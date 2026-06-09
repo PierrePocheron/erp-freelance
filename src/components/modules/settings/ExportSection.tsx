@@ -131,8 +131,7 @@ export function ExportSection({ stats }: Props) {
       <div>
         <h2 className="text-lg font-semibold">Export & Import des données</h2>
         <p className="text-sm text-muted-foreground mt-1">
-          Sauvegarde ou restaure l'intégralité de tes données — utile pour changer
-          d'hébergeur, migrer vers un nouveau compte, ou garder une copie de sécurité.
+          {"Sauvegarde ou restaure l'intégralité de tes données — utile pour changer d'hébergeur, migrer vers un nouveau compte, ou garder une copie de sécurité."}
         </p>
       </div>
 

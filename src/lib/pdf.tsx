@@ -275,12 +275,12 @@ export function InvoicePDF({
             {client.address && <Text style={{ fontSize: 9, color: "#64748b" }}>{client.address}</Text>}
           </View>
           <View style={styles.metaBlock}>
-            <Text style={styles.metaLabel}>Date d'émission</Text>
+            <Text style={styles.metaLabel}>{"Date d'émission"}</Text>
             <Text style={styles.metaValue}>{fmtDate(createdAt)}</Text>
           </View>
           {expiresAt && !isFacture && (
             <View style={styles.metaBlock}>
-              <Text style={styles.metaLabel}>Valable jusqu'au</Text>
+              <Text style={styles.metaLabel}>{"Valable jusqu'au"}</Text>
               <Text style={styles.metaValue}>{fmtDate(expiresAt)}</Text>
             </View>
           )}

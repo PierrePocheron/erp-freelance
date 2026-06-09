@@ -193,7 +193,7 @@ function IdeaCard({
                 className="text-[10px] text-muted-foreground hover:text-primary transition-colors flex items-center gap-1"
               >
                 <Copy className="h-3 w-3" />
-                Copier pour l'IA
+                {"Copier pour l'IA"}
               </button>
             </div>
           </div>
@@ -230,7 +230,7 @@ function IdeaCard({
                     onChange={(e) => setKeepIdea(e.target.checked)}
                     className="rounded"
                   />
-                  Conserver l'idée après conversion
+                  {"Conserver l'idée après conversion"}
                 </label>
               </div>
               <div className="flex gap-2">
@@ -341,8 +341,8 @@ export function ProjectIdeasPanel({
           {ideas.length === 0 ? (
             <div className="rounded-xl border border-dashed border-border py-10 text-center">
               <Lightbulb className="h-8 w-8 text-muted-foreground mx-auto mb-2 opacity-40" />
-              <p className="text-sm text-muted-foreground">Aucune idée pour l'instant</p>
-              <p className="text-xs text-muted-foreground mt-0.5">Notez vos idées de projets avant de les lancer</p>
+              <p className="text-sm text-muted-foreground">{"Aucune idée pour l'instant"}</p>
+              <p className="text-xs text-muted-foreground mt-0.5">{"Notez vos idées de projets avant de les lancer"}</p>
             </div>
           ) : (
             <div className="space-y-2">

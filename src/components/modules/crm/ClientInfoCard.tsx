@@ -84,6 +84,7 @@ export function ClientInfoCard({ client, isOwner = true }: { client: ClientData;
 
   useEffect(() => {
     if (!editing) return
+    /* eslint-disable react-hooks/set-state-in-effect */
     setFirstName(client.firstName ?? "")
     setLastName(client.lastName ?? "")
     setLabel(client.label ?? "")
@@ -99,6 +100,7 @@ export function ClientInfoCard({ client, isOwner = true }: { client: ClientData;
     setCity(client.city ?? "")
     setCountry(client.country ?? "")
     setSiret(client.siret ?? "")
+    /* eslint-enable react-hooks/set-state-in-effect */
   }, [editing]) // eslint-disable-line react-hooks/exhaustive-deps
 
   function handleSave() {

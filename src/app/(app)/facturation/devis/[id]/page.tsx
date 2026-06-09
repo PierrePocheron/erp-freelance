@@ -414,7 +414,7 @@ export default async function DevisDetailPage({
               Devis signé par le client
             </h2>
             <p className="text-xs text-muted-foreground mt-0.5">
-              Uploadez le bon pour accord signé — le devis passera au statut "Signé"
+              {"Uploadez le bon pour accord signé — le devis passera au statut \"Signé\""}
             </p>
           </div>
           <SignedUploadButton

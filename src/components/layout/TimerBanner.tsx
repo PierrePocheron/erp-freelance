@@ -31,6 +31,7 @@ export function TimerBanner({
   const [isPending, startTransition] = useTransition()
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (!initialTimer) { setElapsed(0); return }
     const update = () => {
       setElapsed(Math.floor((Date.now() - new Date(initialTimer.startedAt).getTime()) / 1000))

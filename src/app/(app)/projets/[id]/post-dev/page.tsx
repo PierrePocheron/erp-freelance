@@ -95,7 +95,7 @@ export default async function ProjectPostDevPage({
         </div>
 
         {!postDev?.prodUrl ? (
-          <p className="text-sm text-muted-foreground">Renseignez l'URL de production pour activer le monitoring.</p>
+          <p className="text-sm text-muted-foreground">{"Renseignez l'URL de production pour activer le monitoring."}</p>
         ) : (
           <div className="space-y-4">
             {/* Statut actuel */}
@@ -150,7 +150,7 @@ export default async function ProjectPostDevPage({
         </div>
 
         {!postDev ? (
-          <p className="text-sm text-muted-foreground">Enregistrez d'abord les URLs pour ajouter des renouvellements.</p>
+          <p className="text-sm text-muted-foreground">{"Enregistrez d'abord les URLs pour ajouter des renouvellements."}</p>
         ) : (
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
             {/* Formulaire */}

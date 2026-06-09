@@ -58,7 +58,7 @@ export function Sidebar() {
   return (
     <aside
       className={cn(
-        "flex h-screen shrink-0 flex-col border-r border-border/50 bg-background/80 backdrop-blur-sm transition-all duration-200",
+        "relative z-20 flex h-screen shrink-0 flex-col border-r border-border/50 bg-background/80 backdrop-blur-sm transition-all duration-200",
         expanded ? "w-52" : "w-16"
       )}
     >
@@ -103,7 +103,7 @@ export function Sidebar() {
               )}
               {/* Tooltip uniquement en mode réduit */}
               {!expanded && (
-                <span className="pointer-events-none absolute left-16 z-50 hidden whitespace-nowrap rounded-md bg-popover px-2 py-1 text-xs text-popover-foreground shadow-md group-hover:block">
+                <span className="pointer-events-none absolute left-16 z-[999] hidden whitespace-nowrap rounded-md bg-popover px-2 py-1 text-xs text-popover-foreground shadow-md group-hover:block">
                   {label}
                 </span>
               )}

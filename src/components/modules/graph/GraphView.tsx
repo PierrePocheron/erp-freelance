@@ -152,6 +152,7 @@ export function GraphView({ rawNodes, rawLinks }: { rawNodes: RawNode[]; rawLink
           collapsedIds={collapsedIds}
           onNodeClick={handleClick}
           onNodeDblClick={handleDblClick}
+          onBackgroundClick={() => setSelected(null)}
           width={size.w}
           height={size.h}
           isDark={isDark}

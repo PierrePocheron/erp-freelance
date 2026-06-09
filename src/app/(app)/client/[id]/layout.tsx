@@ -42,6 +42,10 @@ export default async function ClientLayout({
         { projects: { some: { members: { some: { userId } } } } },
       ],
     },
+    select: {
+      id: true, userId: true, name: true, company: true, companyId: true,
+      type: true, temperature: true,
+    },
   })
 
   if (!client) notFound()
@@ -58,9 +62,20 @@ export default async function ClientLayout({
 
         <div className="flex items-start justify-between gap-4">
           <div className="space-y-1">
-            <p className="text-sm text-muted-foreground">
-              {client.company ? `Société — ${client.company}` : "Contact"}
-            </p>
+            {client.company ? (
+              client.companyId ? (
+                <Link
+                  href={`/societes/${client.companyId}`}
+                  className="text-sm text-muted-foreground hover:text-primary transition-colors"
+                >
+                  {client.company}
+                </Link>
+              ) : (
+                <p className="text-sm text-muted-foreground">{client.company}</p>
+              )
+            ) : (
+              <p className="text-sm text-muted-foreground">Contact</p>
+            )}
             <h1 className="text-2xl font-bold tracking-tight">{client.name}</h1>
             <div className="flex items-center gap-3 pt-1">
               <ClientTypeSelect clientId={id} userId={userId} value={client.type} />

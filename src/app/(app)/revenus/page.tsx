@@ -1,7 +1,7 @@
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { TrendingUp, Clock, CheckCircle2, Repeat } from "lucide-react"
-import { REVENUE_TYPE_LABELS, PAYMENT_METHOD_LABELS } from "@/actions/revenue"
+import { REVENUE_TYPE_LABELS, PAYMENT_METHOD_LABELS } from "@/lib/revenue-constants"
 import { RevenueManager } from "@/components/modules/revenus/RevenueManager"
 
 const fmt = (n: number) => n.toLocaleString("fr-FR", { minimumFractionDigits: 0, maximumFractionDigits: 0 })

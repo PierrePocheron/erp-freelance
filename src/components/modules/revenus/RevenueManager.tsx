@@ -13,7 +13,6 @@ import {
   createRecurringRevenue, updateRecurringRevenue, deleteRecurringRevenue,
   generatePendingRecurringRevenues,
 } from "@/actions/revenue"
-
 // ── Types ──────────────────────────────────────────────────────────────────────
 
 type Revenue = {
@@ -48,13 +47,7 @@ type RecurringRevenue = {
   _count: { revenues: number }
 }
 
-const REVENUE_TYPES = [
-  "SALARY", "STUDY", "INVESTMENT", "RENTAL", "PLATFORM", "OTHER",
-]
-
-const PAYMENT_METHODS = [
-  "VIREMENT", "ESPECES", "CHEQUE", "CARTE", "PAYPAL", "CARTE_CADEAU", "OTHER",
-]
+import { PAYMENT_METHODS, REVENUE_TYPES } from "@/lib/revenue-constants"
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 

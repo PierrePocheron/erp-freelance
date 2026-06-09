@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { createClient } from "@/actions/crm"
+import { createClient, createCompany } from "@/actions/crm"
 import { CompanyCombobox } from "./CompanyCombobox"
 
 export function CreateClientDialog({
@@ -21,15 +21,32 @@ export function CreateClientDialog({
 }) {
   const [internalOpen, setInternalOpen] = useState(false)
   const [isPending, startTransition] = useTransition()
+  const [isCreatingCompany, startCreatingCompany] = useTransition()
   const [company, setCompany] = useState<{ id: string | null; name: string }>({ id: null, name: "" })
+  const [showNewCompany, setShowNewCompany] = useState(false)
   const router = useRouter()
   const isControlled = controlledOpen !== undefined
   const open = isControlled ? controlledOpen! : internalOpen
 
   function handleOpenChange(v: boolean) {
     if (!isControlled) setInternalOpen(v)
-    if (!v) setCompany({ id: null, name: "" })
+    if (!v) { setCompany({ id: null, name: "" }); setShowNewCompany(false) }
     controlledOnOpenChange?.(v)
+  }
+
+  function handleCreateCompany(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault()
+    const fd = new FormData(e.currentTarget)
+    startCreatingCompany(async () => {
+      const created = await createCompany({
+        name: (fd.get("companyName") as string).trim(),
+        email: (fd.get("companyEmail") as string) || undefined,
+        phone: (fd.get("companyPhone") as string) || undefined,
+        city: (fd.get("companyCity") as string) || undefined,
+      })
+      setCompany({ id: created.id, name: created.name })
+      setShowNewCompany(false)
+    })
   }
 
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
@@ -95,8 +112,59 @@ export function CreateClientDialog({
                   </div>
                 </div>
                 <div className="space-y-1.5">
-                  <Label>Société</Label>
-                  <CompanyCombobox value={company} onChange={setCompany} />
+                  <div className="flex items-center justify-between">
+                    <Label>Société</Label>
+                    {!showNewCompany && (
+                      <button
+                        type="button"
+                        onClick={() => setShowNewCompany(true)}
+                        className="flex items-center gap-1 text-xs text-primary hover:underline"
+                      >
+                        <Plus className="h-3 w-3" />
+                        Nouvelle société
+                      </button>
+                    )}
+                  </div>
+
+                  {showNewCompany ? (
+                    <form onSubmit={handleCreateCompany} className="rounded-lg border border-border bg-muted/40 p-3 space-y-2.5">
+                      <p className="text-xs font-medium text-muted-foreground">Nouvelle société</p>
+                      <div className="space-y-1.5">
+                        <Label className="text-xs">Nom *</Label>
+                        <Input name="companyName" placeholder="Acme Corp" autoFocus autoComplete="off" required />
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div className="space-y-1.5">
+                          <Label className="text-xs">Email</Label>
+                          <Input name="companyEmail" type="email" placeholder="contact@acme.fr" autoComplete="off" />
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label className="text-xs">Téléphone</Label>
+                          <Input name="companyPhone" placeholder="+33 1 00 00 00 00" autoComplete="off" />
+                        </div>
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label className="text-xs">Ville</Label>
+                        <Input name="companyCity" placeholder="Paris" autoComplete="off" />
+                      </div>
+                      <div className="flex gap-2 pt-0.5">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="flex-1"
+                          onClick={() => setShowNewCompany(false)}
+                        >
+                          Annuler
+                        </Button>
+                        <Button type="submit" size="sm" className="flex-1" disabled={isCreatingCompany}>
+                          {isCreatingCompany ? "Création..." : "Créer la société"}
+                        </Button>
+                      </div>
+                    </form>
+                  ) : (
+                    <CompanyCombobox value={company} onChange={setCompany} />
+                  )}
                 </div>
               </section>
 

@@ -18,8 +18,9 @@ type Invoice = {
   project: { name: string } | null
 }
 
-type Client = { id: string; name: string; company: string | null; type: string }
-type Project = { id: string; name: string; clientId: string | null }
+type Company = { id: string; name: string; city: string | null }
+type Client = { id: string; name: string; company: string | null; type: string; companyId: string | null }
+type Project = { id: string; name: string; clientId: string | null; companyId: string | null }
 type Quote = { id: string; number: string; clientId: string; projectId: string | null; totalHT: number; depositPercent: number; status: string; client: { name: string; company: string | null } }
 
 const statusConfig: Record<string, { label: string; cls: string }> = {
@@ -52,12 +53,14 @@ export function FacturesListView({
   userId,
   invoices,
   clients,
+  companies = [],
   projects,
   quotes = [],
 }: {
   userId: string
   invoices: Invoice[]
   clients: Client[]
+  companies?: Company[]
   projects: Project[]
   quotes?: Quote[]
 }) {
@@ -120,7 +123,7 @@ export function FacturesListView({
             <Download className="h-3.5 w-3.5" />
             CSV
           </a>
-          <CreateInvoiceDialog userId={userId} clients={clients} projects={projects} quotes={quotes} />
+          <CreateInvoiceDialog userId={userId} clients={clients} companies={companies} projects={projects} quotes={quotes} />
         </div>
       </div>
 

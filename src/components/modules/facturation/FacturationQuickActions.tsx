@@ -5,16 +5,19 @@ import { FileText, Receipt } from "lucide-react"
 import { CreateQuoteDialog } from "./CreateQuoteDialog"
 import { CreateInvoiceDialog } from "./CreateInvoiceDialog"
 
-type Client  = { id: string; name: string; company: string | null; type: string }
-type Project = { id: string; name: string; clientId: string | null }
+type Company = { id: string; name: string; city: string | null }
+type Client  = { id: string; name: string; company: string | null; type: string; companyId: string | null }
+type Project = { id: string; name: string; clientId: string | null; companyId: string | null }
 
 export function FacturationQuickActions({
   userId,
   clients,
+  companies = [],
   projects,
 }: {
   userId: string
   clients: Client[]
+  companies?: Company[]
   projects: Project[]
 }) {
   const [quoteOpen,   setQuoteOpen]   = useState(false)
@@ -43,6 +46,7 @@ export function FacturationQuickActions({
       <CreateQuoteDialog
         userId={userId}
         clients={clients}
+        companies={companies}
         projects={projects}
         open={quoteOpen}
         onOpenChange={setQuoteOpen}
@@ -51,6 +55,7 @@ export function FacturationQuickActions({
       <CreateInvoiceDialog
         userId={userId}
         clients={clients}
+        companies={companies}
         projects={projects}
         open={invoiceOpen}
         onOpenChange={setInvoiceOpen}

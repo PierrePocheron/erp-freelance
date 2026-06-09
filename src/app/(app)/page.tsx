@@ -100,12 +100,12 @@ export default async function DashboardPage() {
     }),
     prisma.client.findMany({
       where: { userId, type: { not: "SELF" } },
-      select: { id: true, name: true, company: true, type: true },
+      select: { id: true, name: true, company: true, type: true, companyId: true },
       orderBy: { name: "asc" },
     }),
     prisma.project.findMany({
       where: { userId, status: "ACTIVE" },
-      select: { id: true, name: true, clientId: true },
+      select: { id: true, name: true, clientId: true, companyId: true },
       orderBy: { name: "asc" },
     }),
     prisma.product.findMany({

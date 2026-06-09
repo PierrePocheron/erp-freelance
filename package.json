@@ -9,6 +9,7 @@
     "start": "next start",
     "lint": "eslint",
     "seed": "tsx prisma/seed.ts",
+    "seed:real": "tsx prisma/seed.real.ts",
     "import": "tsx scripts/import.ts",
     "test": "vitest run",
     "test:watch": "vitest",

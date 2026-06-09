@@ -1,5 +1,6 @@
 export const REVENUE_TYPE_LABELS: Record<string, string> = {
   SALARY:     "Salaire",
+  FREELANCE:  "Freelance / AE",
   STUDY:      "Étude rémunérée",
   INVESTMENT: "Investissement",
   RENTAL:     "Locatif",

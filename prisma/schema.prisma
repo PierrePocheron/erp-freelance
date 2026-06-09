@@ -889,6 +889,7 @@ model Revenue {
   currency           String        @default("EUR")
   status             RevenueStatus @default(PENDING)
   receivedAt         DateTime?     // date de réception effective
+  expectedAt         DateTime?     // date prévisionnelle de réception (revenus en attente)
   paymentMethod      String?       // VIREMENT, ESPECES, CHEQUE, CARTE, PAYPAL, OTHER
   notes              String?
   period             String?       // "2026-06" — pour regroupement mensuel

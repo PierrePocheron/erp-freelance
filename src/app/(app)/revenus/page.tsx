@@ -129,6 +129,7 @@ export default async function RevenuePage() {
           createdAt:   r.createdAt.toISOString(),
           updatedAt:   r.updatedAt.toISOString(),
           receivedAt:  r.receivedAt?.toISOString() ?? null,
+          expectedAt:  r.expectedAt?.toISOString() ?? null,
           recurringRevenue: r.recurringRevenue ?? null,
           company: r.company ?? null,
           client:  r.client ?? null,

@@ -4,6 +4,7 @@ import Link from "next/link"
 import { TrendingUp, Clock, AlertCircle, CheckCircle2, Settings } from "lucide-react"
 import { markLateInvoices } from "@/actions/facturation"
 import { MonthlyRevenueChart } from "@/components/modules/facturation/MonthlyRevenueChart"
+import { FacturationQuickActions } from "@/components/modules/facturation/FacturationQuickActions"
 
 export default async function FacturationOverviewPage() {
   const session = await auth()
@@ -16,7 +17,7 @@ export default async function FacturationOverviewPage() {
   const yearStart = new Date(now.getFullYear(), 0, 1)
   const yearEnd = new Date(now.getFullYear(), 11, 31, 23, 59, 59)
 
-  const [invoicesThisYear, allPending, quotes, profile] = await Promise.all([
+  const [invoicesThisYear, allPending, quotes, profile, quickClients, quickProjects] = await Promise.all([
     prisma.invoice.findMany({
       where: { userId, createdAt: { gte: yearStart, lte: yearEnd } },
       include: { client: { select: { name: true, company: true } } },
@@ -34,6 +35,16 @@ export default async function FacturationOverviewPage() {
       include: { client: { select: { name: true, company: true } } },
     }),
     prisma.userProfile.findUnique({ where: { userId } }),
+    prisma.client.findMany({
+      where: { userId, type: { not: "SELF" } },
+      orderBy: { name: "asc" },
+      select: { id: true, name: true, company: true, type: true },
+    }),
+    prisma.project.findMany({
+      where: { userId },
+      orderBy: { name: "asc" },
+      select: { id: true, name: true, clientId: true },
+    }),
   ])
 
   const paidThisYear = invoicesThisYear
@@ -68,9 +79,16 @@ export default async function FacturationOverviewPage() {
 
   return (
     <div className="space-y-8">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">Facturation</h1>
-        <p className="text-sm text-muted-foreground">Vue d'ensemble {now.getFullYear()}</p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">Facturation</h1>
+          <p className="text-sm text-muted-foreground">Vue d'ensemble {now.getFullYear()}</p>
+        </div>
+        <FacturationQuickActions
+          userId={userId}
+          clients={quickClients}
+          projects={quickProjects}
+        />
       </div>
 
       {/* Profil incomplet */}

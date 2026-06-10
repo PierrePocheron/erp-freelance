@@ -1,4 +1,4 @@
-export type NodeType = "COMPANY" | "CLIENT" | "PROJECT" | "INVOICE" | "QUOTE"
+export type NodeType = "SOURCE" | "COMPANY" | "CLIENT" | "PROJECT" | "INVOICE" | "QUOTE"
 
 export type RawNode = {
   id:       string
@@ -10,6 +10,7 @@ export type RawNode = {
   meta: {
     href?:     string
     subtitle?: string
+    color?:    string  // couleur personnalisée (SOURCE nodes)
     details?:  Array<{ label: string; value: string }>
   }
 }
@@ -22,6 +23,7 @@ export type RawLink = {
 // ── Visual constants ─────────────────────────────────────────────────────────
 
 export const NODE_RADIUS: Record<NodeType, number> = {
+  SOURCE:  28,
   COMPANY: 22,
   CLIENT:  14,
   PROJECT: 14,
@@ -30,6 +32,7 @@ export const NODE_RADIUS: Record<NodeType, number> = {
 }
 
 export const NODE_BASE_COLORS: Record<NodeType, string> = {
+  SOURCE:  "#e879f9", // fuchsia — override par la couleur de la source
   COMPANY: "#f59e0b",
   CLIENT:  "#60a5fa",
   PROJECT: "#a78bfa",
@@ -54,6 +57,7 @@ export const PROJECT_STATUS_COLOR: Record<string, string> = {
 }
 
 export const NODE_TYPE_LABELS: Record<NodeType, string> = {
+  SOURCE:  "Source fiscale",
   COMPANY: "Société",
   CLIENT:  "Contact",
   PROJECT: "Projet",

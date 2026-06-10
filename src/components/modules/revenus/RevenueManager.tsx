@@ -20,6 +20,7 @@ import { PAYMENT_METHODS, REVENUE_TYPES } from "@/lib/revenue-constants"
 type Company = { id: string; name: string; city: string | null }
 type Client  = { id: string; name: string; company: string | null; companyId: string | null }
 type Project = { id: string; name: string; clientId: string | null; companyId: string | null }
+export type FiscalSource = { id: string; name: string; bucket: string; color: string }
 
 type Revenue = {
   id: string
@@ -34,12 +35,14 @@ type Revenue = {
   notes: string | null
   period: string | null
   recurringRevenueId: string | null
+  fiscalSourceId: string | null
   companyId: string | null
   clientId: string | null
   projectId: string | null
   createdAt: string
   updatedAt: string
   recurringRevenue: { id: string; label: string } | null
+  fiscalSource: FiscalSource | null
   company: { name: string } | null
   client:  { name: string; company: string | null } | null
   project: { name: string } | null
@@ -92,6 +95,7 @@ function RevenueForm({
   companies = [],
   clients = [],
   projects = [],
+  fiscalSources = [],
   initial,
   onClose,
   onSave,
@@ -101,6 +105,7 @@ function RevenueForm({
   companies?: Company[]
   clients?: Client[]
   projects?: Project[]
+  fiscalSources?: FiscalSource[]
   initial?: Partial<Revenue>
   onClose: () => void
   onSave: () => void
@@ -108,20 +113,21 @@ function RevenueForm({
   const now = new Date()
   const defaultPeriod = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`
 
-  const [type,          setType]          = useState(initial?.type ?? "SALARY")
-  const [label,         setLabel]         = useState(initial?.label ?? "")
-  const [amount,        setAmount]        = useState(initial?.amount?.toString() ?? "")
-  const [status,        setStatus]        = useState(initial?.status ?? "PENDING")
-  const [receivedAt,    setReceivedAt]    = useState(initial?.receivedAt ? initial.receivedAt.slice(0, 10) : "")
-  const [expectedAt,    setExpectedAt]    = useState(initial?.expectedAt ? initial.expectedAt.slice(0, 10) : "")
-  const [paymentMethod, setPaymentMethod] = useState(initial?.paymentMethod ?? "")
-  const [notes,         setNotes]         = useState(initial?.notes ?? "")
-  const [period,        setPeriod]        = useState(initial?.period ?? defaultPeriod)
-  const [companyId,     setCompanyId]     = useState(initial?.companyId ?? "")
-  const [clientId,      setClientId]      = useState(initial?.clientId ?? "")
-  const [projectId,     setProjectId]     = useState(initial?.projectId ?? "")
-  const [error,         setError]         = useState("")
-  const [isPending,     start]            = useTransition()
+  const [type,           setType]          = useState(initial?.type ?? "SALARY")
+  const [label,          setLabel]         = useState(initial?.label ?? "")
+  const [amount,         setAmount]        = useState(initial?.amount?.toString() ?? "")
+  const [status,         setStatus]        = useState(initial?.status ?? "PENDING")
+  const [receivedAt,     setReceivedAt]    = useState(initial?.receivedAt ? initial.receivedAt.slice(0, 10) : "")
+  const [expectedAt,     setExpectedAt]    = useState(initial?.expectedAt ? initial.expectedAt.slice(0, 10) : "")
+  const [paymentMethod,  setPaymentMethod] = useState(initial?.paymentMethod ?? "")
+  const [notes,          setNotes]         = useState(initial?.notes ?? "")
+  const [period,         setPeriod]        = useState(initial?.period ?? defaultPeriod)
+  const [fiscalSourceId, setFiscalSource]  = useState(initial?.fiscalSourceId ?? "")
+  const [companyId,      setCompanyId]     = useState(initial?.companyId ?? "")
+  const [clientId,       setClientId]      = useState(initial?.clientId ?? "")
+  const [projectId,      setProjectId]     = useState(initial?.projectId ?? "")
+  const [error,          setError]         = useState("")
+  const [isPending,      start]            = useTransition()
 
   const filteredClients = companyId ? clients.filter(c => c.companyId === companyId) : clients
   const filteredProjects = projects.filter(p =>
@@ -147,6 +153,7 @@ function RevenueForm({
         paymentMethod: paymentMethod || null,
         notes: notes || null,
         period: period || null,
+        fiscalSourceId: fiscalSourceId || null,
         companyId: companyId || null,
         clientId: clientId || null,
         projectId: projectId || null,
@@ -199,6 +206,22 @@ function RevenueForm({
             className="h-9"
           />
         </div>
+
+        {fiscalSources.length > 0 && (
+          <div className="space-y-1 sm:col-span-2">
+            <label className="text-xs font-medium text-muted-foreground">Source fiscale</label>
+            <select
+              value={fiscalSourceId}
+              onChange={e => setFiscalSource(e.target.value)}
+              className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+            >
+              <option value="">— Aucune —</option>
+              {fiscalSources.map(fs => (
+                <option key={fs.id} value={fs.id}>{fs.name}</option>
+              ))}
+            </select>
+          </div>
+        )}
 
         <div className="space-y-1 sm:col-span-2">
           <label className="text-xs font-medium text-muted-foreground">Libellé</label>
@@ -616,6 +639,7 @@ export function RevenueManager({
   companies = [],
   clients = [],
   projects = [],
+  fiscalSources = [],
 }: {
   initialRevenues:     Revenue[]
   initialRecurring:    RecurringRevenue[]
@@ -624,6 +648,7 @@ export function RevenueManager({
   companies?: Company[]
   clients?: Client[]
   projects?: Project[]
+  fiscalSources?: FiscalSource[]
 }) {
   const router = useRouter()
   const [tab,               setTab]               = useState<"list" | "recurring">("list")
@@ -779,6 +804,7 @@ export function RevenueManager({
               companies={companies}
               clients={clients}
               projects={projects}
+              fiscalSources={fiscalSources}
               onClose={() => setShowForm(false)}
               onSave={() => { setShowForm(false); refresh() }}
             />
@@ -791,6 +817,7 @@ export function RevenueManager({
               companies={companies}
               clients={clients}
               projects={projects}
+              fiscalSources={fiscalSources}
               initial={editRevenue}
               onClose={() => setEditRevenue(null)}
               onSave={() => { setEditRevenue(null); refresh() }}

@@ -2,6 +2,7 @@ import { auth, signOut } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { SettingsForm } from "@/components/modules/settings/SettingsForm"
 import { EmittersManager, type Emitter } from "@/components/modules/settings/EmittersManager"
+import { FiscalSourcesManager, type FiscalSourceItem, type EmitterSummary } from "@/components/modules/settings/FiscalSourcesManager"
 import { DangerZone } from "@/components/modules/settings/DangerZone"
 import { ExportSection } from "@/components/modules/settings/ExportSection"
 import { GoogleCalendarSection } from "@/components/modules/settings/GoogleCalendarSection"
@@ -12,12 +13,27 @@ export default async function SettingsPage() {
   const session = await auth()
   const userId = session!.user.id
 
-  const [profile, user, emitters, conditionsTemplates, exportStats, googleCalendarScope] = await Promise.all([
+  const [profile, user, emitters, fiscalSources, conditionsTemplates, exportStats, googleCalendarScope] = await Promise.all([
     prisma.userProfile?.findUnique({ where: { userId } }).catch(() => null) ?? null,
     prisma.user.findUnique({ where: { id: userId }, select: { name: true, email: true } }),
     prisma.emitterProfile.findMany({
       where: { userId },
       orderBy: [{ isDefault: "desc" }, { name: "asc" }],
+      select: {
+        id: true, name: true, companyName: true, legalForm: true, siret: true,
+        vatNumber: true, address: true, postalCode: true, city: true, country: true,
+        phone: true, email: true, website: true, iban: true, bic: true,
+        defaultConditions: true, legalMentions: true, pdfAccentColor: true,
+        logoUrl: true, isDefault: true, fiscalSourceId: true,
+      },
+    }),
+    prisma.fiscalSource.findMany({
+      where: { userId },
+      orderBy: { createdAt: "asc" },
+      include: {
+        emitterProfiles: { select: { id: true, name: true, companyName: true } },
+        _count: { select: { revenues: true } },
+      },
     }),
     prisma.conditionsTemplate.findMany({
       where: { userId },
@@ -72,6 +88,11 @@ export default async function SettingsPage() {
       />
 
       <EmittersManager emitters={emitters as Emitter[]} />
+
+      <FiscalSourcesManager
+        sources={fiscalSources as FiscalSourceItem[]}
+        emitters={emitters as EmitterSummary[]}
+      />
 
       <GoogleCalendarSection hasScope={googleCalendarScope} />
 

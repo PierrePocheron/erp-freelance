@@ -19,6 +19,7 @@ interface Props {
     invoices: number
     interactions: number
     timeEntries: number
+    revenues: number
   }
 }
 
@@ -122,6 +123,7 @@ export function ExportSection({ stats }: Props) {
     { label: "Tâches", value: stats.tasks },
     { label: "Devis", value: stats.quotes },
     { label: "Factures", value: stats.invoices },
+    { label: "Revenus", value: stats.revenues },
     { label: "Interactions", value: stats.interactions },
     { label: "Temps", value: stats.timeEntries },
   ]
@@ -143,7 +145,7 @@ export function ExportSection({ stats }: Props) {
         </div>
 
         {/* Stats actuelles */}
-        <div className="grid grid-cols-4 gap-2 sm:grid-cols-7">
+        <div className="grid grid-cols-4 gap-2 sm:grid-cols-8">
           {statItems.map(({ label, value }) => (
             <div key={label} className="rounded-lg bg-muted/40 p-2.5 text-center">
               <p className="text-lg font-bold">{value}</p>

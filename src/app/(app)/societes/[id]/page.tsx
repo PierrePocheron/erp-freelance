@@ -60,7 +60,12 @@ export default async function CompanyDetailPage({
         dueDate: true,
         createdAt: true,
         project: { select: { id: true, name: true } },
-        client: { select: { id: true, name: true } },
+        client:  { select: { id: true, name: true } },
+        emitter: {
+          select: {
+            fiscalSource: { select: { id: true, name: true, color: true, bucket: true } },
+          },
+        },
       },
     }),
 
@@ -136,6 +141,17 @@ export default async function CompanyDetailPage({
   const nbInvoices   = invoices.length
   const nbQuotes     = quotes.length
   const nbQuotesSent = quotes.filter(q => !["DRAFT"].includes(q.status)).length
+
+  // ── Sources fiscales utilisées pour cette société ─────────────────────────────
+  // Déduit depuis les profils émetteurs des factures (sans champ supplémentaire sur Company)
+
+  type FiscalSourceInfo = { id: string; name: string; color: string; bucket: string }
+  const fiscalSourceMap = new Map<string, FiscalSourceInfo>()
+  for (const inv of invoices) {
+    const fs = inv.emitter?.fiscalSource
+    if (fs) fiscalSourceMap.set(fs.id, fs)
+  }
+  const usedFiscalSources = [...fiscalSourceMap.values()]
 
   // ── Métriques projets ─────────────────────────────────────────────────────────
 
@@ -695,6 +711,27 @@ export default async function CompanyDetailPage({
             </div>
           </div>
 
+          {/* Sources fiscales associées */}
+          {usedFiscalSources.length > 0 && (
+            <div className="rounded-xl border border-border/50 bg-card p-5 space-y-3">
+              <h2 className="font-semibold text-sm">Facturé via</h2>
+              <div className="space-y-2">
+                {usedFiscalSources.map(fs => (
+                  <div key={fs.id} className="flex items-center gap-2.5">
+                    <span
+                      className="h-2.5 w-2.5 rounded-full shrink-0 ring-2 ring-border"
+                      style={{ backgroundColor: fs.color }}
+                    />
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium leading-tight">{fs.name}</p>
+                      <p className="text-[10px] text-muted-foreground">{FISCAL_BUCKET_LABELS[fs.bucket] ?? fs.bucket}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Danger zone */}
           <div className="rounded-xl border border-destructive/20 bg-destructive/5 p-5 space-y-3">
             <h2 className="font-semibold text-sm text-destructive">Zone dangereuse</h2>
@@ -719,6 +756,14 @@ export default async function CompanyDetailPage({
       </div>
     </div>
   )
+}
+
+// ── Constantes ────────────────────────────────────────────────────────────────
+
+const FISCAL_BUCKET_LABELS: Record<string, string> = {
+  AE_URSSAF:     "AE — Déclaré URSSAF",
+  NON_IMPOSABLE: "Non imposable",
+  OTHER:         "Autre",
 }
 
 // ── Composant KPI ─────────────────────────────────────────────────────────────

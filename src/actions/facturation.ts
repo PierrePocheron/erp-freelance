@@ -89,6 +89,26 @@ async function defaultEmitterId(userId: string): Promise<string | null> {
   return any?.id ?? null
 }
 
+// Profil émetteur préféré pour un client donné : mémorise le dernier utilisé.
+// Permet que la bonne source fiscale (AE, etc.) soit pré-sélectionnée à la création.
+async function preferredEmitterForClient(userId: string, clientId: string): Promise<string | null> {
+  const recentInv = await prisma.invoice.findFirst({
+    where: { userId, clientId, emitterProfileId: { not: null } },
+    orderBy: { createdAt: "desc" },
+    select: { emitterProfileId: true },
+  })
+  if (recentInv?.emitterProfileId) return recentInv.emitterProfileId
+
+  const recentQ = await prisma.quote.findFirst({
+    where: { userId, clientId, emitterProfileId: { not: null } },
+    orderBy: { createdAt: "desc" },
+    select: { emitterProfileId: true },
+  })
+  if (recentQ?.emitterProfileId) return recentQ.emitterProfileId
+
+  return defaultEmitterId(userId)
+}
+
 // ── Devis ─────────────────────────────────────────────────────────────────────
 
 export async function createQuoteWithLines(
@@ -121,7 +141,7 @@ export async function createQuoteWithLines(
       userId,
       clientId: data.clientId,
       projectId: data.projectId || null,
-      emitterProfileId: await defaultEmitterId(userId),
+      emitterProfileId: await preferredEmitterForClient(userId, data.clientId),
       number,
       depositPercent: data.depositPercent ?? 0,
       expiresAt,
@@ -364,7 +384,7 @@ export async function createInvoice(
       clientId: data.clientId,
       projectId: data.projectId || null,
       quoteId: data.quoteId || null,
-      emitterProfileId: await defaultEmitterId(userId),
+      emitterProfileId: await preferredEmitterForClient(userId, data.clientId),
       number,
       type: (data.type as never) || "STANDALONE",
       dueDate: data.dueDate ? new Date(data.dueDate) : null,

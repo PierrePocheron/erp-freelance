@@ -42,6 +42,7 @@ model User {
   emitterProfiles    EmitterProfile[]
   revenues           Revenue[]
   recurringRevenues  RecurringRevenue[]
+  fiscalSources      FiscalSource[]
 }
 
 model ProjectIdea {
@@ -109,14 +110,17 @@ model EmitterProfile {
   customAccentColors String?
   logoUrl            String?
   isDefault          Boolean  @default(false)
+  fiscalSourceId     String?  // lien optionnel vers une source fiscale (ex: AE Pedro Dev)
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
 
-  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  quotes   Quote[]
-  invoices Invoice[]
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  fiscalSource FiscalSource? @relation(fields: [fiscalSourceId], references: [id], onDelete: SetNull)
+  quotes       Quote[]
+  invoices     Invoice[]
 
   @@index([userId])
+  @@index([fiscalSourceId])
 }
 
 model Tag {
@@ -864,6 +868,37 @@ model ConditionsTemplate {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
+// ─── Sources fiscales ────────────────────────────────────────────────────────
+
+// Catégorie fiscale d'une source de revenus.
+enum FiscalBucket {
+  AE_URSSAF     // CA auto-entrepreneur déclaré à l'URSSAF
+  NON_IMPOSABLE // Revenus non imposables (études, baby-sitting, chèques cadeaux…)
+  OTHER         // Autres (salaires CDD/CDI, investissements…)
+}
+
+// Regroupe des revenus sous un même libellé fiscal personnalisé.
+// Pour l'AE : lié à un EmitterProfile (Pedro Dev → SIRET, dénomination…).
+// Pour les autres : source autonome avec saisie manuelle dans le module Revenus.
+model FiscalSource {
+  id        String       @id @default(cuid())
+  userId    String
+  name      String       // "Pedro Dev AE", "Baby-sitting", "Bourse INSA"
+  bucket    FiscalBucket
+  color     String       @default("#6366f1")
+  isActive  Boolean      @default(true)
+  notes     String?
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  user              User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  emitterProfiles   EmitterProfile[]
+  revenues          Revenue[]
+  recurringRevenues RecurringRevenue[]
+
+  @@index([userId])
+}
+
 // ─── Revenus hors auto-entreprise ────────────────────────────────────────────
 
 enum RevenueType {
@@ -895,6 +930,7 @@ model Revenue {
   notes              String?
   period             String?       // "2026-06" — pour regroupement mensuel
   recurringRevenueId String?       // lien vers le modèle récurrent parent
+  fiscalSourceId     String?       // lien vers la source fiscale (baby-sitting, études…)
   companyId          String?
   clientId           String?
   projectId          String?
@@ -904,12 +940,14 @@ model Revenue {
 
   user             User              @relation(fields: [userId], references: [id], onDelete: Cascade)
   recurringRevenue RecurringRevenue? @relation(fields: [recurringRevenueId], references: [id], onDelete: SetNull)
+  fiscalSource     FiscalSource?     @relation(fields: [fiscalSourceId], references: [id], onDelete: SetNull)
   company          Company?          @relation("RevenueCompany", fields: [companyId], references: [id], onDelete: SetNull)
   client           Client?           @relation("RevenueClient", fields: [clientId], references: [id], onDelete: SetNull)
   project          Project?          @relation("RevenueProject", fields: [projectId], references: [id], onDelete: SetNull)
 
   @@index([userId])
   @@index([recurringRevenueId])
+  @@index([fiscalSourceId])
   @@index([companyId])
   @@index([clientId])
   @@index([projectId])
@@ -926,6 +964,7 @@ model RecurringRevenue {
   paymentMethod String?
   notes         String?
   isActive      Boolean     @default(true)
+  fiscalSourceId String?    // lien vers la source fiscale
   companyId     String?
   clientId      String?
   projectId     String?
@@ -933,13 +972,15 @@ model RecurringRevenue {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  revenues Revenue[]
-  company  Company?  @relation("RecurringRevenueCompany", fields: [companyId], references: [id], onDelete: SetNull)
-  client   Client?   @relation("RecurringRevenueClient", fields: [clientId], references: [id], onDelete: SetNull)
-  project  Project?  @relation("RecurringRevenueProject", fields: [projectId], references: [id], onDelete: SetNull)
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  fiscalSource FiscalSource? @relation(fields: [fiscalSourceId], references: [id], onDelete: SetNull)
+  revenues     Revenue[]
+  company      Company?      @relation("RecurringRevenueCompany", fields: [companyId], references: [id], onDelete: SetNull)
+  client       Client?       @relation("RecurringRevenueClient", fields: [clientId], references: [id], onDelete: SetNull)
+  project      Project?      @relation("RecurringRevenueProject", fields: [projectId], references: [id], onDelete: SetNull)
 
   @@index([userId])
+  @@index([fiscalSourceId])
   @@index([companyId])
   @@index([clientId])
   @@index([projectId])

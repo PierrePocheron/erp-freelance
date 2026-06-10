@@ -1,6 +1,7 @@
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
-import { TrendingUp, Clock, CheckCircle2, Repeat } from "lucide-react"
+import Link from "next/link"
+import { TrendingUp, Clock, CheckCircle2, Repeat, BarChart2 } from "lucide-react"
 import { REVENUE_TYPE_LABELS, PAYMENT_METHOD_LABELS } from "@/lib/revenue-constants"
 import { RevenueManager } from "@/components/modules/revenus/RevenueManager"
 
@@ -13,12 +14,13 @@ export default async function RevenuePage() {
   const now = new Date()
   const currentYear = now.getFullYear()
 
-  const [revenues, recurringRevenues, companies, clients, projects] = await Promise.all([
+  const [revenues, recurringRevenues, companies, clients, projects, fiscalSources] = await Promise.all([
     prisma.revenue.findMany({
       where: { userId },
       orderBy: [{ period: "desc" }, { createdAt: "desc" }],
       include: {
         recurringRevenue: { select: { id: true, label: true } },
+        fiscalSource:     { select: { id: true, name: true, bucket: true, color: true } },
         company: { select: { name: true } },
         client:  { select: { name: true, company: true } },
         project: { select: { name: true } },
@@ -48,6 +50,11 @@ export default async function RevenuePage() {
       where: { userId },
       orderBy: { name: "asc" },
       select: { id: true, name: true, clientId: true, companyId: true },
+    }),
+    prisma.fiscalSource.findMany({
+      where: { userId, isActive: true },
+      orderBy: { createdAt: "asc" },
+      select: { id: true, name: true, bucket: true, color: true },
     }),
   ])
 
@@ -82,6 +89,13 @@ export default async function RevenuePage() {
             Suivi des revenus hors auto-entreprise
           </p>
         </div>
+        <Link
+          href="/revenus/recapitulatif"
+          className="flex items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-2 text-sm font-medium hover:bg-accent transition-colors"
+        >
+          <BarChart2 className="h-4 w-4 text-muted-foreground" />
+          Récapitulatif fiscal
+        </Link>
       </div>
 
       {/* KPIs */}
@@ -126,11 +140,12 @@ export default async function RevenuePage() {
       <RevenueManager
         initialRevenues={revenues.map(r => ({
           ...r,
-          createdAt:   r.createdAt.toISOString(),
-          updatedAt:   r.updatedAt.toISOString(),
-          receivedAt:  r.receivedAt?.toISOString() ?? null,
-          expectedAt:  r.expectedAt?.toISOString() ?? null,
+          createdAt:    r.createdAt.toISOString(),
+          updatedAt:    r.updatedAt.toISOString(),
+          receivedAt:   r.receivedAt?.toISOString() ?? null,
+          expectedAt:   r.expectedAt?.toISOString() ?? null,
           recurringRevenue: r.recurringRevenue ?? null,
+          fiscalSource: r.fiscalSource ?? null,
           company: r.company ?? null,
           client:  r.client ?? null,
           project: r.project ?? null,
@@ -149,6 +164,7 @@ export default async function RevenuePage() {
         companies={companies}
         clients={clients}
         projects={projects}
+        fiscalSources={fiscalSources}
       />
     </div>
   )

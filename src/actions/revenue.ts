@@ -44,6 +44,7 @@ export async function createRevenue(data: {
   notes?: string | null
   period?: string | null
   recurringRevenueId?: string | null
+  fiscalSourceId?: string | null
   companyId?: string | null
   clientId?: string | null
   projectId?: string | null
@@ -69,6 +70,7 @@ export async function createRevenue(data: {
         notes:              data.notes ?? null,
         period:             data.period ?? null,
         recurringRevenueId: data.recurringRevenueId ?? null,
+        fiscalSourceId:     data.fiscalSourceId ?? null,
         companyId:          data.companyId ?? null,
         clientId:           data.clientId ?? null,
         projectId:          data.projectId ?? null,
@@ -93,6 +95,7 @@ export async function updateRevenue(
     paymentMethod?: string | null
     notes?: string | null
     period?: string | null
+    fiscalSourceId?: string | null
     companyId?: string | null
     clientId?: string | null
     projectId?: string | null
@@ -115,8 +118,9 @@ export async function updateRevenue(
       ...(data.expectedAt !== undefined    ? { expectedAt: data.expectedAt }        : {}),
       ...(data.paymentMethod !== undefined ? { paymentMethod: data.paymentMethod }  : {}),
       ...(data.notes !== undefined         ? { notes: data.notes }                  : {}),
-      ...(data.period !== undefined        ? { period: data.period }                : {}),
-      ...(data.companyId !== undefined     ? { companyId: data.companyId }          : {}),
+      ...(data.period !== undefined          ? { period: data.period }                  : {}),
+      ...(data.fiscalSourceId !== undefined ? { fiscalSourceId: data.fiscalSourceId } : {}),
+      ...(data.companyId !== undefined      ? { companyId: data.companyId }            : {}),
       ...(data.clientId !== undefined      ? { clientId: data.clientId }            : {}),
       ...(data.projectId !== undefined     ? { projectId: data.projectId }          : {}),
     },

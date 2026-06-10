@@ -33,9 +33,10 @@ function isNodeVisible(id: string, nodeMap: Map<string, RawNode>, collapsed: Set
 
 // ── Type filter toggles ───────────────────────────────────────────────────────
 
-const ALL_TYPES: NodeType[] = ["COMPANY", "CLIENT", "PROJECT", "INVOICE", "QUOTE"]
+const ALL_TYPES: NodeType[] = ["SOURCE", "COMPANY", "CLIENT", "PROJECT", "INVOICE", "QUOTE"]
 
 const TYPE_DOT: Record<NodeType, string> = {
+  SOURCE:  NODE_BASE_COLORS.SOURCE,
   COMPANY: NODE_BASE_COLORS.COMPANY,
   CLIENT:  NODE_BASE_COLORS.CLIENT,
   PROJECT: NODE_BASE_COLORS.PROJECT,
@@ -226,13 +227,13 @@ export function GraphView({ rawNodes, rawLinks }: { rawNodes: RawNode[]; rawLink
             {/* Panel header */}
             <div
               className="flex items-start justify-between p-4 border-b border-border"
-              style={{ borderLeftColor: TYPE_DOT[selected.type], borderLeftWidth: 3 }}
+              style={{ borderLeftColor: selected.meta.color ?? TYPE_DOT[selected.type], borderLeftWidth: 3 }}
             >
               <div className="flex-1 min-w-0 pr-2">
                 <div className="flex items-center gap-2 mb-0.5">
                   <span
                     className="inline-block h-2 w-2 rounded-full shrink-0"
-                    style={{ backgroundColor: TYPE_DOT[selected.type] }}
+                    style={{ backgroundColor: selected.meta.color ?? TYPE_DOT[selected.type] }}
                   />
                   <span className="text-[10px] text-muted-foreground uppercase tracking-wide font-medium">
                     {NODE_TYPE_LABELS[selected.type]}

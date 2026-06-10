@@ -16,7 +16,7 @@ function fmtAmount(n: number): string {
 // Ordre de rendu : les nœuds parents sont peints en dernier → leur hitbox gagne
 // face aux enfants qui se superposent (color-picking canvas caché)
 const TYPE_Z: Record<NodeType, number> = {
-  INVOICE: 0, QUOTE: 0, PROJECT: 1, CLIENT: 2, COMPANY: 3,
+  INVOICE: 0, QUOTE: 0, PROJECT: 1, CLIENT: 2, COMPANY: 3, SOURCE: 4,
 }
 
 export type GraphMethods = { zoomToFit: (ms?: number) => void }
@@ -98,7 +98,77 @@ export const ForceGraphCanvas = forwardRef<GraphMethods, Props>(function ForceGr
     if (!isFinite(x) || !isFinite(y)) return
 
     const r     = NODE_RADIUS[n.type]
-    const color = nodeColor(n)
+    // SOURCE utilise la couleur personnalisée stockée dans meta.color
+    const color = n.type === "SOURCE" && n.meta.color ? n.meta.color : nodeColor(n)
+
+    // ── SOURCE : hexagone distinctif ───────────────────────────────────────
+    if (n.type === "SOURCE") {
+      // Halo externe
+      const haloS = ctx.createRadialGradient(x, y, r * 0.6, x, y, r * 2.4)
+      haloS.addColorStop(0, color + "55")
+      haloS.addColorStop(1, color + "00")
+      ctx.beginPath(); ctx.arc(x, y, r * 2.4, 0, 2 * Math.PI)
+      ctx.fillStyle = haloS; ctx.fill()
+
+      // Hexagone
+      const sides = 6
+      ctx.beginPath()
+      for (let i = 0; i < sides; i++) {
+        const angle = (Math.PI / 180) * (60 * i - 30)
+        const px = x + r * Math.cos(angle)
+        const py = y + r * Math.sin(angle)
+        if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py)
+      }
+      ctx.closePath()
+      ctx.fillStyle = color; ctx.fill()
+
+      // Highlight interne
+      const hiS = ctx.createRadialGradient(x - r * 0.35, y - r * 0.35, 0, x, y, r)
+      hiS.addColorStop(0, "rgba(255,255,255,0.35)")
+      hiS.addColorStop(1, "rgba(255,255,255,0.00)")
+      ctx.beginPath()
+      for (let i = 0; i < sides; i++) {
+        const angle = (Math.PI / 180) * (60 * i - 30)
+        const px = x + r * Math.cos(angle)
+        const py = y + r * Math.sin(angle)
+        if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py)
+      }
+      ctx.closePath()
+      ctx.fillStyle = hiS; ctx.fill()
+
+      // Bordure
+      ctx.strokeStyle = "rgba(255,255,255,0.25)"; ctx.lineWidth = 1.5
+      ctx.beginPath()
+      for (let i = 0; i < sides; i++) {
+        const angle = (Math.PI / 180) * (60 * i - 30)
+        const px = x + r * Math.cos(angle)
+        const py = y + r * Math.sin(angle)
+        if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py)
+      }
+      ctx.closePath(); ctx.stroke()
+
+      // Label
+      const fsz = Math.max(7, 15 / globalScale)
+      const text = n.label.length > 22 ? n.label.slice(0, 21) + "…" : n.label
+      ctx.font = `700 ${fsz}px -apple-system, "Inter", sans-serif`
+      ctx.textAlign = "center"; ctx.textBaseline = "top"
+      const labelC = isDark ? "#fde68a" : "#92400e"
+      const shadowC = isDark ? "rgba(0,0,0,0.95)" : "rgba(255,255,255,0.85)"
+      ctx.shadowColor = shadowC; ctx.shadowBlur = 6
+      ctx.fillStyle = labelC; ctx.fillText(text, x, y + r + 5)
+      ctx.shadowBlur = 0; ctx.fillStyle = labelC; ctx.fillText(text, x, y + r + 5)
+
+      // Bucket badge sous le label
+      if (n.meta.subtitle) {
+        const bsz = Math.max(4.5, 9 / globalScale)
+        ctx.font = `500 ${bsz}px -apple-system, "Inter", sans-serif`
+        const badgeC = isDark ? "rgba(248,250,252,0.60)" : "rgba(15,23,42,0.50)"
+        ctx.shadowColor = shadowC; ctx.shadowBlur = 4
+        ctx.fillStyle = badgeC; ctx.fillText(n.meta.subtitle, x, y + r + 5 + fsz + 2)
+        ctx.shadowBlur = 0; ctx.fillStyle = badgeC; ctx.fillText(n.meta.subtitle, x, y + r + 5 + fsz + 2)
+      }
+      return
+    }
 
     // ── Outer glow (company only) ──────────────────────────────────────────
     if (n.type === "COMPANY") {

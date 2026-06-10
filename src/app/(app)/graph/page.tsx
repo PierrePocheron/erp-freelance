@@ -9,7 +9,7 @@ export default async function GraphPage() {
   if (!session) redirect("/login")
   const userId = session.user.id
 
-  const [companies, clients, projects, invoices, quotes] = await Promise.all([
+  const [companies, clients, projects, invoices, quotes, fiscalSources] = await Promise.all([
     prisma.company.findMany({
       where: { userId },
       select: { id: true, name: true, city: true, website: true },
@@ -25,12 +25,23 @@ export default async function GraphPage() {
     }),
     prisma.invoice.findMany({
       where: { userId },
-      select: { id: true, number: true, status: true, totalHT: true, clientId: true, projectId: true, paidAt: true, issuedAt: true },
+      select: { id: true, number: true, status: true, totalHT: true, clientId: true, projectId: true, paidAt: true, issuedAt: true, emitterProfileId: true },
       orderBy: { createdAt: "asc" },
     }),
     prisma.quote.findMany({
       where: { userId },
       select: { id: true, number: true, status: true, totalHT: true, clientId: true, projectId: true, createdAt: true },
+      orderBy: { createdAt: "asc" },
+    }),
+    prisma.fiscalSource.findMany({
+      where: { userId, isActive: true },
+      select: {
+        id: true,
+        name: true,
+        bucket: true,
+        color: true,
+        emitterProfiles: { select: { id: true } },
+      },
       orderBy: { createdAt: "asc" },
     }),
   ])
@@ -164,6 +175,60 @@ export default async function GraphPage() {
     links.push({ source: parentId, target: nodeId })
   }
 
+  // ── Fiscal Sources ─────────────────────────────────────────────────────────
+  // Un nœud SOURCE par source fiscale active ; lié aux sociétés / contacts
+  // dont les factures ont été émises avec un profil émetteur rattaché à cette source.
+  for (const src of fiscalSources) {
+    const srcNodeId  = `source-${src.id}`
+    const emitterIds = new Set(src.emitterProfiles.map(e => e.id))
+
+    // Clients dont au moins une facture provient de cette source
+    const linkedClientIds = new Set(
+      invoices
+        .filter(inv => inv.emitterProfileId && emitterIds.has(inv.emitterProfileId))
+        .map(inv => inv.clientId)
+        .filter((id): id is string => id !== null)
+    )
+
+    // Depuis ces clients : sociétés (lien SOURCE→COMPANY) ou contacts seuls (SOURCE→CLIENT)
+    const linkedCompanyIds   = new Set<string>()
+    const standaloneClientIds = new Set<string>()
+
+    for (const clientId of linkedClientIds) {
+      const client = clients.find(c => c.id === clientId)
+      if (!client || client.type === "SELF") continue
+      if (client.companyId) {
+        linkedCompanyIds.add(client.companyId)
+      } else {
+        standaloneClientIds.add(clientId)
+      }
+    }
+
+    const totalLinked = linkedCompanyIds.size + standaloneClientIds.size
+
+    nodes.push({
+      id:       srcNodeId,
+      type:     "SOURCE",
+      label:    src.name,
+      parentId: null,
+      meta: {
+        color:    src.color,
+        subtitle: SOURCE_BUCKET_LABELS[src.bucket] ?? src.bucket,
+        details: [
+          { label: "Catégorie",        value: SOURCE_BUCKET_LABELS[src.bucket] ?? src.bucket },
+          { label: "Sociétés/Contacts", value: String(totalLinked) },
+        ],
+      },
+    })
+
+    for (const companyId of linkedCompanyIds) {
+      links.push({ source: srcNodeId, target: `company-${companyId}` })
+    }
+    for (const clientId of standaloneClientIds) {
+      links.push({ source: srcNodeId, target: `client-${clientId}` })
+    }
+  }
+
   return (
     <div className="h-[calc(100vh-3rem)] -m-6 overflow-hidden">
       <GraphView rawNodes={nodes} rawLinks={links} />
@@ -180,4 +245,9 @@ const INVOICE_STATUS_LABELS: Record<string, string> = {
 const QUOTE_STATUS_LABELS: Record<string, string> = {
   DRAFT: "Brouillon", VALIDATED: "Validé", SENT: "Envoyé", ACCEPTED: "Accepté",
   IN_PROGRESS: "En cours", SIGNED: "Signé", REJECTED: "Refusé",
+}
+const SOURCE_BUCKET_LABELS: Record<string, string> = {
+  AE_URSSAF:     "AE — Déclaré URSSAF",
+  NON_IMPOSABLE: "Non imposable",
+  OTHER:         "Autre",
 }

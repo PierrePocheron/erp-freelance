@@ -47,8 +47,9 @@ export default async function SettingsPage() {
       prisma.invoice.count({ where: { userId } }),
       prisma.interaction.count({ where: { client: { userId } } }),
       prisma.timeEntry.count({ where: { userId } }),
-    ]).then(([clients, projects, tasks, quotes, invoices, interactions, timeEntries]) => ({
-      clients, projects, tasks, quotes, invoices, interactions, timeEntries,
+      prisma.revenue.count({ where: { userId } }),
+    ]).then(([clients, projects, tasks, quotes, invoices, interactions, timeEntries, revenues]) => ({
+      clients, projects, tasks, quotes, invoices, interactions, timeEntries, revenues,
     })),
     hasCalendarScope(userId),
   ])

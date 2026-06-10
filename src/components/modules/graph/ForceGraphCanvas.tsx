@@ -6,6 +6,13 @@ import { useRef, useEffect, useCallback, useMemo, forwardRef, useImperativeHandl
 import type { RawNode, RawLink, NodeType } from "./graph-types"
 import { nodeColor, NODE_RADIUS } from "./graph-types"
 
+// Formatte un montant de façon compacte pour le canvas
+function fmtAmount(n: number): string {
+  if (n >= 10_000) return `${Math.round(n / 1000)}k €`
+  if (n >= 1_000)  return `${(n / 1000).toLocaleString("fr-FR", { maximumFractionDigits: 1 })}k €`
+  return `${Math.round(n).toLocaleString("fr-FR")} €`
+}
+
 // Ordre de rendu : les nœuds parents sont peints en dernier → leur hitbox gagne
 // face aux enfants qui se superposent (color-picking canvas caché)
 const TYPE_Z: Record<NodeType, number> = {
@@ -180,6 +187,24 @@ export const ForceGraphCanvas = forwardRef<GraphMethods, Props>(function ForceGr
     // Second pass for crispness
     ctx.fillStyle = labelColor
     ctx.fillText(text, x, ty)
+
+    // ── Amount (INVOICE / QUOTE only) ──────────────────────────────────────
+    if (n.amount !== undefined && (n.type === "INVOICE" || n.type === "QUOTE")) {
+      const amtFontSize = Math.max(3.5, 9 / globalScale)
+      const amtText     = fmtAmount(n.amount)
+      ctx.font          = `600 ${amtFontSize}px -apple-system, "Inter", sans-serif`
+      ctx.textAlign     = "center"
+      ctx.textBaseline  = "top"
+      const amtColor    = isDark ? "rgba(248,250,252,0.65)" : "rgba(15,23,42,0.55)"
+      const amtY        = ty + fontSize + 2
+      ctx.shadowColor   = shadowColor
+      ctx.shadowBlur    = 4
+      ctx.fillStyle     = amtColor
+      ctx.fillText(amtText, x, amtY)
+      ctx.shadowBlur    = 0
+      ctx.fillStyle     = amtColor
+      ctx.fillText(amtText, x, amtY)
+    }
 
   }, [collapsedIds, isDark])
 

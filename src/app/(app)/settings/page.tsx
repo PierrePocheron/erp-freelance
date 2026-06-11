@@ -6,6 +6,7 @@ import { FiscalSourcesManager, type FiscalSourceItem, type EmitterSummary } from
 import { DangerZone } from "@/components/modules/settings/DangerZone"
 import { ExportSection } from "@/components/modules/settings/ExportSection"
 import { GoogleCalendarSection } from "@/components/modules/settings/GoogleCalendarSection"
+import { ModulesPanel } from "@/components/modules/settings/ModulesPanel"
 import { hasCalendarScope } from "@/lib/google-calendar"
 import { LogOut } from "lucide-react"
 
@@ -96,6 +97,8 @@ export default async function SettingsPage() {
       />
 
       <GoogleCalendarSection hasScope={googleCalendarScope} />
+
+      <ModulesPanel />
 
       <ExportSection stats={exportStats} />
 

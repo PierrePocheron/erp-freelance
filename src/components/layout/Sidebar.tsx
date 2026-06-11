@@ -22,18 +22,26 @@ import {
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { ThemeToggle } from "./ThemeToggle"
+import { useModules, type ModuleId } from "@/hooks/use-modules"
 
-const navItems = [
-  { href: "/", icon: LayoutDashboard, label: "Dashboard" },
-  { href: "/contacts", icon: Users, label: "Contacts" },
-  { href: "/societes", icon: Building2, label: "Sociétés" },
-  { href: "/facturation", icon: FileText, label: "Facturation" },
-  { href: "/revenus", icon: Wallet, label: "Revenus" },
-  { href: "/projets", icon: Code2, label: "Projets" },
-  { href: "/taches", icon: CheckSquare, label: "Tâches" },
-  { href: "/calendrier", icon: Calendar, label: "Calendrier" },
-  { href: "/graph",   icon: Network, label: "Graph" },
-  { href: "/settings", icon: Settings, label: "Paramètres" },
+type NavItem = {
+  href:     string
+  icon:     React.ElementType
+  label:    string
+  moduleId?: ModuleId   // si absent → toujours visible (Dashboard, Paramètres)
+}
+
+const navItems: NavItem[] = [
+  { href: "/",           icon: LayoutDashboard, label: "Dashboard" },
+  { href: "/contacts",   icon: Users,           label: "Contacts",   moduleId: "contacts"    },
+  { href: "/societes",   icon: Building2,       label: "Sociétés",   moduleId: "societes"    },
+  { href: "/facturation",icon: FileText,         label: "Facturation",moduleId: "facturation" },
+  { href: "/revenus",    icon: Wallet,           label: "Revenus",    moduleId: "revenus"     },
+  { href: "/projets",    icon: Code2,            label: "Projets",    moduleId: "projets"     },
+  { href: "/taches",     icon: CheckSquare,      label: "Tâches",     moduleId: "taches"      },
+  { href: "/calendrier", icon: Calendar,         label: "Calendrier", moduleId: "calendrier"  },
+  { href: "/graph",      icon: Network,          label: "Graph",      moduleId: "graph"       },
+  { href: "/settings",   icon: Settings,         label: "Paramètres" },
 ]
 
 const STORAGE_KEY = "erp-sidebar-expanded"
@@ -42,6 +50,7 @@ export function Sidebar() {
   const pathname = usePathname()
   const [expanded, setExpanded] = useState(false)
   const [mounted, setMounted] = useState(false)
+  const { isActive } = useModules()
 
   useEffect(() => {
     const stored = localStorage.getItem(STORAGE_KEY)
@@ -60,6 +69,11 @@ export function Sidebar() {
 
   // Évite le flash de contenu avant hydratation
   if (!mounted) return <aside className="w-16 h-screen shrink-0 border-r border-border/50" />
+
+  // Filtrer selon les modules actifs (les items sans moduleId sont toujours visibles)
+  const visibleItems = navItems.filter(item =>
+    !item.moduleId || isActive(item.moduleId)
+  )
 
   return (
     <aside
@@ -88,7 +102,7 @@ export function Sidebar() {
 
       {/* Nav */}
       <nav className="flex flex-1 flex-col gap-1 px-2">
-        {navItems.map(({ href, icon: Icon, label }) => {
+        {visibleItems.map(({ href, icon: Icon, label }) => {
           const isActive = href === "/" ? pathname === "/" : pathname.startsWith(href)
           return (
             <Link

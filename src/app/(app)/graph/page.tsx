@@ -9,7 +9,7 @@ export default async function GraphPage() {
   if (!session) redirect("/login")
   const userId = session.user.id
 
-  const [companies, clients, projects, invoices, quotes, fiscalSources] = await Promise.all([
+  const [companies, clients, projects, invoices, quotes, fiscalSources, revenues] = await Promise.all([
     prisma.company.findMany({
       where: { userId },
       select: { id: true, name: true, city: true, website: true },
@@ -43,6 +43,15 @@ export default async function GraphPage() {
         emitterProfiles: { select: { id: true } },
       },
       orderBy: { createdAt: "asc" },
+    }),
+    prisma.revenue.findMany({
+      where: { userId },
+      select: {
+        id: true, label: true, amount: true, status: true,
+        fiscalSourceId: true, projectId: true, companyId: true, clientId: true,
+        receivedAt: true, expectedAt: true,
+      },
+      orderBy: { receivedAt: "asc" },
     }),
   ])
 
@@ -94,10 +103,13 @@ export default async function GraphPage() {
     if (parentId) links.push({ source: parentId, target: nodeId })
   }
 
+  // IDs des clients de type SELF — leurs projets remontent à la société parente
+  const selfClientIds = new Set(clients.filter(c => c.type === "SELF").map(c => c.id))
+
   // ── Projects ──────────────────────────────────────────────────────────────
   for (const p of projects) {
     const nodeId   = `project-${p.id}`
-    const parentId = p.clientId
+    const parentId = (p.clientId && !selfClientIds.has(p.clientId))
       ? `client-${p.clientId}`
       : p.companyId
       ? `company-${p.companyId}`
@@ -175,6 +187,46 @@ export default async function GraphPage() {
     links.push({ source: parentId, target: nodeId })
   }
 
+  // ── Revenues ──────────────────────────────────────────────────────────────
+  // Ensemble des IDs déjà créés — pour vérifier que le parent d'un revenu existe.
+  const nodeIds = new Set(nodes.map(n => n.id))
+
+  for (const rev of revenues) {
+    const revNodeId = `revenue-${rev.id}`
+
+    // Cherche le premier ancêtre valide : project → company → client
+    const rawParent = rev.projectId
+      ? `project-${rev.projectId}`
+      : rev.companyId
+      ? `company-${rev.companyId}`
+      : rev.clientId && !selfClientIds.has(rev.clientId)
+      ? `client-${rev.clientId}`
+      : null
+
+    const parentId = rawParent && nodeIds.has(rawParent) ? rawParent : null
+
+    const date    = rev.receivedAt ?? rev.expectedAt
+    const dateStr = date ? new Date(date).toLocaleDateString("fr-FR") : "—"
+
+    nodes.push({
+      id:       revNodeId,
+      type:     "REVENUE",
+      label:    rev.label,
+      parentId,
+      status:   rev.status ?? undefined,
+      amount:   rev.amount,
+      meta: {
+        subtitle: `${rev.amount.toLocaleString("fr-FR")} €`,
+        details: [
+          { label: "Montant", value: `${rev.amount.toLocaleString("fr-FR", { minimumFractionDigits: 2 })} €` },
+          { label: "Statut",  value: rev.status === "RECEIVED" ? "Reçu" : "En attente" },
+          { label: "Date",    value: dateStr },
+        ],
+      },
+    })
+    if (parentId) links.push({ source: parentId, target: revNodeId })
+  }
+
   // ── Fiscal Sources ─────────────────────────────────────────────────────────
   // Un nœud SOURCE par source fiscale active ; lié aux sociétés / contacts
   // dont les factures ont été émises avec un profil émetteur rattaché à cette source.
@@ -204,6 +256,21 @@ export default async function GraphPage() {
       }
     }
 
+    // Liens depuis les Revenue entries (études, baby-sitting, CAF…)
+    for (const rev of revenues) {
+      if (rev.fiscalSourceId !== src.id) continue
+      if (rev.companyId) {
+        linkedCompanyIds.add(rev.companyId)
+      } else if (rev.clientId) {
+        const client = clients.find(c => c.id === rev.clientId)
+        if (client?.companyId) {
+          linkedCompanyIds.add(client.companyId)
+        } else if (client && client.type !== "SELF") {
+          standaloneClientIds.add(rev.clientId)
+        }
+      }
+    }
+
     const totalLinked = linkedCompanyIds.size + standaloneClientIds.size
 
     nodes.push({
@@ -230,7 +297,7 @@ export default async function GraphPage() {
   }
 
   return (
-    <div className="h-[calc(100vh-3rem)] -m-6 overflow-hidden">
+    <div className="h-screen -m-6 overflow-hidden">
       <GraphView rawNodes={nodes} rawLinks={links} />
     </div>
   )

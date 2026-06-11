@@ -147,10 +147,10 @@ export const ForceGraphCanvas = forwardRef<GraphMethods, Props>(function ForceGr
       if (!fg) return
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const charge = fg.d3Force("charge") as any
-      if (charge?.strength) charge.strength(-60)
+      if (charge?.strength) charge.strength(-28)   // moins de répulsion → clusters plus denses
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const link = fg.d3Force("link") as any
-      if (link?.distance) link.distance(45)
+      if (link?.distance) link.distance(22)         // liens plus courts → familles resserrées
       fg.d3ReheatSimulation()
     }, 100)
     return () => clearTimeout(t)
@@ -445,8 +445,8 @@ export const ForceGraphCanvas = forwardRef<GraphMethods, Props>(function ForceGr
       enablePanInteraction
       enableNodeDrag
       cooldownTime={3000}
-      d3VelocityDecay={0.3}
-      d3AlphaDecay={0.02}
+      d3VelocityDecay={0.45}
+      d3AlphaDecay={0.025}
     />
   )
 })

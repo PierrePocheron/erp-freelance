@@ -1,7 +1,7 @@
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import Link from "next/link"
-import { Building2, Plus, Users, FolderOpen } from "lucide-react"
+import { Building2, AlertCircle, Users, FolderOpen } from "lucide-react"
 import { CreateCompanyDialog } from "@/components/modules/societes/CreateCompanyDialog"
 
 export default async function SocietesPage() {
@@ -11,7 +11,9 @@ export default async function SocietesPage() {
   const companies = await prisma.company.findMany({
     where: { userId },
     orderBy: { name: "asc" },
-    include: {
+    select: {
+      id: true, name: true, email: true, phone: true, siret: true,
+      website: true, address: true, city: true,
       _count: { select: { contacts: true, projects: true } },
     },
   })
@@ -46,7 +48,9 @@ export default async function SocietesPage() {
               </tr>
             </thead>
             <tbody>
-              {companies.map((co) => (
+              {companies.map((co) => {
+                const isIncomplete = !co.email && !co.phone && !co.siret && !co.website && !co.address
+                return (
                 <tr key={co.id} className="border-b border-border/50 last:border-0 hover:bg-muted/30 transition-colors">
                   <td className="px-4 py-3">
                     <Link
@@ -55,6 +59,12 @@ export default async function SocietesPage() {
                     >
                       <Building2 className="h-4 w-4 text-muted-foreground shrink-0" />
                       {co.name}
+                      {isIncomplete && (
+                        <span className="inline-flex items-center gap-1 text-[10px] font-medium rounded-full px-1.5 py-0.5 bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
+                          <AlertCircle className="h-2.5 w-2.5" />
+                          À compléter
+                        </span>
+                      )}
                     </Link>
                     {co.email && (
                       <p className="text-xs text-muted-foreground mt-0.5">{co.email}</p>
@@ -74,7 +84,7 @@ export default async function SocietesPage() {
                     </span>
                   </td>
                 </tr>
-              ))}
+              )})}
             </tbody>
           </table>
         </div>

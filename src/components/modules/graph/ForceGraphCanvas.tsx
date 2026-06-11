@@ -262,25 +262,30 @@ export const ForceGraphCanvas = forwardRef<GraphMethods, Props>(function ForceGr
         ctx.strokeStyle = "rgba(255,255,255,0.75)"; ctx.lineWidth = 2.0; ctx.stroke()
       }
 
-      // Label
-      const fsz  = Math.max(7, 15 / globalScale)
-      const text = n.label.length > 22 ? n.label.slice(0, 21) + "…" : n.label
-      ctx.font = `700 ${fsz}px -apple-system, "Inter", sans-serif`
-      ctx.textAlign = "center"; ctx.textBaseline = "top"
-      const labelC  = isDark ? "#fde68a" : "#92400e"
+      // Label — plafonné à r×0.68 pour rester visuellement dans le nœud
+      const rawFsz  = 15 / globalScale
+      const fsz     = Math.max(7, Math.min(r * 0.68, rawFsz))
       const shadowC = isDark ? "rgba(0,0,0,0.95)" : "rgba(255,255,255,0.85)"
-      ctx.shadowColor = shadowC; ctx.shadowBlur = 6
-      ctx.fillStyle = labelC; ctx.fillText(text, x, y + r + 5)
-      ctx.shadowBlur = 0; ctx.fillStyle = labelC; ctx.fillText(text, x, y + r + 5)
 
-      // Bucket badge
-      if (n.meta.subtitle) {
-        const bsz  = Math.max(4.5, 9 / globalScale)
-        ctx.font = `500 ${bsz}px -apple-system, "Inter", sans-serif`
-        const badgeC = isDark ? "rgba(248,250,252,0.60)" : "rgba(15,23,42,0.50)"
-        ctx.shadowColor = shadowC; ctx.shadowBlur = 4
-        ctx.fillStyle = badgeC; ctx.fillText(n.meta.subtitle, x, y + r + 5 + fsz + 2)
-        ctx.shadowBlur = 0; ctx.fillStyle = badgeC; ctx.fillText(n.meta.subtitle, x, y + r + 5 + fsz + 2)
+      if (fsz * globalScale >= 5) {
+        const text   = n.label.length > 22 ? n.label.slice(0, 21) + "…" : n.label
+        const labelC = isDark ? "#fde68a" : "#92400e"
+        ctx.font = `700 ${fsz}px -apple-system, "Inter", sans-serif`
+        ctx.textAlign = "center"; ctx.textBaseline = "top"
+        ctx.shadowColor = shadowC; ctx.shadowBlur = 6
+        ctx.fillStyle = labelC; ctx.fillText(text, x, y + r + 4)
+        ctx.shadowBlur = 0; ctx.fillStyle = labelC; ctx.fillText(text, x, y + r + 4)
+
+        // Bucket badge — seulement si assez de place
+        if (n.meta.subtitle && fsz * globalScale >= 7) {
+          const rawBsz = 9 / globalScale
+          const bsz    = Math.max(4.5, Math.min(r * 0.42, rawBsz))
+          ctx.font = `500 ${bsz}px -apple-system, "Inter", sans-serif`
+          const badgeC = isDark ? "rgba(248,250,252,0.60)" : "rgba(15,23,42,0.50)"
+          ctx.shadowColor = shadowC; ctx.shadowBlur = 4
+          ctx.fillStyle = badgeC; ctx.fillText(n.meta.subtitle, x, y + r + 4 + fsz + 2)
+          ctx.shadowBlur = 0; ctx.fillStyle = badgeC; ctx.fillText(n.meta.subtitle, x, y + r + 4 + fsz + 2)
+        }
       }
 
       ctx.globalAlpha = prevAlpha
@@ -350,36 +355,44 @@ export const ForceGraphCanvas = forwardRef<GraphMethods, Props>(function ForceGr
       ctx.strokeStyle = "rgba(255,255,255,0.78)"; ctx.lineWidth = 1.8; ctx.stroke()
     }
 
-    // ── Label ──────────────────────────────────────────────────────────────
-    const isCompany  = n.type === "COMPANY"
-    const fontSize   = isCompany ? Math.max(6, 14 / globalScale) : Math.max(4.5, 11 / globalScale)
-    const maxChars   = isCompany ? 26 : 20
-    const text       = n.label.length > maxChars ? n.label.slice(0, maxChars - 1) + "…" : n.label
-    const fontWeight = isCompany ? "700" : "500"
+    // ── Label — taille plafonnée à r×0.72 pour rester proportionnel au nœud ──
+    const isCompany   = n.type === "COMPANY"
+    const rawFont     = (isCompany ? 14 : 11) / globalScale
+    const fontSize    = Math.max(isCompany ? 6 : 4.5, Math.min(r * 0.72, rawFont))
+    const screenFont  = fontSize * globalScale  // taille réelle en pixels écran
 
-    ctx.font = `${fontWeight} ${fontSize}px -apple-system, "Inter", sans-serif`
-    ctx.textAlign = "center"; ctx.textBaseline = "top"
-    const ty = y + r + 5
+    // Masquer le label quand le nœud est trop petit à l'écran
+    // (COMPANY garde son label plus longtemps — il est le repère principal)
+    const minScreen = isCompany ? 4.5 : 6
+    if (screenFont >= minScreen) {
+      const maxChars   = isCompany ? 26 : 20
+      const text       = n.label.length > maxChars ? n.label.slice(0, maxChars - 1) + "…" : n.label
+      const fontWeight = isCompany ? "700" : "500"
+      const ty         = y + r + 4
 
-    const labelColor  = isDark ? (isCompany ? "#fde68a" : "rgba(248,250,252,0.92)") : (isCompany ? "#92400e" : "rgba(15,23,42,0.88)")
-    const shadowColor = isDark ? "rgba(0,0,0,0.95)" : "rgba(255,255,255,0.85)"
+      const labelColor  = isDark ? (isCompany ? "#fde68a" : "rgba(248,250,252,0.92)") : (isCompany ? "#92400e" : "rgba(15,23,42,0.88)")
+      const shadowColor = isDark ? "rgba(0,0,0,0.95)" : "rgba(255,255,255,0.85)"
 
-    ctx.shadowColor = shadowColor; ctx.shadowBlur = 5
-    ctx.fillStyle = labelColor; ctx.fillText(text, x, ty)
-    ctx.shadowBlur = 0
-    ctx.fillStyle = labelColor; ctx.fillText(text, x, ty)
-
-    // ── Montant (INVOICE / QUOTE / REVENUE) ───────────────────────────────
-    if (n.amount !== undefined && (n.type === "INVOICE" || n.type === "QUOTE" || n.type === "REVENUE")) {
-      const amtFontSize = Math.max(3.5, 9 / globalScale)
-      const amtText     = fmtAmount(n.amount)
-      ctx.font = `600 ${amtFontSize}px -apple-system, "Inter", sans-serif`
+      ctx.font = `${fontWeight} ${fontSize}px -apple-system, "Inter", sans-serif`
       ctx.textAlign = "center"; ctx.textBaseline = "top"
-      const amtColor = isDark ? "rgba(248,250,252,0.65)" : "rgba(15,23,42,0.55)"
-      const amtY     = ty + fontSize + 2
-      ctx.shadowColor = shadowColor; ctx.shadowBlur = 4
-      ctx.fillStyle = amtColor; ctx.fillText(amtText, x, amtY)
-      ctx.shadowBlur = 0; ctx.fillStyle = amtColor; ctx.fillText(amtText, x, amtY)
+      ctx.shadowColor = shadowColor; ctx.shadowBlur = 5
+      ctx.fillStyle = labelColor; ctx.fillText(text, x, ty)
+      ctx.shadowBlur = 0
+      ctx.fillStyle = labelColor; ctx.fillText(text, x, ty)
+
+      // ── Montant — seulement quand assez zoomé (screenFont ≥ 7px) ─────────
+      if (n.amount !== undefined && screenFont >= 7 && (n.type === "INVOICE" || n.type === "QUOTE" || n.type === "REVENUE")) {
+        const rawAmt      = 9 / globalScale
+        const amtFontSize = Math.max(3.5, Math.min(r * 0.55, rawAmt))
+        const amtText     = fmtAmount(n.amount)
+        ctx.font = `600 ${amtFontSize}px -apple-system, "Inter", sans-serif`
+        ctx.textAlign = "center"; ctx.textBaseline = "top"
+        const amtColor = isDark ? "rgba(248,250,252,0.65)" : "rgba(15,23,42,0.55)"
+        const amtY     = ty + fontSize + 2
+        ctx.shadowColor = shadowColor; ctx.shadowBlur = 4
+        ctx.fillStyle = amtColor; ctx.fillText(amtText, x, amtY)
+        ctx.shadowBlur = 0; ctx.fillStyle = amtColor; ctx.fillText(amtText, x, amtY)
+      }
     }
 
     ctx.globalAlpha = prevAlpha

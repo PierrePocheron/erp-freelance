@@ -297,6 +297,7 @@ export default async function GraphPage() {
       label:    src.name,
       parentId: null,
       meta: {
+        href:     "/revenus/sources",
         color:    src.color,
         subtitle: SOURCE_BUCKET_LABELS[src.bucket] ?? src.bucket,
         details: [

@@ -5,7 +5,7 @@ import { prisma } from "@/lib/prisma"
 
 export type SearchResult = {
   id: string
-  type: "client" | "project" | "quote" | "invoice" | "company"
+  type: "client" | "project" | "quote" | "invoice" | "company" | "fiscal_source"
   label: string
   sublabel?: string
   href: string
@@ -17,7 +17,7 @@ export async function searchGlobal(query: string): Promise<SearchResult[]> {
   if (!session) return []
   const userId = session.user.id
 
-  const [companies, clients, projects, quotes, invoices] = await Promise.all([
+  const [companies, clients, projects, quotes, invoices, fiscalSources] = await Promise.all([
     prisma.company.findMany({
       where: { userId, OR: [
         { name: { contains: query, mode: "insensitive" } },
@@ -56,7 +56,16 @@ export async function searchGlobal(query: string): Promise<SearchResult[]> {
       take: 3,
       select: { id: true, number: true, client: { select: { name: true, company: true } } },
     }),
+    prisma.fiscalSource.findMany({
+      where: { userId, name: { contains: query, mode: "insensitive" } },
+      take: 3,
+      select: { id: true, name: true, bucket: true },
+    }),
   ])
+
+  const BUCKET_LABELS: Record<string, string> = {
+    AE_URSSAF: "AE / URSSAF", NON_IMPOSABLE: "Non imposable", OTHER: "Autre",
+  }
 
   return [
     ...companies.map((c) => ({
@@ -92,6 +101,13 @@ export async function searchGlobal(query: string): Promise<SearchResult[]> {
       label: i.number,
       sublabel: i.client.company ?? i.client.name,
       href: `/facturation/factures/${i.id}`,
+    })),
+    ...fiscalSources.map((s) => ({
+      id: s.id,
+      type: "fiscal_source" as const,
+      label: s.name,
+      sublabel: BUCKET_LABELS[s.bucket] ?? s.bucket,
+      href: `/revenus/sources`,
     })),
   ]
 }

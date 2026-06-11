@@ -1,0 +1,5 @@
+-- CreateEnum
+CREATE TYPE "ProspectStage" AS ENUM ('IDENTIFIED', 'CONTACTED', 'NO_RESPONSE', 'REPLIED', 'MEETING', 'PROPOSAL_SENT', 'NEGOTIATION', 'WON', 'LOST', 'ON_HOLD');
+
+-- AlterTable
+ALTER TABLE "Client" ADD COLUMN "prospectStage" "ProspectStage" NOT NULL DEFAULT 'IDENTIFIED';

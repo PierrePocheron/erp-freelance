@@ -5,9 +5,10 @@ import {
   Pencil, Check, X, Mail, Phone, Building2, Tag,
   MessageSquare, Loader2, MapPin, Hash,
 } from "lucide-react"
-import { updateClientAll } from "@/actions/crm"
+import { updateClientAll, updateProspectStage } from "@/actions/crm"
 import { cn } from "@/lib/utils"
 import { CompanyCombobox } from "./CompanyCombobox"
+import { STAGE_CONFIG, type ProspectStage } from "./ProspectsView"
 
 const SOURCE_LABELS: Record<string, string> = {
   WORD_OF_MOUTH: "Bouche à oreille",
@@ -33,9 +34,9 @@ const TYPE_CLS: Record<string, string> = {
 }
 
 const TEMP_CONFIG: Record<string, { label: string; emoji: string; cls: string }> = {
-  COLD: { label: "Froid", emoji: "❄️", cls: "bg-blue-500/10 text-blue-600 border-blue-500/20" },
-  WARM: { label: "Tiède", emoji: "🌤", cls: "bg-amber-500/10 text-amber-600 border-amber-500/20" },
-  HOT: { label: "Chaud", emoji: "🔥", cls: "bg-red-500/10 text-red-600 border-red-500/20" },
+  COLD: { label: "Neutre", emoji: "○", cls: "bg-blue-500/10 text-blue-600 border-blue-500/20" },
+  WARM: { label: "Tiède",  emoji: "🌤", cls: "bg-amber-500/10 text-amber-600 border-amber-500/20" },
+  HOT:  { label: "Chaud",  emoji: "🔥", cls: "bg-red-500/10 text-red-600 border-red-500/20" },
 }
 
 type ClientData = {
@@ -52,6 +53,7 @@ type ClientData = {
   notes: string | null
   type: string
   temperature: string
+  prospectStage: string
   address: string | null
   postalCode: string | null
   city: string | null
@@ -81,6 +83,7 @@ export function ClientInfoCard({ client, isOwner = true }: { client: ClientData;
   const [city, setCity] = useState(client.city ?? "")
   const [country, setCountry] = useState(client.country ?? "")
   const [siret, setSiret] = useState(client.siret ?? "")
+  const [prospectStage, setProspectStage] = useState(client.prospectStage ?? "IDENTIFIED")
 
   useEffect(() => {
     if (!editing) return
@@ -95,6 +98,7 @@ export function ClientInfoCard({ client, isOwner = true }: { client: ClientData;
     setNotes(client.notes ?? "")
     setType(client.type)
     setTemperature(client.temperature)
+    setProspectStage(client.prospectStage ?? "IDENTIFIED")
     setAddress(client.address ?? "")
     setPostalCode(client.postalCode ?? "")
     setCity(client.city ?? "")
@@ -105,24 +109,30 @@ export function ClientInfoCard({ client, isOwner = true }: { client: ClientData;
 
   function handleSave() {
     startTransition(async () => {
-      await updateClientAll(client.id, {
-        firstName: firstName.trim() || null,
-        lastName: lastName.trim() || null,
-        label: label.trim() || null,
-        companyId: company.id,
-        companyName: company.name.trim() || null,
-        email: email.trim() || null,
-        phone: phone.trim() || null,
-        source,
-        notes: notes.trim() || null,
-        type,
-        temperature,
-        address: address.trim() || null,
-        postalCode: postalCode.trim() || null,
-        city: city.trim() || null,
-        country: country.trim() || null,
-        siret: siret.trim() || null,
-      })
+      const saves: Promise<unknown>[] = [
+        updateClientAll(client.id, {
+          firstName: firstName.trim() || null,
+          lastName: lastName.trim() || null,
+          label: label.trim() || null,
+          companyId: company.id,
+          companyName: company.name.trim() || null,
+          email: email.trim() || null,
+          phone: phone.trim() || null,
+          source,
+          notes: notes.trim() || null,
+          type,
+          temperature,
+          address: address.trim() || null,
+          postalCode: postalCode.trim() || null,
+          city: city.trim() || null,
+          country: country.trim() || null,
+          siret: siret.trim() || null,
+        }),
+      ]
+      if (type === "PROSPECT" && prospectStage !== client.prospectStage) {
+        saves.push(updateProspectStage(client.id, prospectStage as ProspectStage))
+      }
+      await Promise.all(saves)
       setEditing(false)
     })
   }
@@ -213,7 +223,7 @@ export function ClientInfoCard({ client, isOwner = true }: { client: ClientData;
             <div className="space-y-1">
               <label className="text-xs text-muted-foreground">Température</label>
               <select value={temperature} onChange={(e) => setTemperature(e.target.value)} className="flex h-8 w-full rounded-md border border-input bg-background px-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring">
-                <option value="COLD">❄️ Froid</option>
+                <option value="COLD">○ Neutre</option>
                 <option value="WARM">🌤 Tiède</option>
                 <option value="HOT">🔥 Chaud</option>
               </select>
@@ -225,6 +235,25 @@ export function ClientInfoCard({ client, isOwner = true }: { client: ClientData;
               </select>
             </div>
           </div>
+
+          {/* Étape prospect — visible uniquement si le type actuel est PROSPECT */}
+          {type === "PROSPECT" && (
+            <div className="space-y-1">
+              <label className="text-xs text-muted-foreground">Étape prospect</label>
+              <select value={prospectStage} onChange={(e) => setProspectStage(e.target.value)} className="flex h-8 w-full rounded-md border border-input bg-background px-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring">
+                <optgroup label="Pipeline">
+                  {(["IDENTIFIED","CONTACTED","NO_RESPONSE","REPLIED","MEETING","PROPOSAL_SENT","NEGOTIATION"] as ProspectStage[]).map((s) => (
+                    <option key={s} value={s}>{STAGE_CONFIG[s].label}</option>
+                  ))}
+                </optgroup>
+                <optgroup label="Résultat">
+                  {(["WON","LOST","ON_HOLD"] as ProspectStage[]).map((s) => (
+                    <option key={s} value={s}>{STAGE_CONFIG[s].label}</option>
+                  ))}
+                </optgroup>
+              </select>
+            </div>
+          )}
 
           <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground/70 pt-1">Adresse du contact <span className="font-normal normal-case">(optionnelle)</span></p>
           <div className="space-y-1">
@@ -260,11 +289,19 @@ export function ClientInfoCard({ client, isOwner = true }: { client: ClientData;
       ) : (
         /* ── Mode lecture ── */
         <div className="space-y-3">
-          {/* Type + Température */}
+          {/* Type + Température + Étape prospect */}
           <div className="flex items-center gap-2 flex-wrap">
             <span className={cn("rounded-full border px-2.5 py-0.5 text-xs font-medium", TYPE_CLS[client.type] ?? TYPE_CLS.INACTIVE)}>
               {typeLabel}
             </span>
+            {client.type === "PROSPECT" && (() => {
+              const stageCfg = STAGE_CONFIG[client.prospectStage as ProspectStage]
+              return stageCfg ? (
+                <span className={cn("rounded-full border px-2.5 py-0.5 text-xs font-medium", stageCfg.cls)}>
+                  {stageCfg.label}
+                </span>
+              ) : null
+            })()}
             <span className={cn("rounded-full border px-2.5 py-0.5 text-xs font-medium", temp.cls)}>
               {temp.emoji} {temp.label}
             </span>

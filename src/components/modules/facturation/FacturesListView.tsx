@@ -77,9 +77,18 @@ export function FacturesListView({
           <h2 className="text-xl font-semibold">Factures</h2>
           <p className="text-sm text-muted-foreground">{filtered.length} / {invoices.length} facture{invoices.length !== 1 ? "s" : ""}</p>
         </div>
-        <div className="flex items-center gap-2">
-          {/* Status filters */}
-          <div className="flex rounded-lg border border-border overflow-hidden text-xs">
+        <div className="flex items-center gap-2 flex-wrap">
+          {/* Status filters — select on mobile, buttons on sm+ */}
+          <select
+            className="sm:hidden rounded-lg border border-border px-2.5 py-1.5 text-xs bg-background text-foreground"
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+          >
+            {STATUS_FILTERS.map((f) => (
+              <option key={f.value} value={f.value}>{f.label}</option>
+            ))}
+          </select>
+          <div className="hidden sm:flex rounded-lg border border-border overflow-hidden text-xs">
             {STATUS_FILTERS.map((f) => (
               <button
                 key={f.value}
@@ -140,17 +149,17 @@ export function FacturesListView({
           Aucune facture pour ce filtre
         </p>
       ) : view === "list" ? (
-        <div className="rounded-xl border border-border/50 bg-card overflow-hidden">
+        <div className="rounded-xl border border-border/50 bg-card overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border text-xs text-muted-foreground">
                 <th className="px-4 py-3 text-left font-medium">Numéro</th>
                 <th className="px-4 py-3 text-left font-medium">Client</th>
-                <th className="px-4 py-3 text-left font-medium">Type</th>
+                <th className="px-4 py-3 text-left font-medium hidden sm:table-cell">Type</th>
                 <th className="px-4 py-3 text-left font-medium">Statut</th>
                 <th className="px-4 py-3 text-right font-medium">Montant HT</th>
-                <th className="px-4 py-3 text-left font-medium">Créée le</th>
-                <th className="px-4 py-3 text-left font-medium">Échéance</th>
+                <th className="px-4 py-3 text-left font-medium hidden md:table-cell">Créée le</th>
+                <th className="px-4 py-3 text-left font-medium hidden sm:table-cell">Échéance</th>
               </tr>
             </thead>
             <tbody>
@@ -163,17 +172,17 @@ export function FacturesListView({
                       <Link href={`/facturation/factures/${inv.id}`} className="text-primary hover:underline font-mono text-xs font-medium">{inv.number}</Link>
                     </td>
                     <td className="px-4 py-3 text-muted-foreground">{inv.client.company ?? inv.client.name}</td>
-                    <td className="px-4 py-3 text-xs text-muted-foreground">{typeLabels[inv.type] ?? inv.type}</td>
+                    <td className="px-4 py-3 text-xs text-muted-foreground hidden sm:table-cell">{typeLabels[inv.type] ?? inv.type}</td>
                     <td className="px-4 py-3">
                       <span className={`rounded-full border px-2 py-0.5 text-xs font-medium ${status.cls}`}>{status.label}</span>
                     </td>
                     <td className="px-4 py-3 text-right font-medium">
                       {(inv.totalHT - inv.depositDeducted).toLocaleString("fr-FR")} €
                     </td>
-                    <td className="px-4 py-3 text-xs text-muted-foreground">
+                    <td className="px-4 py-3 text-xs text-muted-foreground hidden md:table-cell">
                       {new Date(inv.createdAt).toLocaleDateString("fr-FR")}
                     </td>
-                    <td className={`px-4 py-3 text-xs ${isLate ? "text-red-500 font-medium" : "text-muted-foreground"}`}>
+                    <td className={`px-4 py-3 text-xs hidden sm:table-cell ${isLate ? "text-red-500 font-medium" : "text-muted-foreground"}`}>
                       {inv.dueDate ? new Date(inv.dueDate).toLocaleDateString("fr-FR") : "—"}
                     </td>
                   </tr>

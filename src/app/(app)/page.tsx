@@ -253,7 +253,7 @@ export default async function DashboardPage() {
         <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-3">
           Revenus encaissés — {currentYear}
         </p>
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <Link href="/facturation/factures" className="group space-y-0.5">
             <div className="flex items-center gap-1.5 text-xs text-muted-foreground group-hover:text-foreground transition-colors">
               <Receipt className="h-3.5 w-3.5 text-violet-500" />

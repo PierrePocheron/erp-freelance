@@ -77,7 +77,17 @@ export function ProjetsListView({
           </p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
-          <div className="flex rounded-lg border border-border overflow-hidden text-xs">
+          {/* Status filters — select on mobile, buttons on sm+ */}
+          <select
+            className="sm:hidden rounded-lg border border-border px-2.5 py-1.5 text-xs bg-background text-foreground"
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+          >
+            {STATUS_FILTERS.map((f) => (
+              <option key={f.value} value={f.value}>{f.label}</option>
+            ))}
+          </select>
+          <div className="hidden sm:flex rounded-lg border border-border overflow-hidden text-xs">
             {STATUS_FILTERS.map((f) => (
               <button
                 key={f.value}
@@ -161,16 +171,16 @@ export function ProjetsListView({
           )}
         </div>
       ) : (
-        <div className="rounded-xl border border-border/50 bg-card overflow-hidden">
+        <div className="rounded-xl border border-border/50 bg-card overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border text-xs text-muted-foreground">
                 <th className="px-4 py-3 text-left font-medium">Projet</th>
-                <th className="px-4 py-3 text-left font-medium">Société</th>
+                <th className="px-4 py-3 text-left font-medium hidden sm:table-cell">Société</th>
                 <th className="px-4 py-3 text-left font-medium">Statut</th>
-                <th className="px-4 py-3 text-left font-medium">Tâches</th>
-                <th className="px-4 py-3 text-left font-medium">Facturation</th>
-                <th className="px-4 py-3 text-left font-medium">Fin estimée</th>
+                <th className="px-4 py-3 text-left font-medium hidden md:table-cell">Tâches</th>
+                <th className="px-4 py-3 text-left font-medium hidden md:table-cell">Facturation</th>
+                <th className="px-4 py-3 text-left font-medium hidden lg:table-cell">Fin estimée</th>
               </tr>
             </thead>
             <tbody>
@@ -188,11 +198,11 @@ export function ProjetsListView({
                         <p className="text-xs text-muted-foreground truncate max-w-xs mt-0.5">{p.description}</p>
                       )}
                     </td>
-                    <td className="px-4 py-3 text-muted-foreground">{clientLabel}</td>
+                    <td className="px-4 py-3 text-muted-foreground hidden sm:table-cell">{clientLabel}</td>
                     <td className="px-4 py-3">
                       <Badge variant="outline" className={`text-xs ${st.cls}`}>{st.label}</Badge>
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-4 py-3 hidden md:table-cell">
                       {p._count.tasks > 0 ? (
                         <div className="flex items-center gap-2">
                           <div className="w-16 h-1.5 rounded-full bg-muted overflow-hidden">
@@ -207,13 +217,13 @@ export function ProjetsListView({
                         <span className="text-xs text-muted-foreground">—</span>
                       )}
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-4 py-3 hidden md:table-cell">
                       <BillingBar
                         totalFacture={p.billing.totalFacture}
                         totalEncaisse={p.billing.totalEncaisse}
                       />
                     </td>
-                    <td className="px-4 py-3 text-xs text-muted-foreground">
+                    <td className="px-4 py-3 text-xs text-muted-foreground hidden lg:table-cell">
                       {p.endDate ? (
                         <span className="flex items-center gap-1">
                           <Calendar className="h-3 w-3" />

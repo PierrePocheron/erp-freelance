@@ -23,7 +23,7 @@ type Props = {
     endDate: Date | null
     estimatedHours: number | null
     company: { id: string; name: string } | null
-    contact: { id: string; name: string; company: string | null } | null
+    contactLinks: { client: { id: string; name: string; company: string | null } }[]
     _count: { tasks: number }
     tasksDone: number
     tags: { id: string; name: string; color: string }[]
@@ -33,7 +33,8 @@ type Props = {
 
 export function ProjectCard({ project }: Props) {
   const { label, className } = statusConfig[project.status]
-  const clientLabel = project.company?.name ?? project.contact?.name ?? "—"
+  const firstContact = project.contactLinks[0]?.client
+  const clientLabel = project.company?.name ?? firstContact?.name ?? "—"
 
   return (
     <Link href={`/projets/${project.id}`}>

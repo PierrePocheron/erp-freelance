@@ -13,7 +13,11 @@ export default async function ProjetsPage() {
       orderBy: { createdAt: "desc" },
       include: {
         company: { select: { id: true, name: true } },
-        contact: { select: { id: true, name: true, company: true } },
+        contactLinks: {
+          select: { role: true, client: { select: { id: true, name: true, company: true } } },
+          orderBy: { createdAt: "asc" },
+          take: 1,
+        },
         members: { select: { userId: true } },
         _count: { select: { tasks: true } },
         tasks: { select: { status: true }, where: { parentTaskId: null } },

@@ -8,8 +8,8 @@ import { ProjectDateBadge } from "@/components/modules/projet/ProjectDateBadge"
 import { ProjectNameEdit, ProjectDescriptionEdit, ProjectHoursEdit, ProjectStatusEdit } from "@/components/modules/projet/ProjectInlineEdit"
 import { TagSelector } from "@/components/modules/projet/TagSelector"
 import { ProjectSettingsDialog } from "@/components/modules/projet/ProjectSettingsDialog"
-import { ProjectContactSelect } from "@/components/modules/projet/ProjectContactSelect"
-import { updateProjectContact, updateProjectCompany } from "@/actions/projet"
+import { ProjectContactsManager } from "@/components/modules/projet/ProjectContactsManager"
+import { addProjectContact, removeProjectContact, updateProjectCompany } from "@/actions/projet"
 import { UserAvatar } from "@/components/ui/user-avatar"
 
 export default async function ProjectLayout({
@@ -31,7 +31,10 @@ export default async function ProjectLayout({
       },
       include: {
         company: { select: { id: true, name: true } },
-        contact: { select: { id: true, name: true, company: true } },
+        contactLinks: {
+          select: { clientId: true, role: true, label: true, client: { select: { id: true, name: true, company: true } } },
+          orderBy: { createdAt: "asc" },
+        },
         members: {
           include: { user: { select: { name: true, email: true, image: true } } },
           orderBy: { createdAt: "asc" },
@@ -85,12 +88,17 @@ export default async function ProjectLayout({
             )}
             <ProjectNameEdit projectId={id} value={project.name} />
             <ProjectDescriptionEdit projectId={id} value={project.description} />
-            <ProjectContactSelect
-              contacts={contacts}
-              currentId={project.contact?.id ?? null}
-              action={async (contactId) => {
+            <ProjectContactsManager
+              projectId={id}
+              allContacts={contacts}
+              projectContacts={project.contactLinks}
+              onAdd={async (clientId, role, label) => {
                 "use server"
-                await updateProjectContact(id, contactId)
+                await addProjectContact(id, clientId, role, label)
+              }}
+              onRemove={async (clientId) => {
+                "use server"
+                await removeProjectContact(id, clientId)
               }}
             />
 

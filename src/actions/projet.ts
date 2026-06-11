@@ -84,7 +84,6 @@ export async function createProject(_userId: string, formData: FormData) {
     data: {
       userId,
       companyId: parsed.companyId || null,
-      contactId,
       // clientId conservé pour compat facturation (Phase 2 le retirera)
       clientId: contactId,
       name: parsed.name,
@@ -92,6 +91,10 @@ export async function createProject(_userId: string, formData: FormData) {
       startDate: parsed.startDate ? new Date(parsed.startDate) : undefined,
       endDate: parsed.endDate ? new Date(parsed.endDate) : undefined,
       estimatedHours: parsed.estimatedHours,
+      // Crée le lien M2M si un contact est fourni
+      ...(contactId ? {
+        contactLinks: { create: { clientId: contactId, role: "CLIENT" } },
+      } : {}),
     },
   })
   revalidatePath("/projets")
@@ -110,15 +113,50 @@ export async function updateProjectCompany(projectId: string, companyId: string 
   revalidatePath("/projets")
 }
 
-export async function updateProjectContact(projectId: string, contactId: string | null) {
+/**
+ * Ajoute un contact au projet avec un rôle et un label optionnel.
+ * Si le contact est déjà lié, met à jour son rôle/label.
+ */
+export async function addProjectContact(
+  projectId: string,
+  clientId: string,
+  role: "CLIENT" | "COLLEAGUE" | "PARTNER" | "SUPPLIER" | "OTHER" = "OTHER",
+  label?: string,
+) {
   const userId = await requireAuth()
-  if (contactId) {
-    const contact = await prisma.client.findFirst({ where: { id: contactId, userId }, select: { id: true } })
-    if (!contact) throw new Error("Contact introuvable")
-  }
   await prisma.project.findFirstOrThrow({ where: { id: projectId, userId } })
-  await prisma.project.update({ where: { id: projectId }, data: { contactId } })
+  const contact = await prisma.client.findFirst({ where: { id: clientId, userId }, select: { id: true } })
+  if (!contact) throw new Error("Contact introuvable")
+
+  await prisma.projectContact.upsert({
+    where: { projectId_clientId: { projectId, clientId } },
+    create: { projectId, clientId, role, label: label || null },
+    update: { role, label: label || null },
+  })
   revalidatePath(`/projets/${projectId}`)
+}
+
+/**
+ * Retire un contact du projet.
+ */
+export async function removeProjectContact(projectId: string, clientId: string) {
+  const userId = await requireAuth()
+  await prisma.project.findFirstOrThrow({ where: { id: projectId, userId } })
+  await prisma.projectContact.deleteMany({ where: { projectId, clientId } })
+  revalidatePath(`/projets/${projectId}`)
+}
+
+/** @deprecated Utiliser addProjectContact / removeProjectContact */
+export async function updateProjectContact(projectId: string, contactId: string | null) {
+  if (contactId) {
+    await addProjectContact(projectId, contactId, "CLIENT")
+  } else {
+    // Retire tous les contacts de rôle CLIENT si on efface
+    const userId = await requireAuth()
+    await prisma.project.findFirstOrThrow({ where: { id: projectId, userId } })
+    await prisma.projectContact.deleteMany({ where: { projectId, role: "CLIENT" } })
+    revalidatePath(`/projets/${projectId}`)
+  }
 }
 
 export async function updateProjectStatus(

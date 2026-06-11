@@ -23,23 +23,26 @@ const NAV_ITEMS: NavItem[] = [
   { label: "Factures",               href: "/facturation/factures",      icon: "💰", keywords: ["facture", "invoice", "paiement", "reglement"] },
   { label: "Produits & Catalogue",   href: "/facturation/produits",      icon: "📦", keywords: ["produit", "product", "catalogue", "tarif", "prix", "service"] },
   { label: "Calendrier",             href: "/calendrier",                icon: "📅", keywords: ["calendrier", "agenda", "evenement", "rdv", "rendez-vous", "planning"] },
+  { label: "Sources fiscales",        href: "/revenus/sources",           icon: "🏦", keywords: ["source", "fiscal", "fiscale", "urssaf", "ae", "impot", "impôt", "declaration", "déclaration", "non imposable", "emetteur", "émetteur", "identite", "identité"] },
   { label: "Paramètres",             href: "/settings",                  icon: "⚙️", keywords: ["parametres", "settings", "profil", "profil", "logo", "couleur", "iban", "siret", "entreprise", "conditions", "cgv"] },
 ]
 
 const TYPE_ICON: Record<string, string> = {
-  company: "🏢",
-  client:  "👥",
-  project: "💻",
-  quote:   "📄",
-  invoice: "💰",
+  company:      "🏢",
+  client:       "👥",
+  project:      "💻",
+  quote:        "📄",
+  invoice:      "💰",
+  fiscal_source:"🏦",
 }
 
 const TYPE_LABEL: Record<string, string> = {
-  company: "Société",
-  client:  "Contact",
-  project: "Projet",
-  quote:   "Devis",
-  invoice: "Facture",
+  company:      "Société",
+  client:       "Contact",
+  project:      "Projet",
+  quote:        "Devis",
+  invoice:      "Facture",
+  fiscal_source:"Source fiscale",
 }
 
 function normalize(s: string) {

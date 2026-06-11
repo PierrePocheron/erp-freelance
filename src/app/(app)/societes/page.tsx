@@ -1,22 +1,38 @@
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import Link from "next/link"
-import { Building2, AlertCircle, Users, FolderOpen } from "lucide-react"
+import { Building2, AlertCircle, Users, FolderOpen, Wallet, ArrowRight } from "lucide-react"
 import { CreateCompanyDialog } from "@/components/modules/societes/CreateCompanyDialog"
+
+const BUCKET_LABELS: Record<string, string> = {
+  AE_URSSAF:     "AE / URSSAF",
+  NON_IMPOSABLE: "Non imposable",
+  OTHER:         "Autre",
+}
 
 export default async function SocietesPage() {
   const session = await auth()
   const userId = session!.user.id
 
-  const companies = await prisma.company.findMany({
-    where: { userId },
-    orderBy: { name: "asc" },
-    select: {
-      id: true, name: true, email: true, phone: true, siret: true,
-      website: true, address: true, city: true,
-      _count: { select: { contacts: true, projects: true } },
-    },
-  })
+  const [companies, fiscalSources] = await Promise.all([
+    prisma.company.findMany({
+      where: { userId },
+      orderBy: { name: "asc" },
+      select: {
+        id: true, name: true, email: true, phone: true, siret: true,
+        website: true, address: true, city: true,
+        _count: { select: { contacts: true, projects: true } },
+      },
+    }),
+    prisma.fiscalSource.findMany({
+      where: { userId },
+      orderBy: { createdAt: "asc" },
+      select: {
+        id: true, name: true, bucket: true, color: true, isActive: true,
+        _count: { select: { revenues: true } },
+      },
+    }),
+  ])
 
   return (
     <div className="space-y-6">
@@ -29,6 +45,47 @@ export default async function SocietesPage() {
         </div>
         <CreateCompanyDialog userId={userId} />
       </div>
+
+      {/* Carte Sources fiscales */}
+      {fiscalSources.length > 0 && (
+        <div className="rounded-xl border border-border/50 bg-card p-5">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <Wallet className="h-4 w-4 text-muted-foreground" />
+              <h2 className="font-semibold text-sm">Identités de facturation</h2>
+              <span className="text-xs text-muted-foreground">({fiscalSources.length})</span>
+            </div>
+            <Link
+              href="/revenus/sources"
+              className="flex items-center gap-1 text-xs text-primary hover:underline"
+            >
+              Gérer <ArrowRight className="h-3 w-3" />
+            </Link>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {fiscalSources.map((src) => (
+              <Link
+                key={src.id}
+                href="/revenus/sources"
+                className={`inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-xs transition-colors hover:bg-muted/50 ${
+                  src.isActive ? "border-border/50" : "border-border/30 opacity-50"
+                }`}
+              >
+                <span
+                  className="h-2 w-2 rounded-full shrink-0"
+                  style={{ backgroundColor: src.color }}
+                />
+                <span className="font-medium">{src.name}</span>
+                <span className="text-muted-foreground">{BUCKET_LABELS[src.bucket] ?? src.bucket}</span>
+                <span className="text-muted-foreground tabular-nums">· {src._count.revenues} rev.</span>
+                {!src.isActive && (
+                  <span className="text-muted-foreground italic">inactif</span>
+                )}
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
 
       {companies.length === 0 ? (
         <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border py-20 text-center">

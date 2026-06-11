@@ -186,11 +186,13 @@ export function GraphView({ rawNodes, rawLinks }: { rawNodes: RawNode[]; rawLink
     return matchingIds.size > 0 ? matchingIds : undefined
   }, [searchQuery, focusedNodeId, matchingIds])
 
-  // ── Couleur du point SOURCE dans le filtre = couleur réelle du 1er nœud SOURCE ──
-  const sourceDotColor = useMemo(() => {
-    const first = nodes.find(n => n.type === "SOURCE")
-    return first ? (first.meta.color ?? NODE_BASE_COLORS.SOURCE) : NODE_BASE_COLORS.SOURCE
-  }, [nodes])
+  // ── Couleurs réelles des sources fiscales pour le filtre ────────────────
+  const sourceColors = useMemo(
+    () => rawNodes
+      .filter(n => n.type === "SOURCE")
+      .map(n => n.meta.color ?? NODE_BASE_COLORS.SOURCE),
+    [rawNodes]
+  )
 
   // ── Toggle collapse (double-clic) ────────────────────────────────────────
   const handleDblClick = useCallback((node: RawNode) => {
@@ -363,7 +365,6 @@ export function GraphView({ rawNodes, rawLinks }: { rawNodes: RawNode[]; rawLink
           {ALL_TYPES.map(t => {
             const count  = nodes.filter(n => n.type === t).length
             const hidden = hiddenTypes.has(t)
-            const dotColor = t === "SOURCE" ? sourceDotColor : TYPE_DOT[t]
             return (
               <button
                 key={t}
@@ -372,10 +373,23 @@ export function GraphView({ rawNodes, rawLinks }: { rawNodes: RawNode[]; rawLink
                   hidden ? "opacity-35" : "opacity-100"
                 } hover:bg-accent`}
               >
-                <span
-                  className="h-2.5 w-2.5 rounded-full shrink-0"
-                  style={{ backgroundColor: dotColor }}
-                />
+                {/* Pour SOURCE : un point par source fiscale avec sa vraie couleur */}
+                {t === "SOURCE" && sourceColors.length > 0 ? (
+                  <span className="flex items-center -space-x-1.5 shrink-0">
+                    {sourceColors.slice(0, 5).map((c, i) => (
+                      <span
+                        key={i}
+                        className="h-2.5 w-2.5 rounded-full border border-card/80"
+                        style={{ backgroundColor: c }}
+                      />
+                    ))}
+                  </span>
+                ) : (
+                  <span
+                    className="h-2.5 w-2.5 rounded-full shrink-0"
+                    style={{ backgroundColor: TYPE_DOT[t] }}
+                  />
+                )}
                 <span className="font-medium">{NODE_TYPE_LABELS[t]}</span>
                 <span className="ml-auto text-muted-foreground">{count}</span>
               </button>

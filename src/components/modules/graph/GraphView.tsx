@@ -247,18 +247,16 @@ export function GraphView({ rawNodes, rawLinks }: { rawNodes: RawNode[]; rawLink
   }
 
   return (
+    // Fond géré par CSS pur (classes Tailwind dark:) — pas de JS → pas de flash au chargement.
+    // isDark est uniquement passé au canvas pour les couleurs des nœuds / liens.
     <div
-      suppressHydrationWarning
-      className="relative flex h-full w-full overflow-hidden"
-      style={isDark ? {
-        backgroundColor: "#0d0f1a",
-        backgroundImage: "radial-gradient(rgba(255,255,255,0.07) 1px, transparent 1px)",
-        backgroundSize: "26px 26px",
-      } : {
-        backgroundColor: "#f4f6fb",
-        backgroundImage: "radial-gradient(rgba(0,0,0,0.09) 1px, transparent 1px)",
-        backgroundSize: "26px 26px",
-      }}
+      className={[
+        "relative flex h-full w-full overflow-hidden",
+        "bg-[#f4f6fb] dark:bg-[#0d0f1a]",
+        "[background-image:radial-gradient(rgba(0,0,0,0.09)_1px,transparent_1px)]",
+        "dark:[background-image:radial-gradient(rgba(255,255,255,0.07)_1px,transparent_1px)]",
+        "[background-size:26px_26px]",
+      ].join(" ")}
     >
 
       {/* ── Canvas ─────────────────────────────────────────────────────────── */}

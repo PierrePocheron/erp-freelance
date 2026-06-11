@@ -71,7 +71,11 @@ export function GraphView({ rawNodes, rawLinks }: { rawNodes: RawNode[]; rawLink
   const [collapsedIds, setCollapsed] = useState<Set<string>>(new Set())
   const [hiddenTypes, setHidden]    = useState<Set<NodeType>>(new Set())
   const [selected, setSelected]     = useState<RawNode | null>(null)
-  const [isDark, setIsDark]         = useState(true)
+  // Initialisé depuis le DOM pour éviter le flash de fond au chargement
+  const [isDark, setIsDark] = useState<boolean>(() => {
+    if (typeof window === "undefined") return true
+    return document.documentElement.classList.contains("dark")
+  })
 
   // ── Recherche ────────────────────────────────────────────────────────────
   const [searchQuery,    setSearchQuery]    = useState("")

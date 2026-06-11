@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import { Poppins } from "next/font/google";
-import Script from "next/script";
 import { Toaster } from "sonner";
 import "./globals.css";
 
@@ -27,7 +26,8 @@ export default function RootLayout({
       suppressHydrationWarning
     >
       <body className="h-full overflow-hidden bg-background text-foreground" suppressHydrationWarning>
-        <Script src="/theme-init.js" strategy="beforeInteractive" />
+        {/* Script de thème inliné — doit s'exécuter avant tout rendu pour éviter le flash */}
+        <script dangerouslySetInnerHTML={{ __html: `(function(){try{var t=localStorage.getItem('theme');if(t==='dark'||(t===null&&window.matchMedia('(prefers-color-scheme:dark)').matches)){document.documentElement.classList.add('dark')}}catch(e){}})()` }} />
         {children}
         <Toaster position="bottom-right" richColors />
       </body>

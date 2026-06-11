@@ -170,6 +170,17 @@ export async function updateProjectStatus(
   revalidatePath(`/projets/${projectId}`)
 }
 
+export async function updateProjectPriority(
+  projectId: string,
+  priority: "LOW" | "MEDIUM" | "HIGH" | "URGENT"
+) {
+  const userId = await requireAuth()
+  await prisma.project.findFirstOrThrow({ where: { id: projectId, userId } })
+  await prisma.project.update({ where: { id: projectId }, data: { priority } })
+  revalidatePath("/projets")
+  revalidatePath(`/projets/${projectId}`)
+}
+
 export async function deleteProject(projectId: string, _userId: string) {
   const userId = await requireAuth()
   await prisma.project.delete({ where: { id: projectId, userId } })

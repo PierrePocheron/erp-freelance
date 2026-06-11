@@ -383,6 +383,7 @@ model Project {
   name           String
   description    String?
   status         ProjectStatus @default(ACTIVE)
+  priority       TaskPriority  @default(MEDIUM)
   startDate      DateTime?
   endDate        DateTime?
   estimatedHours Float?

@@ -69,8 +69,16 @@ const fmtShort = (d: Date | string) =>
 
 // ── ProspectsView ─────────────────────────────────────────────────────────────
 
-export function ProspectsView({ prospects, userId }: { prospects: Prospect[]; userId: string }) {
-  const [stageFilter, setStageFilter] = useState<ProspectStage | "ALL">("ALL")
+export function ProspectsView({
+  prospects,
+  userId,
+  initialStage,
+}: {
+  prospects: Prospect[]
+  userId: string
+  initialStage?: ProspectStage
+}) {
+  const [stageFilter, setStageFilter] = useState<ProspectStage | "ALL">(initialStage ?? "ALL")
   const [quickName, setQuickName] = useState("")
   const [isAdding, startAdding] = useTransition()
   const [open, setOpen] = useState(false)
@@ -110,14 +118,7 @@ export function ProspectsView({ prospects, userId }: { prospects: Prospect[]; us
 
   return (
     <>
-      <section className="space-y-4">
-        <div className="flex items-center justify-between">
-          <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">
-            Prospects
-            <span className="ml-1.5 text-xs font-normal">({prospects.length})</span>
-          </h2>
-        </div>
-
+      <div className="space-y-4">
         {/* ── Quick add ── */}
         <form onSubmit={handleQuickAdd} className="flex items-center gap-2">
           <input
@@ -229,7 +230,7 @@ export function ProspectsView({ prospects, userId }: { prospects: Prospect[]; us
             )}
           </>
         )}
-      </section>
+      </div>
 
       <Sheet open={open} onOpenChange={setOpen}>
         <SheetContent side="right" className="w-[460px] sm:max-w-[460px] p-0" showCloseButton>

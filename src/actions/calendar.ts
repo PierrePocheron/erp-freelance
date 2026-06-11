@@ -535,7 +535,7 @@ export async function createCalendarItem(input: CalItemInput): Promise<{ error?:
         })
         revalidatePath("/taches")
         if (projectId) revalidatePath(`/projets/${projectId}`)
-        if (clientId)  revalidatePath(`/client/${clientId}`)
+        if (clientId)  revalidatePath(`/contacts/${clientId}`)
         break
       }
 
@@ -561,7 +561,7 @@ export async function createCalendarItem(input: CalItemInput): Promise<{ error?:
             response: description,
           },
         })
-        revalidatePath(`/client/${clientId}`)
+        revalidatePath(`/contacts/${clientId}`)
         break
       }
 
@@ -575,7 +575,7 @@ export async function createCalendarItem(input: CalItemInput): Promise<{ error?:
             note: description ? `${title} — ${description}` : title,
           },
         })
-        revalidatePath(`/client/${clientId}`)
+        revalidatePath(`/contacts/${clientId}`)
         break
       }
 
@@ -647,7 +647,7 @@ export async function moveCalendarItem(
         await prisma.task.update({ where: { id }, data: { dueDate: newStart } })
         revalidatePath("/taches")
         if (t.projectId) revalidatePath(`/projets/${t.projectId}`)
-        if (t.clientId)  revalidatePath(`/client/${t.clientId}`)
+        if (t.clientId)  revalidatePath(`/contacts/${t.clientId}`)
         break
       }
       case "milestone": {
@@ -667,7 +667,7 @@ export async function moveCalendarItem(
         })
         if (!r) return { error: "Rappel introuvable" }
         await prisma.reminder.update({ where: { id }, data: { dueDate: newStart } })
-        revalidatePath(`/client/${r.clientId}`)
+        revalidatePath(`/contacts/${r.clientId}`)
         break
       }
       case "interaction": {
@@ -677,7 +677,7 @@ export async function moveCalendarItem(
         })
         if (!i) return { error: "Interaction introuvable" }
         await prisma.interaction.update({ where: { id }, data: { date: newStart } })
-        revalidatePath(`/client/${i.clientId}`)
+        revalidatePath(`/contacts/${i.clientId}`)
         break
       }
       case "manual": {
@@ -739,7 +739,7 @@ export async function updateCalendarItem(
         })
         revalidatePath("/taches")
         if (t.projectId) revalidatePath(`/projets/${t.projectId}`)
-        if (t.clientId)  revalidatePath(`/client/${t.clientId}`)
+        if (t.clientId)  revalidatePath(`/contacts/${t.clientId}`)
         break
       }
       case "milestone": {
@@ -769,7 +769,7 @@ export async function updateCalendarItem(
             ...(data.startDate !== undefined ? { dueDate: data.startDate } : {}),
           },
         })
-        revalidatePath(`/client/${r.clientId}`)
+        revalidatePath(`/contacts/${r.clientId}`)
         break
       }
       case "interaction": {
@@ -786,7 +786,7 @@ export async function updateCalendarItem(
             ...(data.channel ? { channel: data.channel as never } : {}),
           },
         })
-        revalidatePath(`/client/${i.clientId}`)
+        revalidatePath(`/contacts/${i.clientId}`)
         break
       }
       case "manual": {
@@ -830,7 +830,7 @@ export async function deleteCalendarItem(type: CalItemType, id: string): Promise
         await prisma.task.delete({ where: { id } })
         revalidatePath("/taches")
         if (t.projectId) revalidatePath(`/projets/${t.projectId}`)
-        if (t.clientId)  revalidatePath(`/client/${t.clientId}`)
+        if (t.clientId)  revalidatePath(`/contacts/${t.clientId}`)
         break
       }
       case "milestone": {
@@ -844,14 +844,14 @@ export async function deleteCalendarItem(type: CalItemType, id: string): Promise
         const r = await prisma.reminder.findFirst({ where: { id, client: { userId } }, select: { clientId: true } })
         if (!r) return { error: "Rappel introuvable" }
         await prisma.reminder.delete({ where: { id } })
-        revalidatePath(`/client/${r.clientId}`)
+        revalidatePath(`/contacts/${r.clientId}`)
         break
       }
       case "interaction": {
         const i = await prisma.interaction.findFirst({ where: { id, client: { userId } }, select: { clientId: true } })
         if (!i) return { error: "Interaction introuvable" }
         await prisma.interaction.delete({ where: { id } })
-        revalidatePath(`/client/${i.clientId}`)
+        revalidatePath(`/contacts/${i.clientId}`)
         break
       }
       case "manual": {

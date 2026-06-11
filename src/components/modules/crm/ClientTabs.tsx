@@ -13,7 +13,7 @@ const tabs = [
 
 export function ClientTabs({ clientId }: { clientId: string }) {
   const pathname = usePathname()
-  const base = `/client/${clientId}`
+  const base = `/contacts/${clientId}`
 
   return (
     <div className="flex gap-1 border-b border-border">

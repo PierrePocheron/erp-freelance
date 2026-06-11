@@ -914,10 +914,10 @@ function EventDetailDialog({
                 </Link>
               )}
               {linkedClient && (
-                <Link href={`/client/${linkedClient.id}`} onClick={onClose}
+                <Link href={`/contacts/${linkedClient.id}`} onClick={onClose}
                   className="inline-flex items-center gap-1.5 text-xs text-primary hover:underline">
                   <ExternalLink className="h-3 w-3" />
-                  Voir le client — {linkedClient.label}
+                  Voir le contact — {linkedClient.label}
                 </Link>
               )}
             </div>

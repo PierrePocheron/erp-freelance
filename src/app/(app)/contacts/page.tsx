@@ -22,6 +22,7 @@ export default async function CRMPage() {
       where: { userId, status: { not: "DRAFT" } },
       select: {
         clientId: true,
+        status: true,
         totalHT: true,
         depositDeducted: true,
         payments: { select: { amount: true } },
@@ -31,8 +32,11 @@ export default async function CRMPage() {
 
   const billingByClient: Record<string, { totalFacture: number; totalEncaisse: number }> = {}
   for (const inv of clientInvoices) {
+    if (!inv.clientId) continue
     const net = inv.totalHT - inv.depositDeducted
-    const paid = inv.payments.reduce((s, p) => s + p.amount, 0)
+    const paid = inv.status === "PAID"
+      ? net
+      : inv.payments.reduce((s, p) => s + p.amount, 0)
     const entry = billingByClient[inv.clientId] ?? { totalFacture: 0, totalEncaisse: 0 }
     entry.totalFacture += net
     entry.totalEncaisse += paid
@@ -63,7 +67,7 @@ export default async function CRMPage() {
     <div className="space-y-8">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Clients</h1>
+          <h1 className="text-2xl font-bold tracking-tight">Contacts</h1>
           <p className="text-sm text-muted-foreground">{clients.length} contact{clients.length !== 1 ? "s" : ""}</p>
         </div>
         <CreateClientDialog userId={userId} />

@@ -62,6 +62,19 @@ export default async function ClientOverviewPage({
 
   if (!client) notFound()
 
+  // Toutes les factures liées à ce client (directement ou via ses projets)
+  const allClientInvoices = await prisma.invoice.findMany({
+    where: {
+      userId,
+      status: { not: "DRAFT" },
+      OR: [
+        { clientId: id },
+        { project: { OR: [{ contactId: id }, { clientId: id }] } },
+      ],
+    },
+    select: { totalHT: true, depositDeducted: true, status: true },
+  })
+
   // Sociétés et contacts pour alimenter le dialog « Nouveau projet »
   const [allCompanies, allContacts] = await Promise.all([
     prisma.company.findMany({
@@ -105,11 +118,11 @@ export default async function ClientOverviewPage({
   const isOwner = client.userId === userId
   const allTasks = [...client.tasks, ...projectTasks]
 
-  const totalBilled = client.invoices
+  const totalBilled = allClientInvoices
     .filter((i) => i.status === "PAID")
     .reduce((s, i) => s + i.totalHT - i.depositDeducted, 0)
 
-  const pendingAmount = client.invoices
+  const pendingAmount = allClientInvoices
     .filter((i) => i.status === "SENT" || i.status === "LATE")
     .reduce((s, i) => s + i.totalHT - i.depositDeducted, 0)
 
@@ -199,7 +212,7 @@ export default async function ClientOverviewPage({
                 <Bell className="h-4 w-4 text-amber-600" />
                 <h2 className="font-semibold text-sm text-amber-700 dark:text-amber-400">Rappels</h2>
               </div>
-              <Link href={`/client/${id}/rappels`} className="text-xs text-primary hover:underline">Voir tout</Link>
+              <Link href={`/contacts/${id}/rappels`} className="text-xs text-primary hover:underline">Voir tout</Link>
             </div>
             <div className="space-y-2">
               {client.reminders.map((r) => (
@@ -222,7 +235,7 @@ export default async function ClientOverviewPage({
                 <MessageSquare className="h-4 w-4 text-muted-foreground" />
                 <h2 className="font-semibold text-sm">Dernières interactions</h2>
               </div>
-              <Link href={`/client/${id}/interactions`} className="text-xs text-primary hover:underline">Voir tout</Link>
+              <Link href={`/contacts/${id}/interactions`} className="text-xs text-primary hover:underline">Voir tout</Link>
             </div>
             <div className="space-y-2">
               {client.interactions.map((i) => (
@@ -243,7 +256,7 @@ export default async function ClientOverviewPage({
             action={async () => {
               "use server"
               await deleteClient(id, userId)
-              redirect("/client")
+              redirect("/contacts")
             }}
           >
             <Button type="submit" variant="destructive" size="sm" className="w-full">

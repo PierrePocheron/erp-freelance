@@ -71,7 +71,7 @@ export async function searchGlobal(query: string): Promise<SearchResult[]> {
       type: "client" as const,
       label: c.company ?? c.name,
       sublabel: c.company ? c.name : undefined,
-      href: `/client/${c.id}`,
+      href: `/contacts/${c.id}`,
     })),
     ...projects.map((p) => ({
       id: p.id,

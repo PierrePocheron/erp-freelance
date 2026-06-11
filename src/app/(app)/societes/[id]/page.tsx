@@ -494,7 +494,7 @@ export default async function CompanyDetailPage({
                   {company.contacts.map((c) => (
                     <tr key={c.id} className="border-b border-border/50 last:border-0 hover:bg-muted/30 transition-colors">
                       <td className="px-5 py-3">
-                        <Link href={`/client/${c.id}`} className="font-medium hover:text-primary transition-colors">
+                        <Link href={`/contacts/${c.id}`} className="font-medium hover:text-primary transition-colors">
                           {c.name}
                         </Link>
                         {c.email && <p className="text-xs text-muted-foreground mt-0.5">{c.email}</p>}

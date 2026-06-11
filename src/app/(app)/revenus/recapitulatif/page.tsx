@@ -25,11 +25,14 @@ export default async function RecapitulatifPage({
       },
     }),
 
-    // Revenus manuels de l'année (toutes sources)
+    // Revenus manuels de l'année (toutes sources) — avec client, société et projet
     prisma.revenue.findMany({
       where: {
         userId,
-        period: { startsWith: `${year}-` },
+        OR: [
+          { period: { startsWith: `${year}-` } },
+          { receivedAt: { gte: new Date(`${year}-01-01`), lte: new Date(`${year}-12-31T23:59:59`) } },
+        ],
       },
       select: {
         id: true,
@@ -37,13 +40,18 @@ export default async function RecapitulatifPage({
         amount: true,
         status: true,
         period: true,
+        receivedAt: true,
         fiscalSourceId: true,
         fiscalSource: { select: { id: true, name: true, bucket: true, color: true } },
+        // Contexte : client ou société associée
+        client:  { select: { id: true, name: true, company: true } },
+        company: { select: { id: true, name: true } },
+        project: { select: { id: true, name: true } },
       },
-      orderBy: { period: "asc" },
+      orderBy: [{ period: "asc" }, { receivedAt: "asc" }],
     }),
 
-    // Factures payées de l'année (bucket AE via l'émetteur)
+    // Factures payées de l'année (bucket AE via l'émetteur) — avec client et projet
     prisma.invoice.findMany({
       where: {
         userId,
@@ -58,7 +66,10 @@ export default async function RecapitulatifPage({
         id: true,
         number: true,
         totalHT: true,
+        depositDeducted: true,
         paidAt: true,
+        client:  { select: { id: true, name: true, company: true } },
+        project: { select: { id: true, name: true } },
         emitter: {
           select: {
             fiscalSourceId: true,
@@ -89,21 +100,28 @@ export default async function RecapitulatifPage({
           emitterProfileIds: fs.emitterProfiles.map(e => e.id),
         }))}
         revenues={revenues.map(r => ({
-          id: r.id,
-          label: r.label,
-          amount: r.amount,
-          status: r.status,
-          period: r.period ?? "",
+          id:             r.id,
+          label:          r.label,
+          amount:         r.amount,
+          status:         r.status,
+          period:         r.period ?? "",
+          receivedAt:     r.receivedAt?.toISOString() ?? null,
           fiscalSourceId: r.fiscalSourceId,
+          clientName:     r.client?.name ?? null,
+          clientCompany:  r.client?.company ?? r.company?.name ?? null,
+          projectName:    r.project?.name ?? null,
         }))}
         paidInvoices={paidInvoices
           .filter(inv => inv.emitter?.fiscalSourceId)
           .map(inv => ({
-            id:            inv.id,
-            number:        inv.number,
-            totalHT:       inv.totalHT,
-            paidAt:        inv.paidAt!.toISOString(),
+            id:             inv.id,
+            number:         inv.number,
+            totalHT:        inv.totalHT - inv.depositDeducted,
+            paidAt:         inv.paidAt!.toISOString(),
             fiscalSourceId: inv.emitter!.fiscalSourceId!,
+            clientName:     inv.client?.name ?? null,
+            clientCompany:  inv.client?.company ?? null,
+            projectName:    inv.project?.name ?? null,
           }))}
       />
     </div>

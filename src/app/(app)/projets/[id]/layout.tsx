@@ -46,7 +46,7 @@ export default async function ProjectLayout({
     }).catch(() => [] as { id: string; name: string; color: string }[]),
     prisma.project.findFirst({
       where: { id, OR: [{ userId }, { members: { some: { userId } } }] },
-      select: { tags: { select: { id: true } } },
+      select: { tags: { select: { id: true, name: true } } },
     }).catch(() => null),
     prisma.client.findMany({
       where: { userId },
@@ -59,6 +59,7 @@ export default async function ProjectLayout({
 
   const isOwner = project.userId === userId
   const selectedTagIds = projectTagIds?.tags?.map((t) => t.id) ?? []
+  const hasDevTag = (projectTagIds?.tags ?? []).some((t) => t.name.toLowerCase() === "dev")
 
   return (
     <div className="space-y-5">
@@ -156,7 +157,7 @@ export default async function ProjectLayout({
         </div>
       </div>
 
-      <ProjectTabs projectId={id} />
+      <ProjectTabs projectId={id} hasDevTag={hasDevTag} />
 
       {children}
     </div>

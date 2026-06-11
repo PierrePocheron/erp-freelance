@@ -161,7 +161,7 @@ export function DevisListView({
                       <Link href={`/facturation/devis/${q.id}`} className="text-primary hover:underline font-mono text-xs font-medium">{q.number}</Link>
                     </td>
                     <td className="px-4 py-3">
-                      <Link href={`/clients/${q.client.id}`} className="text-muted-foreground hover:text-primary hover:underline transition-colors">
+                      <Link href={`/contacts/${q.client.id}`} className="text-muted-foreground hover:text-primary hover:underline transition-colors">
                         {q.client.company ?? q.client.name}
                       </Link>
                     </td>
@@ -195,7 +195,7 @@ export function DevisListView({
                 </div>
                 <div>
                   <Link
-                    href={`/clients/${q.client.id}`}
+                    href={`/contacts/${q.client.id}`}
                     onClick={(e) => e.stopPropagation()}
                     className="font-semibold text-sm leading-tight hover:text-primary hover:underline transition-colors"
                   >

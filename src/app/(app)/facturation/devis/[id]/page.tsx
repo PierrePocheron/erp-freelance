@@ -147,7 +147,7 @@ export default async function DevisDetailPage({
             </span>
           </div>
           <p className="text-muted-foreground text-sm">
-            <Link href={`/client/${quote.client.id}`} className="hover:text-primary transition-colors">
+            <Link href={`/contacts/${quote.client.id}`} className="hover:text-primary transition-colors">
               {quote.client.company ?? quote.client.name}
             </Link>
             {quote.project && (

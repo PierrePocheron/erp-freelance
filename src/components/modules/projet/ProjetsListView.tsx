@@ -2,12 +2,9 @@
 
 import { useState } from "react"
 import Link from "next/link"
-import { LayoutGrid, List, Layers, Calendar, CheckSquare, Search, TrendingUp } from "lucide-react"
-
-function fmtEur(n: number) {
-  return n.toLocaleString("fr-FR", { maximumFractionDigits: 0 }) + " €"
-}
+import { LayoutGrid, List, Layers, Calendar, CheckSquare, Search } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
+import { BillingBar } from "@/components/modules/billing/BillingBar"
 import { ProjectCard } from "./ProjectCard"
 import { CreateProjectDialog } from "./CreateProjectDialog"
 
@@ -65,8 +62,9 @@ export function ProjetsListView({
     return matchStatus && matchSearch
   })
 
-  const active = filtered.filter((p) => p.status === "ACTIVE")
-  const others = filtered.filter((p) => p.status !== "ACTIVE")
+  const active    = filtered.filter((p) => p.status === "ACTIVE")
+  const completed = filtered.filter((p) => p.status === "COMPLETED")
+  const others    = filtered.filter((p) => p.status !== "ACTIVE" && p.status !== "COMPLETED")
 
   return (
     <div className="space-y-8">
@@ -144,6 +142,14 @@ export function ProjetsListView({
               </div>
             </section>
           )}
+          {completed.length > 0 && (
+            <section className="space-y-3">
+              <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">Terminé</h2>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {completed.map((p) => <ProjectCard key={p.id} project={p} />)}
+              </div>
+            </section>
+          )}
           {others.length > 0 && (
             <section className="space-y-3">
               <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">Autres</h2>
@@ -167,7 +173,7 @@ export function ProjetsListView({
               </tr>
             </thead>
             <tbody>
-              {[...active, ...others].map((p) => {
+              {[...active, ...completed, ...others].map((p) => {
                 const st = statusConfig[p.status]
                 const progress = p._count.tasks > 0 ? Math.round((p.tasksDone / p._count.tasks) * 100) : 0
                 const clientLabel = p.company?.name ?? p.contact?.name ?? "—"
@@ -201,23 +207,10 @@ export function ProjetsListView({
                       )}
                     </td>
                     <td className="px-4 py-3">
-                      {p.billing.totalFacture > 0 ? (
-                        <div className="space-y-1 min-w-[120px]">
-                          <div className="flex items-center gap-1.5 text-xs">
-                            <TrendingUp className="h-3 w-3 text-muted-foreground shrink-0" />
-                            <span className="font-medium">{fmtEur(p.billing.totalEncaisse)}</span>
-                            <span className="text-muted-foreground">/ {fmtEur(p.billing.totalFacture)}</span>
-                          </div>
-                          <div className="h-1 w-20 rounded-full bg-muted overflow-hidden">
-                            <div
-                              className="h-full rounded-full bg-emerald-500 transition-all"
-                              style={{ width: `${Math.min(100, (p.billing.totalEncaisse / p.billing.totalFacture) * 100)}%` }}
-                            />
-                          </div>
-                        </div>
-                      ) : (
-                        <span className="text-xs text-muted-foreground">—</span>
-                      )}
+                      <BillingBar
+                        totalFacture={p.billing.totalFacture}
+                        totalEncaisse={p.billing.totalEncaisse}
+                      />
                     </td>
                     <td className="px-4 py-3 text-xs text-muted-foreground">
                       {p.endDate ? (

@@ -219,7 +219,7 @@ export async function createClientTask(
     },
   })
   revalidatePath("/taches")
-  if (clientId) revalidatePath(`/client/${clientId}`)
+  if (clientId) revalidatePath(`/contacts/${clientId}`)
   return task
 }
 

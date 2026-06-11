@@ -91,7 +91,7 @@ export default async function GraphPage() {
       label:    c.name,
       parentId,
       meta: {
-        href:     `/client/${c.id}`,
+        href:     `/contacts/${c.id}`,
         subtitle: c.email ?? c.city ?? undefined,
         details: [
           { label: "Projets", value: String(projCount) },

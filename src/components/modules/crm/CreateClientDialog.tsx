@@ -79,7 +79,7 @@ export function CreateClientDialog({
         siret: (fd.get("siret") as string) || undefined,
       })
       handleOpenChange(false)
-      router.push(`/client/${client.id}`)
+      router.push(`/contacts/${client.id}`)
     })
   }
 

@@ -17,7 +17,7 @@ const NAV_ITEMS: NavItem[] = [
   { label: "Dashboard",              href: "/",                          icon: "⚡", keywords: ["accueil", "home", "tableau de bord", "dashboard"] },
   { label: "Projets",                href: "/projets",                   icon: "💻", keywords: ["projet", "tache", "task", "milestone", "livrable"] },
   { label: "Sociétés",                href: "/societes",                  icon: "🏢", keywords: ["societe", "société", "entreprise", "company", "client", "crm"] },
-  { label: "CRM — Clients",          href: "/client",                    icon: "👥", keywords: ["client", "crm", "contact", "prospect", "lead"] },
+  { label: "Contacts",               href: "/contacts",                  icon: "👥", keywords: ["client", "crm", "contact", "prospect", "lead"] },
   { label: "Facturation",            href: "/facturation",               icon: "💳", keywords: ["facturation", "finance", "paiement", "argent"] },
   { label: "Devis",                  href: "/facturation/devis",         icon: "📄", keywords: ["devis", "quote", "estimation", "offre"] },
   { label: "Factures",               href: "/facturation/factures",      icon: "💰", keywords: ["facture", "invoice", "paiement", "reglement"] },

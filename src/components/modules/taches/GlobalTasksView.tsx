@@ -411,7 +411,7 @@ function ClientTaskGroup({ group }: { group: ClientGroup }) {
         <Building2 className="h-4 w-4 text-muted-foreground shrink-0" />
         {group.clientId ? (
           <Link
-            href={`/client/${group.clientId}`}
+            href={`/contacts/${group.clientId}`}
             onClick={(e) => e.stopPropagation()}
             className="font-semibold text-sm hover:text-primary hover:underline underline-offset-2 transition-colors truncate max-w-[60%]"
           >

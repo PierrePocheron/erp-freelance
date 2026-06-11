@@ -7,6 +7,11 @@ import { RevenueManager } from "@/components/modules/revenus/RevenueManager"
 
 const fmt = (n: number) => n.toLocaleString("fr-FR", { minimumFractionDigits: 0, maximumFractionDigits: 0 })
 
+function invPeriod(d: Date | null): string | null {
+  if (!d) return null
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`
+}
+
 export default async function RevenuePage() {
   const session = await auth()
   const userId = session!.user.id
@@ -14,7 +19,7 @@ export default async function RevenuePage() {
   const now = new Date()
   const currentYear = now.getFullYear()
 
-  const [revenues, recurringRevenues, companies, clients, projects, fiscalSources] = await Promise.all([
+  const [revenues, recurringRevenues, companies, clients, projects, fiscalSources, paidInvoices] = await Promise.all([
     prisma.revenue.findMany({
       where: { userId },
       orderBy: [{ period: "desc" }, { createdAt: "desc" }],
@@ -51,38 +56,101 @@ export default async function RevenuePage() {
       orderBy: { name: "asc" },
       select: { id: true, name: true, clientId: true, companyId: true },
     }),
+    // Toutes les sources fiscales (actives et inactives) pour le filtre
     prisma.fiscalSource.findMany({
-      where: { userId, isActive: true },
+      where: { userId },
       orderBy: { createdAt: "asc" },
-      select: { id: true, name: true, bucket: true, color: true },
+      select: { id: true, name: true, bucket: true, color: true, isActive: true },
+    }),
+    // Factures payées liées à une source fiscale (revenus AE)
+    prisma.invoice.findMany({
+      where: { userId, status: "PAID", paidAt: { not: null } },
+      orderBy: { paidAt: "asc" },
+      select: {
+        id: true, number: true, totalHT: true, depositDeducted: true, paidAt: true,
+        client:  { select: { name: true, company: true } },
+        project: { select: { name: true } },
+        emitter: {
+          select: {
+            fiscalSource: { select: { id: true, name: true, bucket: true, color: true } },
+          },
+        },
+      },
     }),
   ])
 
-  // ── KPIs ──────────────────────────────────────────────────────────────────────
+  // ── Revenus AE depuis les factures payées ─────────────────────────────────
+  // Seules les factures liées à un profil émetteur avec une source fiscale sont
+  // incluses, pour ne pas dupliquer des factures sans catégorie fiscale.
+  const invoicesWithSource = paidInvoices.filter(inv => inv.emitter?.fiscalSource != null)
 
-  const yearPrefix = `${currentYear}-`
-  const yearRevenues = revenues.filter(r => r.period?.startsWith(yearPrefix))
+  const aeRevenueItems = invoicesWithSource.map(inv => ({
+    id:               `inv-${inv.id}`,
+    type:             "FREELANCE" as const,
+    label:            inv.number,
+    amount:           inv.totalHT - inv.depositDeducted,
+    currency:         "EUR",
+    status:           "RECEIVED" as const,
+    receivedAt:       inv.paidAt!.toISOString(),
+    expectedAt:       null,
+    paymentMethod:    null,
+    notes:            null,
+    period:           invPeriod(inv.paidAt),
+    recurringRevenueId: null,
+    fiscalSourceId:   inv.emitter!.fiscalSource!.id,
+    companyId:        null,
+    clientId:         null,
+    projectId:        null,
+    createdAt:        inv.paidAt!.toISOString(),
+    updatedAt:        inv.paidAt!.toISOString(),
+    recurringRevenue: null,
+    fiscalSource:     inv.emitter!.fiscalSource,
+    company:          null,
+    client:           inv.client ? { name: inv.client.company ?? inv.client.name, company: inv.client.company ?? null } : null,
+    project:          inv.project,
+    isFromInvoice:    true as const,
+    invoiceHref:      `/facturation/factures/${inv.id}`,
+  }))
 
-  const totalYear     = yearRevenues.filter(r => r.status === "RECEIVED").reduce((s, r) => s + r.amount, 0)
-  const totalPending  = revenues.filter(r => r.status === "PENDING").reduce((s, r) => s + r.amount, 0)
-  const totalReceived = revenues.filter(r => r.status === "RECEIVED").reduce((s, r) => s + r.amount, 0)
+  // Liste unifiée — Revenue DB + factures AE
+  const allRevenues = [
+    ...revenues.map(r => ({
+      ...r,
+      createdAt:    r.createdAt.toISOString(),
+      updatedAt:    r.updatedAt.toISOString(),
+      receivedAt:   r.receivedAt?.toISOString() ?? null,
+      expectedAt:   r.expectedAt?.toISOString() ?? null,
+      recurringRevenue: r.recurringRevenue ?? null,
+      fiscalSource: r.fiscalSource ?? null,
+      company: r.company ?? null,
+      client:  r.client ?? null,
+      project: r.project ?? null,
+      isFromInvoice: false as const,
+      invoiceHref:  undefined as string | undefined,
+    })),
+    ...aeRevenueItems,
+  ]
 
+  // ── KPIs (toutes sources confondues) ──────────────────────────────────────
+
+  const yearPrefix    = `${currentYear}-`
   const currentPeriod = `${currentYear}-${String(now.getMonth() + 1).padStart(2, "0")}`
-  const monthRevenues = revenues.filter(r => r.period === currentPeriod)
-  const totalMonth    = monthRevenues.filter(r => r.status === "RECEIVED").reduce((s, r) => s + r.amount, 0)
 
-  // ── Groupement par période ─────────────────────────────────────────────────
+  const totalYear     = allRevenues.filter(r => r.period?.startsWith(yearPrefix) && r.status === "RECEIVED").reduce((s, r) => s + r.amount, 0)
+  const totalMonth    = allRevenues.filter(r => r.period === currentPeriod && r.status === "RECEIVED").reduce((s, r) => s + r.amount, 0)
+  const totalPending  = allRevenues.filter(r => r.status === "PENDING").reduce((s, r) => s + r.amount, 0)
+  const totalRecvYear = allRevenues.filter(r => r.period?.startsWith(yearPrefix) && r.status === "RECEIVED").length
+  const totalRecvMonth= allRevenues.filter(r => r.period === currentPeriod && r.status === "RECEIVED").length
 
-  const byPeriod: Record<string, typeof revenues> = {}
-  for (const r of revenues) {
-    const key = r.period ?? "Sans période"
-    if (!byPeriod[key]) byPeriod[key] = []
-    byPeriod[key].push(r)
+  // ── Répartition par source fiscale (toutes sources) ───────────────────────
+  // Collecte toutes les sources présentes dans les données
+  const allSourceMap = new Map<string, { id: string; name: string; bucket: string; color: string }>()
+  for (const r of allRevenues) {
+    if (r.fiscalSource) allSourceMap.set(r.fiscalSource.id, r.fiscalSource)
   }
 
-  // ── Répartition par source fiscale ────────────────────────────────────────
-  const sourceStats = fiscalSources.map(src => {
-    const srcRevs = revenues.filter(r => r.fiscalSourceId === src.id)
+  const sourceStats = [...allSourceMap.values()].map(src => {
+    const srcRevs = allRevenues.filter(r => r.fiscalSourceId === src.id)
     return {
       ...src,
       count:    srcRevs.length,
@@ -97,7 +165,7 @@ export default async function RevenuePage() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Revenus</h1>
           <p className="text-sm text-muted-foreground mt-0.5">
-            Suivi des revenus hors auto-entreprise
+            Vue unifiée — revenus manuels + factures AE encaissées
           </p>
         </div>
         <Link
@@ -117,7 +185,7 @@ export default async function RevenuePage() {
             {currentYear} — encaissé
           </div>
           <p className="text-xl font-bold tabular-nums text-emerald-600">{fmt(totalYear)} €</p>
-          <p className="text-xs text-muted-foreground">{yearRevenues.filter(r => r.status === "RECEIVED").length} entrées</p>
+          <p className="text-xs text-muted-foreground">{totalRecvYear} entrées</p>
         </div>
         <div className="rounded-xl border border-border/50 bg-card p-4 space-y-1">
           <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
@@ -125,7 +193,7 @@ export default async function RevenuePage() {
             Ce mois — encaissé
           </div>
           <p className="text-xl font-bold tabular-nums text-blue-600">{fmt(totalMonth)} €</p>
-          <p className="text-xs text-muted-foreground">{monthRevenues.filter(r => r.status === "RECEIVED").length} entrées</p>
+          <p className="text-xs text-muted-foreground">{totalRecvMonth} entrées</p>
         </div>
         <div className="rounded-xl border border-border/50 bg-card p-4 space-y-1">
           <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
@@ -133,7 +201,7 @@ export default async function RevenuePage() {
             En attente
           </div>
           <p className="text-xl font-bold tabular-nums text-amber-600">{fmt(totalPending)} €</p>
-          <p className="text-xs text-muted-foreground">{revenues.filter(r => r.status === "PENDING").length} entrées</p>
+          <p className="text-xs text-muted-foreground">{allRevenues.filter(r => r.status === "PENDING").length} entrées</p>
         </div>
         <div className="rounded-xl border border-border/50 bg-card p-4 space-y-1">
           <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
@@ -187,20 +255,9 @@ export default async function RevenuePage() {
         </div>
       )}
 
-      {/* Gestionnaire client */}
+      {/* Gestionnaire */}
       <RevenueManager
-        initialRevenues={revenues.map(r => ({
-          ...r,
-          createdAt:    r.createdAt.toISOString(),
-          updatedAt:    r.updatedAt.toISOString(),
-          receivedAt:   r.receivedAt?.toISOString() ?? null,
-          expectedAt:   r.expectedAt?.toISOString() ?? null,
-          recurringRevenue: r.recurringRevenue ?? null,
-          fiscalSource: r.fiscalSource ?? null,
-          company: r.company ?? null,
-          client:  r.client ?? null,
-          project: r.project ?? null,
-        }))}
+        initialRevenues={allRevenues}
         initialRecurring={recurringRevenues.map(r => ({
           ...r,
           createdAt: r.createdAt.toISOString(),

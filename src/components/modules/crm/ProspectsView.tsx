@@ -260,9 +260,12 @@ function ProspectCard({ prospect, onClick }: { prospect: Prospect; onClick: () =
   }
 
   return (
-    <button
+    <div
       onClick={onClick}
-      className="group rounded-xl border border-border/50 bg-card p-3 hover:border-border hover:shadow-sm transition-all text-left w-full"
+      role="button"
+      tabIndex={0}
+      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") onClick() }}
+      className="group rounded-xl border border-border/50 bg-card p-3 hover:border-border hover:shadow-sm transition-all text-left w-full cursor-pointer"
     >
       {/* Header */}
       <div className="flex items-start justify-between gap-2 mb-2">
@@ -351,6 +354,6 @@ function ProspectCard({ prospect, onClick }: { prospect: Prospect; onClick: () =
           </span>
         )}
       </div>
-    </button>
+    </div>
   )
 }

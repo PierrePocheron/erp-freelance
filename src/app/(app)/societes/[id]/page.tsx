@@ -29,6 +29,7 @@ export default async function CompanyDetailPage({
     prisma.company.findFirst({
       where: { id, userId },
       include: {
+        fiscalSource: { select: { id: true, name: true, color: true, bucket: true } },
         contacts: {
           orderBy: { name: "asc" },
           select: { id: true, name: true, email: true, phone: true, type: true },
@@ -711,23 +712,40 @@ export default async function CompanyDetailPage({
             </div>
           </div>
 
-          {/* Sources fiscales associées */}
-          {usedFiscalSources.length > 0 && (
+          {/* Sources fiscales */}
+          {(company.fiscalSource || usedFiscalSources.length > 0) && (
             <div className="rounded-xl border border-border/50 bg-card p-5 space-y-3">
-              <h2 className="font-semibold text-sm">Facturé via</h2>
+              <h2 className="font-semibold text-sm">Sources fiscales</h2>
               <div className="space-y-2">
-                {usedFiscalSources.map(fs => (
-                  <div key={fs.id} className="flex items-center gap-2.5">
+                {/* Source par défaut (champ direct sur la société) */}
+                {company.fiscalSource && (
+                  <div className="flex items-center gap-2.5">
                     <span
                       className="h-2.5 w-2.5 rounded-full shrink-0 ring-2 ring-border"
-                      style={{ backgroundColor: fs.color }}
+                      style={{ backgroundColor: company.fiscalSource.color }}
                     />
-                    <div className="min-w-0">
-                      <p className="text-sm font-medium leading-tight">{fs.name}</p>
-                      <p className="text-[10px] text-muted-foreground">{FISCAL_BUCKET_LABELS[fs.bucket] ?? fs.bucket}</p>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-medium leading-tight">{company.fiscalSource.name}</p>
+                      <p className="text-[10px] text-muted-foreground">{FISCAL_BUCKET_LABELS[company.fiscalSource.bucket] ?? company.fiscalSource.bucket}</p>
                     </div>
+                    <span className="text-[10px] text-muted-foreground bg-muted border border-border px-1.5 py-0.5 rounded font-mono shrink-0">défaut</span>
                   </div>
-                ))}
+                )}
+                {/* Autres sources utilisées via facturation (profils émetteurs) */}
+                {usedFiscalSources
+                  .filter(fs => fs.id !== company.fiscalSource?.id)
+                  .map(fs => (
+                    <div key={fs.id} className="flex items-center gap-2.5">
+                      <span
+                        className="h-2.5 w-2.5 rounded-full shrink-0 ring-2 ring-border"
+                        style={{ backgroundColor: fs.color }}
+                      />
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium leading-tight">{fs.name}</p>
+                        <p className="text-[10px] text-muted-foreground">{FISCAL_BUCKET_LABELS[fs.bucket] ?? fs.bucket}</p>
+                      </div>
+                    </div>
+                  ))}
               </div>
             </div>
           )}

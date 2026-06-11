@@ -902,16 +902,22 @@ export function RevenueManager({
                                     )}
                                   </div>
                                   <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                                    {r.fiscalSource && (
+                                      <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+                                        <span className="h-1.5 w-1.5 rounded-full shrink-0" style={{ backgroundColor: r.fiscalSource.color }} />
+                                        {r.fiscalSource.name}
+                                      </span>
+                                    )}
                                     {r.company && (
-                                      <span className="text-xs text-muted-foreground">{r.company.name}</span>
+                                      <span className="text-xs text-muted-foreground">{r.fiscalSource ? `· ${r.company.name}` : r.company.name}</span>
                                     )}
                                     {r.client && (
-                                      <span className="text-xs text-muted-foreground">{r.company ? `· ${r.client.name}` : r.client.name}</span>
+                                      <span className="text-xs text-muted-foreground">{(r.fiscalSource || r.company) ? `· ${r.client.name}` : r.client.name}</span>
                                     )}
                                     {r.project && (
-                                      <span className="text-xs text-muted-foreground">{(r.company || r.client) ? `· ${r.project.name}` : r.project.name}</span>
+                                      <span className="text-xs text-muted-foreground">{(r.fiscalSource || r.company || r.client) ? `· ${r.project.name}` : r.project.name}</span>
                                     )}
-                                    {r.notes && !r.company && !r.client && !r.project && (
+                                    {r.notes && !r.fiscalSource && !r.company && !r.client && !r.project && (
                                       <span className="text-xs text-muted-foreground truncate max-w-xs">{r.notes}</span>
                                     )}
                                   </div>

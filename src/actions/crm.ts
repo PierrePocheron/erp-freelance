@@ -63,6 +63,7 @@ export async function createCompany(data: {
   city?: string
   country?: string
   notes?: string
+  fiscalSourceId?: string | null
 }) {
   const userId = await requireAuth()
   const name = data.name.trim()
@@ -81,6 +82,7 @@ export async function createCompany(data: {
       city: data.city?.trim() || null,
       country: data.country?.trim() || null,
       notes: data.notes?.trim() || null,
+      fiscalSourceId: data.fiscalSourceId || null,
     },
   })
   revalidatePath("/societes")
@@ -102,6 +104,7 @@ export async function updateCompany(
     city?: string | null
     country?: string | null
     notes?: string | null
+    fiscalSourceId?: string | null
   }
 ) {
   const userId = await requireAuth()
@@ -113,6 +116,7 @@ export async function updateCompany(
   for (const k of ["siret", "vatNumber", "email", "phone", "website", "address", "postalCode", "city", "country", "notes"] as const) {
     if (k in data) clean[k] = (data[k] ?? "")?.toString().trim() || null
   }
+  if ("fiscalSourceId" in data) clean.fiscalSourceId = data.fiscalSourceId || null
   await prisma.company.update({ where: { id: companyId, userId }, data: clean as never })
 
   // Resynchronise le cache d'affichage des contacts si le nom a changé.

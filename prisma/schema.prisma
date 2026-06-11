@@ -216,23 +216,25 @@ enum ClientFileType {
 // Une société cliente. Peut regrouper plusieurs contacts (Client). Porte les
 // informations légales/de facturation (SIRET, TVA, adresse société).
 model Company {
-  id         String   @id @default(cuid())
-  userId     String
-  name       String
-  siret      String?
-  vatNumber  String?
-  email      String?
-  phone      String?
-  website    String?
-  address    String?
-  postalCode String?
-  city       String?
-  country    String?  @default("France")
-  notes      String?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  id             String   @id @default(cuid())
+  userId         String
+  name           String
+  siret          String?
+  vatNumber      String?
+  email          String?
+  phone          String?
+  website        String?
+  address        String?
+  postalCode     String?
+  city           String?
+  country        String?  @default("France")
+  notes          String?
+  fiscalSourceId String?  // source fiscale par défaut pour la facturation/les revenus
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
   user              User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  fiscalSource      FiscalSource?      @relation(fields: [fiscalSourceId], references: [id], onDelete: SetNull)
   contacts          Client[]
   projects          Project[]
   revenues          Revenue[]          @relation("RevenueCompany")
@@ -240,6 +242,7 @@ model Company {
 
   @@unique([userId, name])
   @@index([userId])
+  @@index([fiscalSourceId])
 }
 
 // Un contact. Source de vérité = firstName/lastName/label + companyId.
@@ -917,6 +920,7 @@ model FiscalSource {
   emitterProfiles   EmitterProfile[]
   revenues          Revenue[]
   recurringRevenues RecurringRevenue[]
+  companies         Company[]
 
   @@index([userId])
 }

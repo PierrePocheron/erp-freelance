@@ -68,7 +68,7 @@ export function Sidebar() {
   }
 
   // Évite le flash de contenu avant hydratation
-  if (!mounted) return <aside className="w-16 h-screen shrink-0 border-r border-border/50" />
+  if (!mounted) return <aside className="hidden sm:block w-16 h-screen shrink-0 border-r border-border/50" />
 
   // Filtrer selon les modules actifs (les items sans moduleId sont toujours visibles)
   const visibleItems = navItems.filter(item =>
@@ -78,7 +78,7 @@ export function Sidebar() {
   return (
     <aside
       className={cn(
-        "relative z-20 flex h-screen shrink-0 flex-col border-r border-border/50 bg-background/80 backdrop-blur-sm transition-all duration-200",
+        "hidden sm:flex relative z-20 h-screen shrink-0 flex-col border-r border-border/50 bg-background/80 backdrop-blur-sm transition-all duration-200",
         expanded ? "w-52" : "w-16"
       )}
     >

@@ -73,7 +73,17 @@ export function DevisListView({
           <p className="text-sm text-muted-foreground">{filtered.length} / {quotes.length} devis</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
-          <div className="flex rounded-lg border border-border overflow-hidden text-xs">
+          {/* Status filters — select on mobile, buttons on sm+ */}
+          <select
+            className="sm:hidden rounded-lg border border-border px-2.5 py-1.5 text-xs bg-background text-foreground"
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+          >
+            {DEVIS_FILTERS.map((f) => (
+              <option key={f.value} value={f.value}>{f.label}</option>
+            ))}
+          </select>
+          <div className="hidden sm:flex rounded-lg border border-border overflow-hidden text-xs">
             {DEVIS_FILTERS.map((f) => (
               <button
                 key={f.value}
@@ -140,16 +150,16 @@ export function DevisListView({
           Aucun devis pour ce filtre
         </p>
       ) : view === "list" ? (
-        <div className="rounded-xl border border-border/50 bg-card overflow-hidden">
+        <div className="rounded-xl border border-border/50 bg-card overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border text-xs text-muted-foreground">
                 <th className="px-4 py-3 text-left font-medium">Numéro</th>
                 <th className="px-4 py-3 text-left font-medium">Client</th>
-                <th className="px-4 py-3 text-left font-medium">Projet</th>
+                <th className="px-4 py-3 text-left font-medium hidden sm:table-cell">Projet</th>
                 <th className="px-4 py-3 text-left font-medium">Statut</th>
                 <th className="px-4 py-3 text-right font-medium">Total HT</th>
-                <th className="px-4 py-3 text-left font-medium">Date</th>
+                <th className="px-4 py-3 text-left font-medium hidden sm:table-cell">Date</th>
               </tr>
             </thead>
             <tbody>
@@ -165,12 +175,12 @@ export function DevisListView({
                         {q.client.company ?? q.client.name}
                       </Link>
                     </td>
-                    <td className="px-4 py-3 text-muted-foreground text-xs">{q.project?.name ?? "—"}</td>
+                    <td className="px-4 py-3 text-muted-foreground text-xs hidden sm:table-cell">{q.project?.name ?? "—"}</td>
                     <td className="px-4 py-3">
                       <span className={`rounded-full border px-2 py-0.5 text-xs font-medium ${status.cls}`}>{status.label}</span>
                     </td>
                     <td className="px-4 py-3 text-right font-medium">{q.totalHT.toLocaleString("fr-FR")} €</td>
-                    <td className="px-4 py-3 text-xs text-muted-foreground">
+                    <td className="px-4 py-3 text-xs text-muted-foreground hidden sm:table-cell">
                       {new Date(q.createdAt).toLocaleDateString("fr-FR")}
                     </td>
                   </tr>

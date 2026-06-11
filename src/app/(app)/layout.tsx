@@ -1,6 +1,7 @@
 import { auth } from "@/lib/auth"
 import { redirect } from "next/navigation"
 import { Sidebar } from "@/components/layout/Sidebar"
+import { MobileBottomNav } from "@/components/layout/MobileBottomNav"
 import { TimerBanner } from "@/components/layout/TimerBanner"
 import { CommandPalette } from "@/components/layout/CommandPalette"
 import { NotificationBell } from "@/components/modules/notifications/NotificationBell"
@@ -33,7 +34,7 @@ export default async function AppLayout({
       <Sidebar />
       <div className="relative flex flex-1 flex-col overflow-hidden">
         <TimerBanner initialTimer={runningTimer} userId={userId} />
-        <main className="flex-1 overflow-y-auto p-6">{children}</main>
+        <main className="flex-1 overflow-y-auto p-3 sm:p-6 pb-20 sm:pb-6">{children}</main>
         {/* Cloche de notifications : bouton flottant (gagne la hauteur de l'ancien header) */}
         <div className="absolute top-3 right-4 z-50">
           <div className="rounded-lg border border-border/50 bg-background/80 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -42,6 +43,7 @@ export default async function AppLayout({
         </div>
       </div>
       <CommandPalette />
+      <MobileBottomNav />
     </div>
   )
 }

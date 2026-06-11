@@ -187,7 +187,7 @@ export default async function FacturationOverviewPage() {
         {recentInvoices.length === 0 ? (
           <p className="text-sm text-muted-foreground">Aucune facture cette année</p>
         ) : (
-          <div className="rounded-xl border border-border/50 bg-card overflow-hidden">
+          <div className="rounded-xl border border-border/50 bg-card overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border text-xs text-muted-foreground">
@@ -195,8 +195,8 @@ export default async function FacturationOverviewPage() {
                   <th className="px-4 py-2.5 text-left font-medium">Client</th>
                   <th className="px-4 py-2.5 text-left font-medium">Statut</th>
                   <th className="px-4 py-2.5 text-right font-medium">Montant HT</th>
-                  <th className="px-4 py-2.5 text-left font-medium">Créée le</th>
-                  <th className="px-4 py-2.5 text-left font-medium">Échéance</th>
+                  <th className="px-4 py-2.5 text-left font-medium hidden sm:table-cell">Créée le</th>
+                  <th className="px-4 py-2.5 text-left font-medium hidden sm:table-cell">Échéance</th>
                 </tr>
               </thead>
               <tbody>
@@ -214,10 +214,10 @@ export default async function FacturationOverviewPage() {
                     <td className="px-4 py-2.5 text-right font-medium">
                       {(inv.totalHT - inv.depositDeducted).toLocaleString("fr-FR")} €
                     </td>
-                    <td className="px-4 py-2.5 text-xs text-muted-foreground">
+                    <td className="px-4 py-2.5 text-xs text-muted-foreground hidden sm:table-cell">
                       {new Date(inv.createdAt).toLocaleDateString("fr-FR")}
                     </td>
-                    <td className="px-4 py-2.5 text-xs text-muted-foreground">
+                    <td className="px-4 py-2.5 text-xs text-muted-foreground hidden sm:table-cell">
                       {inv.dueDate ? new Date(inv.dueDate).toLocaleDateString("fr-FR") : "—"}
                     </td>
                   </tr>
@@ -237,7 +237,7 @@ export default async function FacturationOverviewPage() {
         {quotes.length === 0 ? (
           <p className="text-sm text-muted-foreground">Aucun devis</p>
         ) : (
-          <div className="rounded-xl border border-border/50 bg-card overflow-hidden">
+          <div className="rounded-xl border border-border/50 bg-card overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border text-xs text-muted-foreground">
@@ -245,7 +245,7 @@ export default async function FacturationOverviewPage() {
                   <th className="px-4 py-2.5 text-left font-medium">Client</th>
                   <th className="px-4 py-2.5 text-left font-medium">Statut</th>
                   <th className="px-4 py-2.5 text-right font-medium">Total HT</th>
-                  <th className="px-4 py-2.5 text-left font-medium">Créé le</th>
+                  <th className="px-4 py-2.5 text-left font-medium hidden sm:table-cell">Créé le</th>
                 </tr>
               </thead>
               <tbody>
@@ -261,7 +261,7 @@ export default async function FacturationOverviewPage() {
                       <QuoteStatusBadge status={q.status} />
                     </td>
                     <td className="px-4 py-2.5 text-right font-medium">{q.totalHT.toLocaleString("fr-FR")} €</td>
-                    <td className="px-4 py-2.5 text-xs text-muted-foreground">
+                    <td className="px-4 py-2.5 text-xs text-muted-foreground hidden sm:table-cell">
                       {new Date(q.createdAt).toLocaleDateString("fr-FR")}
                     </td>
                   </tr>

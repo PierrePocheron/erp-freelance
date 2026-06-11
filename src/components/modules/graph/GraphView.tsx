@@ -42,6 +42,22 @@ function getAncestors(nodeId: string, nodeMap: Map<string, RawNode>): Set<string
   return result
 }
 
+// Descend récursivement tous les enfants (BFS)
+function getDescendants(nodeId: string, allNodes: RawNode[]): Set<string> {
+  const result = new Set<string>()
+  const queue  = [nodeId]
+  while (queue.length > 0) {
+    const cur = queue.shift()!
+    for (const n of allNodes) {
+      if (n.parentId === cur) {
+        result.add(n.id)
+        queue.push(n.id)
+      }
+    }
+  }
+  return result
+}
+
 // ── Type filter toggles ───────────────────────────────────────────────────────
 
 const ALL_TYPES: NodeType[] = ["SOURCE", "COMPANY", "CLIENT", "PROJECT", "INVOICE", "QUOTE", "REVENUE"]
@@ -123,12 +139,13 @@ export function GraphView({ rawNodes, rawLinks }: { rawNodes: RawNode[]; rawLink
 
   const matchingIds = useMemo(() => new Set(matchingNodes.map(n => n.id)), [matchingNodes])
 
-  // ── Mode focus : nœud sélectionné + tous ses ancêtres ───────────────────
+  // ── Mode focus : nœud sélectionné + toute la hiérarchie (ancêtres + descendants) ──
   const focusVisibleIds = useMemo(() => {
     if (!focusedNodeId) return null
-    const ancestors = getAncestors(focusedNodeId, nodeMap)
-    return new Set([focusedNodeId, ...ancestors])
-  }, [focusedNodeId, nodeMap])
+    const ancestors   = getAncestors(focusedNodeId, nodeMap)
+    const descendants = getDescendants(focusedNodeId, rawNodes)
+    return new Set([focusedNodeId, ...ancestors, ...descendants])
+  }, [focusedNodeId, nodeMap, rawNodes])
 
   // Zoom to fit dès qu'on entre en mode focus
   useEffect(() => {

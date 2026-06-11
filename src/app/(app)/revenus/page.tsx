@@ -1,7 +1,7 @@
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import Link from "next/link"
-import { TrendingUp, Clock, CheckCircle2, Repeat, BarChart2 } from "lucide-react"
+import { TrendingUp, Clock, CheckCircle2, Repeat, BarChart2, Wallet, ArrowRight } from "lucide-react"
 import { REVENUE_TYPE_LABELS, PAYMENT_METHOD_LABELS } from "@/lib/revenue-constants"
 import { RevenueManager } from "@/components/modules/revenus/RevenueManager"
 
@@ -80,6 +80,17 @@ export default async function RevenuePage() {
     byPeriod[key].push(r)
   }
 
+  // ── Répartition par source fiscale ────────────────────────────────────────
+  const sourceStats = fiscalSources.map(src => {
+    const srcRevs = revenues.filter(r => r.fiscalSourceId === src.id)
+    return {
+      ...src,
+      count:    srcRevs.length,
+      received: srcRevs.filter(r => r.status === "RECEIVED").reduce((s, r) => s + r.amount, 0),
+      pending:  srcRevs.filter(r => r.status === "PENDING").reduce((s, r) => s + r.amount, 0),
+    }
+  }).filter(s => s.count > 0)
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -135,6 +146,46 @@ export default async function RevenuePage() {
           </p>
         </div>
       </div>
+
+      {/* Sources fiscales — répartition */}
+      {sourceStats.length > 0 && (
+        <div className="rounded-xl border border-border/50 bg-card p-5">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <Wallet className="h-4 w-4 text-muted-foreground" />
+              <h2 className="font-semibold text-sm">Par source fiscale</h2>
+            </div>
+            <Link
+              href="/revenus/sources"
+              className="flex items-center gap-1 text-xs text-primary hover:underline"
+            >
+              Gérer <ArrowRight className="h-3 w-3" />
+            </Link>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {sourceStats.map(src => (
+              <div
+                key={src.id}
+                className="inline-flex items-center gap-2 rounded-lg border border-border/50 px-3 py-2 text-xs"
+              >
+                <span className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: src.color }} />
+                <span className="font-medium">{src.name}</span>
+                <span className="text-muted-foreground tabular-nums">
+                  {src.count} entrée{src.count !== 1 ? "s" : ""}
+                </span>
+                <span className="text-emerald-600 font-semibold tabular-nums">
+                  · {fmt(src.received)} €
+                </span>
+                {src.pending > 0 && (
+                  <span className="text-amber-600 tabular-nums">
+                    + {fmt(src.pending)} € att.
+                  </span>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Gestionnaire client */}
       <RevenueManager

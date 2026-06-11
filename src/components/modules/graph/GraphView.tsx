@@ -80,8 +80,9 @@ function getDisplayColor(node: RawNode): string {
 // ── Main component ────────────────────────────────────────────────────────────
 
 export function GraphView({ rawNodes, rawLinks }: { rawNodes: RawNode[]; rawLinks: RawLink[] }) {
-  const containerRef = useRef<HTMLDivElement>(null)
-  const graphRef     = useRef<GraphMethods>(null)
+  const containerRef  = useRef<HTMLDivElement>(null)
+  const graphRef      = useRef<GraphMethods>(null)
+  const searchInputRef = useRef<HTMLInputElement>(null)
 
   const [size, setSize]             = useState({ w: 800, h: 600 })
   const [collapsedIds, setCollapsed] = useState<Set<string>>(new Set())
@@ -108,6 +109,25 @@ export function GraphView({ rawNodes, rawLinks }: { rawNodes: RawNode[]; rawLink
     const obs = new MutationObserver(check)
     obs.observe(html, { attributes: true, attributeFilter: ["class"] })
     return () => obs.disconnect()
+  }, [])
+
+  // Raccourci clavier : "/" pour focaliser la recherche du graph
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      const tag = (e.target as HTMLElement).tagName
+      const inInput = tag === "INPUT" || tag === "TEXTAREA" || (e.target as HTMLElement).isContentEditable
+      if (e.key === "/" && !inInput && !e.metaKey && !e.ctrlKey) {
+        e.preventDefault()
+        searchInputRef.current?.focus()
+        searchInputRef.current?.select()
+      }
+      if (e.key === "Escape" && document.activeElement === searchInputRef.current) {
+        clearSearch()
+        searchInputRef.current?.blur()
+      }
+    }
+    document.addEventListener("keydown", onKeyDown)
+    return () => document.removeEventListener("keydown", onKeyDown)
   }, [])
 
   // Resize observer
@@ -300,6 +320,7 @@ export function GraphView({ rawNodes, rawLinks }: { rawNodes: RawNode[]; rawLink
           }`}>
             <Search className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
             <input
+              ref={searchInputRef}
               type="text"
               placeholder="Rechercher un nœud…"
               value={searchQuery}
@@ -312,13 +333,17 @@ export function GraphView({ rawNodes, rawLinks }: { rawNodes: RawNode[]; rawLink
               onBlur={() => setTimeout(() => setShowSuggestions(false), 130)}
               className="bg-transparent text-xs outline-none w-40 placeholder:text-muted-foreground/50"
             />
-            {searchQuery && (
+            {searchQuery ? (
               <button
                 onMouseDown={clearSearch}
                 className="text-muted-foreground hover:text-foreground"
               >
                 <X className="h-3 w-3" />
               </button>
+            ) : (
+              <kbd className="text-[10px] text-muted-foreground/50 bg-muted/60 border border-border/50 px-1 py-0.5 rounded font-mono leading-none shrink-0">
+                /
+              </kbd>
             )}
           </div>
 
@@ -412,7 +437,8 @@ export function GraphView({ rawNodes, rawLinks }: { rawNodes: RawNode[]; rawLink
 
         {/* Hint */}
         <p className="text-[10px] text-muted-foreground/60 px-0.5">
-          Clic — panneau · Double-clic — réduire · Fond — sortir du focus
+          Clic — panneau · Double-clic — réduire · Fond — sortir du focus ·{" "}
+          <kbd className="font-mono bg-muted/60 border border-border/40 px-0.5 rounded text-[9px]">/</kbd> recherche
         </p>
       </div>
 

@@ -12,7 +12,7 @@ import { updateClientType } from "@/actions/crm"
 import { toast } from "sonner"
 
 const tempConfig = {
-  COLD: { dot: "bg-blue-500", label: "Froid" },
+  COLD: { dot: "bg-blue-500", label: "Neutre" },
   WARM: { dot: "bg-amber-500", label: "Tiède" },
   HOT: { dot: "bg-red-500", label: "Chaud" },
 }

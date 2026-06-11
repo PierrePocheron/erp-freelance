@@ -259,7 +259,7 @@ export function CreateClientDialog({
                   <div className="space-y-1.5">
                     <Label>Température</Label>
                     <select name="temperature" className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-ring">
-                      <option value="COLD">Froid</option>
+                      <option value="COLD">Neutre</option>
                       <option value="WARM">Tiède</option>
                       <option value="HOT">Chaud</option>
                     </select>

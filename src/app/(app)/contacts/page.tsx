@@ -2,6 +2,7 @@ import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { CreateClientDialog } from "@/components/modules/crm/CreateClientDialog"
 import { CrmList } from "@/components/modules/crm/CrmList"
+import { ProspectsView } from "@/components/modules/crm/ProspectsView"
 import { Users, Flame, Thermometer, TrendingUp, AlertCircle } from "lucide-react"
 
 export default async function CRMPage() {
@@ -55,10 +56,10 @@ export default async function CRMPage() {
   const hot = clients.filter((c) => c.temperature === "HOT")
   const pendingReminders = clients.reduce((acc, c) => acc + c.reminders.length, 0)
 
+  // CrmList reçoit tous les groupes sauf les prospects (gérés par ProspectsView)
   const groups = [
     ...(toComplete.length > 0 ? [{ key: "TO_COMPLETE", label: "À compléter", items: toComplete }] : []),
     { key: "CLIENT", label: "Clients", items: activeClients },
-    { key: "PROSPECT", label: "Prospects", items: prospects },
     { key: "PERSONAL", label: "Perso", items: personalClients },
     { key: "INACTIVE", label: "Inactifs", items: clientsWithBilling.filter((c) => c.type === "INACTIVE") },
   ]
@@ -86,6 +87,10 @@ export default async function CRMPage() {
         )}
       </div>
 
+      {/* Prospects — vue pipeline dédiée */}
+      <ProspectsView prospects={prospects} userId={userId} />
+
+      {/* Autres groupes CRM (clients, perso, inactifs, à compléter) */}
       <CrmList groups={groups} userId={userId} />
     </div>
   )

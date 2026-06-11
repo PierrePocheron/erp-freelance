@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma"
 import { revalidatePath } from "next/cache"
 import { auth } from "@/lib/auth"
 import { computeContactName } from "@/lib/contact"
-import type { ClientType, ClientSource, Temperature, InteractionChannel } from "@/generated/prisma/enums"
+import type { ClientType, ClientSource, Temperature, ProspectStage, InteractionChannel } from "@/generated/prisma/enums"
 
 async function requireAuth(): Promise<string> {
   const session = await auth()
@@ -277,6 +277,46 @@ export async function updateClientTemperature(clientId: string, _userId: string,
   revalidatePath("/contacts")
 }
 
+export async function updateProspectStage(clientId: string, stage: ProspectStage) {
+  const userId = await requireAuth()
+  const data: Record<string, unknown> = { prospectStage: stage }
+  // Gagné → convertit automatiquement en client
+  if (stage === "WON") data.type = "CLIENT"
+  await prisma.client.update({ where: { id: clientId, userId }, data: data as never })
+  revalidatePath(`/contacts/${clientId}`)
+  revalidatePath("/contacts")
+}
+
+export async function createProspect(data: {
+  name: string
+  source?: string
+  companyId?: string
+  companyName?: string
+}) {
+  const userId = await requireAuth()
+  const { companyId, companyName } = await resolveCompany(userId, {
+    companyId: data.companyId,
+    companyName: data.companyName,
+  })
+  const name = data.name.trim()
+  if (!name) throw new Error("Le nom est requis")
+  const client = await prisma.client.create({
+    data: {
+      userId,
+      name,
+      companyId,
+      company: companyName,
+      type: "PROSPECT",
+      source: (data.source as ClientSource) || "OTHER",
+      temperature: "COLD",
+      prospectStage: "IDENTIFIED",
+      priorityScore: 1,
+    },
+  })
+  revalidatePath("/contacts")
+  return client
+}
+
 export async function updateClientPriority(clientId: string, _userId: string, priorityScore: number) {
   const userId = await requireAuth()
   await prisma.client.update({
@@ -359,6 +399,7 @@ export async function updateClientAll(
   revalidatePath("/contacts")
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export async function deleteClient(clientId: string, _userId: string) {
   const userId = await requireAuth()
   await prisma.client.delete({ where: { id: clientId, userId } })
@@ -452,6 +493,7 @@ export async function deleteReminder(reminderId: string, clientId: string) {
 
 // ── Panel ─────────────────────────────────────────────────────────────────────
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export async function getClientPanel(clientId: string, _userId: string) {
   const userId = await requireAuth()
   return prisma.client.findFirst({

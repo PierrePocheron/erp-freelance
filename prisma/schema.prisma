@@ -197,6 +197,19 @@ enum Temperature {
   HOT
 }
 
+enum ProspectStage {
+  IDENTIFIED
+  CONTACTED
+  NO_RESPONSE
+  REPLIED
+  MEETING
+  PROPOSAL_SENT
+  NEGOTIATION
+  WON
+  LOST
+  ON_HOLD
+}
+
 enum InteractionChannel {
   EMAIL
   CALL
@@ -266,9 +279,10 @@ model Client {
   company       String?
   email         String?
   phone         String?
-  source        ClientSource @default(OTHER)
-  temperature   Temperature  @default(COLD)
-  priorityScore Int          @default(1)
+  source         ClientSource  @default(OTHER)
+  temperature    Temperature   @default(COLD)
+  prospectStage  ProspectStage @default(IDENTIFIED)
+  priorityScore  Int           @default(1)
   notes         String?
   // Adresse du CONTACT (optionnelle — distincte de l'adresse société)
   address       String?

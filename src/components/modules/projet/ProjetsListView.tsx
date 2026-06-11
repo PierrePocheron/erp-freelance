@@ -2,17 +2,23 @@
 
 import { useState } from "react"
 import Link from "next/link"
-import { LayoutGrid, List, Layers, Calendar, CheckSquare, Search } from "lucide-react"
+import { LayoutGrid, List, Layers, Calendar, CheckSquare, Search, TrendingUp } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { BillingBar } from "@/components/modules/billing/BillingBar"
 import { ProjectCard } from "./ProjectCard"
 import { CreateProjectDialog } from "./CreateProjectDialog"
+import { PRIORITY_CONFIG, type ProjectPriority } from "./ProjectInlineEdit"
+import { cn } from "@/lib/utils"
+
+const PRIORITY_ORDER: Record<ProjectPriority, number> = {
+  URGENT: 4, HIGH: 3, MEDIUM: 2, LOW: 1,
+}
 
 const statusConfig = {
-  ACTIVE:    { label: "Actif",    cls: "bg-emerald-500/15 text-emerald-600 border-emerald-500/20" },
-  PAUSED:    { label: "En pause",    cls: "bg-amber-500/15 text-amber-600 border-amber-500/20" },
-  COMPLETED: { label: "Terminé", cls: "bg-blue-500/15 text-blue-600 border-blue-500/20" },
-  ARCHIVED:  { label: "Archivé", cls: "bg-muted text-muted-foreground border-border" },
+  ACTIVE:    { label: "Actif",      cls: "bg-emerald-500/15 text-emerald-600 border-emerald-500/20" },
+  PAUSED:    { label: "En pause",   cls: "bg-amber-500/15 text-amber-600 border-amber-500/20"       },
+  COMPLETED: { label: "Terminé",    cls: "bg-blue-500/15 text-blue-600 border-blue-500/20"          },
+  ARCHIVED:  { label: "Archivé",    cls: "bg-muted text-muted-foreground border-border"             },
 }
 
 type Project = {
@@ -20,6 +26,7 @@ type Project = {
   name: string
   description: string | null
   status: keyof typeof statusConfig
+  priority?: ProjectPriority
   endDate: Date | null
   estimatedHours: number | null
   company: { id: string; name: string } | null
@@ -32,6 +39,12 @@ type Project = {
 
 type Company = { id: string; name: string; city: string | null }
 type Contact = { id: string; name: string; company: string | null; companyId: string | null }
+
+function byPriority(a: Project, b: Project) {
+  const pa = PRIORITY_ORDER[a.priority ?? "MEDIUM"]
+  const pb = PRIORITY_ORDER[b.priority ?? "MEDIUM"]
+  return pb - pa  // plus haute priorité d'abord
+}
 
 export function ProjetsListView({
   userId,
@@ -47,13 +60,14 @@ export function ProjetsListView({
   const [view, setView] = useState<"cards" | "list">("cards")
   const [search, setSearch] = useState("")
   const [statusFilter, setStatusFilter] = useState("ALL")
+  const [showBilling, setShowBilling] = useState(false)
 
   const STATUS_FILTERS = [
-    { value: "ALL", label: "Tous" },
-    { value: "ACTIVE", label: "Actifs" },
-    { value: "PAUSED", label: "En pause" },
-    { value: "COMPLETED", label: "Terminés" },
-    { value: "ARCHIVED", label: "Archivés" },
+    { value: "ALL",       label: "Tous"      },
+    { value: "ACTIVE",    label: "Actifs"    },
+    { value: "PAUSED",    label: "En pause"  },
+    { value: "COMPLETED", label: "Terminés"  },
+    { value: "ARCHIVED",  label: "Archivés"  },
   ]
 
   const filtered = projects.filter((p) => {
@@ -63,9 +77,9 @@ export function ProjetsListView({
     return matchStatus && matchSearch
   })
 
-  const active    = filtered.filter((p) => p.status === "ACTIVE")
-  const completed = filtered.filter((p) => p.status === "COMPLETED")
-  const others    = filtered.filter((p) => p.status !== "ACTIVE" && p.status !== "COMPLETED")
+  const active    = [...filtered.filter((p) => p.status === "ACTIVE")].sort(byPriority)
+  const completed = [...filtered.filter((p) => p.status === "COMPLETED")].sort(byPriority)
+  const others    = [...filtered.filter((p) => p.status !== "ACTIVE" && p.status !== "COMPLETED")].sort(byPriority)
 
   return (
     <div className="space-y-8">
@@ -105,6 +119,8 @@ export function ProjetsListView({
               </button>
             ))}
           </div>
+
+          {/* Search */}
           <div className="relative">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
             <input
@@ -115,6 +131,23 @@ export function ProjetsListView({
               className="h-8 pl-8 pr-3 rounded-lg border border-border bg-transparent text-sm focus:outline-none focus:ring-1 focus:ring-ring w-40"
             />
           </div>
+
+          {/* Toggle facturation */}
+          <button
+            onClick={() => setShowBilling((v) => !v)}
+            className={cn(
+              "flex items-center gap-1.5 h-8 px-2.5 rounded-lg text-xs font-medium border transition-colors",
+              showBilling
+                ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/20"
+                : "text-muted-foreground border-border hover:bg-muted/50 hover:text-foreground"
+            )}
+            title="Afficher la facturation"
+          >
+            <TrendingUp className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">Facturation</span>
+          </button>
+
+          {/* Vue */}
           <div className="flex rounded-lg border border-border overflow-hidden">
             <button
               type="button"
@@ -149,7 +182,7 @@ export function ProjetsListView({
             <section className="space-y-3">
               <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">En cours</h2>
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                {active.map((p) => <ProjectCard key={p.id} project={p} />)}
+                {active.map((p) => <ProjectCard key={p.id} project={p} showBilling={showBilling} />)}
               </div>
             </section>
           )}
@@ -157,7 +190,7 @@ export function ProjetsListView({
             <section className="space-y-3">
               <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">Terminé</h2>
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                {completed.map((p) => <ProjectCard key={p.id} project={p} />)}
+                {completed.map((p) => <ProjectCard key={p.id} project={p} showBilling={showBilling} />)}
               </div>
             </section>
           )}
@@ -165,7 +198,7 @@ export function ProjetsListView({
             <section className="space-y-3">
               <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">Autres</h2>
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                {others.map((p) => <ProjectCard key={p.id} project={p} />)}
+                {others.map((p) => <ProjectCard key={p.id} project={p} showBilling={showBilling} />)}
               </div>
             </section>
           )}
@@ -177,9 +210,10 @@ export function ProjetsListView({
               <tr className="border-b border-border text-xs text-muted-foreground">
                 <th className="px-4 py-3 text-left font-medium">Projet</th>
                 <th className="px-4 py-3 text-left font-medium hidden sm:table-cell">Société</th>
+                <th className="px-4 py-3 text-left font-medium">Priorité</th>
                 <th className="px-4 py-3 text-left font-medium">Statut</th>
                 <th className="px-4 py-3 text-left font-medium hidden md:table-cell">Tâches</th>
-                <th className="px-4 py-3 text-left font-medium hidden md:table-cell">Facturation</th>
+                {showBilling && <th className="px-4 py-3 text-left font-medium hidden md:table-cell">Facturation</th>}
                 <th className="px-4 py-3 text-left font-medium hidden lg:table-cell">Fin estimée</th>
               </tr>
             </thead>
@@ -188,6 +222,8 @@ export function ProjetsListView({
                 const st = statusConfig[p.status]
                 const progress = p._count.tasks > 0 ? Math.round((p.tasksDone / p._count.tasks) * 100) : 0
                 const clientLabel = p.company?.name ?? p.contactLinks[0]?.client?.name ?? "—"
+                const priority = p.priority ?? "MEDIUM"
+                const priorityCfg = PRIORITY_CONFIG[priority]
                 return (
                   <tr key={p.id} className="border-b border-border/50 last:border-0 hover:bg-muted/30 transition-colors">
                     <td className="px-4 py-3">
@@ -199,6 +235,11 @@ export function ProjetsListView({
                       )}
                     </td>
                     <td className="px-4 py-3 text-muted-foreground hidden sm:table-cell">{clientLabel}</td>
+                    <td className="px-4 py-3">
+                      <span className={cn("rounded-full border px-2 py-0.5 text-xs font-medium", priorityCfg.cls)}>
+                        {priorityCfg.label}
+                      </span>
+                    </td>
                     <td className="px-4 py-3">
                       <Badge variant="outline" className={`text-xs ${st.cls}`}>{st.label}</Badge>
                     </td>
@@ -217,12 +258,14 @@ export function ProjetsListView({
                         <span className="text-xs text-muted-foreground">—</span>
                       )}
                     </td>
-                    <td className="px-4 py-3 hidden md:table-cell">
-                      <BillingBar
-                        totalFacture={p.billing.totalFacture}
-                        totalEncaisse={p.billing.totalEncaisse}
-                      />
-                    </td>
+                    {showBilling && (
+                      <td className="px-4 py-3 hidden md:table-cell">
+                        <BillingBar
+                          totalFacture={p.billing.totalFacture}
+                          totalEncaisse={p.billing.totalEncaisse}
+                        />
+                      </td>
+                    )}
                     <td className="px-4 py-3 text-xs text-muted-foreground hidden lg:table-cell">
                       {p.endDate ? (
                         <span className="flex items-center gap-1">

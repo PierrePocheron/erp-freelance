@@ -2,7 +2,7 @@
 
 import { useState, useTransition, useRef } from "react"
 import { Pencil, Check, X } from "lucide-react"
-import { updateProjectInfo, updateProjectStatus } from "@/actions/projet"
+import { updateProjectInfo, updateProjectStatus, updateProjectPriority } from "@/actions/projet"
 import { cn } from "@/lib/utils"
 import { toast } from "sonner"
 
@@ -65,6 +65,77 @@ export function ProjectStatusEdit({
               >
                 <span className={cn("inline-block rounded-full px-2 py-0.5 border text-xs", opt.cls)}>
                   {opt.label}
+                </span>
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
+// ── Priorité du projet ────────────────────────────────────────────────────────
+
+export const PRIORITY_CONFIG = {
+  LOW:    { label: "Basse",    cls: "text-slate-500 border-slate-500/30 bg-slate-500/10" },
+  MEDIUM: { label: "Normale",  cls: "text-blue-500 border-blue-500/30 bg-blue-500/10"   },
+  HIGH:   { label: "Haute",    cls: "text-amber-500 border-amber-500/40 bg-amber-500/10" },
+  URGENT: { label: "Urgente",  cls: "text-red-500 border-red-500/40 bg-red-500/10"       },
+} as const
+
+export type ProjectPriority = keyof typeof PRIORITY_CONFIG
+
+export function ProjectPriorityEdit({
+  projectId,
+  value,
+}: {
+  projectId: string
+  value: ProjectPriority
+}) {
+  const [open, setOpen] = useState(false)
+  const [isPending, startTransition] = useTransition()
+
+  const current = PRIORITY_CONFIG[value] ?? PRIORITY_CONFIG.MEDIUM
+
+  function pick(next: ProjectPriority) {
+    if (next === value) { setOpen(false); return }
+    startTransition(async () => {
+      await updateProjectPriority(projectId, next)
+      toast.success("Priorité mise à jour")
+      setOpen(false)
+    })
+  }
+
+  return (
+    <div className="relative">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        disabled={isPending}
+        className={cn(
+          "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-medium transition-opacity hover:opacity-75",
+          current.cls
+        )}
+      >
+        {current.label}
+        <Pencil className="h-2.5 w-2.5 opacity-60" />
+      </button>
+
+      {open && (
+        <>
+          <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
+          <div className="absolute left-0 top-full mt-1 z-20 rounded-lg border border-border bg-popover shadow-md p-1 min-w-32">
+            {(Object.keys(PRIORITY_CONFIG) as ProjectPriority[]).map((p) => (
+              <button
+                key={p}
+                onClick={() => pick(p)}
+                className={cn(
+                  "w-full text-left px-3 py-1.5 text-xs rounded-md hover:bg-muted transition-colors",
+                  p === value && "font-medium"
+                )}
+              >
+                <span className={cn("inline-block rounded-full px-2 py-0.5 border text-xs", PRIORITY_CONFIG[p].cls)}>
+                  {PRIORITY_CONFIG[p].label}
                 </span>
               </button>
             ))}

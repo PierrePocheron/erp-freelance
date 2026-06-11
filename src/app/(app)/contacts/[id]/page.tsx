@@ -69,11 +69,25 @@ export default async function ClientOverviewPage({
       status: { not: "DRAFT" },
       OR: [
         { clientId: id },
-        { project: { OR: [{ contactId: id }, { clientId: id }] } },
+        { project: { clientId: id } },
+        { project: { contactLinks: { some: { clientId: id } } } },
       ],
     },
     select: { totalHT: true, depositDeducted: true, status: true },
   })
+
+  // Projets liés via la table M2M (rôle quelconque) mais pas déjà dans client.projects
+  const linkedProjectIds = new Set(client.projects.map(p => p.id))
+  const m2mProjects = await prisma.project.findMany({
+    where: {
+      userId,
+      contactLinks: { some: { clientId: id } },
+      id: { notIn: [...linkedProjectIds] },
+    },
+    select: { id: true, name: true, status: true },
+  })
+  // Liste complète des projets pour la section "Projets"
+  const allProjects = [...client.projects, ...m2mProjects]
 
   // Sociétés et contacts pour alimenter le dialog « Nouveau projet »
   const [allCompanies, allContacts] = await Promise.all([
@@ -92,7 +106,7 @@ export default async function ClientOverviewPage({
   // Récupérer aussi les tâches via les projets du client
   const projectTasks = await prisma.task.findMany({
     where: {
-      project: { OR: [{ contactId: id }, { clientId: id }], userId },
+      project: { OR: [{ clientId: id }, { contactLinks: { some: { clientId: id } } }], userId },
       isGroup: false,
       parentTaskId: null,
       clientId: null, // éviter les doublons
@@ -171,7 +185,7 @@ export default async function ClientOverviewPage({
         <ClientProjectsCard
           userId={userId}
           clientId={id}
-          projects={client.projects}
+          projects={allProjects}
           companies={allCompanies}
           contacts={allContacts}
           defaultCompanyId={client.companyId}
@@ -187,7 +201,7 @@ export default async function ClientOverviewPage({
             </div>
             <div className="flex items-center justify-between text-sm">
               <span className="text-muted-foreground">Projets</span>
-              <span className="font-medium">{client._count.projects}</span>
+              <span className="font-medium">{allProjects.length}</span>
             </div>
             {totalBilled > 0 && (
               <div className="flex items-center justify-between text-sm">

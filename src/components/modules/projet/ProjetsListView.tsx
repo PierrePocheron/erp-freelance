@@ -23,7 +23,7 @@ type Project = {
   endDate: Date | null
   estimatedHours: number | null
   company: { id: string; name: string } | null
-  contact: { id: string; name: string; company: string | null } | null
+  contactLinks: { client: { id: string; name: string; company: string | null } }[]
   _count: { tasks: number }
   tasksDone: number
   tags: { id: string; name: string; color: string }[]
@@ -58,7 +58,8 @@ export function ProjetsListView({
 
   const filtered = projects.filter((p) => {
     const matchStatus = statusFilter === "ALL" || p.status === statusFilter
-    const matchSearch = !search.trim() || p.name.toLowerCase().includes(search.toLowerCase()) || (p.company?.name ?? p.contact?.name ?? "").toLowerCase().includes(search.toLowerCase())
+    const firstContactName = p.contactLinks[0]?.client?.name ?? ""
+    const matchSearch = !search.trim() || p.name.toLowerCase().includes(search.toLowerCase()) || (p.company?.name ?? firstContactName).toLowerCase().includes(search.toLowerCase())
     return matchStatus && matchSearch
   })
 
@@ -176,7 +177,7 @@ export function ProjetsListView({
               {[...active, ...completed, ...others].map((p) => {
                 const st = statusConfig[p.status]
                 const progress = p._count.tasks > 0 ? Math.round((p.tasksDone / p._count.tasks) * 100) : 0
-                const clientLabel = p.company?.name ?? p.contact?.name ?? "—"
+                const clientLabel = p.company?.name ?? p.contactLinks[0]?.client?.name ?? "—"
                 return (
                   <tr key={p.id} className="border-b border-border/50 last:border-0 hover:bg-muted/30 transition-colors">
                     <td className="px-4 py-3">

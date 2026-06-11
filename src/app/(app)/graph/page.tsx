@@ -9,7 +9,7 @@ export default async function GraphPage() {
   if (!session) redirect("/login")
   const userId = session.user.id
 
-  const [companies, clients, projects, invoices, quotes, fiscalSources, revenues] = await Promise.all([
+  const [companies, clients, projects, projectContactLinks, invoices, quotes, fiscalSources, revenues] = await Promise.all([
     prisma.company.findMany({
       where: { userId },
       select: { id: true, name: true, city: true, website: true },
@@ -22,6 +22,10 @@ export default async function GraphPage() {
       where: { userId },
       select: { id: true, name: true, status: true, clientId: true, companyId: true, startDate: true, endDate: true },
       orderBy: { createdAt: "asc" },
+    }),
+    prisma.projectContact.findMany({
+      where: { project: { userId } },
+      select: { projectId: true, clientId: true, role: true },
     }),
     prisma.invoice.findMany({
       where: { userId },
@@ -136,6 +140,20 @@ export default async function GraphPage() {
     if (parentId) links.push({ source: parentId, target: nodeId })
   }
 
+  // ── ProjectContact — arêtes supplémentaires contact → projet (M2M) ────────
+  // On ajoute un lien pour chaque contact associé au projet, SAUF si c'est déjà
+  // le parentId (évite les doublons avec le lien principal clientId → project).
+  const nodeIds = new Set(nodes.map(n => n.id))
+  for (const pc of projectContactLinks) {
+    const source = `client-${pc.clientId}`
+    const target = `project-${pc.projectId}`
+    if (!nodeIds.has(source) || !nodeIds.has(target)) continue
+    // Éviter le doublon si ce contact est déjà le parent principal du projet
+    const project = projects.find(p => p.id === pc.projectId)
+    if (project?.clientId === pc.clientId) continue
+    links.push({ source, target })
+  }
+
   // ── Invoices ──────────────────────────────────────────────────────────────
   for (const inv of invoices) {
     const nodeId   = `invoice-${inv.id}`
@@ -188,8 +206,8 @@ export default async function GraphPage() {
   }
 
   // ── Revenues ──────────────────────────────────────────────────────────────
-  // Ensemble des IDs déjà créés — pour vérifier que le parent d'un revenu existe.
-  const nodeIds = new Set(nodes.map(n => n.id))
+  // Recompute nodeIds pour inclure les nœuds ajoutés depuis la dernière mise à jour
+  const revenueNodeIds = new Set(nodes.map(n => n.id))
 
   for (const rev of revenues) {
     const revNodeId = `revenue-${rev.id}`
@@ -203,7 +221,7 @@ export default async function GraphPage() {
       ? `client-${rev.clientId}`
       : null
 
-    const parentId = rawParent && nodeIds.has(rawParent) ? rawParent : null
+    const parentId = rawParent && revenueNodeIds.has(rawParent) ? rawParent : null
 
     const date    = rev.receivedAt ?? rev.expectedAt
     const dateStr = date ? new Date(date).toLocaleDateString("fr-FR") : "—"

@@ -87,11 +87,13 @@ export function GraphView({ rawNodes, rawLinks }: { rawNodes: RawNode[]; rawLink
   const [collapsedIds, setCollapsed] = useState<Set<string>>(new Set())
   const [hiddenTypes, setHidden]    = useState<Set<NodeType>>(new Set())
   const [selected, setSelected]     = useState<RawNode | null>(null)
-  // Initialisé depuis le DOM pour éviter le flash de fond au chargement
-  const [isDark, setIsDark] = useState<boolean>(() => {
-    if (typeof window === "undefined") return true
-    return document.documentElement.classList.contains("dark")
-  })
+  // Lecture immédiate depuis le DOM ; suppressHydrationWarning sur le div conteneur
+  // évite l'erreur React de mismatch SSR/client tout en conservant la bonne couleur dès le 1er rendu
+  const [isDark, setIsDark] = useState<boolean>(() =>
+    typeof window !== "undefined"
+      ? document.documentElement.classList.contains("dark")
+      : true
+  )
 
   // ── Recherche ────────────────────────────────────────────────────────────
   const [searchQuery,    setSearchQuery]    = useState("")
@@ -246,6 +248,7 @@ export function GraphView({ rawNodes, rawLinks }: { rawNodes: RawNode[]; rawLink
 
   return (
     <div
+      suppressHydrationWarning
       className="relative flex h-full w-full overflow-hidden"
       style={isDark ? {
         backgroundColor: "#0d0f1a",

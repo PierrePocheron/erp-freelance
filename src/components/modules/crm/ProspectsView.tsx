@@ -4,7 +4,7 @@ import { useState, useTransition } from "react"
 import { createProspect, updateProspectStage, getClientPanel } from "@/actions/crm"
 import { ClientPanel } from "./ClientPanel"
 import { Sheet, SheetContent } from "@/components/ui/sheet"
-import { Plus, ChevronRight } from "lucide-react"
+import { Plus, ChevronRight, Search, X } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { toast } from "sonner"
 
@@ -87,6 +87,8 @@ export function ProspectsView({
   initialStage?: ProspectStage
 }) {
   const [stageFilter, setStageFilter] = useState<ProspectStage | "ALL">(initialStage ?? "ALL")
+  const [search, setSearch] = useState("")
+  const [sort, setSort] = useState<"default" | "stale" | "hot">("default")
   const [quickName, setQuickName] = useState("")
   const [quickEmail, setQuickEmail] = useState("")
   const [quickSource, setQuickSource] = useState("OTHER")
@@ -126,9 +128,35 @@ export function ProspectsView({
     ])
   )
 
-  const filtered = stageFilter === "ALL"
-    ? prospects
-    : prospects.filter((p) => p.prospectStage === stageFilter)
+  const tempOrder = { HOT: 0, WARM: 1, COLD: 2 }
+  const stageOrder: Record<string, number> = {
+    IDENTIFIED: 0, CONTACTED: 1, NO_RESPONSE: 2, REPLIED: 3,
+    MEETING: 4, PROPOSAL_SENT: 5, NEGOTIATION: 6, WON: 7, LOST: 8, ON_HOLD: 9,
+  }
+
+  const needle = search.trim().toLowerCase()
+  const filtered = prospects
+    .filter((p) => stageFilter === "ALL" || p.prospectStage === stageFilter)
+    .filter((p) =>
+      !needle ||
+      p.name.toLowerCase().includes(needle) ||
+      (p.company ?? "").toLowerCase().includes(needle) ||
+      (p.email ?? "").toLowerCase().includes(needle)
+    )
+    .sort((a, b) => {
+      if (sort === "hot") {
+        const td = (tempOrder[a.temperature as keyof typeof tempOrder] ?? 2) -
+                   (tempOrder[b.temperature as keyof typeof tempOrder] ?? 2)
+        if (td !== 0) return td
+        return (stageOrder[a.prospectStage] ?? 99) - (stageOrder[b.prospectStage] ?? 99)
+      }
+      if (sort === "stale") {
+        const aDate = a.interactions[0]?.date ? new Date(a.interactions[0].date).getTime() : 0
+        const bDate = b.interactions[0]?.date ? new Date(b.interactions[0].date).getTime() : 0
+        return aDate - bDate // 0 (jamais contacté) en premier, puis le plus ancien
+      }
+      return 0 // "default" → garde l'ordre serveur
+    })
 
   return (
     <>
@@ -190,6 +218,39 @@ export function ProspectsView({
             </div>
           )}
         </form>
+
+        {prospects.length > 0 && (
+          <div className="flex items-center gap-2">
+            {/* Recherche */}
+            <div className="relative flex-1">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
+              <input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Rechercher…"
+                className="w-full h-8 rounded-lg border border-input bg-transparent pl-8 pr-7 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+              />
+              {search && (
+                <button
+                  onClick={() => setSearch("")}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              )}
+            </div>
+            {/* Tri */}
+            <select
+              value={sort}
+              onChange={(e) => setSort(e.target.value as typeof sort)}
+              className="h-8 rounded-lg border border-input bg-background px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring shrink-0"
+            >
+              <option value="default">Par défaut</option>
+              <option value="hot">Chauds en premier</option>
+              <option value="stale">Sans contact d'abord</option>
+            </select>
+          </div>
+        )}
 
         {prospects.length === 0 ? (
           <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border py-10 text-center">
@@ -269,7 +330,9 @@ export function ProspectsView({
 
             {/* ── Cards ── */}
             {filtered.length === 0 ? (
-              <p className="text-sm text-muted-foreground/60 italic py-2">Aucun prospect à cette étape.</p>
+              <p className="text-sm text-muted-foreground/60 italic py-2">
+                {search ? `Aucun résultat pour « ${search} »` : "Aucun prospect à cette étape."}
+              </p>
             ) : (
               <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
                 {filtered.map((p) => (

@@ -69,6 +69,14 @@ const fmtShort = (d: Date | string) =>
 
 // ── ProspectsView ─────────────────────────────────────────────────────────────
 
+const SOURCE_OPTIONS = [
+  { value: "WORD_OF_MOUTH", label: "Bouche à oreille" },
+  { value: "LINKEDIN",      label: "LinkedIn" },
+  { value: "WEBSITE",       label: "Site web" },
+  { value: "INBOUND",       label: "Entrant" },
+  { value: "OTHER",         label: "Autre" },
+]
+
 export function ProspectsView({
   prospects,
   userId,
@@ -80,6 +88,9 @@ export function ProspectsView({
 }) {
   const [stageFilter, setStageFilter] = useState<ProspectStage | "ALL">(initialStage ?? "ALL")
   const [quickName, setQuickName] = useState("")
+  const [quickEmail, setQuickEmail] = useState("")
+  const [quickSource, setQuickSource] = useState("OTHER")
+  const [showExtended, setShowExtended] = useState(false)
   const [isAdding, startAdding] = useTransition()
   const [open, setOpen] = useState(false)
   const [panelData, setPanelData] = useState<PanelData>(null)
@@ -99,8 +110,11 @@ export function ProspectsView({
     const name = quickName.trim()
     if (!name) return
     startAdding(async () => {
-      await createProspect({ name })
+      await createProspect({ name, email: quickEmail.trim() || undefined, source: quickSource })
       setQuickName("")
+      setQuickEmail("")
+      setQuickSource("OTHER")
+      setShowExtended(false)
       toast.success(`Prospect "${name}" ajouté`)
     })
   }
@@ -120,22 +134,61 @@ export function ProspectsView({
     <>
       <div className="space-y-4">
         {/* ── Quick add ── */}
-        <form onSubmit={handleQuickAdd} className="flex items-center gap-2">
-          <input
-            value={quickName}
-            onChange={(e) => setQuickName(e.target.value)}
-            placeholder="Nom du prospect…"
-            disabled={isAdding}
-            className="flex-1 h-8 rounded-lg border border-input bg-transparent px-3 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring disabled:opacity-50"
-          />
-          <button
-            type="submit"
-            disabled={isAdding || !quickName.trim()}
-            className="flex items-center gap-1.5 h-8 px-3 rounded-lg bg-primary text-primary-foreground text-sm font-medium disabled:opacity-40 hover:bg-primary/90 transition-colors shrink-0"
-          >
-            <Plus className="h-3.5 w-3.5" />
-            {isAdding ? "Ajout…" : "Ajouter"}
-          </button>
+        <form onSubmit={handleQuickAdd} className="space-y-2">
+          <div className="flex items-center gap-2">
+            <input
+              value={quickName}
+              onChange={(e) => setQuickName(e.target.value)}
+              placeholder="Nom du prospect…"
+              disabled={isAdding}
+              className="flex-1 h-8 rounded-lg border border-input bg-transparent px-3 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring disabled:opacity-50"
+            />
+            <button
+              type="button"
+              onClick={() => setShowExtended((v) => !v)}
+              title={showExtended ? "Masquer les options" : "Plus d'options (email, source)"}
+              className={cn(
+                "h-8 w-8 flex items-center justify-center rounded-lg border text-xs transition-colors shrink-0",
+                showExtended
+                  ? "border-primary/50 bg-primary/10 text-primary"
+                  : "border-input text-muted-foreground hover:border-foreground/30 hover:text-foreground"
+              )}
+            >
+              ···
+            </button>
+            <button
+              type="submit"
+              disabled={isAdding || !quickName.trim()}
+              className="flex items-center gap-1.5 h-8 px-3 rounded-lg bg-primary text-primary-foreground text-sm font-medium disabled:opacity-40 hover:bg-primary/90 transition-colors shrink-0"
+            >
+              <Plus className="h-3.5 w-3.5" />
+              {isAdding ? "Ajout…" : "Ajouter"}
+            </button>
+          </div>
+
+          {/* Champs étendus */}
+          {showExtended && (
+            <div className="flex items-center gap-2">
+              <input
+                value={quickEmail}
+                onChange={(e) => setQuickEmail(e.target.value)}
+                placeholder="Email (optionnel)"
+                type="email"
+                disabled={isAdding}
+                className="flex-1 h-8 rounded-lg border border-input bg-transparent px-3 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring disabled:opacity-50"
+              />
+              <select
+                value={quickSource}
+                onChange={(e) => setQuickSource(e.target.value)}
+                disabled={isAdding}
+                className="h-8 rounded-lg border border-input bg-background px-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring disabled:opacity-50"
+              >
+                {SOURCE_OPTIONS.map((o) => (
+                  <option key={o.value} value={o.value}>{o.label}</option>
+                ))}
+              </select>
+            </div>
+          )}
         </form>
 
         {prospects.length === 0 ? (

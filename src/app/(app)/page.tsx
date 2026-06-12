@@ -4,8 +4,9 @@ import Link from "next/link"
 import {
   CheckSquare, AlertCircle, Clock, Users,
   TrendingUp, Bell, Code2, Calendar, Circle,
-  AlertTriangle, Globe, UserMinus, Wallet, Receipt,
+  AlertTriangle, Globe, UserMinus, Wallet, Receipt, Target,
 } from "lucide-react"
+import { cn } from "@/lib/utils"
 import { QuickActionsBar } from "@/components/modules/dashboard/QuickActionsBar"
 import { ProdMonitorCard } from "@/components/modules/dashboard/ProdMonitorCard"
 
@@ -49,6 +50,7 @@ export default async function DashboardPage() {
     quickContacts,
     paidInvoicesYTD,
     receivedRevenuesYTD,
+    dashboardProspects,
   ] = await Promise.all([
     prisma.task.findMany({
       where: {
@@ -193,6 +195,19 @@ export default async function DashboardPage() {
       where: { userId, status: "RECEIVED", period: { startsWith: yearPrefix } },
       select: { amount: true },
     }),
+    // Prospects pour le widget pipeline dashboard
+    prisma.client.findMany({
+      where: { userId, type: "PROSPECT" },
+      orderBy: [{ temperature: "desc" }, { updatedAt: "desc" }],
+      select: {
+        id: true,
+        name: true,
+        company: true,
+        temperature: true,
+        prospectStage: true,
+        interactions: { orderBy: { date: "desc" }, take: 1, select: { date: true } },
+      },
+    }),
   ])
 
   const totalPending   = unpaidInvoices.reduce((s, i) => s + i.totalHT - i.depositDeducted, 0)
@@ -210,6 +225,22 @@ export default async function DashboardPage() {
     statusCode: pd.monitoringChecks[0]?.statusCode ?? null,
     checkedAt: pd.monitoringChecks[0]?.checkedAt ?? null,
   }))
+
+  // Pipeline prospects
+  const PIPELINE_ACTIVE_STAGES = ["IDENTIFIED", "CONTACTED", "NO_RESPONSE", "REPLIED", "MEETING", "PROPOSAL_SENT", "NEGOTIATION"]
+  const prospectsActive = dashboardProspects.filter((p) => PIPELINE_ACTIVE_STAGES.includes(p.prospectStage))
+  const prospectsHot    = dashboardProspects.filter((p) => p.temperature === "HOT" && PIPELINE_ACTIVE_STAGES.includes(p.prospectStage))
+  // eslint-disable-next-line react-hooks/purity
+  const prospectStale30 = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
+  const prospectsStale  = prospectsActive.filter((p) => {
+    const last = p.interactions[0]?.date ?? null
+    return !last || new Date(last) < prospectStale30
+  })
+  // Comptage par étape (seulement les étapes non-nulles)
+  const prospectByStage: Record<string, number> = {}
+  for (const p of prospectsActive) {
+    prospectByStage[p.prospectStage] = (prospectByStage[p.prospectStage] ?? 0) + 1
+  }
 
   // Clients à relancer : dernier contact (interaction ou création) plus vieux que 45 j.
   const followUpClients = followUpCandidates
@@ -427,6 +458,86 @@ export default async function DashboardPage() {
         <div className="space-y-6">
           {/* Monitoring des prods */}
           <ProdMonitorCard prods={prods} />
+
+          {/* Pipeline Prospects */}
+          {dashboardProspects.length > 0 && (
+            <div className="rounded-xl border border-border/50 bg-card overflow-hidden">
+              <div className="flex items-center justify-between px-4 py-3 border-b border-border/50">
+                <div className="flex items-center gap-2 text-sm font-semibold">
+                  <span className="text-muted-foreground"><Target className="h-4 w-4" /></span>
+                  Prospection
+                </div>
+                <Link href="/contacts/prospects" className="text-xs text-primary hover:underline">Voir tout →</Link>
+              </div>
+              <div className="p-3 space-y-3">
+                {/* Stats row */}
+                <div className="grid grid-cols-3 gap-2">
+                  <Link href="/contacts/prospects" className="rounded-lg bg-muted/40 px-2 py-2 text-center hover:bg-muted/70 transition-colors">
+                    <p className="text-lg font-bold">{prospectsActive.length}</p>
+                    <p className="text-[10px] text-muted-foreground leading-tight">En pipeline</p>
+                  </Link>
+                  <Link href="/contacts/prospects" className={cn("rounded-lg px-2 py-2 text-center transition-colors", prospectsHot.length > 0 ? "bg-red-500/10 hover:bg-red-500/15" : "bg-muted/40 hover:bg-muted/70")}>
+                    <p className={cn("text-lg font-bold", prospectsHot.length > 0 ? "text-red-600" : "")}>{prospectsHot.length}</p>
+                    <p className="text-[10px] text-muted-foreground leading-tight">Chauds</p>
+                  </Link>
+                  <Link href="/contacts/prospects" className={cn("rounded-lg px-2 py-2 text-center transition-colors", prospectsStale.length > 0 ? "bg-amber-500/10 hover:bg-amber-500/15" : "bg-muted/40 hover:bg-muted/70")}>
+                    <p className={cn("text-lg font-bold", prospectsStale.length > 0 ? "text-amber-600" : "")}>{prospectsStale.length}</p>
+                    <p className="text-[10px] text-muted-foreground leading-tight">Inactifs</p>
+                  </Link>
+                </div>
+
+                {/* Stage chips */}
+                {Object.keys(prospectByStage).length > 0 && (
+                  <div className="flex flex-wrap gap-1.5">
+                    {PIPELINE_ACTIVE_STAGES.filter((s) => (prospectByStage[s] ?? 0) > 0).map((stage) => {
+                      const pipelineLabels: Record<string, string> = {
+                        IDENTIFIED: "Identifié", CONTACTED: "Contacté", NO_RESPONSE: "Sans réponse",
+                        REPLIED: "A répondu", MEETING: "RDV", PROPOSAL_SENT: "Devis envoyé", NEGOTIATION: "Négociation",
+                      }
+                      const pipelineColors: Record<string, string> = {
+                        IDENTIFIED: "bg-slate-500/15 text-slate-600", CONTACTED: "bg-blue-500/15 text-blue-600",
+                        NO_RESPONSE: "bg-amber-500/15 text-amber-700", REPLIED: "bg-teal-500/15 text-teal-600",
+                        MEETING: "bg-purple-500/15 text-purple-600", PROPOSAL_SENT: "bg-indigo-500/15 text-indigo-600",
+                        NEGOTIATION: "bg-violet-500/15 text-violet-600",
+                      }
+                      return (
+                        <Link
+                          key={stage}
+                          href={`/contacts/prospects?stage=${stage}`}
+                          className={cn("rounded-full border border-transparent px-2 py-0.5 text-[10px] font-medium hover:opacity-80 transition-opacity", pipelineColors[stage])}
+                        >
+                          {pipelineLabels[stage]} ({prospectByStage[stage]})
+                        </Link>
+                      )
+                    })}
+                  </div>
+                )}
+
+                {/* Top prospects chauds */}
+                {prospectsHot.length > 0 && (
+                  <div className="space-y-0.5 border-t border-border/50 pt-2">
+                    {prospectsHot.slice(0, 3).map((p) => {
+                      const stageShort: Record<string, string> = {
+                        IDENTIFIED: "Identifié", CONTACTED: "Contacté", NO_RESPONSE: "Sans réponse",
+                        REPLIED: "A répondu", MEETING: "RDV", PROPOSAL_SENT: "Devis env.", NEGOTIATION: "Négo.",
+                      }
+                      return (
+                        <Link
+                          key={p.id}
+                          href={`/contacts/${p.id}`}
+                          className="flex items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-muted/50 transition-colors"
+                        >
+                          <span className="h-1.5 w-1.5 rounded-full bg-red-500 shrink-0" />
+                          <p className="text-xs font-medium truncate flex-1">{p.company ?? p.name}</p>
+                          <span className="text-[10px] text-muted-foreground shrink-0">{stageShort[p.prospectStage] ?? p.prospectStage}</span>
+                        </Link>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* Rappels */}
           {upcomingReminders.length > 0 && (

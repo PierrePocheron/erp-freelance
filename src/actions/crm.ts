@@ -289,6 +289,7 @@ export async function updateProspectStage(clientId: string, stage: ProspectStage
 
 export async function createProspect(data: {
   name: string
+  email?: string
   source?: string
   companyId?: string
   companyName?: string
@@ -304,6 +305,7 @@ export async function createProspect(data: {
     data: {
       userId,
       name,
+      email: data.email?.trim() || null,
       companyId,
       company: companyName,
       type: "PROSPECT",

@@ -428,6 +428,7 @@ export async function addInteraction(
   })
   revalidatePath(`/contacts/${clientId}`)
   revalidatePath("/contacts")
+  revalidatePath("/contacts/prospects")
 }
 
 export async function updateInteraction(
@@ -472,6 +473,7 @@ export async function addReminder(clientId: string, data: { dueDate: string; not
     },
   })
   revalidatePath(`/contacts/${clientId}`)
+  revalidatePath("/contacts/prospects")
 }
 
 export async function toggleReminder(reminderId: string, clientId: string, isDone: boolean) {

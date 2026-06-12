@@ -9,7 +9,7 @@ import {
   UserCheck, Archive,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { updateClientType, updateProspectStage } from "@/actions/crm"
+import { updateClientType, updateProspectStage, addInteraction, addReminder } from "@/actions/crm"
 import type { ProspectStage } from "./ProspectsView"
 import { toast } from "sonner"
 
@@ -111,7 +111,14 @@ export function ClientPanel({
 }) {
   const [isPending, startTransition] = useTransition()
   const [, startStageTransition] = useTransition()
+  const [, startLogTransition] = useTransition()
+  const [, startReminderTransition] = useTransition()
   const [stageDropOpen, setStageDropOpen] = useState(false)
+  const [quickPanel, setQuickPanel] = useState<"log" | "reminder" | null>(null)
+  const [logChannel, setLogChannel] = useState("EMAIL")
+  const [logSummary, setLogSummary] = useState("")
+  const [reminderDate, setReminderDate] = useState(() => new Date().toISOString().split("T")[0])
+  const [reminderNote, setReminderNote] = useState("")
 
   const fmt = (d: Date | string) =>
     new Date(d).toLocaleDateString("fr-FR", { day: "numeric", month: "short" })
@@ -121,6 +128,34 @@ export function ClientPanel({
     startTransition(async () => {
       await updateClientType(client.id, userId, type)
       toast.success(`Statut mis à jour : ${label}`)
+    })
+  }
+
+  function submitLog(e: React.FormEvent) {
+    e.preventDefault()
+    const summary = logSummary.trim()
+    if (!summary || !client) return
+    startLogTransition(async () => {
+      const today = new Date().toISOString().split("T")[0]
+      await addInteraction(client.id, { date: today, channel: logChannel, summary })
+      // Auto-avance le stage IDENTIFIED → CONTACTED au premier contact
+      if (client.type === "PROSPECT" && client.prospectStage === "IDENTIFIED") {
+        await updateProspectStage(client.id, "CONTACTED")
+      }
+      setLogSummary("")
+      setQuickPanel(null)
+      toast.success("Interaction enregistrée")
+    })
+  }
+
+  function submitReminder(e: React.FormEvent) {
+    e.preventDefault()
+    if (!client || !reminderDate) return
+    startReminderTransition(async () => {
+      await addReminder(client.id, { dueDate: reminderDate, note: reminderNote.trim() || undefined })
+      setReminderNote("")
+      setQuickPanel(null)
+      toast.success("Rappel ajouté")
     })
   }
 
@@ -306,6 +341,126 @@ export function ClientPanel({
       </div>
 
       <div className="flex-1 p-4 space-y-5">
+
+        {/* ── Log rapide ── */}
+        <section className="space-y-2">
+          <div className="flex gap-2">
+            <button
+              onClick={() => setQuickPanel(quickPanel === "log" ? null : "log")}
+              className={cn(
+                "flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors flex-1 justify-center",
+                quickPanel === "log"
+                  ? "border-primary/50 bg-primary/10 text-primary"
+                  : "border-border/50 text-muted-foreground hover:bg-muted/50 hover:text-foreground"
+              )}
+            >
+              <MessageSquare className="h-3.5 w-3.5" /> Logguer un contact
+            </button>
+            <button
+              onClick={() => setQuickPanel(quickPanel === "reminder" ? null : "reminder")}
+              className={cn(
+                "flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors flex-1 justify-center",
+                quickPanel === "reminder"
+                  ? "border-primary/50 bg-primary/10 text-primary"
+                  : "border-border/50 text-muted-foreground hover:bg-muted/50 hover:text-foreground"
+              )}
+            >
+              <Bell className="h-3.5 w-3.5" /> Ajouter un rappel
+            </button>
+          </div>
+
+          {/* Formulaire log interaction */}
+          {quickPanel === "log" && (
+            <form onSubmit={submitLog} className="rounded-lg border border-border/50 bg-muted/20 p-2.5 space-y-2">
+              {/* Sélecteur canal */}
+              <div className="flex flex-wrap gap-1">
+                {(["EMAIL","CALL","MEETING","LINKEDIN","VIDEO","SMS","OTHER"] as const).map((ch) => {
+                  const labels: Record<string, string> = {
+                    EMAIL: "Email", CALL: "Appel", MEETING: "RDV",
+                    LINKEDIN: "LinkedIn", VIDEO: "Visio", SMS: "SMS", OTHER: "Autre",
+                  }
+                  return (
+                    <button
+                      key={ch}
+                      type="button"
+                      onClick={() => setLogChannel(ch)}
+                      className={cn(
+                        "rounded-full border px-2 py-0.5 text-[10px] font-medium transition-colors",
+                        logChannel === ch
+                          ? "border-primary bg-primary text-primary-foreground"
+                          : "border-border text-muted-foreground hover:bg-muted"
+                      )}
+                    >
+                      {labels[ch]}
+                    </button>
+                  )
+                })}
+              </div>
+              {/* Résumé */}
+              <input
+                value={logSummary}
+                onChange={(e) => setLogSummary(e.target.value)}
+                placeholder="Résumé de l'échange…"
+                autoFocus
+                className="w-full h-8 rounded-md border border-input bg-background px-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+              />
+              {client.type === "PROSPECT" && client.prospectStage === "IDENTIFIED" && (
+                <p className="text-[10px] text-muted-foreground">Le stage passera automatiquement à "Contacté"</p>
+              )}
+              <div className="flex justify-end gap-2 pt-0.5">
+                <button
+                  type="button"
+                  onClick={() => setQuickPanel(null)}
+                  className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  Annuler
+                </button>
+                <button
+                  type="submit"
+                  disabled={!logSummary.trim()}
+                  className="rounded-md bg-primary px-3 py-1 text-xs font-medium text-primary-foreground disabled:opacity-40 hover:bg-primary/90 transition-colors"
+                >
+                  Enregistrer
+                </button>
+              </div>
+            </form>
+          )}
+
+          {/* Formulaire rappel */}
+          {quickPanel === "reminder" && (
+            <form onSubmit={submitReminder} className="rounded-lg border border-border/50 bg-muted/20 p-2.5 space-y-2">
+              <input
+                type="date"
+                value={reminderDate}
+                onChange={(e) => setReminderDate(e.target.value)}
+                required
+                className="w-full h-8 rounded-md border border-input bg-background px-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+              />
+              <input
+                value={reminderNote}
+                onChange={(e) => setReminderNote(e.target.value)}
+                placeholder="Note (optionnel)"
+                className="w-full h-8 rounded-md border border-input bg-background px-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+              />
+              <div className="flex justify-end gap-2 pt-0.5">
+                <button
+                  type="button"
+                  onClick={() => setQuickPanel(null)}
+                  className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  Annuler
+                </button>
+                <button
+                  type="submit"
+                  disabled={!reminderDate}
+                  className="rounded-md bg-primary px-3 py-1 text-xs font-medium text-primary-foreground disabled:opacity-40 hover:bg-primary/90 transition-colors"
+                >
+                  Ajouter
+                </button>
+              </div>
+            </form>
+          )}
+        </section>
 
         {/* Reminders */}
         {client.reminders.length > 0 && (

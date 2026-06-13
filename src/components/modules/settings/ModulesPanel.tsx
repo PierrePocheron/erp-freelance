@@ -46,9 +46,14 @@ export function ModulesPanel() {
                 className="mt-0.5 h-4 w-4 rounded accent-primary"
               />
               <div className="min-w-0">
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
                   <span className="text-base leading-none">{mod.icon}</span>
                   <span className="text-sm font-medium">{mod.label}</span>
+                  {!mod.defaultActive && (
+                    <span className="rounded-full border border-muted text-[9px] font-medium text-muted-foreground/60 px-1.5 py-0.5 leading-none">
+                      optionnel
+                    </span>
+                  )}
                 </div>
                 <p className="text-xs text-muted-foreground mt-1 leading-snug">
                   {mod.description}

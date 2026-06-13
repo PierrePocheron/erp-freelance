@@ -43,6 +43,9 @@ model User {
   revenues           Revenue[]
   recurringRevenues  RecurringRevenue[]
   fiscalSources      FiscalSource[]
+  healthEvents        HealthEvent[]
+  healthConsultations HealthConsultation[]
+  healthReimbursements HealthReimbursement[]
 }
 
 model ProjectIdea {
@@ -1025,4 +1028,97 @@ model RecurringRevenue {
   @@index([companyId])
   @@index([clientId])
   @@index([projectId])
+}
+
+// ─── Santé ────────────────────────────────────────────────────────────────────
+
+enum HealthEventType {
+  INJURY   // Blessure 🩸
+  ILLNESS  // Maladie 🩸
+  OTHER
+}
+
+enum PractitionerType {
+  GENERAL       // Médecin généraliste
+  OSTEOPATH     // Ostéopathe
+  SPECIALIST    // Spécialiste
+  SOS_MEDECIN   // SOS Médecin / Urgences
+  NURSE         // Infirmier(ère)
+  PHYSIO        // Kinésithérapeute
+  DENTIST       // Dentiste
+  OTHER
+}
+
+enum ReimbursementSource {
+  SECU
+  MUTUELLE
+}
+
+// Blessure ou maladie 🩸
+model HealthEvent {
+  id          String          @id @default(cuid())
+  userId      String
+  date        DateTime
+  type        HealthEventType
+  title       String
+  description String?
+  bodyPart    String?         // localisation libre (dos, genou, coude…)
+  resolvedAt  DateTime?       // date de guérison / résolution
+
+  consultations HealthConsultation[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+// Consultation médicale 🥼
+model HealthConsultation {
+  id               String           @id @default(cuid())
+  userId           String
+  date             DateTime
+  practitionerName String
+  practitionerType PractitionerType @default(OTHER)
+  title            String           // motif / résumé
+  notes            String?
+  cost             Float?           // montant payé (ex. 63)
+  hasDocument      Boolean          @default(false)
+  documentRef      String?          // URL ou chemin Drive
+
+  healthEventId String?
+  healthEvent   HealthEvent? @relation(fields: [healthEventId], references: [id], onDelete: SetNull)
+
+  reimbursements HealthReimbursement[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([healthEventId])
+}
+
+// Remboursement 💸
+model HealthReimbursement {
+  id     String              @id @default(cuid())
+  userId String
+  date   DateTime
+  amount Float
+  source ReimbursementSource
+  notes  String?
+
+  consultationId String?
+  consultation   HealthConsultation? @relation(fields: [consultationId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([consultationId])
 }

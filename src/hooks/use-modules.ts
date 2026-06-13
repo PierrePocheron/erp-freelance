@@ -13,78 +13,70 @@ export type ModuleId =
   | "taches"
   | "calendrier"
   | "graph"
+  | "sante"
 
 export type ModuleDef = {
-  id:          ModuleId
-  label:       string
-  description: string
-  icon:        string   // emoji pour affichage rapide
+  id:            ModuleId
+  label:         string
+  description:   string
+  icon:          string   // emoji pour affichage rapide
+  defaultActive: boolean  // false → désactivé par défaut, activation manuelle requise
 }
 
 export const MODULE_DEFS: ModuleDef[] = [
   {
-    id:          "contacts",
-    label:       "Contacts / CRM",
+    id: "contacts", label: "Contacts / CRM", icon: "👥", defaultActive: true,
     description: "Gestion des contacts, prospects, clients et interactions",
-    icon:        "👥",
   },
   {
-    id:          "societes",
-    label:       "Sociétés",
+    id: "societes", label: "Sociétés", icon: "🏢", defaultActive: true,
     description: "Répertoire des entreprises clientes avec leurs projets et contacts",
-    icon:        "🏢",
   },
   {
-    id:          "facturation",
-    label:       "Facturation",
+    id: "facturation", label: "Facturation", icon: "💳", defaultActive: true,
     description: "Devis, factures, acomptes et conditions de paiement",
-    icon:        "💳",
   },
   {
-    id:          "revenus",
-    label:       "Revenus",
+    id: "revenus", label: "Revenus", icon: "💰", defaultActive: true,
     description: "Suivi des revenus manuels, récurrents et récapitulatif fiscal",
-    icon:        "💰",
   },
   {
-    id:          "projets",
-    label:       "Projets",
+    id: "projets", label: "Projets", icon: "💻", defaultActive: true,
     description: "Suivi des projets, jalons, temps passé et statut",
-    icon:        "💻",
   },
   {
-    id:          "taches",
-    label:       "Tâches",
+    id: "taches", label: "Tâches", icon: "✅", defaultActive: true,
     description: "Gestion des tâches et kanban global",
-    icon:        "✅",
   },
   {
-    id:          "calendrier",
-    label:       "Calendrier",
+    id: "calendrier", label: "Calendrier", icon: "📅", defaultActive: true,
     description: "Agenda, rappels, interactions et événements",
-    icon:        "📅",
   },
   {
-    id:          "graph",
-    label:       "Graph relationnel",
+    id: "graph", label: "Graph relationnel", icon: "🕸️", defaultActive: true,
     description: "Vue graphe de toutes vos relations clients / projets / factures",
-    icon:        "🕸️",
+  },
+  {
+    id: "sante", label: "Santé", icon: "🏥", defaultActive: false,
+    description: "Suivi des blessures, maladies, consultations et remboursements",
   },
 ]
 
 export const ALL_MODULE_IDS = MODULE_DEFS.map(m => m.id)
+// IDs actifs par défaut (modules avec defaultActive: true)
+const DEFAULT_ACTIVE_IDS = MODULE_DEFS.filter(m => m.defaultActive).map(m => m.id)
 
 const STORAGE_KEY = "erp-active-modules"
 
 function readFromStorage(): Set<ModuleId> {
-  if (typeof window === "undefined") return new Set(ALL_MODULE_IDS)
+  if (typeof window === "undefined") return new Set(DEFAULT_ACTIVE_IDS)
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
-    if (!raw) return new Set(ALL_MODULE_IDS)   // tous actifs par défaut
+    if (!raw) return new Set(DEFAULT_ACTIVE_IDS)  // seuls les modules defaultActive: true
     const parsed = JSON.parse(raw) as ModuleId[]
     return new Set(parsed.filter(id => ALL_MODULE_IDS.includes(id)))
   } catch {
-    return new Set(ALL_MODULE_IDS)
+    return new Set(DEFAULT_ACTIVE_IDS)
   }
 }
 
@@ -92,7 +84,7 @@ function readFromStorage(): Set<ModuleId> {
 
 export function useModules() {
   const [activeModules, setActiveModules] = useState<Set<ModuleId>>(
-    () => new Set(ALL_MODULE_IDS)  // SSR-safe default
+    () => new Set(DEFAULT_ACTIVE_IDS)  // SSR-safe default (modules defaultActive uniquement)
   )
 
   // Hydrate depuis localStorage côté client
@@ -119,7 +111,7 @@ export function useModules() {
   }, [])
 
   const enableAll = useCallback(() => {
-    const all = new Set(ALL_MODULE_IDS)
+    const all = new Set<ModuleId>(ALL_MODULE_IDS)
     localStorage.setItem(STORAGE_KEY, JSON.stringify([...all]))
     setActiveModules(all)
   }, [])

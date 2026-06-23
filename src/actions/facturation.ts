@@ -573,9 +573,11 @@ export async function recordPayment(
 
 export async function deletePayment(paymentId: string, invoiceId: string, _userId: string) {
   const userId = await requireAuth()
-  const invoice = await prisma.invoice.findFirst({ where: { id: invoiceId, userId } })
-  if (!invoice) return
-  await prisma.payment.delete({ where: { id: paymentId } })
+  // Scope le paiement par sa facture propriétaire (pas par l'invoiceId fourni).
+  const deleted = await prisma.payment.deleteMany({
+    where: { id: paymentId, invoice: { userId } },
+  })
+  if (deleted.count === 0) return
   revalidatePath(`/facturation/factures/${invoiceId}`)
   revalidatePath("/facturation/factures")
   revalidatePath("/facturation")
@@ -1026,6 +1028,14 @@ export async function setRecurringInvoiceLines(
   lines: RecurringLine[]
 ) {
   const userId = await requireAuth()
+  // Vérifie que le modèle récurrent appartient bien à l'utilisateur avant de
+  // toucher ses lignes (sinon IDOR : DELETE/INSERT sur les lignes d'autrui).
+  const owns = await prisma.$queryRawUnsafe<{ id: string }[]>(
+    `SELECT id FROM "RecurringInvoice" WHERE id = $1 AND "userId" = $2`,
+    recurringInvoiceId,
+    userId
+  )
+  if (owns.length === 0) throw new Error("Modèle introuvable")
   // RecurringInvoiceLine is not in Prisma schema (raw SQL migration) — use $executeRawUnsafe
   await prisma.$executeRawUnsafe(
     `DELETE FROM "RecurringInvoiceLine" WHERE "recurringInvoiceId" = $1`,

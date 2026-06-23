@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Poppins } from "next/font/google";
 import { Toaster } from "sonner";
+import { headers } from "next/headers";
 import "./globals.css";
 
 const poppins = Poppins({
@@ -14,11 +15,13 @@ export const metadata: Metadata = {
   description: "Centralisez votre activité freelance",
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  // Nonce CSP injecté par le middleware, appliqué au script de thème inline.
+  const nonce = (await headers()).get("x-nonce") ?? undefined;
   return (
     <html
       lang="fr"
@@ -27,7 +30,7 @@ export default function RootLayout({
     >
       <body className="h-full overflow-hidden bg-background text-foreground" suppressHydrationWarning>
         {/* Script de thème inliné — doit s'exécuter avant tout rendu pour éviter le flash */}
-        <script dangerouslySetInnerHTML={{ __html: `(function(){try{var t=localStorage.getItem('theme');if(t==='dark'||(t===null&&window.matchMedia('(prefers-color-scheme:dark)').matches)){document.documentElement.classList.add('dark')}}catch(e){}})()` }} />
+        <script nonce={nonce} dangerouslySetInnerHTML={{ __html: `(function(){try{var t=localStorage.getItem('theme');if(t==='dark'||(t===null&&window.matchMedia('(prefers-color-scheme:dark)').matches)){document.documentElement.classList.add('dark')}}catch(e){}})()` }} />
         {children}
         <Toaster position="bottom-right" richColors />
       </body>

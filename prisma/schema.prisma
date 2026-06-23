@@ -106,6 +106,7 @@ model EmitterProfile {
   phone              String?
   email              String?
   website            String?
+  bankName           String?  // nom de la banque (ex: Revolut) pour le bloc RÈGLEMENT
   iban               String?
   bic                String?
   defaultConditions  String?

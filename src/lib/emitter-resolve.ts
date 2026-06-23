@@ -12,6 +12,7 @@ export type EmitterBlock = {
   siret?: string | null
   phone?: string | null
   website?: string | null
+  bankName?: string | null
   iban?: string | null
   bic?: string | null
 }
@@ -46,6 +47,7 @@ export async function resolveEmitter(opts: {
           siret: e.siret,
           phone: e.phone,
           website: e.website,
+          bankName: e.bankName,
           iban: e.iban,
           bic: e.bic,
         },

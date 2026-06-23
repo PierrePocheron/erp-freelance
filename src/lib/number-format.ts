@@ -6,6 +6,7 @@ export type NumberFormat =
   | "PREFIX-YYYYMM-NN"  // FAC-202605-01 (mensuel long, 2 chiffres)
   | "YYMM-NNN"          // 2605-001      (sans préfixe, mensuel)
   | "PREFIX-YYYY-NN"    // FAC-2026-01   (annuel, 2 chiffres)
+  | "PREFIXYYMMNN"      // FA260501      (mensuel compact, sans séparateur)
 
 export function buildNumberParts(
   format: NumberFormat,
@@ -22,6 +23,7 @@ export function buildNumberParts(
     case "PREFIX-YYMM-NN":   return { scopePrefix: `${prefix}-${yy}${mm}-`, digits: 2 }
     case "PREFIX-YYYYMM-NN": return { scopePrefix: `${prefix}-${yyyy}${mm}-`, digits: 2 }
     case "YYMM-NNN":         return { scopePrefix: `${yy}${mm}-`, digits: 3 }
+    case "PREFIXYYMMNN":     return { scopePrefix: `${prefix}${yy}${mm}`, digits: 2 }
     default:                 return { scopePrefix: `${prefix}-${yyyy}-`, digits: 3 }
   }
 }
@@ -37,4 +39,5 @@ export const FORMAT_OPTIONS: { value: NumberFormat; label: string }[] = [
   { value: "PREFIX-YYMM-NN",   label: "PREFIX-AAMM-01   —  mensuel, 2 chiffres" },
   { value: "PREFIX-YYYYMM-NN", label: "PREFIX-AAAAMM-01 —  mensuel long" },
   { value: "YYMM-NNN",         label: "AAMM-001         —  mensuel sans préfixe" },
+  { value: "PREFIXYYMMNN",     label: "PREFIXAAMMNN     —  mensuel compact (FA260501)" },
 ]

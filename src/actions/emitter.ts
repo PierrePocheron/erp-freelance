@@ -23,6 +23,7 @@ export type EmitterData = {
   phone?: string | null
   email?: string | null
   website?: string | null
+  bankName?: string | null
   iban?: string | null
   bic?: string | null
   defaultConditions?: string | null
@@ -33,7 +34,7 @@ export type EmitterData = {
 
 const TEXT_FIELDS = [
   "companyName", "legalForm", "siret", "vatNumber", "address", "postalCode",
-  "city", "phone", "email", "website", "iban", "bic", "defaultConditions",
+  "city", "phone", "email", "website", "bankName", "iban", "bic", "defaultConditions",
   "legalMentions", "logoUrl",
 ] as const
 

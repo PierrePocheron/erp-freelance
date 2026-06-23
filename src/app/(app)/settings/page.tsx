@@ -23,7 +23,7 @@ export default async function SettingsPage() {
       select: {
         id: true, name: true, companyName: true, legalForm: true, siret: true,
         vatNumber: true, address: true, postalCode: true, city: true, country: true,
-        phone: true, email: true, website: true, iban: true, bic: true,
+        phone: true, email: true, website: true, bankName: true, iban: true, bic: true,
         defaultConditions: true, legalMentions: true, pdfAccentColor: true,
         logoUrl: true, isDefault: true, fiscalSourceId: true,
       },

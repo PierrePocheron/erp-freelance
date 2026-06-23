@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { createCalendarItem, moveCalendarItem, updateCalendarItem, deleteCalendarItem, syncGoogleEvents } from "@/actions/calendar"
 import { DatePicker, TimePicker } from "./DateTimePicker"
+import { useModules } from "@/hooks/use-modules"
 
 // Natures de création (rattachement → nature)
 type CalNature = "event" | "task" | "interaction" | "reminder" | "milestone" | "note"
@@ -55,7 +56,7 @@ export type CalendarEvent = {
   title: string
   subtitle?: string
   description?: string | null
-  type: "task" | "milestone" | "reminder" | "interaction" | "invoice" | "renewal" | "manual"
+  type: "task" | "milestone" | "reminder" | "interaction" | "invoice" | "renewal" | "manual" | "health" | "interview"
   href?: string
   isLate?: boolean
   categoryId?: string | null
@@ -89,6 +90,8 @@ const typeConfig = {
   invoice:   { dot: "bg-blue-500",    badge: "bg-blue-500/15 text-blue-700 border-blue-500/20",       color: "#3b82f6", label: "Facture" },
   renewal:   { dot: "bg-red-500",     badge: "bg-red-500/15 text-red-700 border-red-500/20",          color: "#ef4444", label: "Renouvellement" },
   manual:    { dot: "bg-purple-500",  badge: "bg-purple-500/15 text-purple-700 border-purple-500/20", color: "#8b5cf6", label: "Événement" },
+  health:    { dot: "bg-rose-500",    badge: "bg-rose-500/15 text-rose-700 border-rose-500/20",       color: "#f43f5e", label: "Santé" },
+  interview: { dot: "bg-sky-500",     badge: "bg-sky-500/15 text-sky-700 border-sky-500/20",          color: "#0ea5e9", label: "Entretien" },
 } as const
 
 const VIEW_LABELS: Record<ViewMode, string> = {
@@ -1014,6 +1017,7 @@ export function CalendarView({
   hasGoogleCalendar?: boolean
   className?: string
 }) {
+  const { isActive } = useModules()
   const [viewMode, setViewMode]         = useState<ViewMode>("month")
   const [currentDate, setCurrentDate]   = useState(() => { const d = new Date(); d.setHours(0,0,0,0); return d })
   const [selectedDay, setSelectedDay]   = useState<Date | null>(null)
@@ -1161,9 +1165,16 @@ export function CalendarView({
     })
   }
 
+  // Masque les événements des modules désactivés (santé, entretien).
+  const moduleFiltered = events.filter(e => {
+    if (e.type === "health"    && !isActive("sante"))     return false
+    if (e.type === "interview" && !isActive("entretien")) return false
+    return true
+  })
+
   const baseEvents = (hasGoogleCalendar && !showGoogleEvents)
-    ? events.filter(e => !e.isGoogle)
-    : events
+    ? moduleFiltered.filter(e => !e.isGoogle)
+    : moduleFiltered
 
   const filteredEvents = hiddenTypes.size > 0
     ? baseEvents.filter(e => !hiddenTypes.has(e.type))

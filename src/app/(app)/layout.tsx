@@ -4,6 +4,7 @@ import { Sidebar } from "@/components/layout/Sidebar"
 import { MobileBottomNav } from "@/components/layout/MobileBottomNav"
 import { TimerBanner } from "@/components/layout/TimerBanner"
 import { CommandPalette } from "@/components/layout/CommandPalette"
+import { OnboardingGate } from "@/components/modules/onboarding/OnboardingGate"
 import { NotificationBell } from "@/components/modules/notifications/NotificationBell"
 import { ensureSelfClient } from "@/actions/user"
 import { getRunningTimer } from "@/actions/timetracking"
@@ -44,6 +45,7 @@ export default async function AppLayout({
       </div>
       <CommandPalette />
       <MobileBottomNav />
+      <OnboardingGate />
     </div>
   )
 }

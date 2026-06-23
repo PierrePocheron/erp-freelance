@@ -1,6 +1,8 @@
 "use client"
 
-import { MODULE_DEFS, useModules } from "@/hooks/use-modules"
+import { MODULE_DEFS, CATEGORY_ORDER, CATEGORY_META, useModules } from "@/hooks/use-modules"
+import { OPEN_ONBOARDING_EVENT } from "@/components/modules/onboarding/OnboardingGate"
+import { Sparkles } from "lucide-react"
 
 export function ModulesPanel() {
   const { isActive, toggle, enableAll } = useModules()
@@ -17,52 +19,65 @@ export function ModulesPanel() {
             Les modules désactivés disparaissent de la navigation.
           </p>
         </div>
-        {activeCount < MODULE_DEFS.length && (
+        <div className="flex items-center gap-3 shrink-0">
           <button
-            onClick={enableAll}
-            className="shrink-0 text-xs text-primary hover:underline"
+            onClick={() => window.dispatchEvent(new Event(OPEN_ONBOARDING_EVENT))}
+            className="flex items-center gap-1 text-xs text-primary hover:underline"
           >
-            Tout activer
+            <Sparkles className="h-3 w-3" /> Revoir l&apos;initialisation
           </button>
-        )}
+          {activeCount < MODULE_DEFS.length && (
+            <button onClick={enableAll} className="text-xs text-muted-foreground hover:text-foreground transition-colors">
+              Tout activer
+            </button>
+          )}
+        </div>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2">
-        {MODULE_DEFS.map(mod => {
-          const active = isActive(mod.id)
-          return (
-            <label
-              key={mod.id}
-              className={`flex items-start gap-3 rounded-lg border p-3.5 cursor-pointer transition-colors ${
-                active
-                  ? "border-primary/30 bg-primary/5"
-                  : "border-border/50 hover:bg-muted/40"
-              }`}
-            >
-              <input
-                type="checkbox"
-                checked={active}
-                onChange={() => toggle(mod.id)}
-                className="mt-0.5 h-4 w-4 rounded accent-primary"
-              />
-              <div className="min-w-0">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-base leading-none">{mod.icon}</span>
-                  <span className="text-sm font-medium">{mod.label}</span>
-                  {!mod.defaultActive && (
-                    <span className="rounded-full border border-muted text-[9px] font-medium text-muted-foreground/60 px-1.5 py-0.5 leading-none">
-                      optionnel
-                    </span>
-                  )}
-                </div>
-                <p className="text-xs text-muted-foreground mt-1 leading-snug">
-                  {mod.description}
-                </p>
-              </div>
-            </label>
-          )
-        })}
-      </div>
+      {CATEGORY_ORDER.map((cat) => {
+        const mods = MODULE_DEFS.filter((m) => m.category === cat)
+        if (mods.length === 0) return null
+        const meta = CATEGORY_META[cat]
+        return (
+          <div key={cat} className="space-y-2">
+            <div className="flex items-baseline gap-2">
+              <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">{meta.label}</h3>
+              {cat === "bonus" && (
+                <span className="text-[10px] text-muted-foreground/50">facultatif</span>
+              )}
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              {mods.map(mod => {
+                const active = isActive(mod.id)
+                return (
+                  <label
+                    key={mod.id}
+                    className={`flex items-start gap-3 rounded-lg border p-3.5 cursor-pointer transition-colors ${
+                      active ? "border-primary/30 bg-primary/5" : "border-border/50 hover:bg-muted/40"
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={active}
+                      onChange={() => toggle(mod.id)}
+                      className="mt-0.5 h-4 w-4 rounded accent-primary"
+                    />
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-base leading-none">{mod.icon}</span>
+                        <span className="text-sm font-medium">{mod.label}</span>
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-1 leading-snug">
+                        {mod.description}
+                      </p>
+                    </div>
+                  </label>
+                )
+              })}
+            </div>
+          </div>
+        )
+      })}
 
       <p className="text-xs text-muted-foreground/60">
         Les préférences sont enregistrées localement dans ce navigateur.

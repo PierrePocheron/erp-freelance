@@ -94,6 +94,7 @@ export function useModules() {
 
   // Hydrate depuis localStorage côté client
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setActiveModules(readFromStorage())
   }, [])
 

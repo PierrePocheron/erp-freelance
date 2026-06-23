@@ -20,6 +20,7 @@ import {
   Wallet,
   Network,
   Heart,
+  Briefcase,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { ThemeToggle } from "./ThemeToggle"
@@ -43,6 +44,7 @@ const navItems: NavItem[] = [
   { href: "/calendrier", icon: Calendar,         label: "Calendrier", moduleId: "calendrier"  },
   { href: "/graph",      icon: Network,          label: "Graph",      moduleId: "graph"       },
   { href: "/sante",      icon: Heart,            label: "Santé",      moduleId: "sante"       },
+  { href: "/entretiens", icon: Briefcase,        label: "Entretiens", moduleId: "entretien"   },
   { href: "/settings",   icon: Settings,         label: "Paramètres" },
 ]
 

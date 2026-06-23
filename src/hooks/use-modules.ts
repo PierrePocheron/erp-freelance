@@ -14,6 +14,7 @@ export type ModuleId =
   | "calendrier"
   | "graph"
   | "sante"
+  | "entretien"
 
 export type ModuleDef = {
   id:            ModuleId
@@ -59,6 +60,10 @@ export const MODULE_DEFS: ModuleDef[] = [
   {
     id: "sante", label: "Santé", icon: "🏥", defaultActive: false,
     description: "Suivi des blessures, maladies, consultations et remboursements",
+  },
+  {
+    id: "entretien", label: "Entretiens", icon: "💼", defaultActive: false,
+    description: "Suivi des candidatures, processus de recrutement et démarchage",
   },
 ]
 

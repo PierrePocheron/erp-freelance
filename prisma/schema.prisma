@@ -46,6 +46,7 @@ model User {
   healthEvents        HealthEvent[]
   healthConsultations HealthConsultation[]
   healthReimbursements HealthReimbursement[]
+  jobApplications     JobApplication[]
 }
 
 model ProjectIdea {
@@ -255,6 +256,7 @@ model Company {
   projects          Project[]
   revenues          Revenue[]          @relation("RevenueCompany")
   recurringRevenues RecurringRevenue[] @relation("RecurringRevenueCompany")
+  jobApplications   JobApplication[]
 
   @@unique([userId, name])
   @@index([userId])
@@ -308,6 +310,7 @@ model Client {
   tasks             Task[]
   revenues          Revenue[]          @relation("RevenueClient")
   recurringRevenues RecurringRevenue[] @relation("RecurringRevenueClient")
+  jobApplications   JobApplication[]   @relation("RecruiterApplications")
 
   @@index([companyId])
 }
@@ -1129,4 +1132,87 @@ model HealthReimbursement {
 
   @@index([userId])
   @@index([consultationId])
+}
+
+// ─── Entretiens / Recrutement ─────────────────────────────────────────────────
+
+// Étapes du processus de candidature/recrutement.
+enum JobApplicationStatus {
+  WISHLIST    // Repéré, à postuler
+  APPLIED     // Candidature envoyée
+  SCREENING   // Pré-qualification (call RH)
+  INTERVIEW   // Entretien
+  TECHNICAL   // Test / entretien technique
+  FINAL       // Entretien final / décisionnel
+  OFFER       // Offre reçue
+  ACCEPTED    // Offre acceptée 🎉
+  REJECTED    // Refusé
+  WITHDRAWN   // Désistement de ma part
+  GHOSTED     // Sans réponse / ghosté
+}
+
+enum JobEventType {
+  APPLICATION    // Candidature envoyée
+  CALL           // Appel téléphonique
+  VIDEO          // Visio
+  ONSITE         // Entretien sur site
+  EMAIL          // Email
+  MESSAGE        // Message (LinkedIn, SMS…)
+  TECHNICAL_TEST // Test technique
+  OFFER          // Offre / proposition
+  OTHER
+}
+
+// Une candidature / un processus de recrutement suivi.
+model JobApplication {
+  id          String               @id @default(cuid())
+  userId      String
+  companyName String                              // nom société (cache d'affichage / saisie rapide)
+  companyId   String?                             // lien optionnel vers une Company existante
+  position    String                              // poste visé
+  location    String?                             // ville / adresse
+  workMode    String?                             // remote / hybride / présentiel (libre)
+  status      JobApplicationStatus @default(WISHLIST)
+  source      String?                             // LinkedIn, cooptation, spontanée…
+  url         String?                             // lien de l'offre
+  salaryMin   Float?
+  salaryMax   Float?
+  salaryNote  String?                             // précisions (variable, package…)
+  notes       String?
+  priority    Int                  @default(1)    // tri / mise en avant
+  contactId   String?                             // recruteur (contact CRM)
+  appliedAt   DateTime?                           // date de candidature
+  nextActionAt    DateTime?                        // prochain point / RDV
+  nextActionLabel String?                          // libellé du prochain point
+  closedAt    DateTime?                           // date de clôture (accepté/refusé/désisté)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user    User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  company Company?              @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  contact Client?               @relation("RecruiterApplications", fields: [contactId], references: [id], onDelete: SetNull)
+  events  JobApplicationEvent[]
+
+  @@index([userId])
+  @@index([companyId])
+  @@index([contactId])
+}
+
+// Un point de contact / événement dans un processus de candidature.
+model JobApplicationEvent {
+  id            String       @id @default(cuid())
+  userId        String
+  applicationId String
+  date          DateTime
+  type          JobEventType @default(OTHER)
+  title         String
+  notes         String?
+
+  createdAt DateTime @default(now())
+
+  application JobApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([applicationId])
 }

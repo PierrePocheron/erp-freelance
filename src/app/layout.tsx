@@ -30,7 +30,7 @@ export default async function RootLayout({
     >
       <body className="h-full overflow-hidden bg-background text-foreground" suppressHydrationWarning>
         {/* Script de thème inliné — doit s'exécuter avant tout rendu pour éviter le flash */}
-        <script nonce={nonce} dangerouslySetInnerHTML={{ __html: `(function(){try{var t=localStorage.getItem('theme');if(t==='dark'||(t===null&&window.matchMedia('(prefers-color-scheme:dark)').matches)){document.documentElement.classList.add('dark')}}catch(e){}})()` }} />
+        <script nonce={nonce} suppressHydrationWarning dangerouslySetInnerHTML={{ __html: `(function(){try{var t=localStorage.getItem('theme');if(t==='dark'||(t===null&&window.matchMedia('(prefers-color-scheme:dark)').matches)){document.documentElement.classList.add('dark')}}catch(e){}})()` }} />
         {children}
         <Toaster position="bottom-right" richColors />
       </body>

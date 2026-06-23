@@ -6,7 +6,7 @@ export default async function TachesPage() {
   const session = await auth()
   const userId = session!.user.id
 
-  const [tasks, projects, clients] = await Promise.all([
+  const [tasks] = await Promise.all([
     prisma.task.findMany({
       where: {
         OR: [
@@ -45,20 +45,6 @@ export default async function TachesPage() {
         _count: { select: { subTasks: true } },
       },
     }),
-    prisma.project.findMany({
-      where: { userId, status: { not: "ARCHIVED" } },
-      orderBy: { name: "asc" },
-      select: {
-        id: true,
-        name: true,
-        client: { select: { id: true, name: true, company: true } },
-      },
-    }),
-    prisma.client.findMany({
-      where: { userId, type: { not: "SELF" } },
-      orderBy: [{ company: "asc" }, { name: "asc" }],
-      select: { id: true, name: true, company: true },
-    }),
   ])
 
   // Collecter tous les tags uniques
@@ -81,8 +67,6 @@ export default async function TachesPage() {
 
       <GlobalTasksView
         tasks={tasks as never}
-        projects={projects as never}
-        clients={clients}
         allTags={allTags}
       />
     </div>

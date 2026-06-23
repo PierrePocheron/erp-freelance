@@ -437,10 +437,10 @@ export async function updateInteraction(
   data: { date: string; channel: string; summary: string; response?: string | null }
 ) {
   const userId = await requireAuth()
-  const client = await prisma.client.findFirst({ where: { id: clientId, userId }, select: { id: true } })
-  if (!client) throw new Error("Non autorisé")
-  await prisma.interaction.update({
-    where: { id: interactionId },
+  // Scope par l'interaction elle-même (via le client propriétaire), pas par le
+  // clientId fourni par l'appelant — sinon IDOR (clientId attaquant + interactionId victime).
+  const updated = await prisma.interaction.updateMany({
+    where: { id: interactionId, client: { userId } },
     data: {
       date: new Date(data.date),
       channel: data.channel as InteractionChannel,
@@ -448,14 +448,16 @@ export async function updateInteraction(
       response: data.response || null,
     },
   })
+  if (updated.count === 0) throw new Error("Non autorisé")
   revalidatePath(`/contacts/${clientId}`)
 }
 
 export async function deleteInteraction(interactionId: string, clientId: string) {
   const userId = await requireAuth()
-  const client = await prisma.client.findFirst({ where: { id: clientId, userId }, select: { id: true } })
-  if (!client) throw new Error("Non autorisé")
-  await prisma.interaction.delete({ where: { id: interactionId } })
+  const deleted = await prisma.interaction.deleteMany({
+    where: { id: interactionId, client: { userId } },
+  })
+  if (deleted.count === 0) throw new Error("Non autorisé")
   revalidatePath(`/contacts/${clientId}`)
 }
 
@@ -478,20 +480,20 @@ export async function addReminder(clientId: string, data: { dueDate: string; not
 
 export async function toggleReminder(reminderId: string, clientId: string, isDone: boolean) {
   const userId = await requireAuth()
-  const client = await prisma.client.findFirst({ where: { id: clientId, userId }, select: { id: true } })
-  if (!client) throw new Error("Non autorisé")
-  await prisma.reminder.update({
-    where: { id: reminderId },
+  const updated = await prisma.reminder.updateMany({
+    where: { id: reminderId, client: { userId } },
     data: { isDone, doneAt: isDone ? new Date() : null },
   })
+  if (updated.count === 0) throw new Error("Non autorisé")
   revalidatePath(`/contacts/${clientId}`)
 }
 
 export async function deleteReminder(reminderId: string, clientId: string) {
   const userId = await requireAuth()
-  const client = await prisma.client.findFirst({ where: { id: clientId, userId }, select: { id: true } })
-  if (!client) throw new Error("Non autorisé")
-  await prisma.reminder.delete({ where: { id: reminderId } })
+  const deleted = await prisma.reminder.deleteMany({
+    where: { id: reminderId, client: { userId } },
+  })
+  if (deleted.count === 0) throw new Error("Non autorisé")
   revalidatePath(`/contacts/${clientId}`)
 }
 

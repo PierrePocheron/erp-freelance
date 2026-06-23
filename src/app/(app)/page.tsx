@@ -9,6 +9,8 @@ import {
 import { cn } from "@/lib/utils"
 import { QuickActionsBar } from "@/components/modules/dashboard/QuickActionsBar"
 import { ProdMonitorCard } from "@/components/modules/dashboard/ProdMonitorCard"
+import { PendingIncomeCard } from "@/components/modules/dashboard/PendingIncomeCard"
+import { JobHuntCard } from "@/components/modules/dashboard/JobHuntCard"
 
 export default async function DashboardPage() {
   const session = await auth()
@@ -51,6 +53,9 @@ export default async function DashboardPage() {
     paidInvoicesYTD,
     receivedRevenuesYTD,
     dashboardProspects,
+    pendingRevenues,
+    pendingReimbursements,
+    dashboardJobApps,
   ] = await Promise.all([
     prisma.task.findMany({
       where: {
@@ -208,12 +213,71 @@ export default async function DashboardPage() {
         interactions: { orderBy: { date: "desc" }, take: 1, select: { date: true } },
       },
     }),
+    // Revenus en attente de réception
+    prisma.revenue.findMany({
+      where: { userId, status: "PENDING" },
+      orderBy: [{ expectedAt: "asc" }, { createdAt: "desc" }],
+      select: { id: true, label: true, amount: true, expectedAt: true },
+    }),
+    // Remboursements santé en attente
+    prisma.healthReimbursement.findMany({
+      where: { userId, status: "PENDING" },
+      orderBy: [{ expectedDate: "asc" }, { createdAt: "desc" }],
+      select: {
+        id: true, amount: true, source: true, expectedDate: true, notes: true,
+        consultation: { select: { practitionerName: true, title: true } },
+      },
+    }),
+    // Candidatures actives (module entretien)
+    prisma.jobApplication.findMany({
+      where: { userId, status: { notIn: ["ACCEPTED", "REJECTED", "WITHDRAWN", "GHOSTED"] } },
+      orderBy: [{ nextActionAt: "asc" }, { updatedAt: "desc" }],
+      select: {
+        id: true, companyName: true, position: true, status: true,
+        nextActionAt: true, nextActionLabel: true,
+      },
+    }),
   ])
 
   const totalPending   = unpaidInvoices.reduce((s, i) => s + i.totalHT - i.depositDeducted, 0)
   const encaisseAE     = paidInvoicesYTD.reduce((s, i) => s + i.totalHT - i.depositDeducted, 0)
   const encaisseAutres = receivedRevenuesYTD.reduce((s, r) => s + r.amount, 0)
   const encaisseTotal  = encaisseAE + encaisseAutres
+
+  // ── Encaissements en attente (factures + revenus + remboursements santé) ──────
+  const pendingInvoiceItems = unpaidInvoices.map((inv) => ({
+    id: inv.id,
+    number: inv.number,
+    clientName: inv.client.company ?? inv.client.name,
+    amount: inv.totalHT - inv.depositDeducted,
+    dueDate: inv.dueDate ? inv.dueDate.toISOString() : null,
+    isLate: !!inv.dueDate && new Date(inv.dueDate) < new Date(),
+  }))
+  const pendingRevenueItems = pendingRevenues.map((r) => ({
+    id: r.id,
+    label: r.label,
+    amount: r.amount,
+    expectedAt: r.expectedAt ? r.expectedAt.toISOString() : null,
+  }))
+  const pendingReimbursementItems = pendingReimbursements.map((r) => ({
+    id: r.id,
+    label: r.consultation
+      ? `${r.consultation.practitionerName}${r.consultation.title ? ` — ${r.consultation.title}` : ""}`
+      : (r.notes ?? "Remboursement"),
+    amount: r.amount,
+    source: r.source,
+    expectedDate: r.expectedDate ? r.expectedDate.toISOString() : null,
+  }))
+
+  // ── Entretiens (candidatures actives) ─────────────────────────────────────────
+  const jobAppItems = dashboardJobApps.map((a) => ({
+    id: a.id,
+    companyName: a.companyName,
+    position: a.position,
+    status: a.status,
+    nextActionAt: a.nextActionAt ? a.nextActionAt.toISOString() : null,
+    nextActionLabel: a.nextActionLabel,
+  }))
 
   // Prods : aplatit le dernier check pour la carte de monitoring.
   const prods = prodSites.map((pd) => ({
@@ -314,6 +378,13 @@ export default async function DashboardPage() {
           </div>
         </div>
       </div>
+
+      {/* Encaissements en attente — factures, revenus, remboursements santé */}
+      <PendingIncomeCard
+        invoices={pendingInvoiceItems}
+        revenues={pendingRevenueItems}
+        reimbursements={pendingReimbursementItems}
+      />
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         {/* Colonne principale */}
@@ -458,6 +529,9 @@ export default async function DashboardPage() {
         <div className="space-y-6">
           {/* Monitoring des prods */}
           <ProdMonitorCard prods={prods} />
+
+          {/* Entretiens — candidatures actives */}
+          <JobHuntCard applications={jobAppItems} activeCount={jobAppItems.length} />
 
           {/* Pipeline Prospects */}
           {dashboardProspects.length > 0 && (

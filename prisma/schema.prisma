@@ -1054,6 +1054,11 @@ enum ReimbursementSource {
   MUTUELLE
 }
 
+enum ReimbursementStatus {
+  PENDING   // En attente de réception
+  RECEIVED  // Reçu
+}
+
 // Blessure ou maladie 🩸
 model HealthEvent {
   id          String          @id @default(cuid())
@@ -1102,14 +1107,17 @@ model HealthConsultation {
   @@index([healthEventId])
 }
 
-// Remboursement 💸
+// Remboursement 💸 — modèle PENDING/RECEIVED (cf. Revenue) pour suivre les
+// montants attendus vs réellement reçus, par source (sécu / mutuelle).
 model HealthReimbursement {
-  id     String              @id @default(cuid())
-  userId String
-  date   DateTime
-  amount Float
-  source ReimbursementSource
-  notes  String?
+  id           String              @id @default(cuid())
+  userId       String
+  amount       Float
+  source       ReimbursementSource
+  status       ReimbursementStatus @default(PENDING)
+  expectedDate DateTime?           // date prévisionnelle de réception
+  receivedAt   DateTime?           // date de réception effective (si RECEIVED)
+  notes        String?
 
   consultationId String?
   consultation   HealthConsultation? @relation(fields: [consultationId], references: [id], onDelete: SetNull)

@@ -28,7 +28,7 @@ export default async function SantePage() {
     }),
     prisma.healthReimbursement.findMany({
       where: { userId },
-      orderBy: { date: "desc" },
+      orderBy: [{ status: "asc" }, { createdAt: "desc" }],
       include: {
         consultation: { select: { id: true, title: true, practitionerName: true } },
       },
@@ -42,7 +42,7 @@ export default async function SantePage() {
   const spentThisYear = consultationsThisYear
     .reduce((s, c) => s + (c.cost ?? 0), 0)
   const reimbursedThisYear = reimbursements
-    .filter((r) => r.date >= yearStart && r.date <= yearEnd)
+    .filter((r) => r.status === "RECEIVED" && r.receivedAt && r.receivedAt >= yearStart && r.receivedAt <= yearEnd)
     .reduce((s, r) => s + r.amount, 0)
   const activeIssues = events.filter((e) => !e.resolvedAt).length
 

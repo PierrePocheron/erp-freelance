@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useTransition, useEffect } from "react"
+import { useState, useTransition } from "react"
 import { X, Trash2 } from "lucide-react"
 import { toast } from "sonner"
 import { createHealthEvent, updateHealthEvent, deleteHealthEvent } from "@/actions/sante"
@@ -11,11 +11,9 @@ const toISO = (d: Date | string | null | undefined) =>
   d ? new Date(d).toISOString().split("T")[0] : ""
 
 export function HealthEventDialog({
-  open,
   item,
   onClose,
 }: {
-  open: boolean
   item?: HEvent
   onClose: () => void
 }) {
@@ -26,19 +24,6 @@ export function HealthEventDialog({
   const [description, setDescription] = useState(item?.description || "")
   const [bodyPart,    setBodyPart]    = useState(item?.bodyPart || "")
   const [resolvedAt,  setResolvedAt]  = useState(toISO(item?.resolvedAt))
-
-  useEffect(() => {
-    if (open) {
-      setDate(toISO(item?.date) || toISO(new Date()))
-      setType((item?.type as HealthEventType) || "INJURY")
-      setTitle(item?.title || "")
-      setDescription(item?.description || "")
-      setBodyPart(item?.bodyPart || "")
-      setResolvedAt(toISO(item?.resolvedAt))
-    }
-  }, [open, item])
-
-  if (!open) return null
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()

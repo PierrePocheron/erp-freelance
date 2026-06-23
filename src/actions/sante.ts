@@ -7,6 +7,7 @@ import type {
   HealthEventType,
   PractitionerType,
   ReimbursementSource,
+  ReimbursementStatus,
 } from "@/generated/prisma/enums"
 
 async function requireAuth() {
@@ -142,9 +143,11 @@ export async function deleteConsultation(id: string) {
 // ── Remboursements ────────────────────────────────────────────────────────────
 
 export async function createReimbursement(data: {
-  date: string
   amount: number
   source: ReimbursementSource
+  status: ReimbursementStatus
+  expectedDate?: string | null
+  receivedAt?: string | null
   notes?: string
   consultationId?: string | null
 }) {
@@ -152,22 +155,27 @@ export async function createReimbursement(data: {
   await prisma.healthReimbursement.create({
     data: {
       userId,
-      date: new Date(data.date),
       amount: data.amount,
       source: data.source,
+      status: data.status,
+      expectedDate: data.expectedDate ? new Date(data.expectedDate) : null,
+      receivedAt: data.status === "RECEIVED" && data.receivedAt ? new Date(data.receivedAt) : null,
       notes: data.notes?.trim() || null,
       consultationId: data.consultationId || null,
     },
   })
   revalidatePath("/sante")
+  revalidatePath("/")
 }
 
 export async function updateReimbursement(
   id: string,
   data: {
-    date: string
     amount: number
     source: ReimbursementSource
+    status: ReimbursementStatus
+    expectedDate?: string | null
+    receivedAt?: string | null
     notes?: string
     consultationId?: string | null
   }
@@ -176,18 +184,36 @@ export async function updateReimbursement(
   await prisma.healthReimbursement.updateMany({
     where: { id, userId },
     data: {
-      date: new Date(data.date),
       amount: data.amount,
       source: data.source,
+      status: data.status,
+      expectedDate: data.expectedDate ? new Date(data.expectedDate) : null,
+      receivedAt: data.status === "RECEIVED" && data.receivedAt ? new Date(data.receivedAt) : null,
       notes: data.notes?.trim() || null,
       consultationId: data.consultationId || null,
     },
   })
   revalidatePath("/sante")
+  revalidatePath("/")
+}
+
+/** Marque un remboursement en attente comme reçu (date du jour par défaut). */
+export async function markReimbursementReceived(id: string, receivedAt?: string) {
+  const userId = await requireAuth()
+  await prisma.healthReimbursement.updateMany({
+    where: { id, userId },
+    data: {
+      status: "RECEIVED",
+      receivedAt: receivedAt ? new Date(receivedAt) : new Date(),
+    },
+  })
+  revalidatePath("/sante")
+  revalidatePath("/")
 }
 
 export async function deleteReimbursement(id: string) {
   const userId = await requireAuth()
   await prisma.healthReimbursement.deleteMany({ where: { id, userId } })
   revalidatePath("/sante")
+  revalidatePath("/")
 }

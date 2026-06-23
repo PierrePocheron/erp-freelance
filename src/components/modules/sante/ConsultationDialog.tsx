@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useTransition, useEffect } from "react"
+import { useState, useTransition } from "react"
 import { X, Trash2 } from "lucide-react"
 import { toast } from "sonner"
 import { createConsultation, updateConsultation, deleteConsultation } from "@/actions/sante"
@@ -16,12 +16,10 @@ const PRACTITIONER_TYPES: PractitionerType[] = [
 ]
 
 export function ConsultationDialog({
-  open,
   item,
   events,
   onClose,
 }: {
-  open: boolean
   item?: HConsultation
   events: HEvent[]
   onClose: () => void
@@ -38,22 +36,6 @@ export function ConsultationDialog({
   const [hasDocument, setHasDocument] = useState(item?.hasDocument || false)
   const [documentRef, setDocumentRef] = useState(item?.documentRef || "")
   const [healthEventId, setHealthEventId] = useState(item?.healthEventId || "")
-
-  useEffect(() => {
-    if (open) {
-      setDate(toISO(item?.date) || toISO(new Date()))
-      setPractitionerName(item?.practitionerName || "")
-      setPractitionerType((item?.practitionerType as PractitionerType) || "OTHER")
-      setTitle(item?.title || "")
-      setNotes(item?.notes || "")
-      setCost(item?.cost?.toString() || "")
-      setHasDocument(item?.hasDocument || false)
-      setDocumentRef(item?.documentRef || "")
-      setHealthEventId(item?.healthEventId || "")
-    }
-  }, [open, item])
-
-  if (!open) return null
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()

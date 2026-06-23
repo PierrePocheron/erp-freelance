@@ -325,7 +325,7 @@ export function ProspectsView({
             >
               <option value="default">Par défaut</option>
               <option value="hot">Chauds en premier</option>
-              <option value="stale">Sans contact d'abord</option>
+              <option value="stale">Sans contact d&apos;abord</option>
             </select>
           </div>
         )}

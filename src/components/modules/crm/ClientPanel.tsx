@@ -405,7 +405,7 @@ export function ClientPanel({
                 className="w-full h-8 rounded-md border border-input bg-background px-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
               />
               {client.type === "PROSPECT" && client.prospectStage === "IDENTIFIED" && (
-                <p className="text-[10px] text-muted-foreground">Le stage passera automatiquement à "Contacté"</p>
+                <p className="text-[10px] text-muted-foreground">Le stage passera automatiquement à «&nbsp;Contacté&nbsp;»</p>
               )}
               <div className="flex justify-end gap-2 pt-0.5">
                 <button

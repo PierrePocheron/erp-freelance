@@ -26,6 +26,7 @@ export type Emitter = {
   phone: string | null
   email: string | null
   website: string | null
+  bankName: string | null
   iban: string | null
   bic: string | null
   defaultConditions: string | null
@@ -167,6 +168,7 @@ function EmitterEditorDialog({ emitter, onClose }: { emitter: Emitter | null; on
       phone: (fd.get("phone") as string) || null,
       email: (fd.get("email") as string) || null,
       website: (fd.get("website") as string) || null,
+      bankName: (fd.get("bankName") as string) || null,
       iban: (fd.get("iban") as string) || null,
       bic: (fd.get("bic") as string) || null,
       defaultConditions: (fd.get("defaultConditions") as string) || null,
@@ -262,9 +264,13 @@ function EmitterEditorDialog({ emitter, onClose }: { emitter: Emitter | null; on
             </div>
           </section>
 
-          {/* Banque */}
+          {/* Règlement */}
           <section className="space-y-3">
-            <h3 className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground/70">Coordonnées bancaires</h3>
+            <h3 className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground/70">Règlement (affiché sur les factures)</h3>
+            <div className="space-y-1.5">
+              <Label>Banque</Label>
+              <Input name="bankName" defaultValue={emitter?.bankName ?? ""} placeholder="Banque Exemple" autoComplete="off" />
+            </div>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div className="space-y-1.5">
                 <Label>IBAN</Label>
@@ -272,9 +278,12 @@ function EmitterEditorDialog({ emitter, onClose }: { emitter: Emitter | null; on
               </div>
               <div className="space-y-1.5">
                 <Label>BIC</Label>
-                <Input name="bic" defaultValue={emitter?.bic ?? ""} placeholder="BNPAFRPP" className="font-mono" autoComplete="off" />
+                <Input name="bic" defaultValue={emitter?.bic ?? ""} placeholder="EXEMFRPP" className="font-mono" autoComplete="off" />
               </div>
             </div>
+            <p className="text-[11px] text-muted-foreground/70">
+              Le bloc « Règlement » du PDF reprend la banque, le SIRET, l&apos;IBAN et le BIC.
+            </p>
           </section>
 
           {/* Branding PDF */}

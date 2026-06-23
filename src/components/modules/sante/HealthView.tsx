@@ -1,8 +1,10 @@
 "use client"
 
-import { useState } from "react"
-import { Plus, Heart, Stethoscope, Wallet, Syringe } from "lucide-react"
+import { useState, useTransition } from "react"
+import { Plus, Heart, Stethoscope, Wallet, Syringe, Clock, Check } from "lucide-react"
+import { toast } from "sonner"
 import { cn } from "@/lib/utils"
+import { markReimbursementReceived } from "@/actions/sante"
 import { HealthEventDialog }      from "./HealthEventDialog"
 import { ConsultationDialog }     from "./ConsultationDialog"
 import { ReimbursementDialog }    from "./ReimbursementDialog"
@@ -23,9 +25,15 @@ export type HConsultation = {
   reimbursements: HReimbursement[]
 }
 export type HReimbursement = {
-  id: string; date: Date | string; amount: number; source: string; notes: string | null
+  id: string; amount: number; source: string; status: string
+  expectedDate: Date | string | null; receivedAt: Date | string | null; notes: string | null
   consultationId: string | null; createdAt: Date | string; updatedAt: Date | string
   consultation?: { id: string; title: string; practitionerName: string } | null
+}
+
+/** Date de référence d'un remboursement pour le tri/affichage. */
+export function reimbursementDate(r: HReimbursement): Date {
+  return new Date(r.receivedAt ?? r.expectedDate ?? r.createdAt)
 }
 
 // ── Config ─────────────────────────────────────────────────────────────────────
@@ -49,9 +57,6 @@ export const PRACTITIONER_LABELS: Record<string, string> = {
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
-const fmtDate = (d: Date | string) =>
-  new Date(d).toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" })
-
 const fmtShort = (d: Date | string) =>
   new Date(d).toLocaleDateString("fr-FR", { day: "numeric", month: "short" })
 
@@ -71,11 +76,25 @@ export function HealthView({
   currentYear: number
 }) {
   const [tab, setTab] = useState<"timeline" | "consultations" | "remboursements">("timeline")
+  const [, startMark] = useTransition()
 
   // Dialogs
   const [eventDialog, setEventDialog]   = useState<{ open: boolean; item?: HEvent }>({ open: false })
   const [consultDialog, setConsultDialog] = useState<{ open: boolean; item?: HConsultation }>({ open: false })
   const [reimburseDialog, setReimburseDialog] = useState<{ open: boolean; item?: HReimbursement }>({ open: false })
+
+  function markReceived(id: string) {
+    startMark(async () => {
+      await markReimbursementReceived(id)
+      toast.success("Remboursement marqué reçu")
+    })
+  }
+
+  // Remboursements en attente (tous statuts PENDING)
+  const pendingReimbursements = reimbursements.filter(r => r.status === "PENDING")
+  const pendingTotal   = pendingReimbursements.reduce((s, r) => s + r.amount, 0)
+  const pendingSecu    = pendingReimbursements.filter(r => r.source === "SECU").reduce((s, r) => s + r.amount, 0)
+  const pendingMutuelle = pendingReimbursements.filter(r => r.source === "MUTUELLE").reduce((s, r) => s + r.amount, 0)
 
   // ── Timeline : fusionner tous les éléments, trier par date desc ──────────────
   type TEntry =
@@ -86,7 +105,7 @@ export function HealthView({
   const timeline: TEntry[] = [
     ...events.map((e)        => ({ kind: "event"     as const, date: new Date(e.date), data: e })),
     ...consultations.map((c) => ({ kind: "consult"   as const, date: new Date(c.date), data: c })),
-    ...reimbursements.map((r)=> ({ kind: "reimburse" as const, date: new Date(r.date), data: r })),
+    ...reimbursements.map((r)=> ({ kind: "reimburse" as const, date: reimbursementDate(r), data: r })),
   ].sort((a, b) => b.date.getTime() - a.date.getTime())
 
   // ── Rendu d'une entrée timeline ───────────────────────────────────────────────
@@ -124,8 +143,10 @@ export function HealthView({
 
     if (entry.kind === "consult") {
       const c = entry.data
-      const reimbursed = c.reimbursements.reduce((s, r) => s + r.amount, 0)
-      const remaining  = (c.cost ?? 0) - reimbursed
+      const received = c.reimbursements.filter(r => r.status === "RECEIVED").reduce((s, r) => s + r.amount, 0)
+      const pending  = c.reimbursements.filter(r => r.status === "PENDING").reduce((s, r) => s + r.amount, 0)
+      const remaining = (c.cost ?? 0) - received
+      const settled   = c.cost != null && remaining <= 0.01
       return (
         <button
           key={`c-${c.id}`}
@@ -151,15 +172,23 @@ export function HealthView({
           <div className="text-right shrink-0 mt-0.5 space-y-0.5">
             <span className="text-xs text-muted-foreground block">{fmtShort(c.date)}</span>
             {c.cost != null && (
-              <span className={cn(
-                "text-xs font-medium block",
-                remaining > 0 ? "text-amber-600" : "text-emerald-600"
-              )}>
-                {remaining > 0 ? `${remaining.toFixed(0)} € restant` : "✓ Remboursé"}
-              </span>
-            )}
-            {c.cost != null && remaining > 0 && (
-              <span className="text-[10px] text-muted-foreground block">{c.cost} € payé</span>
+              <>
+                <span className="text-xs font-medium block">{c.cost.toFixed(0)} € payé</span>
+                {settled ? (
+                  <span className="text-[10px] text-emerald-600 block">✓ Remboursé</span>
+                ) : (
+                  <>
+                    {pending > 0 && (
+                      <span className="text-[10px] text-amber-600 block">{pending.toFixed(0)} € attendu</span>
+                    )}
+                    {remaining - pending > 0.01 && (
+                      <span className="text-[10px] text-muted-foreground block">
+                        {(remaining - pending).toFixed(0)} € à charge
+                      </span>
+                    )}
+                  </>
+                )}
+              </>
             )}
           </div>
         </button>
@@ -168,29 +197,62 @@ export function HealthView({
 
     // reimburse
     const r = entry.data
+    const isPending = r.status === "PENDING"
     return (
-      <button
+      <div
         key={`r-${r.id}`}
+        role="button"
+        tabIndex={0}
         onClick={() => setReimburseDialog({ open: true, item: r })}
-        className="w-full text-left flex items-start gap-3 rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-3 hover:border-emerald-500/40 hover:shadow-sm transition-all group"
+        onKeyDown={(e) => { if (e.key === "Enter") setReimburseDialog({ open: true, item: r }) }}
+        className={cn(
+          "w-full text-left flex items-start gap-3 rounded-xl border p-3 hover:shadow-sm transition-all group cursor-pointer",
+          isPending
+            ? "border-amber-500/30 bg-amber-500/5 hover:border-amber-500/50 border-dashed"
+            : "border-emerald-500/20 bg-emerald-500/5 hover:border-emerald-500/40"
+        )}
       >
-        <span className="text-xl shrink-0 mt-0.5">💸</span>
+        <span className="text-xl shrink-0 mt-0.5">{isPending ? "⏳" : "💸"}</span>
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 mb-0.5">
-            <span className="rounded-full border border-emerald-500/20 bg-emerald-500/15 text-emerald-700 px-2 py-0.5 text-[10px] font-semibold">
+          <div className="flex items-center gap-2 mb-0.5 flex-wrap">
+            <span className={cn(
+              "rounded-full border px-2 py-0.5 text-[10px] font-semibold",
+              isPending
+                ? "border-amber-500/20 bg-amber-500/15 text-amber-700"
+                : "border-emerald-500/20 bg-emerald-500/15 text-emerald-700"
+            )}>
               {r.source === "SECU" ? "Sécu" : "Mutuelle"}
             </span>
+            <span className={cn(
+              "inline-flex items-center gap-0.5 text-[10px] font-medium",
+              isPending ? "text-amber-600" : "text-emerald-600"
+            )}>
+              {isPending ? <><Clock className="h-3 w-3" /> En attente</> : <><Check className="h-3 w-3" /> Reçu</>}
+            </span>
           </div>
-          <p className="text-sm font-semibold text-emerald-700 group-hover:text-emerald-600 transition-colors">
-            +{r.amount.toFixed(2)} €
+          <p className={cn(
+            "text-sm font-semibold transition-colors",
+            isPending ? "text-amber-700 group-hover:text-amber-600" : "text-emerald-700 group-hover:text-emerald-600"
+          )}>
+            {isPending ? "" : "+"}{r.amount.toFixed(2)} €
           </p>
           {r.consultation && (
             <p className="text-xs text-muted-foreground">{r.consultation.practitionerName} — {r.consultation.title}</p>
           )}
           {r.notes && <p className="text-xs text-muted-foreground">{r.notes}</p>}
         </div>
-        <span className="text-xs text-muted-foreground shrink-0 mt-0.5">{fmtShort(r.date)}</span>
-      </button>
+        <div className="flex flex-col items-end gap-1 shrink-0 mt-0.5">
+          <span className="text-xs text-muted-foreground">{fmtShort(reimbursementDate(r))}</span>
+          {isPending && (
+            <button
+              onClick={(e) => { e.stopPropagation(); markReceived(r.id) }}
+              className="text-[10px] font-medium text-emerald-600 hover:text-emerald-700 hover:underline"
+            >
+              Marquer reçu
+            </button>
+          )}
+        </div>
+      </div>
     )
   }
 
@@ -272,6 +334,39 @@ export function HealthView({
           />
         </div>
 
+        {/* Remboursements en attente */}
+        {pendingTotal > 0 && (
+          <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-4">
+            <div className="flex items-center justify-between gap-3 flex-wrap">
+              <div className="flex items-center gap-2">
+                <Clock className="h-4 w-4 text-amber-600" />
+                <div>
+                  <p className="text-sm font-semibold text-amber-700 dark:text-amber-400">
+                    {pendingTotal.toFixed(2)} € en attente de remboursement
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {pendingReimbursements.length} remboursement{pendingReimbursements.length > 1 ? "s" : ""} non reçu{pendingReimbursements.length > 1 ? "s" : ""}
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-4 text-xs">
+                {pendingSecu > 0 && (
+                  <div className="text-right">
+                    <p className="text-muted-foreground">Sécu</p>
+                    <p className="font-semibold text-amber-700 dark:text-amber-400">{pendingSecu.toFixed(2)} €</p>
+                  </div>
+                )}
+                {pendingMutuelle > 0 && (
+                  <div className="text-right">
+                    <p className="text-muted-foreground">Mutuelle</p>
+                    <p className="font-semibold text-amber-700 dark:text-amber-400">{pendingMutuelle.toFixed(2)} €</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Tabs */}
         <div className="flex items-center gap-1 border-b border-border/50">
           {(["timeline", "consultations", "remboursements"] as const).map((t) => {
@@ -330,31 +425,37 @@ export function HealthView({
               <p className="text-sm text-muted-foreground/60 italic py-4">Aucun remboursement enregistré.</p>
             ) : (
               <div className="space-y-2">
-                {renderTimeline(reimbursements.map(r => ({ kind: "reimburse" as const, date: new Date(r.date), data: r })))}
+                {renderTimeline(reimbursements.map(r => ({ kind: "reimburse" as const, date: reimbursementDate(r), data: r })))}
               </div>
             )}
           </>
         )}
       </div>
 
-      {/* Dialogs */}
-      <HealthEventDialog
-        open={eventDialog.open}
-        item={eventDialog.item}
-        onClose={() => setEventDialog({ open: false })}
-      />
-      <ConsultationDialog
-        open={consultDialog.open}
-        item={consultDialog.item}
-        events={events}
-        onClose={() => setConsultDialog({ open: false })}
-      />
-      <ReimbursementDialog
-        open={reimburseDialog.open}
-        item={reimburseDialog.item}
-        consultations={consultations}
-        onClose={() => setReimburseDialog({ open: false })}
-      />
+      {/* Dialogs — montés seulement à l'ouverture, avec key pour repartir d'un état frais */}
+      {eventDialog.open && (
+        <HealthEventDialog
+          key={eventDialog.item?.id ?? "new"}
+          item={eventDialog.item}
+          onClose={() => setEventDialog({ open: false })}
+        />
+      )}
+      {consultDialog.open && (
+        <ConsultationDialog
+          key={consultDialog.item?.id ?? "new"}
+          item={consultDialog.item}
+          events={events}
+          onClose={() => setConsultDialog({ open: false })}
+        />
+      )}
+      {reimburseDialog.open && (
+        <ReimbursementDialog
+          key={reimburseDialog.item?.id ?? "new"}
+          item={reimburseDialog.item}
+          consultations={consultations}
+          onClose={() => setReimburseDialog({ open: false })}
+        />
+      )}
     </>
   )
 }

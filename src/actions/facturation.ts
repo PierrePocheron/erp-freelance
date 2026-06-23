@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache"
 import { type NumberFormat, buildNumberParts } from "@/lib/number-format"
 import { auth } from "@/lib/auth"
 import { enforceRateLimit } from "@/lib/rate-limit"
+import { escapeHtml } from "@/lib/escape-html"
 import { put } from "@vercel/blob"
 import { buildInvoicePdfBuffer } from "@/lib/invoice-pdf"
 import {
@@ -1091,11 +1092,11 @@ export async function resendQuoteEmail(quoteId: string, _userId: string) {
     to: quote.client.email,
     subject: `Rappel — Devis ${quote.number}`,
     html: `
-      <p>Bonjour ${quote.client.name},</p>
+      <p>Bonjour ${escapeHtml(quote.client.name)},</p>
       <p>Je me permets de vous relancer concernant le devis <strong>${quote.number}</strong> d'un montant de <strong>${quote.totalHT.toLocaleString("fr-FR")} €</strong> HT que je vous ai adressé.</p>
       ${quote.expiresAt ? `<p>Ce devis est valable jusqu'au ${new Date(quote.expiresAt).toLocaleDateString("fr-FR")}.</p>` : ""}
       <p><a href="${pdfUrl}">Consulter le devis</a></p>
-      <p>Cordialement,<br>${quote.user.name}</p>
+      <p>Cordialement,<br>${escapeHtml(quote.user.name)}</p>
     `,
   })
 
@@ -1123,11 +1124,11 @@ export async function sendQuoteEmail(quoteId: string, _userId: string) {
     to: quote.client.email,
     subject: `Devis ${quote.number}`,
     html: `
-      <p>Bonjour ${quote.client.name},</p>
+      <p>Bonjour ${escapeHtml(quote.client.name)},</p>
       <p>Veuillez trouver ci-joint le devis <strong>${quote.number}</strong> d'un montant de <strong>${quote.totalHT.toLocaleString("fr-FR")} €</strong> HT.</p>
       ${quote.expiresAt ? `<p>Ce devis est valable jusqu'au ${new Date(quote.expiresAt).toLocaleDateString("fr-FR")}.</p>` : ""}
       <p><a href="${pdfUrl}">Télécharger le devis</a></p>
-      <p>Cordialement,<br>${quote.user.name}</p>
+      <p>Cordialement,<br>${escapeHtml(quote.user.name)}</p>
     `,
   })
 
@@ -1155,10 +1156,10 @@ export async function sendInvoiceEmail(invoiceId: string, _userId: string) {
     to: invoice.client.email ?? invoice.user.email ?? "",
     subject: `Facture ${invoice.number}`,
     html: `
-      <p>Bonjour ${invoice.client.name},</p>
+      <p>Bonjour ${escapeHtml(invoice.client.name)},</p>
       <p>Veuillez trouver ci-joint la facture <strong>${invoice.number}</strong> d'un montant de <strong>${invoice.totalHT.toLocaleString("fr-FR")} €</strong>.</p>
       <p><a href="${pdfUrl}">Télécharger la facture</a></p>
-      <p>Cordialement,<br>${invoice.user.name}</p>
+      <p>Cordialement,<br>${escapeHtml(invoice.user.name)}</p>
     `,
   })
 
@@ -1205,13 +1206,13 @@ export async function sendInvoiceReminder(invoiceId: string, _userId: string) {
     to: invoice.client.email,
     subject,
     html: `
-      <p>Bonjour ${invoice.client.name},</p>
+      <p>Bonjour ${escapeHtml(invoice.client.name)},</p>
       ${isLate && daysLate
         ? `<p>Sauf erreur de notre part, la facture <strong>${invoice.number}</strong> d'un montant de <strong>${(invoice.totalHT - invoice.depositDeducted).toLocaleString("fr-FR")} €</strong> est en retard de <strong>${daysLate} jour(s)</strong>.</p>`
         : `<p>Nous vous rappelons que la facture <strong>${invoice.number}</strong> d'un montant de <strong>${(invoice.totalHT - invoice.depositDeducted).toLocaleString("fr-FR")} €</strong> est toujours en attente de règlement.</p>`
       }
       <p><a href="${pdfUrl}">Voir la facture</a></p>
-      <p>Cordialement,<br>${invoice.user.name}</p>
+      <p>Cordialement,<br>${escapeHtml(invoice.user.name)}</p>
     `,
   })
 

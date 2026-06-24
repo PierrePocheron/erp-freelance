@@ -294,13 +294,13 @@ function StatusChip({ status, count, active, onClick }: { status: JobAppStatus; 
 
 function ApplicationCard({ app, onOpen }: { app: JobApp; onOpen: () => void }) {
   const [, startTransition] = useTransition()
+  const [confirmDelete, setConfirmDelete] = useState(false)
   const cfg = STATUS_CONFIG[app.status as JobAppStatus] ?? STATUS_CONFIG.WISHLIST
   const nextOverdue = app.nextActionAt && new Date(app.nextActionAt) < new Date()
   const lastEvent = app.events[0]
 
   function quickDelete(e: React.MouseEvent) {
     e.stopPropagation()
-    if (!confirm(`Supprimer la candidature « ${app.position} » ?`)) return
     startTransition(() => deleteJobApplication(app.id))
   }
 
@@ -335,18 +335,30 @@ function ApplicationCard({ app, onOpen }: { app: JobApp; onOpen: () => void }) {
         ) : (
           <span className="text-muted-foreground/50 italic">Pas encore de contact</span>
         )}
-        {app.events.length > 0 && (
+        {app.events.length > 0 && !confirmDelete && (
           <span className="ml-auto text-muted-foreground/60 opacity-0 group-hover:opacity-100 transition-opacity">
             {app.events.length} évt
           </span>
         )}
-        <button
-          onClick={quickDelete}
-          className="text-muted-foreground/40 hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
-          title="Supprimer"
-        >
-          <X className="h-3.5 w-3.5" />
-        </button>
+        {confirmDelete ? (
+          <div className="flex items-center gap-2 ml-auto" onClick={e => e.stopPropagation()}>
+            <button onClick={quickDelete} className="text-[10px] font-medium text-destructive hover:opacity-80">
+              Supprimer
+            </button>
+            <button onClick={e => { e.stopPropagation(); setConfirmDelete(false) }}
+              className="text-[10px] text-muted-foreground hover:text-foreground">
+              Annuler
+            </button>
+          </div>
+        ) : (
+          <button
+            onClick={e => { e.stopPropagation(); setConfirmDelete(true) }}
+            className="text-muted-foreground/40 hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
+            title="Supprimer"
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
+        )}
       </div>
     </div>
   )

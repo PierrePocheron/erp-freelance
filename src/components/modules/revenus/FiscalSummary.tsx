@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation"
 import { useState } from "react"
 import { ChevronLeft, ChevronRight, FileDown, Users, CalendarDays } from "lucide-react"
+import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
 
@@ -244,7 +245,7 @@ export function FiscalSummary({
     }
     lines.push(`TOTAL GÉNÉRAL : ${fmt(grandTotal)} €`)
     navigator.clipboard.writeText(lines.join("\n"))
-    alert("Récapitulatif copié dans le presse-papiers ✓")
+    toast.success("Récapitulatif copié dans le presse-papiers")
   }
 
   return (

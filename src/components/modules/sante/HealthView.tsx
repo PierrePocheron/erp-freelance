@@ -4,7 +4,7 @@ import { useState, useTransition } from "react"
 import { Plus, Heart, Stethoscope, Wallet, Syringe, Clock, Check } from "lucide-react"
 import { toast } from "sonner"
 import { cn } from "@/lib/utils"
-import { markReimbursementReceived } from "@/actions/sante"
+import { markReimbursementReceived, resolveHealthEvent } from "@/actions/sante"
 import { HealthEventDialog }      from "./HealthEventDialog"
 import { ConsultationDialog }     from "./ConsultationDialog"
 import { ReimbursementDialog }    from "./ReimbursementDialog"
@@ -75,8 +75,9 @@ export function HealthView({
   stats: { consultationsThisYear: number; spentThisYear: number; reimbursedThisYear: number; activeIssues: number }
   currentYear: number
 }) {
-  const [tab, setTab] = useState<"timeline" | "consultations" | "remboursements">("timeline")
-  const [, startMark] = useTransition()
+  const [tab, setTab] = useState<"timeline" | "blessures" | "consultations" | "remboursements">("timeline")
+  const [, startMark]    = useTransition()
+  const [, startResolve] = useTransition()
 
   // Dialogs
   const [eventDialog, setEventDialog]   = useState<{ open: boolean; item?: HEvent }>({ open: false })
@@ -87,6 +88,13 @@ export function HealthView({
     startMark(async () => {
       await markReimbursementReceived(id)
       toast.success("Remboursement marqué reçu")
+    })
+  }
+
+  function quickResolve(id: string) {
+    startResolve(async () => {
+      await resolveHealthEvent(id)
+      toast.success("Événement marqué résolu")
     })
   }
 
@@ -136,7 +144,17 @@ export function HealthView({
             <p className="text-sm font-semibold group-hover:text-primary transition-colors">{e.title}</p>
             {e.description && <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{e.description}</p>}
           </div>
-          <span className="text-xs text-muted-foreground shrink-0 mt-0.5">{fmtShort(e.date)}</span>
+          <div className="flex flex-col items-end gap-1 shrink-0 mt-0.5">
+            <span className="text-xs text-muted-foreground">{fmtShort(e.date)}</span>
+            {!e.resolvedAt && (
+              <button
+                onClick={(ev) => { ev.stopPropagation(); quickResolve(e.id) }}
+                className="text-[10px] font-medium text-emerald-600 hover:text-emerald-700 hover:underline"
+              >
+                Marquer résolu
+              </button>
+            )}
+          </div>
         </button>
       )
     }
@@ -369,10 +387,12 @@ export function HealthView({
 
         {/* Tabs */}
         <div className="flex items-center gap-1 border-b border-border/50">
-          {(["timeline", "consultations", "remboursements"] as const).map((t) => {
-            const labels = { timeline: "Tout", consultations: "Consultations", remboursements: "Remboursements" }
+          {(["timeline", "blessures", "consultations", "remboursements"] as const).map((t) => {
+            const activeEvents = events.filter(e => !e.resolvedAt)
+            const labels = { timeline: "Tout", blessures: "Blessures", consultations: "Consultations", remboursements: "Remboursements" }
             const counts = {
               timeline: timeline.length,
+              blessures: activeEvents.length,
               consultations: consultations.length,
               remboursements: reimbursements.length,
             }
@@ -403,6 +423,29 @@ export function HealthView({
               <EmptyState onEvent={() => setEventDialog({ open: true })} onConsult={() => setConsultDialog({ open: true })} />
             ) : (
               <div className="space-y-2">{renderTimeline(timeline)}</div>
+            )}
+          </>
+        )}
+
+        {tab === "blessures" && (
+          <>
+            {events.length === 0 ? (
+              <EmptyState onEvent={() => setEventDialog({ open: true })} onConsult={() => setConsultDialog({ open: true })} />
+            ) : (
+              <>
+                {events.filter(e => !e.resolvedAt).length > 0 && (
+                  <div className="space-y-2">
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-0.5">En cours</p>
+                    {renderTimeline(events.filter(e => !e.resolvedAt).map(e => ({ kind: "event" as const, date: new Date(e.date), data: e })))}
+                  </div>
+                )}
+                {events.filter(e => e.resolvedAt).length > 0 && (
+                  <div className="space-y-2 mt-4">
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-0.5">Résolus</p>
+                    {renderTimeline(events.filter(e => e.resolvedAt).map(e => ({ kind: "event" as const, date: new Date(e.date), data: e })))}
+                  </div>
+                )}
+              </>
             )}
           </>
         )}

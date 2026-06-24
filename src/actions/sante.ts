@@ -65,6 +65,15 @@ export async function updateHealthEvent(
   revalidatePath("/sante")
 }
 
+export async function resolveHealthEvent(id: string, resolvedAt?: string) {
+  const userId = await requireAuth()
+  await prisma.healthEvent.updateMany({
+    where: { id, userId },
+    data: { resolvedAt: resolvedAt ? new Date(resolvedAt) : new Date() },
+  })
+  revalidatePath("/sante")
+}
+
 export async function deleteHealthEvent(id: string) {
   const userId = await requireAuth()
   await prisma.healthEvent.deleteMany({ where: { id, userId } })

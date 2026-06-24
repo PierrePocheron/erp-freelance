@@ -305,6 +305,17 @@ export async function completeTask(taskId: string, projectId: string) {
   revalidatePath(`/projets/${projectId}`)
 }
 
+export async function completeTaskGlobal(taskId: string) {
+  const userId = await requireAuth()
+  await requireTaskOwnership(taskId, userId)
+  await prisma.task.update({
+    where: { id: taskId },
+    data: { status: "DONE", completedAt: new Date() },
+  })
+  revalidatePath("/")
+  revalidatePath("/taches")
+}
+
 export async function reopenTask(taskId: string, projectId: string) {
   const userId = await requireAuth()
   await requireTaskOwnership(taskId, userId)

@@ -59,22 +59,28 @@ export default async function DashboardPage() {
   ] = await Promise.all([
     prisma.task.findMany({
       where: {
-        project: { userId },
+        OR: [{ project: { userId } }, { userId }],
         dueDate: { gte: todayStart, lte: todayEnd },
         status: { not: "DONE" },
         parentTaskId: null,
       },
-      include: { project: { select: { id: true, name: true } } },
+      include: {
+        project: { select: { id: true, name: true } },
+        client:  { select: { id: true, name: true, company: true } },
+      },
       orderBy: { dueDate: "asc" },
       take: 5,
     }),
     prisma.task.findMany({
       where: {
-        project: { userId },
+        OR: [{ project: { userId } }, { userId }],
         status: "IN_PROGRESS",
         parentTaskId: null,
       },
-      include: { project: { select: { id: true, name: true } } },
+      include: {
+        project: { select: { id: true, name: true } },
+        client:  { select: { id: true, name: true, company: true } },
+      },
       orderBy: { updatedAt: "desc" },
       take: 5,
     }),
@@ -155,12 +161,15 @@ export default async function DashboardPage() {
     }),
     prisma.task.findMany({
       where: {
-        project: { userId },
+        OR: [{ project: { userId } }, { userId }],
         dueDate: { lt: todayStart },
         status: { not: "DONE" },
         parentTaskId: null,
       },
-      include: { project: { select: { id: true, name: true } } },
+      include: {
+        project: { select: { id: true, name: true } },
+        client:  { select: { id: true, name: true, company: true } },
+      },
       orderBy: { dueDate: "asc" },
       take: 6,
     }),
@@ -392,59 +401,101 @@ export default async function DashboardPage() {
 
           {/* Tâches en retard */}
           {overdueTasks.length > 0 && (
-            <Section title="Tâches en retard" icon={<AlertTriangle className="h-4 w-4" />} href="/projets">
+            <Section title="Tâches en retard" icon={<AlertTriangle className="h-4 w-4" />} href="/taches">
               <div className="space-y-1.5">
-                {overdueTasks.map((task) => (
-                  <Link key={task.id} href={`/projets/${task.project!.id}/dev`} className="flex items-center gap-3 rounded-lg px-3 py-2 hover:bg-muted/50 transition-colors">
-                    <span className="h-2 w-2 rounded-full bg-red-500 shrink-0" />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium truncate">{task.title}</p>
-                      <p className="text-xs text-muted-foreground">{task.project!.name}</p>
+                {overdueTasks.map((task) => {
+                  const href = task.project ? `/projets/${task.project.id}/dev` : "/taches"
+                  const sub  = task.project?.name ?? task.client?.company ?? task.client?.name ?? "Tâche"
+                  return (
+                    <div key={task.id} className="flex items-center gap-2 rounded-lg px-3 py-2 hover:bg-muted/50 transition-colors group">
+                      <form action={async () => {
+                        "use server"
+                        const { completeTaskGlobal } = await import("@/actions/projet")
+                        await completeTaskGlobal(task.id)
+                      }}>
+                        <button type="submit" title="Marquer terminée" className="shrink-0 text-muted-foreground hover:text-emerald-500 transition-colors">
+                          <Circle className="h-3.5 w-3.5" />
+                        </button>
+                      </form>
+                      <Link href={href} className="flex-1 min-w-0 flex items-center gap-3">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium truncate">{task.title}</p>
+                          <p className="text-xs text-muted-foreground">{sub}</p>
+                        </div>
+                        <span className="text-xs text-red-500 font-medium shrink-0">
+                          {new Date(task.dueDate!).toLocaleDateString("fr-FR", { day: "numeric", month: "short" })}
+                        </span>
+                      </Link>
                     </div>
-                    <span className="text-xs text-red-500 font-medium shrink-0">
-                      {new Date(task.dueDate!).toLocaleDateString("fr-FR", { day: "numeric", month: "short" })}
-                    </span>
-                  </Link>
-                ))}
+                  )
+                })}
               </div>
             </Section>
           )}
 
           {/* Tâches en cours */}
           {tasksInProgress.length > 0 && (
-            <Section title="Tâches en cours" icon={<CheckSquare className="h-4 w-4" />} href="/projets">
+            <Section title="Tâches en cours" icon={<CheckSquare className="h-4 w-4" />} href="/taches">
               <div className="space-y-1.5">
-                {tasksInProgress.map((task) => (
-                  <Link key={task.id} href={`/projets/${task.project!.id}/dev`} className="flex items-center gap-3 rounded-lg px-3 py-2 hover:bg-muted/50 transition-colors group">
-                    <span className="h-2 w-2 rounded-full bg-amber-500 shrink-0" />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium truncate">{task.title}</p>
-                      <p className="text-xs text-muted-foreground">{task.project!.name}</p>
+                {tasksInProgress.map((task) => {
+                  const href = task.project ? `/projets/${task.project.id}/dev` : "/taches"
+                  const sub  = task.project?.name ?? task.client?.company ?? task.client?.name ?? "Tâche"
+                  return (
+                    <div key={task.id} className="flex items-center gap-2 rounded-lg px-3 py-2 hover:bg-muted/50 transition-colors group">
+                      <form action={async () => {
+                        "use server"
+                        const { completeTaskGlobal } = await import("@/actions/projet")
+                        await completeTaskGlobal(task.id)
+                      }}>
+                        <button type="submit" title="Marquer terminée" className="shrink-0 text-muted-foreground hover:text-emerald-500 transition-colors">
+                          <Circle className="h-3.5 w-3.5" />
+                        </button>
+                      </form>
+                      <Link href={href} className="flex-1 min-w-0 flex items-center gap-3">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium truncate">{task.title}</p>
+                          <p className="text-xs text-muted-foreground">{sub}</p>
+                        </div>
+                        {task.dueDate && (
+                          <span className={`text-xs shrink-0 ${new Date(task.dueDate) < new Date() ? "text-red-500 font-medium" : "text-muted-foreground"}`}>
+                            {new Date(task.dueDate).toLocaleDateString("fr-FR", { day: "numeric", month: "short" })}
+                          </span>
+                        )}
+                      </Link>
                     </div>
-                    {task.dueDate && (
-                      <span className={`text-xs shrink-0 ${new Date(task.dueDate) < new Date() ? "text-red-500 font-medium" : "text-muted-foreground"}`}>
-                        {new Date(task.dueDate).toLocaleDateString("fr-FR", { day: "numeric", month: "short" })}
-                      </span>
-                    )}
-                  </Link>
-                ))}
+                  )
+                })}
               </div>
             </Section>
           )}
 
           {/* Tâches dues aujourd'hui */}
           {tasksDueToday.length > 0 && (
-            <Section title="Échéances aujourd'hui" icon={<Calendar className="h-4 w-4" />} href="/projets">
+            <Section title="Échéances aujourd'hui" icon={<Calendar className="h-4 w-4" />} href="/taches">
               <div className="space-y-1.5">
-                {tasksDueToday.map((task) => (
-                  <Link key={task.id} href={`/projets/${task.project!.id}/dev`} className="flex items-center gap-3 rounded-lg px-3 py-2 hover:bg-muted/50 transition-colors">
-                    <span className="h-2 w-2 rounded-full bg-red-500 shrink-0" />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium truncate">{task.title}</p>
-                      <p className="text-xs text-muted-foreground">{task.project!.name}</p>
+                {tasksDueToday.map((task) => {
+                  const href = task.project ? `/projets/${task.project.id}/dev` : "/taches"
+                  const sub  = task.project?.name ?? task.client?.company ?? task.client?.name ?? "Tâche"
+                  return (
+                    <div key={task.id} className="flex items-center gap-2 rounded-lg px-3 py-2 hover:bg-muted/50 transition-colors group">
+                      <form action={async () => {
+                        "use server"
+                        const { completeTaskGlobal } = await import("@/actions/projet")
+                        await completeTaskGlobal(task.id)
+                      }}>
+                        <button type="submit" title="Marquer terminée" className="shrink-0 text-muted-foreground hover:text-emerald-500 transition-colors">
+                          <Circle className="h-3.5 w-3.5" />
+                        </button>
+                      </form>
+                      <Link href={href} className="flex-1 min-w-0 flex items-center gap-2">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium truncate">{task.title}</p>
+                          <p className="text-xs text-muted-foreground">{sub}</p>
+                        </div>
+                      </Link>
                     </div>
-                  </Link>
-                ))}
+                  )
+                })}
               </div>
             </Section>
           )}

@@ -2,6 +2,7 @@
 
 import { useState, useRef, useTransition } from "react"
 import { Building2, Plus, Pencil, Trash2, Star, Loader2, Upload, X, MapPin, CreditCard } from "lucide-react"
+import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -39,17 +40,17 @@ export type Emitter = {
 const ACCENT_PRESETS = ["#6366f1", "#8b5cf6", "#0ea5e9", "#10b981", "#f59e0b", "#ef4444", "#ec4899", "#1a1a1a"]
 
 export function EmittersManager({ emitters }: { emitters: Emitter[] }) {
-  const [editing, setEditing] = useState<Emitter | null>(null)
-  const [creating, setCreating] = useState(false)
-  const [isPending, startTransition] = useTransition()
+  const [editing,         setEditing]         = useState<Emitter | null>(null)
+  const [creating,        setCreating]        = useState(false)
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
+  const [isPending,       startTransition]    = useTransition()
 
   function handleSetDefault(id: string) {
     startTransition(() => setDefaultEmitter(id))
   }
 
   function handleDelete(e: Emitter) {
-    if (!confirm(`Supprimer la société « ${e.name} » ? Les devis/factures émis sous ce profil seront détachés (non supprimés).`)) return
-    startTransition(() => deleteEmitter(e.id))
+    startTransition(() => { deleteEmitter(e.id); setConfirmDeleteId(null) })
   }
 
   return (
@@ -112,9 +113,20 @@ export function EmittersManager({ emitters }: { emitters: Emitter[] }) {
                     <Star className="h-3 w-3 mr-1" /> Par défaut
                   </Button>
                 )}
-                <Button type="button" variant="ghost" size="sm" className="h-7 px-2 text-xs text-destructive hover:text-destructive ml-auto" onClick={() => handleDelete(e)} disabled={isPending}>
-                  <Trash2 className="h-3 w-3" />
-                </Button>
+                {confirmDeleteId === e.id ? (
+                  <div className="flex items-center gap-1.5 ml-auto">
+                    <Button type="button" variant="ghost" size="sm" className="h-7 px-2 text-xs text-destructive hover:text-destructive" onClick={() => handleDelete(e)} disabled={isPending}>
+                      Supprimer
+                    </Button>
+                    <Button type="button" variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={() => setConfirmDeleteId(null)}>
+                      Annuler
+                    </Button>
+                  </div>
+                ) : (
+                  <Button type="button" variant="ghost" size="sm" className="h-7 px-2 text-xs text-destructive hover:text-destructive ml-auto" onClick={() => setConfirmDeleteId(e.id)} disabled={isPending}>
+                    <Trash2 className="h-3 w-3" />
+                  </Button>
+                )}
               </div>
             </div>
           ))}
@@ -143,7 +155,7 @@ function EmitterEditorDialog({ emitter, onClose }: { emitter: Emitter | null; on
   function handleLogoUpload(ev: React.ChangeEvent<HTMLInputElement>) {
     const file = ev.target.files?.[0]
     if (!file) return
-    if (file.size > 2 * 1024 * 1024) { alert("Image trop grande (max 2 Mo)"); return }
+    if (file.size > 2 * 1024 * 1024) { toast.error("Image trop grande (max 2 Mo)"); return }
     setLogoUploading(true)
     const reader = new FileReader()
     reader.onload = (e) => { setLogoUrl(e.target?.result as string); setLogoUploading(false) }

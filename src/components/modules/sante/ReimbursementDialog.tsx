@@ -25,6 +25,7 @@ export function ReimbursementDialog({
   onClose: () => void
 }) {
   const [isPending, start] = useTransition()
+  const [confirmDelete, setConfirmDelete] = useState(false)
   const [amount,         setAmount]         = useState(item?.amount?.toString() || "")
   const [source,         setSource]         = useState<ReimbursementSource>((item?.source as ReimbursementSource) || "SECU")
   const [status,         setStatus]         = useState<ReimbursementStatus>((item?.status as ReimbursementStatus) || "PENDING")
@@ -57,7 +58,7 @@ export function ReimbursementDialog({
   }
 
   function handleDelete() {
-    if (!item || !confirm("Supprimer ce remboursement ?")) return
+    if (!item) return
     start(async () => {
       await deleteReimbursement(item.id)
       toast.success("Remboursement supprimé")
@@ -178,12 +179,28 @@ export function ReimbursementDialog({
 
           <div className="flex items-center justify-between pt-1">
             {item && (
-              <button
-                type="button" onClick={handleDelete}
-                className="flex items-center gap-1.5 text-xs text-destructive hover:opacity-80 transition-opacity"
-              >
-                <Trash2 className="h-3.5 w-3.5" /> Supprimer
-              </button>
+              confirmDelete ? (
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-muted-foreground">Confirmer ?</span>
+                  <button type="button" onClick={handleDelete}
+                    className="text-xs font-medium text-destructive hover:opacity-80 transition-opacity"
+                  >
+                    Oui, supprimer
+                  </button>
+                  <button type="button" onClick={() => setConfirmDelete(false)}
+                    className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    Annuler
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button" onClick={() => setConfirmDelete(true)}
+                  className="flex items-center gap-1.5 text-xs text-destructive hover:opacity-80 transition-opacity"
+                >
+                  <Trash2 className="h-3.5 w-3.5" /> Supprimer
+                </button>
+              )
             )}
             <div className="flex items-center gap-2 ml-auto">
               <button type="button" onClick={onClose}

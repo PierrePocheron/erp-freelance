@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useTransition } from "react"
-import { Wallet, Plus, Pencil, Trash2, Link2, X } from "lucide-react"
+import { Wallet, Plus, Pencil, Trash2, Link2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
@@ -235,14 +235,14 @@ export function FiscalSourcesManager({
   sources:  FiscalSourceItem[]
   emitters: EmitterSummary[]
 }) {
-  const [creating,    setCreating]    = useState(false)
-  const [editing,     setEditing]     = useState<FiscalSourceItem | null>(null)
-  const [linking,     setLinking]     = useState<FiscalSourceItem | null>(null)
-  const [pending,     start]          = useTransition()
+  const [creating,         setCreating]         = useState(false)
+  const [editing,          setEditing]          = useState<FiscalSourceItem | null>(null)
+  const [linking,          setLinking]          = useState<FiscalSourceItem | null>(null)
+  const [confirmDeleteId,  setConfirmDeleteId]  = useState<string | null>(null)
+  const [pending,          start]               = useTransition()
 
   function handleDelete(s: FiscalSourceItem) {
-    if (!confirm(`Supprimer "${s.name}" ? Les ${s._count.revenues} revenu(s) associé(s) seront détachés.`)) return
-    start(async () => { await deleteFiscalSource(s.id) })
+    start(async () => { await deleteFiscalSource(s.id); setConfirmDeleteId(null) })
   }
 
   return (
@@ -316,14 +316,27 @@ export function FiscalSourcesManager({
                 >
                   <Pencil className="h-3.5 w-3.5" />
                 </button>
-                <button
-                  title="Supprimer"
-                  onClick={() => handleDelete(s)}
-                  disabled={pending}
-                  className="rounded-md p-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                </button>
+                {confirmDeleteId === s.id ? (
+                  <div className="flex items-center gap-1.5">
+                    <button onClick={() => handleDelete(s)} disabled={pending}
+                      className="rounded-md px-2 py-1 text-[10px] font-medium text-destructive hover:bg-destructive/10 transition-colors">
+                      Supprimer
+                    </button>
+                    <button onClick={() => setConfirmDeleteId(null)}
+                      className="rounded-md px-2 py-1 text-[10px] text-muted-foreground hover:bg-accent transition-colors">
+                      Annuler
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    title="Supprimer"
+                    onClick={() => setConfirmDeleteId(s.id)}
+                    disabled={pending}
+                    className="rounded-md p-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                )}
               </div>
             </div>
           ))}

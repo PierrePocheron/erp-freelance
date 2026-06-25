@@ -97,6 +97,13 @@ export function readNeedsOnboarding(): boolean {
 }
 
 const STORAGE_KEY = "erp-active-modules"
+export const MODULES_COOKIE = "erp-active-modules"
+const COOKIE_MAX_AGE = 60 * 60 * 24 * 365  // 1 an
+
+function writeCookie(ids: ModuleId[]) {
+  if (typeof document === "undefined") return
+  document.cookie = `${MODULES_COOKIE}=${encodeURIComponent(JSON.stringify(ids))};path=/;max-age=${COOKIE_MAX_AGE};SameSite=Lax`
+}
 
 function readFromStorage(): Set<ModuleId> {
   if (typeof window === "undefined") return new Set(DEFAULT_ACTIVE_IDS)
@@ -117,10 +124,12 @@ export function useModules() {
     () => new Set(DEFAULT_ACTIVE_IDS)  // SSR-safe default (modules defaultActive uniquement)
   )
 
-  // Hydrate depuis localStorage côté client
+  // Hydrate depuis localStorage côté client + synchronise le cookie serveur
   useEffect(() => {
+    const stored = readFromStorage()
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    setActiveModules(readFromStorage())
+    setActiveModules(stored)
+    writeCookie([...stored])
   }, [])
 
   const isActive = useCallback(
@@ -131,26 +140,29 @@ export function useModules() {
   const toggle = useCallback((id: ModuleId) => {
     setActiveModules(prev => {
       const next = new Set(prev)
-      if (next.has(id)) {
-        next.delete(id)
-      } else {
-        next.add(id)
-      }
-      localStorage.setItem(STORAGE_KEY, JSON.stringify([...next]))
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      const ids = [...next]
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(ids))
+      writeCookie(ids)
       return next
     })
   }, [])
 
   const enableAll = useCallback(() => {
     const all = new Set<ModuleId>(ALL_MODULE_IDS)
-    localStorage.setItem(STORAGE_KEY, JSON.stringify([...all]))
+    const ids = [...all]
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(ids))
+    writeCookie(ids)
     setActiveModules(all)
   }, [])
 
   // Applique une sélection complète (utilisé par l'écran d'initialisation).
   const setModules = useCallback((ids: ModuleId[]) => {
     const set = new Set<ModuleId>(ids.filter(id => ALL_MODULE_IDS.includes(id)))
-    localStorage.setItem(STORAGE_KEY, JSON.stringify([...set]))
+    const validIds = [...set]
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(validIds))
+    writeCookie(validIds)
     setActiveModules(set)
   }, [])
 

@@ -4,27 +4,34 @@ import { useEffect, useState, useRef, useTransition } from "react"
 import { useRouter } from "next/navigation"
 import { Search, Loader2 } from "lucide-react"
 import { searchGlobal, type SearchResult } from "@/actions/search"
+import { useModules, type ModuleId } from "@/hooks/use-modules"
 import { cn } from "@/lib/utils"
 
 type NavItem = {
-  label: string
-  href: string
-  icon: string
-  keywords: string[]
+  label:     string
+  href:      string
+  icon:      string
+  keywords:  string[]
+  moduleId?: ModuleId
 }
 
-const NAV_ITEMS: NavItem[] = [
-  { label: "Dashboard",              href: "/",                          icon: "⚡", keywords: ["accueil", "home", "tableau de bord", "dashboard"] },
-  { label: "Projets",                href: "/projets",                   icon: "💻", keywords: ["projet", "tache", "task", "milestone", "livrable"] },
-  { label: "Sociétés",                href: "/societes",                  icon: "🏢", keywords: ["societe", "société", "entreprise", "company", "client", "crm"] },
-  { label: "Contacts",               href: "/contacts",                  icon: "👥", keywords: ["client", "crm", "contact", "prospect", "lead"] },
-  { label: "Facturation",            href: "/facturation",               icon: "💳", keywords: ["facturation", "finance", "paiement", "argent"] },
-  { label: "Devis",                  href: "/facturation/devis",         icon: "📄", keywords: ["devis", "quote", "estimation", "offre"] },
-  { label: "Factures",               href: "/facturation/factures",      icon: "💰", keywords: ["facture", "invoice", "paiement", "reglement"] },
-  { label: "Produits & Catalogue",   href: "/facturation/produits",      icon: "📦", keywords: ["produit", "product", "catalogue", "tarif", "prix", "service"] },
-  { label: "Calendrier",             href: "/calendrier",                icon: "📅", keywords: ["calendrier", "agenda", "evenement", "rdv", "rendez-vous", "planning"] },
-  { label: "Sources fiscales",        href: "/revenus/sources",           icon: "🏦", keywords: ["source", "fiscal", "fiscale", "urssaf", "ae", "impot", "impôt", "declaration", "déclaration", "non imposable", "emetteur", "émetteur", "identite", "identité"] },
-  { label: "Paramètres",             href: "/settings",                  icon: "⚙️", keywords: ["parametres", "settings", "profil", "profil", "logo", "couleur", "iban", "siret", "entreprise", "conditions", "cgv"] },
+const ALL_NAV_ITEMS: NavItem[] = [
+  { label: "Dashboard",            href: "/",                       icon: "⚡", keywords: ["accueil", "home", "tableau de bord", "dashboard"] },
+  { label: "Contacts",             href: "/contacts",               icon: "👥", keywords: ["client", "crm", "contact", "prospect", "lead"],                                                 moduleId: "contacts"    },
+  { label: "Sociétés",             href: "/societes",               icon: "🏢", keywords: ["societe", "société", "entreprise", "company", "crm"],                                           moduleId: "societes"    },
+  { label: "Projets",              href: "/projets",                icon: "💻", keywords: ["projet", "tache", "task", "milestone", "livrable"],                                              moduleId: "projets"     },
+  { label: "Tâches",               href: "/taches",                 icon: "✅", keywords: ["taches", "task", "todo", "kanban", "to do"],                                                    moduleId: "taches"      },
+  { label: "Facturation",          href: "/facturation",            icon: "💳", keywords: ["facturation", "finance", "paiement", "argent"],                                                  moduleId: "facturation" },
+  { label: "Devis",                href: "/facturation/devis",      icon: "📄", keywords: ["devis", "quote", "estimation", "offre"],                                                         moduleId: "facturation" },
+  { label: "Factures",             href: "/facturation/factures",   icon: "💰", keywords: ["facture", "invoice", "paiement", "reglement"],                                                   moduleId: "facturation" },
+  { label: "Produits & Catalogue", href: "/facturation/produits",   icon: "📦", keywords: ["produit", "product", "catalogue", "tarif", "prix", "service"],                                  moduleId: "facturation" },
+  { label: "Revenus",              href: "/revenus",                icon: "💸", keywords: ["revenu", "revenue", "encaissement", "recette", "urssaf", "ae"],                                 moduleId: "revenus"     },
+  { label: "Sources fiscales",     href: "/revenus/sources",        icon: "🏦", keywords: ["source", "fiscal", "fiscale", "urssaf", "ae", "impot", "impôt", "declaration", "déclaration"], moduleId: "revenus"     },
+  { label: "Calendrier",           href: "/calendrier",             icon: "📅", keywords: ["calendrier", "agenda", "evenement", "rdv", "rendez-vous", "planning"],                          moduleId: "calendrier"  },
+  { label: "Graph",                href: "/graph",                  icon: "🕸️", keywords: ["graph", "graphe", "reseau", "réseau", "relation", "network"],                                   moduleId: "graph"       },
+  { label: "Santé",                href: "/sante",                  icon: "🏥", keywords: ["sante", "santé", "medecin", "médecin", "consultation", "blessure", "maladie", "remboursement"], moduleId: "sante"       },
+  { label: "Entretiens",           href: "/entretiens",             icon: "💼", keywords: ["entretien", "candidature", "job", "emploi", "recrutement", "interview"],                        moduleId: "entretien"   },
+  { label: "Paramètres",           href: "/settings",               icon: "⚙️", keywords: ["parametres", "settings", "profil", "logo", "couleur", "iban", "siret", "entreprise", "conditions", "cgv"] },
 ]
 
 const TYPE_ICON: Record<string, string> = {
@@ -63,6 +70,10 @@ export function CommandPalette() {
   const [isPending, startTransition] = useTransition()
   const inputRef = useRef<HTMLInputElement>(null)
   const router = useRouter()
+  const { activeModules, isActive } = useModules()
+
+  // Items de navigation filtrés par modules actifs
+  const NAV_ITEMS = ALL_NAV_ITEMS.filter(item => !item.moduleId || isActive(item.moduleId))
 
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
@@ -79,11 +90,8 @@ export function CommandPalette() {
     if (open) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setQuery("")
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       setResults([])
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       setSelected(0)
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       setSearching(false)
       setTimeout(() => inputRef.current?.focus(), 30)
     }
@@ -92,17 +100,18 @@ export function CommandPalette() {
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     if (query.length < 2) { setResults([]); setSelected(0); setSearching(false); return }
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     setSearching(true)
     const t = setTimeout(() => {
       startTransition(async () => {
-        const r = await searchGlobal(query)
+        const r = await searchGlobal(query, [...activeModules])
         setResults(r)
         setSelected(0)
         setSearching(false)
       })
     }, 200)
     return () => clearTimeout(t)
+  // activeModules intentionally omitted — search re-fires on next keystroke after module change
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [query])
 
   // Nav items filteredinstantly (client-side)

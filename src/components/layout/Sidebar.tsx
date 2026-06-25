@@ -105,7 +105,7 @@ export function Sidebar() {
       </div>
 
       {/* Nav */}
-      <nav className="flex flex-1 flex-col gap-1 px-2">
+      <nav className="flex flex-1 flex-col gap-1 px-2 overflow-y-auto min-h-0">
         {visibleItems.map(({ href, icon: Icon, label }) => {
           const isActive = href === "/" ? pathname === "/" : pathname.startsWith(href)
           return (

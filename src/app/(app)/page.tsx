@@ -11,11 +11,15 @@ import { QuickActionsBar } from "@/components/modules/dashboard/QuickActionsBar"
 import { ProdMonitorCard } from "@/components/modules/dashboard/ProdMonitorCard"
 import { PendingIncomeCard } from "@/components/modules/dashboard/PendingIncomeCard"
 import { JobHuntCard } from "@/components/modules/dashboard/JobHuntCard"
+import { getActiveModules } from "@/lib/modules-server"
 
 export default async function DashboardPage() {
   const session = await auth()
   const userId = session!.user.id
   const firstName = session?.user?.name?.split(" ")[0] ?? "vous"
+
+  const enabledModules = await getActiveModules()
+  const has = (id: string) => enabledModules.has(id as never)
 
   /* eslint-disable react-hooks/purity */
   const today = new Date()
@@ -344,63 +348,71 @@ export default async function DashboardPage() {
 
       {/* KPI row */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
-        <KPICard href="/projets" icon={<Code2 className="h-4 w-4" />} label="Projets actifs" value={activeProjects} color="indigo" />
-        <KPICard href="/facturation/factures" icon={<TrendingUp className="h-4 w-4" />} label="En attente" value={`${totalPending.toLocaleString("fr-FR")} €`} color="blue" />
-        <KPICard href="/facturation/factures" icon={<AlertCircle className="h-4 w-4" />} label="En retard" value={lateInvoices} color={lateInvoices > 0 ? "red" : "muted"} />
-        <KPICard href="/facturation/devis" icon={<Clock className="h-4 w-4" />} label="Devis envoyés" value={pendingQuotes} color="amber" />
-        <KPICard href="/contacts" icon={<Bell className="h-4 w-4" />} label="Rappels" value={upcomingReminders.length} color={upcomingReminders.some(r => new Date(r.dueDate) < new Date()) ? "red" : "muted"} />
-        <KPICard href="/projets" icon={<CheckSquare className="h-4 w-4" />} label="En cours" value={tasksInProgress.length} color="emerald" />
+        {has("projets")     && <KPICard href="/projets"              icon={<Code2 className="h-4 w-4" />}     label="Projets actifs"  value={activeProjects}                                        color="indigo" />}
+        {has("facturation") && <KPICard href="/facturation/factures" icon={<TrendingUp className="h-4 w-4" />} label="En attente"       value={`${totalPending.toLocaleString("fr-FR")} €`}           color="blue"  />}
+        {has("facturation") && <KPICard href="/facturation/factures" icon={<AlertCircle className="h-4 w-4" />} label="En retard"       value={lateInvoices}                                          color={lateInvoices > 0 ? "red" : "muted"} />}
+        {has("facturation") && <KPICard href="/facturation/devis"    icon={<Clock className="h-4 w-4" />}      label="Devis envoyés"   value={pendingQuotes}                                         color="amber" />}
+        {has("contacts")    && <KPICard href="/contacts"             icon={<Bell className="h-4 w-4" />}       label="Rappels"         value={upcomingReminders.length}                              color={upcomingReminders.some(r => new Date(r.dueDate) < new Date()) ? "red" : "muted"} />}
+        {(has("taches") || has("projets")) && <KPICard href="/taches" icon={<CheckSquare className="h-4 w-4" />} label="En cours"    value={tasksInProgress.length}                                color="emerald" />}
       </div>
 
       {/* Revenus encaissés {year} */}
-      <div className="rounded-xl border border-border/50 bg-card px-5 py-4">
-        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-3">
-          Revenus encaissés — {currentYear}
-        </p>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <Link href="/facturation/factures" className="group space-y-0.5">
-            <div className="flex items-center gap-1.5 text-xs text-muted-foreground group-hover:text-foreground transition-colors">
-              <Receipt className="h-3.5 w-3.5 text-violet-500" />
-              Auto-entreprise
+      {(has("facturation") || has("revenus")) && (
+        <div className="rounded-xl border border-border/50 bg-card px-5 py-4">
+          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-3">
+            Revenus encaissés — {currentYear}
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            {has("facturation") && (
+              <Link href="/facturation/factures" className="group space-y-0.5">
+                <div className="flex items-center gap-1.5 text-xs text-muted-foreground group-hover:text-foreground transition-colors">
+                  <Receipt className="h-3.5 w-3.5 text-violet-500" />
+                  Auto-entreprise
+                </div>
+                <p className="text-lg font-bold tabular-nums text-violet-600">
+                  {encaisseAE.toLocaleString("fr-FR")} €
+                </p>
+              </Link>
+            )}
+            {has("revenus") && (
+              <Link href="/revenus" className="group space-y-0.5">
+                <div className="flex items-center gap-1.5 text-xs text-muted-foreground group-hover:text-foreground transition-colors">
+                  <Wallet className="h-3.5 w-3.5 text-teal-500" />
+                  Autres revenus
+                </div>
+                <p className="text-lg font-bold tabular-nums text-teal-600">
+                  {encaisseAutres.toLocaleString("fr-FR")} €
+                </p>
+              </Link>
+            )}
+            <div className="space-y-0.5 border-l border-border/50 pl-4">
+              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                <TrendingUp className="h-3.5 w-3.5 text-emerald-500" />
+                Total
+              </div>
+              <p className="text-lg font-bold tabular-nums text-emerald-600">
+                {encaisseTotal.toLocaleString("fr-FR")} €
+              </p>
             </div>
-            <p className="text-lg font-bold tabular-nums text-violet-600">
-              {encaisseAE.toLocaleString("fr-FR")} €
-            </p>
-          </Link>
-          <Link href="/revenus" className="group space-y-0.5">
-            <div className="flex items-center gap-1.5 text-xs text-muted-foreground group-hover:text-foreground transition-colors">
-              <Wallet className="h-3.5 w-3.5 text-teal-500" />
-              Autres revenus
-            </div>
-            <p className="text-lg font-bold tabular-nums text-teal-600">
-              {encaisseAutres.toLocaleString("fr-FR")} €
-            </p>
-          </Link>
-          <div className="space-y-0.5 border-l border-border/50 pl-4">
-            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-              <TrendingUp className="h-3.5 w-3.5 text-emerald-500" />
-              Total
-            </div>
-            <p className="text-lg font-bold tabular-nums text-emerald-600">
-              {encaisseTotal.toLocaleString("fr-FR")} €
-            </p>
           </div>
         </div>
-      </div>
+      )}
 
       {/* Encaissements en attente — factures, revenus, remboursements santé */}
-      <PendingIncomeCard
-        invoices={pendingInvoiceItems}
-        revenues={pendingRevenueItems}
-        reimbursements={pendingReimbursementItems}
-      />
+      {(has("facturation") || has("revenus") || has("sante")) && (
+        <PendingIncomeCard
+          invoices={has("facturation") ? pendingInvoiceItems : []}
+          revenues={has("revenus") ? pendingRevenueItems : []}
+          reimbursements={has("sante") ? pendingReimbursementItems : []}
+        />
+      )}
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         {/* Colonne principale */}
         <div className="lg:col-span-2 space-y-6">
 
           {/* Tâches en retard */}
-          {overdueTasks.length > 0 && (
+          {(has("taches") || has("projets")) && overdueTasks.length > 0 && (
             <Section title="Tâches en retard" icon={<AlertTriangle className="h-4 w-4" />} href="/taches">
               <div className="space-y-1.5">
                 {overdueTasks.map((task) => {
@@ -434,7 +446,7 @@ export default async function DashboardPage() {
           )}
 
           {/* Tâches en cours */}
-          {tasksInProgress.length > 0 && (
+          {(has("taches") || has("projets")) && tasksInProgress.length > 0 && (
             <Section title="Tâches en cours" icon={<CheckSquare className="h-4 w-4" />} href="/taches">
               <div className="space-y-1.5">
                 {tasksInProgress.map((task) => {
@@ -470,7 +482,7 @@ export default async function DashboardPage() {
           )}
 
           {/* Tâches dues aujourd'hui */}
-          {tasksDueToday.length > 0 && (
+          {(has("taches") || has("projets")) && tasksDueToday.length > 0 && (
             <Section title="Échéances aujourd'hui" icon={<Calendar className="h-4 w-4" />} href="/taches">
               <div className="space-y-1.5">
                 {tasksDueToday.map((task) => {
@@ -501,7 +513,7 @@ export default async function DashboardPage() {
           )}
 
           {/* Factures impayées */}
-          {unpaidInvoices.length > 0 && (
+          {has("facturation") && unpaidInvoices.length > 0 && (
             <Section title="Factures en attente" icon={<TrendingUp className="h-4 w-4" />} href="/facturation/factures">
               <div className="space-y-1.5">
                 {unpaidInvoices.map((inv) => {
@@ -532,7 +544,7 @@ export default async function DashboardPage() {
           )}
 
           {/* Jalons à venir */}
-          {upcomingMilestones.length > 0 && (
+          {has("projets") && upcomingMilestones.length > 0 && (
             <Section title="Jalons à venir" icon={<Calendar className="h-4 w-4" />} href="/projets">
               <div className="space-y-1.5">
                 {upcomingMilestones.map((m) => (
@@ -552,7 +564,7 @@ export default async function DashboardPage() {
           )}
 
           {/* Renouvellements imminents */}
-          {upcomingRenewals.length > 0 && (
+          {has("projets") && upcomingRenewals.length > 0 && (
             <Section title="Renouvellements imminents" icon={<Globe className="h-4 w-4" />} href="/projets">
               <div className="space-y-1.5">
                 {upcomingRenewals.map((r) => {
@@ -579,13 +591,13 @@ export default async function DashboardPage() {
         {/* Colonne secondaire */}
         <div className="space-y-6">
           {/* Monitoring des prods */}
-          <ProdMonitorCard prods={prods} />
+          {has("projets") && <ProdMonitorCard prods={prods} />}
 
           {/* Entretiens — candidatures actives */}
-          <JobHuntCard applications={jobAppItems} activeCount={jobAppItems.length} />
+          {has("entretien") && <JobHuntCard applications={jobAppItems} activeCount={jobAppItems.length} />}
 
           {/* Pipeline Prospects */}
-          {dashboardProspects.length > 0 && (
+          {has("contacts") && dashboardProspects.length > 0 && (
             <div className="rounded-xl border border-border/50 bg-card overflow-hidden">
               <div className="flex items-center justify-between px-4 py-3 border-b border-border/50">
                 <div className="flex items-center gap-2 text-sm font-semibold">
@@ -665,7 +677,7 @@ export default async function DashboardPage() {
           )}
 
           {/* Rappels */}
-          {upcomingReminders.length > 0 && (
+          {has("contacts") && upcomingReminders.length > 0 && (
             <Section title="Rappels" icon={<Bell className="h-4 w-4" />} href="/contacts">
               <div className="space-y-1.5">
                 {upcomingReminders.map((r) => {
@@ -697,7 +709,7 @@ export default async function DashboardPage() {
           )}
 
           {/* Activité récente */}
-          {recentInteractions.length > 0 && (
+          {has("contacts") && recentInteractions.length > 0 && (
             <Section title="Activité récente" icon={<Users className="h-4 w-4" />} href="/contacts">
               <div className="space-y-1.5">
                 {recentInteractions.map((i) => (
@@ -717,7 +729,7 @@ export default async function DashboardPage() {
           )}
 
           {/* Clients à relancer */}
-          {followUpClients.length > 0 && (
+          {has("contacts") && followUpClients.length > 0 && (
             <Section title="Clients à relancer" icon={<UserMinus className="h-4 w-4" />} href="/contacts">
               <div className="space-y-1.5">
                 {followUpClients.map((c) => {
@@ -737,8 +749,12 @@ export default async function DashboardPage() {
             </Section>
           )}
 
-          {/* Tous ok */}
-          {tasksInProgress.length === 0 && tasksDueToday.length === 0 && unpaidInvoices.length === 0 && upcomingReminders.length === 0 && (
+          {/* Tous ok — affiché si tous les widgets visibles sont vides */}
+          {(!(has("taches") || has("projets")) || (tasksInProgress.length === 0 && tasksDueToday.length === 0 && overdueTasks.length === 0)) &&
+           (!has("facturation") || unpaidInvoices.length === 0) &&
+           (!has("contacts") || (upcomingReminders.length === 0 && recentInteractions.length === 0 && followUpClients.length === 0 && dashboardProspects.length === 0)) &&
+           (!has("projets") || (prods.length === 0 && upcomingMilestones.length === 0 && upcomingRenewals.length === 0)) &&
+           (!has("entretien") || jobAppItems.length === 0) && (
             <div className="rounded-xl border border-dashed border-border p-8 text-center text-muted-foreground text-sm">
               Tout est à jour ✓
             </div>

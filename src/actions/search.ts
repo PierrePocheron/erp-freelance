@@ -11,14 +11,17 @@ export type SearchResult = {
   href: string
 }
 
-export async function searchGlobal(query: string): Promise<SearchResult[]> {
+export async function searchGlobal(query: string, activeModuleIds?: string[]): Promise<SearchResult[]> {
   if (query.length < 2) return []
   const session = await auth()
   if (!session) return []
   const userId = session.user.id
 
+  const has = (id: string) => !activeModuleIds || activeModuleIds.includes(id)
+  const empty = <T>() => Promise.resolve([] as T[])
+
   const [companies, clients, projects, quotes, invoices, fiscalSources] = await Promise.all([
-    prisma.company.findMany({
+    has("societes") ? prisma.company.findMany({
       where: { userId, OR: [
         { name: { contains: query, mode: "insensitive" } },
         { city: { contains: query, mode: "insensitive" } },
@@ -26,41 +29,41 @@ export async function searchGlobal(query: string): Promise<SearchResult[]> {
       ]},
       take: 4,
       select: { id: true, name: true, city: true },
-    }),
-    prisma.client.findMany({
+    }) : empty<{ id: string; name: string; city: string | null }>(),
+    has("contacts") ? prisma.client.findMany({
       where: { userId, type: { not: "SELF" }, OR: [
         { name: { contains: query, mode: "insensitive" } },
         { company: { contains: query, mode: "insensitive" } },
       ]},
       take: 4,
       select: { id: true, name: true, company: true },
-    }),
-    prisma.project.findMany({
+    }) : empty<{ id: string; name: string; company: string | null }>(),
+    has("projets") ? prisma.project.findMany({
       where: { userId, name: { contains: query, mode: "insensitive" } },
       take: 4,
       select: { id: true, name: true },
-    }),
-    prisma.quote.findMany({
+    }) : empty<{ id: string; name: string }>(),
+    has("facturation") ? prisma.quote.findMany({
       where: { userId, OR: [
         { number: { contains: query, mode: "insensitive" } },
         { client: { name: { contains: query, mode: "insensitive" } } },
       ]},
       take: 3,
       select: { id: true, number: true, client: { select: { name: true, company: true } } },
-    }),
-    prisma.invoice.findMany({
+    }) : empty<{ id: string; number: string; client: { name: string; company: string | null } }>(),
+    has("facturation") ? prisma.invoice.findMany({
       where: { userId, OR: [
         { number: { contains: query, mode: "insensitive" } },
         { client: { name: { contains: query, mode: "insensitive" } } },
       ]},
       take: 3,
       select: { id: true, number: true, client: { select: { name: true, company: true } } },
-    }),
-    prisma.fiscalSource.findMany({
+    }) : empty<{ id: string; number: string; client: { name: string; company: string | null } }>(),
+    has("revenus") ? prisma.fiscalSource.findMany({
       where: { userId, name: { contains: query, mode: "insensitive" } },
       take: 3,
       select: { id: true, name: true, bucket: true },
-    }),
+    }) : empty<{ id: string; name: string; bucket: string }>(),
   ])
 
   const BUCKET_LABELS: Record<string, string> = {

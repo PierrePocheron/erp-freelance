@@ -35,21 +35,29 @@ const ALL_NAV_ITEMS: NavItem[] = [
 ]
 
 const TYPE_ICON: Record<string, string> = {
-  company:      "🏢",
-  client:       "👥",
-  project:      "💻",
-  quote:        "📄",
-  invoice:      "💰",
-  fiscal_source:"🏦",
+  company:              "🏢",
+  client:               "👥",
+  project:              "💻",
+  quote:                "📄",
+  invoice:              "💰",
+  fiscal_source:        "🏦",
+  task:                 "✅",
+  job_application:      "💼",
+  health_event:         "🩸",
+  health_consultation:  "🥼",
 }
 
 const TYPE_LABEL: Record<string, string> = {
-  company:      "Société",
-  client:       "Contact",
-  project:      "Projet",
-  quote:        "Devis",
-  invoice:      "Facture",
-  fiscal_source:"Source fiscale",
+  company:              "Société",
+  client:               "Contact",
+  project:              "Projet",
+  quote:                "Devis",
+  invoice:              "Facture",
+  fiscal_source:        "Source fiscale",
+  task:                 "Tâche",
+  job_application:      "Entretien",
+  health_event:         "Santé",
+  health_consultation:  "Consultation",
 }
 
 function normalize(s: string) {

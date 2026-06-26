@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button"
 import { deleteCompany } from "@/actions/crm"
 import { NewContactForCompanyButton } from "@/components/modules/societes/NewContactForCompanyButton"
 import { NewProjectForCompanyButton } from "@/components/modules/societes/NewProjectForCompanyButton"
+import { CompanyTypeSelect } from "@/components/modules/societes/CompanyTypeSelect"
 
 const fmt = (n: number) => n.toLocaleString("fr-FR", { minimumFractionDigits: 0, maximumFractionDigits: 0 })
 const fmtDate = (d: Date | string) =>
@@ -30,6 +31,7 @@ export default async function CompanyDetailPage({
       where: { id, userId },
       include: {
         fiscalSource: { select: { id: true, name: true, color: true, bucket: true } },
+        // companyType inclus via include (champ scalaire — toujours dans l'objet)
         contacts: {
           orderBy: { name: "asc" },
           select: { id: true, name: true, email: true, phone: true, type: true },
@@ -223,7 +225,10 @@ export default async function CompanyDetailPage({
             <Building2 className="h-5 w-5 text-primary" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold tracking-tight">{company.name}</h1>
+            <div className="flex items-center gap-2">
+              <h1 className="text-2xl font-bold tracking-tight">{company.name}</h1>
+              <CompanyTypeSelect companyId={company.id} value={company.companyType ?? null} />
+            </div>
             {company.city && (
               <p className="text-sm text-muted-foreground flex items-center gap-1 mt-0.5">
                 <MapPin className="h-3.5 w-3.5" />

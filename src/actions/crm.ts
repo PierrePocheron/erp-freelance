@@ -53,6 +53,7 @@ export async function searchCompanies(query: string) {
 
 export async function createCompany(data: {
   name: string
+  companyType?: string | null
   siret?: string
   vatNumber?: string
   email?: string
@@ -72,6 +73,7 @@ export async function createCompany(data: {
     data: {
       userId,
       name,
+      companyType: (data.companyType || null) as never,
       siret: data.siret?.trim() || null,
       vatNumber: data.vatNumber?.trim() || null,
       email: data.email?.trim() || null,
@@ -94,6 +96,7 @@ export async function updateCompany(
   companyId: string,
   data: {
     name?: string
+    companyType?: string | null
     siret?: string | null
     vatNumber?: string | null
     email?: string | null
@@ -113,6 +116,7 @@ export async function updateCompany(
 
   const clean: Record<string, unknown> = {}
   if (data.name?.trim()) clean.name = data.name.trim()
+  if ("companyType" in data) clean.companyType = data.companyType || null
   for (const k of ["siret", "vatNumber", "email", "phone", "website", "address", "postalCode", "city", "country", "notes"] as const) {
     if (k in data) clean[k] = (data[k] ?? "")?.toString().trim() || null
   }
@@ -255,6 +259,16 @@ export async function updateClient(
   })
   revalidatePath(`/contacts/${clientId}`)
   revalidatePath("/contacts")
+}
+
+export async function updateCompanyType(companyId: string, type: string | null) {
+  const userId = await requireAuth()
+  await prisma.company.update({
+    where: { id: companyId, userId },
+    data: { companyType: (type || null) as never },
+  })
+  revalidatePath(`/societes/${companyId}`)
+  revalidatePath("/societes")
 }
 
 export async function updateClientType(clientId: string, _userId: string, type: string) {

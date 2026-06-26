@@ -57,6 +57,7 @@ export function CreateCompanyDialog({
     startTransition(async () => {
       const company = await createCompany({
         name: (fd.get("name") as string).trim(),
+        companyType: (fd.get("companyType") as string) || null,
         siret: (fd.get("siret") as string) || undefined,
         vatNumber: (fd.get("vatNumber") as string) || undefined,
         email: (fd.get("email") as string) || undefined,
@@ -98,6 +99,25 @@ export function CreateCompanyDialog({
             <div className="space-y-1.5">
               <Label htmlFor="co-name">Nom *</Label>
               <Input id="co-name" name="name" placeholder="Acme Corp" required autoFocus />
+            </div>
+
+            {/* Type de société */}
+            <div className="space-y-1.5">
+              <Label htmlFor="co-type">Type</Label>
+              <select
+                id="co-type"
+                name="companyType"
+                defaultValue=""
+                className="w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-ring"
+              >
+                <option value="">— Non renseigné —</option>
+                <option value="CLIENT">Client</option>
+                <option value="ESN">ESN / SSII</option>
+                <option value="RECRUTEMENT">Cabinet de recrutement</option>
+                <option value="PARTENAIRE">Partenaire</option>
+                <option value="FOURNISSEUR">Fournisseur</option>
+                <option value="AUTRE">Autre</option>
+              </select>
             </div>
 
             {/* Source fiscale */}

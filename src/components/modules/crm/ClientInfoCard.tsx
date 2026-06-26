@@ -19,17 +19,19 @@ const SOURCE_LABELS: Record<string, string> = {
 }
 
 const TYPE_OPTIONS = [
-  { value: "PROSPECT", label: "Prospect" },
-  { value: "CLIENT", label: "Client" },
-  { value: "PERSONAL", label: "Perso" },
-  { value: "INACTIVE", label: "Inactif" },
+  { value: "PROSPECT",  label: "Prospect" },
+  { value: "CLIENT",    label: "Client" },
+  { value: "PERSONAL",  label: "Perso" },
+  { value: "RECRUITER", label: "Recruteur" },
+  { value: "INACTIVE",  label: "Inactif" },
 ]
 
 const TYPE_CLS: Record<string, string> = {
-  PROSPECT: "bg-amber-500/15 text-amber-600 border-amber-500/20",
-  CLIENT: "bg-emerald-500/15 text-emerald-600 border-emerald-500/20",
-  PERSONAL: "bg-violet-500/15 text-violet-600 border-violet-500/20",
-  INACTIVE: "bg-muted text-muted-foreground border-border",
+  PROSPECT:    "bg-amber-500/15 text-amber-600 border-amber-500/20",
+  CLIENT:      "bg-emerald-500/15 text-emerald-600 border-emerald-500/20",
+  PERSONAL:    "bg-violet-500/15 text-violet-600 border-violet-500/20",
+  RECRUITER:   "bg-sky-500/15 text-sky-600 border-sky-500/20",
+  INACTIVE:    "bg-muted text-muted-foreground border-border",
   TO_COMPLETE: "bg-rose-500/15 text-rose-600 border-rose-500/20",
 }
 

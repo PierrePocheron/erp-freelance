@@ -184,8 +184,18 @@ enum ClientType {
   PROSPECT
   CLIENT
   PERSONAL
+  RECRUITER  // Recruteur / chasseur de tête
   SELF
   INACTIVE
+}
+
+enum CompanyType {
+  CLIENT      // Client direct (facturation)
+  ESN         // ESN / SSII — missions de service
+  RECRUTEMENT // Cabinet de recrutement / headhunter
+  PARTENAIRE  // Partenaire / sous-traitant
+  FOURNISSEUR // Fournisseur de services
+  AUTRE
 }
 
 enum ClientSource {
@@ -246,6 +256,7 @@ model Company {
   postalCode     String?
   city           String?
   country        String?  @default("France")
+  companyType    CompanyType? // catégorie de la société
   notes          String?
   fiscalSourceId String?  // source fiscale par défaut pour la facturation/les revenus
   createdAt      DateTime @default(now())

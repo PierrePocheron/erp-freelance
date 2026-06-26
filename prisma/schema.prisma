@@ -307,6 +307,7 @@ model Client {
   city          String?
   country       String?
   siret         String?
+  linkedinUrl   String?
   createdAt     DateTime     @default(now())
   updatedAt     DateTime     @updatedAt
 
@@ -1220,6 +1221,8 @@ model JobApplicationEvent {
   type          JobEventType @default(OTHER)
   title         String
   notes         String?
+  outcome       String?       // compte rendu post-entretien
+  cancelledAt   DateTime?     // annulation de l'événement
 
   createdAt DateTime @default(now())
 

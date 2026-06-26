@@ -20,14 +20,14 @@ export default async function EntretiensPage({
       where: { userId },
       orderBy: [{ priority: "desc" }, { updatedAt: "desc" }],
       include: {
-        contact: { select: { id: true, name: true, email: true, phone: true, company: true } },
+        contact: { select: { id: true, name: true, email: true, phone: true, company: true, linkedinUrl: true } },
         company: { select: { id: true, name: true } },
         events: { orderBy: { date: "desc" } },
       },
     }),
     prisma.client.findMany({
       where: { userId, type: { not: "SELF" } },
-      select: { id: true, name: true, email: true, phone: true, company: true },
+      select: { id: true, name: true, email: true, phone: true, company: true, linkedinUrl: true },
       orderBy: { name: "asc" },
     }),
     prisma.company.findMany({

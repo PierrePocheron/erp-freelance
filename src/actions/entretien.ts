@@ -58,13 +58,32 @@ function buildData(data: ApplicationInput) {
 
 // ── Candidatures ──────────────────────────────────────────────────────────────
 
-export async function createJobApplication(data: ApplicationInput) {
+type InitialEventInput = {
+  type: JobEventType
+  date?: string | null
+  title: string
+  notes?: string | null
+}
+
+export async function createJobApplication(data: ApplicationInput & { initialEvent?: InitialEventInput | null }) {
   const userId = await requireAuth()
   if (!data.companyName.trim()) throw new Error("Le nom de la société est requis")
   if (!data.position.trim()) throw new Error("Le poste est requis")
   const app = await prisma.jobApplication.create({
     data: { userId, ...buildData(data) },
   })
+  if (data.initialEvent?.title?.trim()) {
+    await prisma.jobApplicationEvent.create({
+      data: {
+        userId,
+        applicationId: app.id,
+        type: data.initialEvent.type,
+        date: data.initialEvent.date ? new Date(data.initialEvent.date) : new Date(),
+        title: data.initialEvent.title.trim(),
+        notes: data.initialEvent.notes?.trim() || null,
+      },
+    })
+  }
   revalidatePath("/entretiens")
   revalidatePath("/")
   revalidatePath("/calendrier")
@@ -138,12 +157,87 @@ export async function addApplicationEvent(
     },
   })
   revalidatePath("/entretiens")
+  revalidatePath(`/entretiens/${applicationId}`)
   revalidatePath("/calendrier")
 }
 
 export async function deleteApplicationEvent(id: string) {
   const userId = await requireAuth()
+  const ev = await prisma.jobApplicationEvent.findFirst({
+    where: { id, userId },
+    select: { applicationId: true },
+  })
   await prisma.jobApplicationEvent.deleteMany({ where: { id, userId } })
   revalidatePath("/entretiens")
+  if (ev) revalidatePath(`/entretiens/${ev.applicationId}`)
   revalidatePath("/calendrier")
+}
+
+export async function cancelApplicationEvent(id: string) {
+  const userId = await requireAuth()
+  const ev = await prisma.jobApplicationEvent.findFirst({
+    where: { id, userId },
+    select: { applicationId: true },
+  })
+  if (!ev) throw new Error("Non autorisé")
+  await prisma.jobApplicationEvent.update({
+    where: { id },
+    data: { cancelledAt: new Date() },
+  })
+  revalidatePath("/entretiens")
+  revalidatePath(`/entretiens/${ev.applicationId}`)
+  revalidatePath("/calendrier")
+}
+
+export async function uncancelApplicationEvent(id: string) {
+  const userId = await requireAuth()
+  const ev = await prisma.jobApplicationEvent.findFirst({
+    where: { id, userId },
+    select: { applicationId: true },
+  })
+  if (!ev) throw new Error("Non autorisé")
+  await prisma.jobApplicationEvent.update({
+    where: { id },
+    data: { cancelledAt: null },
+  })
+  revalidatePath("/entretiens")
+  revalidatePath(`/entretiens/${ev.applicationId}`)
+}
+
+export async function setEventOutcome(id: string, outcome: string) {
+  const userId = await requireAuth()
+  const ev = await prisma.jobApplicationEvent.findFirst({
+    where: { id, userId },
+    select: { applicationId: true },
+  })
+  if (!ev) throw new Error("Non autorisé")
+  await prisma.jobApplicationEvent.update({
+    where: { id },
+    data: { outcome: outcome.trim() || null, cancelledAt: null },
+  })
+  revalidatePath("/entretiens")
+  revalidatePath(`/entretiens/${ev.applicationId}`)
+}
+
+export async function updateApplicationEvent(
+  id: string,
+  data: { date?: string; type?: JobEventType; title?: string; notes?: string | null }
+) {
+  const userId = await requireAuth()
+  const ev = await prisma.jobApplicationEvent.findFirst({
+    where: { id, userId },
+    select: { applicationId: true },
+  })
+  if (!ev) throw new Error("Non autorisé")
+  await prisma.jobApplicationEvent.update({
+    where: { id },
+    data: {
+      ...(data.date !== undefined ? { date: new Date(data.date) } : {}),
+      ...(data.type !== undefined ? { type: data.type } : {}),
+      ...(data.title !== undefined ? { title: data.title?.trim() || "" } : {}),
+      ...(data.notes !== undefined ? { notes: data.notes?.trim() || null } : {}),
+    },
+  })
+  revalidatePath("/entretiens")
+  revalidatePath(`/entretiens/${ev.applicationId}`)
 }

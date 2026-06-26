@@ -4,7 +4,17 @@ import { notFound } from "next/navigation"
 import type { Metadata } from "next"
 import { ApplicationDetailView } from "@/components/modules/entretien/ApplicationDetailView"
 
-export const metadata: Metadata = { title: "Process recrutement — ERP Freelance" }
+export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
+  const { id } = await params
+  const session = await auth()
+  if (!session?.user?.id) return { title: "Candidature — ERP Freelance" }
+  const app = await prisma.jobApplication.findFirst({
+    where: { id, userId: session.user.id },
+    select: { position: true, companyName: true },
+  })
+  if (!app) return { title: "Candidature introuvable" }
+  return { title: `${app.position} @ ${app.companyName} — ERP Freelance` }
+}
 
 export default async function EntretienDetailPage({
   params,

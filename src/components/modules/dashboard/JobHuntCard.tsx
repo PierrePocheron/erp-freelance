@@ -66,7 +66,7 @@ export function JobHuntCard({
               return (
                 <Link
                   key={a.id}
-                  href="/entretiens"
+                  href={`/entretiens/${a.id}`}
                   className="flex items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-muted/50 transition-colors"
                 >
                   <span className={cn("h-1.5 w-1.5 rounded-full shrink-0", cfg.dot)} />

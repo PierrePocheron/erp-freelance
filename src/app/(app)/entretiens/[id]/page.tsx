@@ -15,7 +15,7 @@ export default async function EntretienDetailPage({
   const session = await auth()
   const userId = session!.user.id
 
-  const [app, contacts] = await Promise.all([
+  const [app, contacts, companies] = await Promise.all([
     prisma.jobApplication.findFirst({
       where: { id, userId },
       include: {
@@ -34,9 +34,17 @@ export default async function EntretienDetailPage({
       select: { id: true, name: true, email: true, phone: true, company: true, linkedinUrl: true },
       orderBy: { name: "asc" },
     }),
+    prisma.company.findMany({
+      where: { userId, OR: [
+        { companyType: { in: ["ESN", "RECRUTEMENT", "CLIENT"] } },
+        { companyType: null },
+      ]},
+      select: { id: true, name: true },
+      orderBy: { name: "asc" },
+    }),
   ])
 
   if (!app) notFound()
 
-  return <ApplicationDetailView app={app} contacts={contacts} />
+  return <ApplicationDetailView app={app} contacts={contacts} companies={companies} />
 }

@@ -146,9 +146,9 @@ export default async function CalendrierPage() {
       where: { userId, nextActionAt: { gte: from, lte: to } },
       select: { id: true, nextActionAt: true, nextActionLabel: true, companyName: true, position: true },
     }),
-    // Entretiens : points de contact passés/datés
+    // Entretiens : points de contact datés (hors annulés)
     prisma.jobApplicationEvent.findMany({
-      where: { userId, date: { gte: from, lte: to } },
+      where: { userId, date: { gte: from, lte: to }, cancelledAt: null },
       select: {
         id: true, date: true, title: true, type: true,
         application: { select: { id: true, companyName: true, position: true } },
@@ -333,11 +333,10 @@ export default async function CalendrierPage() {
         title: a.nextActionLabel ?? `Entretien · ${a.position}`,
         subtitle: `${a.companyName} · ${a.position}`,
         type: "interview" as const,
-        href: "/entretiens",
+        href: `/entretiens/${a.id}`,
         isLate: new Date(a.nextActionAt!) < now,
       }
     }),
-    // Entretiens : points de contact datés
     ...jobEvents.map((ev) => {
       const d = new Date(ev.date)
       const isAllDay = d.getHours() === 0 && d.getMinutes() === 0
@@ -348,7 +347,7 @@ export default async function CalendrierPage() {
         title: ev.title,
         subtitle: `${ev.application.companyName} · ${ev.application.position}`,
         type: "interview" as const,
-        href: "/entretiens",
+        href: `/entretiens/${ev.application.id}`,
       }
     }),
   ]

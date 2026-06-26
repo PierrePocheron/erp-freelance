@@ -134,14 +134,18 @@ export function EntretienView({
           <input
             value={quickCompany}
             onChange={(e) => setQuickCompany(e.target.value)}
-            placeholder="Société…"
+            placeholder="Entreprise cible…"
+            list="qa-company-suggestions"
             disabled={isAdding}
             className="flex-1 min-w-32 h-8 rounded-lg border border-input bg-transparent px-3 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring disabled:opacity-50"
           />
+          <datalist id="qa-company-suggestions">
+            {companies.map(c => <option key={c.id} value={c.name} />)}
+          </datalist>
           <input
             value={quickPosition}
             onChange={(e) => setQuickPosition(e.target.value)}
-            placeholder="Poste visé…"
+            placeholder="Poste / mission…"
             disabled={isAdding}
             className="flex-1 min-w-32 h-8 rounded-lg border border-input bg-transparent px-3 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring disabled:opacity-50"
           />

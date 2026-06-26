@@ -12,6 +12,7 @@ import { deleteCompany } from "@/actions/crm"
 import { NewContactForCompanyButton } from "@/components/modules/societes/NewContactForCompanyButton"
 import { NewProjectForCompanyButton } from "@/components/modules/societes/NewProjectForCompanyButton"
 import { CompanyTypeSelect } from "@/components/modules/societes/CompanyTypeSelect"
+import { STATUS_CONFIG, type JobAppStatus } from "@/components/modules/entretien/status-config"
 
 const fmt = (n: number) => n.toLocaleString("fr-FR", { minimumFractionDigits: 0, maximumFractionDigits: 0 })
 const fmtDate = (d: Date | string) =>
@@ -130,6 +131,16 @@ export default async function CompanyDetailPage({
   ])
 
   if (!company) notFound()
+
+  // Candidatures liées (ESN / RECRUTEMENT)
+  const linkedApplications =
+    company.companyType === "ESN" || company.companyType === "RECRUTEMENT"
+      ? await prisma.jobApplication.findMany({
+          where: { userId, companyId: id },
+          select: { id: true, companyName: true, position: true, status: true, nextActionAt: true },
+          orderBy: { updatedAt: "desc" },
+        })
+      : []
 
   // ── Métriques financières ─────────────────────────────────────────────────────
 
@@ -620,6 +631,35 @@ export default async function CompanyDetailPage({
 
         {/* ── Colonne droite ── */}
         <div className="space-y-6">
+
+          {/* Candidatures liées (ESN / RECRUTEMENT) */}
+          {linkedApplications.length > 0 && (
+            <div className="rounded-xl border border-border/50 bg-card p-5 space-y-3">
+              <div className="flex items-center justify-between">
+                <h2 className="font-semibold text-sm">Candidatures</h2>
+                <Link href="/entretiens" className="text-xs text-primary hover:underline">Voir tout →</Link>
+              </div>
+              <div className="space-y-1.5">
+                {linkedApplications.map((a) => {
+                  const cfg = STATUS_CONFIG[a.status as JobAppStatus] ?? STATUS_CONFIG.WISHLIST
+                  return (
+                    <Link key={a.id} href={`/entretiens/${a.id}`}
+                      className="flex items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-muted/50 transition-colors"
+                    >
+                      <span className={`h-1.5 w-1.5 rounded-full shrink-0 ${cfg.dot}`} />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-medium truncate">{a.position}</p>
+                        <p className="text-[10px] text-muted-foreground truncate">{a.companyName}</p>
+                      </div>
+                      <span className={`text-[10px] rounded-full border px-1.5 py-0.5 shrink-0 ${cfg.cls}`}>
+                        {cfg.short}
+                      </span>
+                    </Link>
+                  )
+                })}
+              </div>
+            </div>
+          )}
 
           {/* Bilan financier */}
           <div className="rounded-xl border border-border/50 bg-card p-5 space-y-4">

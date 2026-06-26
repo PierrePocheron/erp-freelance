@@ -156,7 +156,7 @@ export async function searchGlobal(query: string, activeModuleIds?: string[]): P
     ...jobApplications.map((a) => ({
       id: a.id, type: "job_application" as const,
       label: a.companyName, sublabel: a.position,
-      href: `/entretiens`,
+      href: `/entretiens/${a.id}`,
     })),
     ...healthEvents.map((e) => ({
       id: e.id, type: "health_event" as const,

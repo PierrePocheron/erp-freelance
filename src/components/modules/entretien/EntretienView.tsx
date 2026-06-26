@@ -24,7 +24,7 @@ export type JobAppEvent = {
   id: string; applicationId: string; date: Date | string; type: string
   title: string; notes: string | null; outcome?: string | null; cancelledAt?: Date | string | null; createdAt: Date | string
 }
-export type JobContact = { id: string; name: string; email: string | null; phone: string | null; company: string | null; linkedinUrl?: string | null }
+export type JobContact = { id: string; name: string; email: string | null; phone: string | null; company: string | null; linkedinUrl?: string | null; type?: string | null }
 export type JobApp = {
   id: string; companyName: string; companyId: string | null; position: string
   location: string | null; workMode: string | null; status: string; source: string | null

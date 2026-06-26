@@ -87,6 +87,7 @@ type ListContact = {
   phone: string | null
   company: string | null
   linkedinUrl: string | null
+  type: string | null
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
@@ -432,7 +433,7 @@ export function ApplicationDetailView({
   )
 
   const contactsForDialog = contacts.map(c => ({
-    id: c.id, name: c.name, email: c.email, phone: c.phone, company: c.company,
+    id: c.id, name: c.name, email: c.email, phone: c.phone, company: c.company, type: c.type,
   }))
 
   return (

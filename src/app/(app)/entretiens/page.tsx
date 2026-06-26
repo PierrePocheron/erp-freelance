@@ -31,7 +31,10 @@ export default async function EntretiensPage({
       orderBy: { name: "asc" },
     }),
     prisma.company.findMany({
-      where: { userId },
+      where: { userId, OR: [
+        { companyType: { in: ["ESN", "RECRUTEMENT", "CLIENT"] } },
+        { companyType: null },
+      ]},
       select: { id: true, name: true },
       orderBy: { name: "asc" },
     }),

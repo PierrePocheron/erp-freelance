@@ -374,9 +374,11 @@ function EventRow({
 export function ApplicationDetailView({
   app,
   contacts,
+  companies,
 }: {
   app: DetailApp
   contacts: ListContact[]
+  companies: { id: string; name: string }[]
 }) {
   const [, startStatus] = useTransition()
   const [, startEvent] = useTransition()
@@ -429,13 +431,9 @@ export function ApplicationDetailView({
     new Date(a.date).getTime() - new Date(b.date).getTime()
   )
 
-  const companyForDialog = app.company
-    ? { id: app.company.id, name: app.company.name }
-    : null
   const contactsForDialog = contacts.map(c => ({
     id: c.id, name: c.name, email: c.email, phone: c.phone, company: c.company,
   }))
-  const companiesForDialog = companyForDialog ? [companyForDialog] : []
 
   return (
     <div className="max-w-2xl mx-auto space-y-6 pb-16">
@@ -726,11 +724,11 @@ export function ApplicationDetailView({
             contact: app.contact
               ? { id: app.contact.id, name: app.contact.name, email: app.contact.email, phone: app.contact.phone, company: app.contact.company }
               : null,
-            company: companyForDialog,
+            company: app.company ? { id: app.company.id, name: app.company.name } : null,
             events: [],
           }}
           contacts={contactsForDialog}
-          companies={companiesForDialog}
+          companies={companies}
           onClose={() => setShowDialog(false)}
         />
       )}

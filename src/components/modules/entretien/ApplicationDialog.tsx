@@ -177,9 +177,28 @@ export function ApplicationDialog({
                 className="mt-1 w-full h-9 rounded-lg border border-input bg-background px-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
               >
                 <option value="">— Aucun —</option>
-                {contacts.map(c => (
-                  <option key={c.id} value={c.id}>{c.name}{c.company ? ` · ${c.company}` : ""}</option>
-                ))}
+                {(() => {
+                  const recruiters = contacts.filter(c => c.type === "RECRUITER")
+                  const others     = contacts.filter(c => c.type !== "RECRUITER")
+                  return (
+                    <>
+                      {recruiters.length > 0 && (
+                        <optgroup label="Recruteurs">
+                          {recruiters.map(c => (
+                            <option key={c.id} value={c.id}>{c.name}{c.company ? ` · ${c.company}` : ""}</option>
+                          ))}
+                        </optgroup>
+                      )}
+                      {others.length > 0 && (
+                        <optgroup label="Autres contacts">
+                          {others.map(c => (
+                            <option key={c.id} value={c.id}>{c.name}{c.company ? ` · ${c.company}` : ""}</option>
+                          ))}
+                        </optgroup>
+                      )}
+                    </>
+                  )
+                })()}
               </select>
             </div>
             <div>

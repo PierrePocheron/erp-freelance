@@ -27,8 +27,8 @@ export default async function EntretiensPage({
     }),
     prisma.client.findMany({
       where: { userId, type: { not: "SELF" } },
-      select: { id: true, name: true, email: true, phone: true, company: true, linkedinUrl: true },
-      orderBy: { name: "asc" },
+      select: { id: true, name: true, email: true, phone: true, company: true, linkedinUrl: true, type: true },
+      orderBy: [{ type: "asc" }, { name: "asc" }],
     }),
     prisma.company.findMany({
       where: { userId, OR: [

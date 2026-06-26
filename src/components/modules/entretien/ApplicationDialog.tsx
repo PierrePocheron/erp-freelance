@@ -4,8 +4,9 @@ import { useState, useTransition } from "react"
 import { X, Trash2 } from "lucide-react"
 import { toast } from "sonner"
 import { createJobApplication, updateJobApplication, deleteJobApplication } from "@/actions/entretien"
-import { STATUS_CONFIG, PIPELINE_STATUSES, OUTCOME_STATUSES, type JobAppStatus } from "./status-config"
+import { STATUS_CONFIG, PIPELINE_STATUSES, OUTCOME_STATUSES, EVENT_TYPE_CONFIG, type JobAppStatus } from "./status-config"
 import type { JobApp, JobContact, CompanyOption } from "./EntretienView"
+import type { JobEventType } from "@/generated/prisma/enums"
 
 const toISO = (d: Date | string | null | undefined) =>
   d ? new Date(d).toISOString().split("T")[0] : ""
@@ -23,6 +24,13 @@ export function ApplicationDialog({
 }) {
   const [isPending, start] = useTransition()
   const [confirmDelete, setConfirmDelete] = useState(false)
+
+  // Premier contact (création uniquement)
+  const [initEventEnabled, setInitEventEnabled] = useState(false)
+  const [initEventType, setInitEventType] = useState<JobEventType>("CALL")
+  const [initEventDate, setInitEventDate] = useState(() => new Date().toISOString().split("T")[0])
+  const [initEventTitle, setInitEventTitle] = useState("")
+  const [initEventNotes, setInitEventNotes] = useState("")
 
   const [companyName, setCompanyName] = useState(item?.companyName || "")
   const [companyId,   setCompanyId]   = useState(item?.companyId || "")
@@ -68,7 +76,12 @@ export function ApplicationDialog({
         await updateJobApplication(item.id, payload)
         toast.success("Candidature mise à jour")
       } else {
-        await createJobApplication(payload)
+        await createJobApplication({
+          ...payload,
+          initialEvent: initEventEnabled && initEventTitle.trim()
+            ? { type: initEventType, date: initEventDate, title: initEventTitle, notes: initEventNotes || null }
+            : null,
+        })
         toast.success("Candidature créée")
       }
       onClose()
@@ -249,6 +262,57 @@ export function ApplicationDialog({
               className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring resize-none"
             />
           </div>
+
+          {/* Premier point de contact — création uniquement */}
+          {!item && (
+            <div className="rounded-lg border border-border/50 bg-muted/20 p-3 space-y-2">
+              <label className="flex items-center gap-2 text-xs font-medium cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={initEventEnabled}
+                  onChange={e => setInitEventEnabled(e.target.checked)}
+                  className="rounded border-input accent-primary"
+                />
+                Ajouter un premier point de contact
+              </label>
+              {initEventEnabled && (
+                <div className="space-y-2 pt-1">
+                  <div className="flex flex-wrap gap-1">
+                    {(["APPLICATION", "CALL", "MESSAGE", "EMAIL", "VIDEO", "OTHER"] as JobEventType[]).map((t) => (
+                      <button
+                        key={t} type="button"
+                        onClick={() => setInitEventType(t)}
+                        className={`rounded-full border px-2 py-0.5 text-[10px] font-medium transition-colors ${
+                          initEventType === t
+                            ? "border-primary bg-primary text-primary-foreground"
+                            : "border-border text-muted-foreground hover:bg-muted"
+                        }`}
+                      >
+                        {EVENT_TYPE_CONFIG[t]?.icon} {EVENT_TYPE_CONFIG[t]?.label}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="flex gap-2">
+                    <input
+                      type="date" value={initEventDate}
+                      onChange={e => setInitEventDate(e.target.value)}
+                      className="h-8 rounded-md border border-input bg-background px-2 text-xs focus:outline-none focus:ring-1 focus:ring-ring"
+                    />
+                    <input
+                      value={initEventTitle} onChange={e => setInitEventTitle(e.target.value)}
+                      placeholder="Résumé du contact…"
+                      className="flex-1 h-8 rounded-md border border-input bg-background px-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+                    />
+                  </div>
+                  <input
+                    value={initEventNotes} onChange={e => setInitEventNotes(e.target.value)}
+                    placeholder="Notes (optionnel)"
+                    className="w-full h-8 rounded-md border border-input bg-background px-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+                  />
+                </div>
+              )}
+            </div>
+          )}
 
           <div className="flex items-center justify-between pt-1">
             {item && (

@@ -5,6 +5,7 @@ import {
   Pencil, Check, X, Mail, Phone, Building2, Tag,
   MessageSquare, Loader2, MapPin, Hash,
 } from "lucide-react"
+import { LinkedinIcon } from "@/components/ui/linkedin-icon"
 import { updateClientAll, updateProspectStage } from "@/actions/crm"
 import { cn } from "@/lib/utils"
 import { CompanyCombobox } from "./CompanyCombobox"
@@ -51,6 +52,7 @@ type ClientData = {
   companyId: string | null
   email: string | null
   phone: string | null
+  linkedinUrl: string | null
   source: string
   notes: string | null
   type: string
@@ -76,6 +78,7 @@ export function ClientInfoCard({ client, isOwner = true }: { client: ClientData;
   })
   const [email, setEmail] = useState(client.email ?? "")
   const [phone, setPhone] = useState(client.phone ?? "")
+  const [linkedinUrl, setLinkedinUrl] = useState(client.linkedinUrl ?? "")
   const [source, setSource] = useState(client.source)
   const [notes, setNotes] = useState(client.notes ?? "")
   const [type, setType] = useState(client.type)
@@ -96,6 +99,7 @@ export function ClientInfoCard({ client, isOwner = true }: { client: ClientData;
     setCompany({ id: client.companyId, name: client.company ?? "" })
     setEmail(client.email ?? "")
     setPhone(client.phone ?? "")
+    setLinkedinUrl(client.linkedinUrl ?? "")
     setSource(client.source)
     setNotes(client.notes ?? "")
     setType(client.type)
@@ -120,6 +124,7 @@ export function ClientInfoCard({ client, isOwner = true }: { client: ClientData;
           companyName: company.name.trim() || null,
           email: email.trim() || null,
           phone: phone.trim() || null,
+          linkedinUrl: linkedinUrl.trim() || null,
           source,
           notes: notes.trim() || null,
           type,
@@ -213,6 +218,14 @@ export function ClientInfoCard({ client, isOwner = true }: { client: ClientData;
               <label className="text-xs text-muted-foreground">Téléphone</label>
               <input value={phone} onChange={(e) => setPhone(e.target.value)} className="flex h-8 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-ring" />
             </div>
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs text-muted-foreground">LinkedIn</label>
+            <input
+              value={linkedinUrl} onChange={(e) => setLinkedinUrl(e.target.value)}
+              placeholder="https://linkedin.com/in/…"
+              className="flex h-8 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+            />
           </div>
 
           <div className="grid grid-cols-3 gap-3">
@@ -345,6 +358,15 @@ export function ClientInfoCard({ client, isOwner = true }: { client: ClientData;
               <div className="flex items-center gap-2.5 text-sm">
                 <Hash className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                 <span className="text-muted-foreground font-mono text-xs">{client.siret}</span>
+              </div>
+            )}
+            {client.linkedinUrl && (
+              <div className="flex items-center gap-2.5 text-sm">
+                <LinkedinIcon className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                <a href={client.linkedinUrl} target="_blank" rel="noopener noreferrer"
+                  className="text-sky-600 hover:underline text-xs truncate max-w-[200px]">
+                  LinkedIn
+                </a>
               </div>
             )}
           </div>

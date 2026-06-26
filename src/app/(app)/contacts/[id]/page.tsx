@@ -159,6 +159,7 @@ export default async function ClientOverviewPage({
           companyId: client.companyId,
           email: client.email,
           phone: client.phone,
+          linkedinUrl: client.linkedinUrl ?? null,
           source: client.source,
           notes: client.notes,
           type: client.type,

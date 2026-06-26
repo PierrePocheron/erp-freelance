@@ -1,8 +1,9 @@
 "use client"
 
 import { useState, useTransition } from "react"
+import Link from "next/link"
 import { Sheet, SheetContent } from "@/components/ui/sheet"
-import { Plus, ChevronRight, Search, X, Briefcase } from "lucide-react"
+import { Plus, ChevronRight, Search, X, Briefcase, ExternalLink } from "lucide-react"
 import { toast } from "sonner"
 import { cn } from "@/lib/utils"
 import {
@@ -21,9 +22,9 @@ export type { JobAppStatus }
 
 export type JobAppEvent = {
   id: string; applicationId: string; date: Date | string; type: string
-  title: string; notes: string | null; createdAt: Date | string
+  title: string; notes: string | null; outcome?: string | null; cancelledAt?: Date | string | null; createdAt: Date | string
 }
-export type JobContact = { id: string; name: string; email: string | null; phone: string | null; company: string | null }
+export type JobContact = { id: string; name: string; email: string | null; phone: string | null; company: string | null; linkedinUrl?: string | null }
 export type JobApp = {
   id: string; companyName: string; companyId: string | null; position: string
   location: string | null; workMode: string | null; status: string; source: string | null
@@ -317,7 +318,17 @@ function ApplicationCard({ app, onOpen }: { app: JobApp; onOpen: () => void }) {
           <p className="text-xs text-muted-foreground truncate">{app.companyName}</p>
           <p className="font-semibold text-sm group-hover:text-primary transition-colors truncate">{app.position}</p>
         </div>
-        <span className={cn("shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-semibold", cfg.cls)}>{cfg.short}</span>
+        <div className="flex items-center gap-1 shrink-0">
+          <span className={cn("rounded-full border px-2 py-0.5 text-[10px] font-semibold", cfg.cls)}>{cfg.short}</span>
+          <Link
+            href={`/entretiens/${app.id}`}
+            onClick={(e) => e.stopPropagation()}
+            title="Voir le process complet"
+            className="rounded-md p-0.5 text-muted-foreground/40 hover:text-primary opacity-0 group-hover:opacity-100 transition-all"
+          >
+            <ExternalLink className="h-3 w-3" />
+          </Link>
+        </div>
       </div>
 
       <div className="flex items-center gap-2 text-xs text-muted-foreground flex-wrap">

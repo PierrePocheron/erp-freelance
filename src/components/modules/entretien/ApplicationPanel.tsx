@@ -4,8 +4,9 @@ import { useState, useTransition } from "react"
 import Link from "next/link"
 import {
   Mail, Phone, ExternalLink, Building2, Pencil, Plus,
-  MapPin, Banknote, CalendarClock, Trash2,
+  MapPin, Banknote, CalendarClock, Trash2, ArrowRight, Ban, FileText,
 } from "lucide-react"
+import { LinkedinIcon } from "@/components/ui/linkedin-icon"
 import { toast } from "sonner"
 import { cn } from "@/lib/utils"
 import { updateApplicationStatus, addApplicationEvent, deleteApplicationEvent } from "@/actions/entretien"
@@ -148,9 +149,21 @@ export function ApplicationPanel({ app, onEdit }: { app: JobApp; onEdit: () => v
         {app.contact && (
           <div className="rounded-lg border border-border/50 p-2.5">
             <p className="text-[10px] font-semibold text-muted-foreground/60 uppercase tracking-wide mb-1">Recruteur</p>
-            <Link href={`/contacts/${app.contact.id}`} className="text-sm font-medium hover:text-primary transition-colors">
-              {app.contact.name}
-            </Link>
+            <div className="flex items-center justify-between gap-2">
+              <Link href={`/contacts/${app.contact.id}`} className="text-sm font-medium hover:text-primary transition-colors">
+                {app.contact.name}
+              </Link>
+              {(app.contact as { linkedinUrl?: string | null }).linkedinUrl && (
+                <a
+                  href={(app.contact as { linkedinUrl?: string | null }).linkedinUrl!}
+                  target="_blank" rel="noopener noreferrer"
+                  className="rounded-md p-1 text-sky-600 hover:bg-sky-500/10 transition-colors"
+                  title="LinkedIn"
+                >
+                  <LinkedinIcon className="h-3.5 w-3.5" />
+                </a>
+              )}
+            </div>
             <div className="flex flex-col gap-0.5 mt-1">
               {app.contact.email && (
                 <a href={`mailto:${app.contact.email}`} className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground">
@@ -251,16 +264,29 @@ export function ApplicationPanel({ app, onEdit }: { app: JobApp; onEdit: () => v
           <div className="space-y-1.5">
             {app.events.map((ev) => {
               const ec = EVENT_TYPE_CONFIG[ev.type] ?? EVENT_TYPE_CONFIG.OTHER
+              const isCancelled = !!(ev as { cancelledAt?: Date | string | null }).cancelledAt
+              const outcome = (ev as { outcome?: string | null }).outcome
               return (
-                <div key={ev.id} className="flex items-start gap-2 rounded-lg border border-border/50 p-2 group">
+                <div key={ev.id} className={cn("flex items-start gap-2 rounded-lg border border-border/50 p-2 group", isCancelled && "opacity-50")}>
                   <span className="text-base shrink-0">{ec.icon}</span>
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <p className="text-xs text-muted-foreground">{fmt(ev.date)}</p>
                       <span className="text-[10px] text-muted-foreground/60">{ec.label}</span>
+                      {isCancelled && (
+                        <span className="inline-flex items-center gap-0.5 text-[10px] text-muted-foreground">
+                          <Ban className="h-2.5 w-2.5" /> Annulé
+                        </span>
+                      )}
                     </div>
-                    <p className="text-sm">{ev.title}</p>
+                    <p className={cn("text-sm", isCancelled && "line-through text-muted-foreground")}>{ev.title}</p>
                     {ev.notes && <p className="text-xs text-muted-foreground mt-0.5">{ev.notes}</p>}
+                    {outcome && (
+                      <p className="text-xs text-muted-foreground/70 italic mt-0.5 flex items-start gap-1">
+                        <FileText className="h-3 w-3 shrink-0 mt-0.5" />
+                        {outcome.length > 120 ? outcome.slice(0, 120) + "…" : outcome}
+                      </p>
+                    )}
                   </div>
                   <button
                     onClick={() => removeEvent(ev.id)}
@@ -277,7 +303,13 @@ export function ApplicationPanel({ app, onEdit }: { app: JobApp; onEdit: () => v
       </div>
 
       {/* Footer */}
-      <div className="p-4 border-t border-border/50">
+      <div className="p-4 border-t border-border/50 space-y-2">
+        <Link
+          href={`/entretiens/${app.id}`}
+          className="flex items-center justify-center gap-2 w-full rounded-lg bg-primary/5 border border-primary/20 px-4 py-2 text-sm font-medium text-primary hover:bg-primary/10 transition-colors"
+        >
+          Voir le process complet <ArrowRight className="h-3.5 w-3.5" />
+        </Link>
         <button
           onClick={onEdit}
           className="flex items-center justify-center gap-2 w-full rounded-lg border border-border/50 px-4 py-2 text-sm font-medium hover:bg-muted/50 transition-colors"

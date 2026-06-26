@@ -136,6 +136,22 @@ export async function deleteJobApplication(id: string) {
   revalidatePath("/calendrier")
 }
 
+export async function toggleApplicationPriority(id: string) {
+  const userId = await requireAuth()
+  const app = await prisma.jobApplication.findFirst({
+    where: { id, userId },
+    select: { priority: true },
+  })
+  if (!app) throw new Error("Non autorisé")
+  await prisma.jobApplication.updateMany({
+    where: { id, userId },
+    data: { priority: app.priority > 0 ? 0 : 1 },
+  })
+  revalidatePath("/entretiens")
+  revalidatePath(`/entretiens/${id}`)
+  revalidatePath("/")
+}
+
 // ── Événements (points de contact) ────────────────────────────────────────────
 
 export async function addApplicationEvent(

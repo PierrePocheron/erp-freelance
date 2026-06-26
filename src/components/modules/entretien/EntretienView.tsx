@@ -3,11 +3,11 @@
 import { useState, useTransition } from "react"
 import Link from "next/link"
 import { Sheet, SheetContent } from "@/components/ui/sheet"
-import { Plus, ChevronRight, Search, X, Briefcase, ExternalLink } from "lucide-react"
+import { Plus, ChevronRight, Search, X, Briefcase, ExternalLink, Star } from "lucide-react"
 import { toast } from "sonner"
 import { cn } from "@/lib/utils"
 import {
-  createJobApplication, deleteJobApplication,
+  createJobApplication, deleteJobApplication, toggleApplicationPriority,
 } from "@/actions/entretien"
 import {
   STATUS_CONFIG, PIPELINE_STATUSES, OUTCOME_STATUSES, CLOSED_STATUSES,
@@ -303,10 +303,16 @@ function ApplicationCard({ app, onOpen }: { app: JobApp; onOpen: () => void }) {
   const cfg = STATUS_CONFIG[app.status as JobAppStatus] ?? STATUS_CONFIG.WISHLIST
   const nextOverdue = app.nextActionAt && new Date(app.nextActionAt) < new Date()
   const lastEvent = app.events[0]
+  const isPriority = app.priority > 0
 
   function quickDelete(e: React.MouseEvent) {
     e.stopPropagation()
     startTransition(() => deleteJobApplication(app.id))
+  }
+
+  function togglePriority(e: React.MouseEvent) {
+    e.stopPropagation()
+    startTransition(() => toggleApplicationPriority(app.id))
   }
 
   return (
@@ -323,6 +329,18 @@ function ApplicationCard({ app, onOpen }: { app: JobApp; onOpen: () => void }) {
           <p className="font-semibold text-sm group-hover:text-primary transition-colors truncate">{app.position}</p>
         </div>
         <div className="flex items-center gap-1 shrink-0">
+          <button
+            onClick={togglePriority}
+            title={isPriority ? "Retirer la priorité" : "Marquer prioritaire"}
+            className={cn(
+              "rounded-md p-0.5 transition-all",
+              isPriority
+                ? "text-amber-500 hover:text-amber-600"
+                : "text-muted-foreground/30 opacity-0 group-hover:opacity-100 hover:text-amber-400"
+            )}
+          >
+            <Star className={cn("h-3 w-3", isPriority && "fill-current")} />
+          </button>
           <span className={cn("rounded-full border px-2 py-0.5 text-[10px] font-semibold", cfg.cls)}>{cfg.short}</span>
           <Link
             href={`/entretiens/${app.id}`}

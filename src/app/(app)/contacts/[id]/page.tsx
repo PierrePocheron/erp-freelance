@@ -6,6 +6,7 @@ import { deleteClient } from "@/actions/crm"
 import { Bell, MessageSquare, Trash2 } from "lucide-react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
+import { STATUS_CONFIG, type JobAppStatus } from "@/components/modules/entretien/status-config"
 import { ClientInfoCard } from "@/components/modules/crm/ClientInfoCard"
 import { ClientTasksSection } from "@/components/modules/crm/ClientTasksSection"
 import { ClientProjectsCard } from "@/components/modules/crm/ClientProjectsCard"
@@ -61,6 +62,15 @@ export default async function ClientOverviewPage({
   })
 
   if (!client) notFound()
+
+  // Candidatures liées (si c'est un recruteur)
+  const linkedApplications = client.type === "RECRUITER"
+    ? await prisma.jobApplication.findMany({
+        where: { userId, contactId: id },
+        select: { id: true, companyName: true, position: true, status: true, nextActionAt: true },
+        orderBy: { updatedAt: "desc" },
+      })
+    : []
 
   // Toutes les factures liées à ce client (directement ou via ses projets)
   const allClientInvoices = await prisma.invoice.findMany({
@@ -192,6 +202,35 @@ export default async function ClientOverviewPage({
           contacts={allContacts}
           defaultCompanyId={client.companyId}
         />
+
+        {/* Candidatures liées (recruteur) */}
+        {linkedApplications.length > 0 && (
+          <div className="rounded-xl border border-border/50 bg-card p-5 space-y-3">
+            <div className="flex items-center justify-between">
+              <h2 className="font-semibold text-sm">Candidatures</h2>
+              <Link href="/entretiens" className="text-xs text-primary hover:underline">Voir tout →</Link>
+            </div>
+            <div className="space-y-1.5">
+              {linkedApplications.map((a) => {
+                const cfg = STATUS_CONFIG[a.status as JobAppStatus] ?? STATUS_CONFIG.WISHLIST
+                return (
+                  <Link key={a.id} href={`/entretiens/${a.id}`}
+                    className="flex items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-muted/50 transition-colors"
+                  >
+                    <span className={`h-1.5 w-1.5 rounded-full shrink-0 ${cfg.dot}`} />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-medium truncate">{a.companyName}</p>
+                      <p className="text-[10px] text-muted-foreground truncate">{a.position}</p>
+                    </div>
+                    <span className={`text-[10px] rounded-full border px-1.5 py-0.5 shrink-0 ${cfg.cls}`}>
+                      {cfg.short}
+                    </span>
+                  </Link>
+                )
+              })}
+            </div>
+          </div>
+        )}
 
         {/* Stats */}
         <div className="rounded-xl border border-border/50 bg-card p-5 space-y-3">

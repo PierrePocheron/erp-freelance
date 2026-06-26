@@ -13,7 +13,7 @@ import { cn } from "@/lib/utils"
 import {
   updateApplicationStatus, addApplicationEvent,
   deleteApplicationEvent, cancelApplicationEvent,
-  uncancelApplicationEvent, setEventOutcome,
+  uncancelApplicationEvent, setEventOutcome, updateApplicationNotes,
 } from "@/actions/entretien"
 import {
   STATUS_CONFIG, PIPELINE_STATUSES, OUTCOME_STATUSES, EVENT_TYPE_CONFIG,
@@ -383,9 +383,14 @@ export function ApplicationDetailView({
 }) {
   const [, startStatus] = useTransition()
   const [, startEvent] = useTransition()
+  const [, startNotes] = useTransition()
 
   const [statusOpen, setStatusOpen] = useState(false)
   const [showDialog, setShowDialog] = useState(false)
+
+  // Édition inline des notes
+  const [editingNotes, setEditingNotes] = useState(false)
+  const [notesText, setNotesText] = useState(app.notes ?? "")
 
   // Add event form
   const [showAddEvent, setShowAddEvent] = useState(false)
@@ -604,13 +609,54 @@ export function ApplicationDetailView({
         </div>
       )}
 
-      {/* Notes candidature */}
-      {app.notes && (
-        <div className="rounded-xl border border-border/50 bg-card p-4">
-          <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Notes</h2>
-          <p className="text-sm text-muted-foreground leading-relaxed whitespace-pre-line">{app.notes}</p>
+      {/* Notes candidature (éditables inline) */}
+      <div className="rounded-xl border border-border/50 bg-card p-4 space-y-2">
+        <div className="flex items-center justify-between">
+          <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Notes</h2>
+          {!editingNotes && (
+            <button
+              onClick={() => { setNotesText(app.notes ?? ""); setEditingNotes(true) }}
+              className="text-xs text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1"
+            >
+              <Pencil className="h-3 w-3" /> Éditer
+            </button>
+          )}
         </div>
-      )}
+        {editingNotes ? (
+          <div className="space-y-2">
+            <textarea
+              autoFocus
+              value={notesText}
+              onChange={(e) => setNotesText(e.target.value)}
+              rows={4}
+              placeholder="Contexte, impressions, points d'attention…"
+              className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-ring resize-none"
+            />
+            <div className="flex justify-end gap-2">
+              <button onClick={() => setEditingNotes(false)}
+                className="text-xs text-muted-foreground hover:text-foreground">
+                Annuler
+              </button>
+              <button
+                onClick={() => {
+                  startNotes(async () => {
+                    await updateApplicationNotes(app.id, notesText)
+                    setEditingNotes(false)
+                    toast.success("Notes mises à jour")
+                  })
+                }}
+                className="rounded-md bg-primary px-3 py-1 text-xs font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
+              >
+                Enregistrer
+              </button>
+            </div>
+          </div>
+        ) : (
+          app.notes
+            ? <p className="text-sm text-muted-foreground leading-relaxed whitespace-pre-line">{app.notes}</p>
+            : <p className="text-xs text-muted-foreground/50 italic">Pas de notes.</p>
+        )}
+      </div>
 
       {/* Timeline */}
       <div className="space-y-3">

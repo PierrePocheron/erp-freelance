@@ -111,7 +111,7 @@ export function ApplicationDialog({
           {/* Société + poste */}
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="text-xs font-medium text-muted-foreground">Société *</label>
+              <label className="text-xs font-medium text-muted-foreground">Entreprise cible *</label>
               <input
                 value={companyName} onChange={e => onCompanyNameChange(e.target.value)} required
                 list="company-suggestions"
@@ -123,7 +123,7 @@ export function ApplicationDialog({
               </datalist>
             </div>
             <div>
-              <label className="text-xs font-medium text-muted-foreground">Poste *</label>
+              <label className="text-xs font-medium text-muted-foreground">Poste / mission *</label>
               <input
                 value={position} onChange={e => setPosition(e.target.value)} required
                 placeholder="Ex : Dév full-stack"

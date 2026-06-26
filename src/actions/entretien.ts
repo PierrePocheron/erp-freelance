@@ -230,6 +230,7 @@ export async function uncancelApplicationEvent(id: string) {
   })
   revalidatePath("/entretiens")
   revalidatePath(`/entretiens/${ev.applicationId}`)
+  revalidatePath("/calendrier")
 }
 
 export async function setEventOutcome(id: string, outcome: string) {
@@ -245,6 +246,7 @@ export async function setEventOutcome(id: string, outcome: string) {
   })
   revalidatePath("/entretiens")
   revalidatePath(`/entretiens/${ev.applicationId}`)
+  revalidatePath("/calendrier")
 }
 
 export async function updateApplicationEvent(

@@ -136,6 +136,16 @@ export async function deleteJobApplication(id: string) {
   revalidatePath("/calendrier")
 }
 
+export async function updateApplicationNotes(id: string, notes: string) {
+  const userId = await requireAuth()
+  await prisma.jobApplication.updateMany({
+    where: { id, userId },
+    data: { notes: notes.trim() || null },
+  })
+  revalidatePath("/entretiens")
+  revalidatePath(`/entretiens/${id}`)
+}
+
 export async function toggleApplicationPriority(id: string) {
   const userId = await requireAuth()
   const app = await prisma.jobApplication.findFirst({

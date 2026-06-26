@@ -57,6 +57,7 @@ export function EntretienView({
   stats: { active: number; upcoming: number; offers: number; accepted: number }
 }) {
   const [statusFilter, setStatusFilter] = useState<JobAppStatus | "ALL" | "ACTIVE">(initialStatus ?? "ACTIVE")
+  const [priorityOnly, setPriorityOnly] = useState(false)
   const [search, setSearch] = useState("")
   const [quickCompany, setQuickCompany] = useState("")
   const [quickPosition, setQuickPosition] = useState("")
@@ -90,6 +91,7 @@ export function EntretienView({
   ) as Record<JobAppStatus, number>
   const activeCount = applications.filter((a) => !CLOSED_STATUSES.includes(a.status as JobAppStatus)).length
 
+  const priorityCount = applications.filter((a) => a.priority > 0).length
   const needle = search.trim().toLowerCase()
   const filtered = applications
     .filter((a) => {
@@ -97,6 +99,7 @@ export function EntretienView({
       if (statusFilter === "ACTIVE") return !CLOSED_STATUSES.includes(a.status as JobAppStatus)
       return a.status === statusFilter
     })
+    .filter((a) => !priorityOnly || a.priority > 0)
     .filter((a) =>
       !needle ||
       a.companyName.toLowerCase().includes(needle) ||
@@ -190,6 +193,20 @@ export function EntretienView({
               <div className="flex items-center gap-1.5 min-w-max">
                 <FilterChip active={statusFilter === "ACTIVE"} onClick={() => setStatusFilter("ACTIVE")} label={`En cours (${activeCount})`} neutral />
                 <FilterChip active={statusFilter === "ALL"} onClick={() => setStatusFilter("ALL")} label={`Tout (${applications.length})`} neutral />
+                {priorityCount > 0 && (
+                  <button
+                    onClick={() => setPriorityOnly((v) => !v)}
+                    className={cn(
+                      "flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-medium transition-colors whitespace-nowrap",
+                      priorityOnly
+                        ? "border-amber-500/40 bg-amber-500/15 text-amber-700"
+                        : "border-border text-muted-foreground hover:border-amber-400/40 hover:text-amber-600"
+                    )}
+                  >
+                    <Star className={cn("h-2.5 w-2.5", priorityOnly && "fill-current")} />
+                    Prioritaires ({priorityCount})
+                  </button>
+                )}
                 <ChevronRight className="h-3 w-3 text-muted-foreground/30 shrink-0" />
                 {PIPELINE_STATUSES.map((s) => (
                   <StatusChip key={s} status={s} count={countByStatus[s]} active={statusFilter === s} onClick={() => setStatusFilter(statusFilter === s ? "ACTIVE" : s)} />

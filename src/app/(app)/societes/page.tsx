@@ -4,6 +4,7 @@ import Link from "next/link"
 import { Building2, AlertCircle, Users, FolderOpen, Wallet, ArrowRight } from "lucide-react"
 import { CreateCompanyDialog } from "@/components/modules/societes/CreateCompanyDialog"
 import { CompanyTypeSelect, COMPANY_TYPE_CONFIG } from "@/components/modules/societes/CompanyTypeSelect"
+import { AddFiscalSourceButton } from "@/components/modules/settings/FiscalSourcesManager"
 
 const BUCKET_LABELS: Record<string, string> = {
   AE_URSSAF:     "AE / URSSAF",
@@ -37,7 +38,6 @@ export default async function SocietesPage() {
   ])
 
   // Group companies by fiscal source (null = sans source)
-  const sourceMap = new Map(fiscalSources.map(s => [s.id, s]))
   const grouped: Array<{
     source: typeof fiscalSources[number] | null
     companies: typeof companies
@@ -83,7 +83,7 @@ export default async function SocietesPage() {
               Gérer <ArrowRight className="h-3 w-3" />
             </Link>
           </div>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             {fiscalSources.map((src) => (
               <Link
                 key={src.id}
@@ -106,6 +106,7 @@ export default async function SocietesPage() {
                 )}
               </Link>
             ))}
+            <AddFiscalSourceButton />
           </div>
         </div>
       )}
@@ -134,7 +135,7 @@ export default async function SocietesPage() {
                     <>
                       {/* Group header */}
                       <tr key={`hdr-${source?.id ?? "none"}`} className="border-b border-border/30 bg-muted/20">
-                        <td colSpan={4} className="px-4 py-2">
+                        <td colSpan={5} className="px-4 py-2">
                           <span className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
                             {source ? (
                               <>

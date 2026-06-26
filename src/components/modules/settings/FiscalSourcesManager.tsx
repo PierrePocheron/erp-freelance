@@ -340,6 +340,15 @@ export function FiscalSourcesManager({
               </div>
             </div>
           ))}
+
+          {/* Quick-add row */}
+          <button
+            onClick={() => setCreating(true)}
+            className="w-full flex items-center gap-2 rounded-lg border border-dashed border-border/60 px-3 py-2 text-xs text-muted-foreground hover:text-foreground hover:border-border hover:bg-muted/40 transition-colors"
+          >
+            <Plus className="h-3.5 w-3.5" />
+            Nouvelle source fiscale
+          </button>
         </div>
       )}
 
@@ -388,5 +397,35 @@ export function FiscalSourcesManager({
         </DialogContent>
       </Dialog>
     </div>
+  )
+}
+
+// ── Standalone "+" button (used in other pages) ────────────────────────────────
+
+export function AddFiscalSourceButton({ className }: { className?: string }) {
+  const [creating, setCreating] = useState(false)
+
+  return (
+    <>
+      <button
+        onClick={() => setCreating(true)}
+        title="Nouvelle source fiscale"
+        className={className ?? "inline-flex items-center justify-center h-6 w-6 rounded-md border border-dashed border-border text-muted-foreground hover:text-foreground hover:border-border/80 hover:bg-muted/40 transition-colors"}
+      >
+        <Plus className="h-3.5 w-3.5" />
+      </button>
+
+      <Dialog open={creating} onOpenChange={v => { if (!v) setCreating(false) }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-sm">
+              <Wallet className="h-4 w-4" />
+              Nouvelle source fiscale
+            </DialogTitle>
+          </DialogHeader>
+          <SourceForm onClose={() => setCreating(false)} />
+        </DialogContent>
+      </Dialog>
+    </>
   )
 }

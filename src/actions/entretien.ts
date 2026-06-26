@@ -104,6 +104,7 @@ export async function updateJobApplication(id: string, data: ApplicationInput) {
   }
   await prisma.jobApplication.updateMany({ where: { id, userId }, data: built })
   revalidatePath("/entretiens")
+  revalidatePath(`/entretiens/${id}`)
   revalidatePath("/")
   revalidatePath("/calendrier")
 }
@@ -123,6 +124,7 @@ export async function updateApplicationStatus(id: string, status: JobApplication
     },
   })
   revalidatePath("/entretiens")
+  revalidatePath(`/entretiens/${id}`)
   revalidatePath("/")
 }
 

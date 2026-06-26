@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma"
 import Link from "next/link"
 import { Building2, AlertCircle, Users, FolderOpen, Wallet, ArrowRight } from "lucide-react"
 import { CreateCompanyDialog } from "@/components/modules/societes/CreateCompanyDialog"
+import { CompanyTypeSelect, COMPANY_TYPE_CONFIG } from "@/components/modules/societes/CompanyTypeSelect"
 
 const BUCKET_LABELS: Record<string, string> = {
   AE_URSSAF:     "AE / URSSAF",
@@ -21,7 +22,7 @@ export default async function SocietesPage() {
       select: {
         id: true, name: true, email: true, phone: true, siret: true,
         website: true, address: true, city: true,
-        fiscalSourceId: true,
+        companyType: true, fiscalSourceId: true,
         _count: { select: { contacts: true, projects: true } },
       },
     }),
@@ -122,6 +123,7 @@ export default async function SocietesPage() {
               <tr className="border-b border-border text-xs text-muted-foreground">
                 <th className="px-4 py-3 text-left font-medium">Société</th>
                 <th className="px-4 py-3 text-left font-medium">Ville</th>
+                <th className="px-4 py-3 text-left font-medium">Type</th>
                 <th className="px-4 py-3 text-left font-medium">Contacts</th>
                 <th className="px-4 py-3 text-left font-medium">Projets</th>
               </tr>
@@ -175,12 +177,14 @@ type CompanyRowProps = {
     website: string | null
     address: string | null
     city: string | null
+    companyType: string | null
     _count: { contacts: number; projects: number }
   }
 }
 
 function CompanyRow({ co }: CompanyRowProps) {
   const isIncomplete = !co.email && !co.phone && !co.siret && !co.website && !co.address
+  const typeCfg = co.companyType ? COMPANY_TYPE_CONFIG[co.companyType] : null
   return (
     <tr className="border-b border-border/50 last:border-0 hover:bg-muted/30 transition-colors">
       <td className="px-4 py-3">
@@ -190,6 +194,11 @@ function CompanyRow({ co }: CompanyRowProps) {
         >
           <Building2 className="h-4 w-4 text-muted-foreground shrink-0" />
           {co.name}
+          {typeCfg && (
+            <span className={`inline-flex items-center text-[10px] font-medium rounded-full px-1.5 py-0.5 border ${typeCfg.className}`}>
+              {typeCfg.label}
+            </span>
+          )}
           {isIncomplete && (
             <span className="inline-flex items-center gap-1 text-[10px] font-medium rounded-full px-1.5 py-0.5 bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
               <AlertCircle className="h-2.5 w-2.5" />
@@ -202,6 +211,9 @@ function CompanyRow({ co }: CompanyRowProps) {
         )}
       </td>
       <td className="px-4 py-3 text-muted-foreground">{co.city ?? "—"}</td>
+      <td className="px-4 py-3">
+        <CompanyTypeSelect companyId={co.id} value={co.companyType} />
+      </td>
       <td className="px-4 py-3">
         <span className="flex items-center gap-1 text-muted-foreground">
           <Users className="h-3.5 w-3.5" />

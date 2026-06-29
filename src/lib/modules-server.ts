@@ -1,5 +1,5 @@
 import { cookies } from "next/headers"
-import { ALL_MODULE_IDS, MODULE_DEFS, MODULES_COOKIE, type ModuleId } from "@/hooks/use-modules"
+import { ALL_MODULE_IDS, MODULE_DEFS, MODULES_COOKIE, type ModuleId } from "@/lib/module-defs"
 
 const DEFAULT_ACTIVE_IDS = MODULE_DEFS.filter(m => m.defaultActive).map(m => m.id) as ModuleId[]
 

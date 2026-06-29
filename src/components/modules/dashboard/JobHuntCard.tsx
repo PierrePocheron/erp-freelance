@@ -4,7 +4,7 @@ import Link from "next/link"
 import { Briefcase, CalendarClock } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useModules } from "@/hooks/use-modules"
-import { STATUS_CONFIG, type JobAppStatus } from "@/components/modules/entretien/status-config"
+import { STATUS_CONFIG, fmtShort, type JobAppStatus } from "@/components/modules/entretien/status-config"
 
 export type DashboardJobApp = {
   id: string
@@ -15,8 +15,6 @@ export type DashboardJobApp = {
   nextActionLabel: string | null
 }
 
-const fmtShort = (d: string) =>
-  new Date(d).toLocaleDateString("fr-FR", { day: "numeric", month: "short" })
 
 /**
  * Widget dashboard du module Entretien : candidatures actives, prochains RDV.

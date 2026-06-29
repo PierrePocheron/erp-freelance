@@ -1,4 +1,16 @@
-// Config partagée des statuts de candidature (importable côté serveur et client).
+// Config partagée des statuts, événements et formatters date du module entretien.
+// Importable côté serveur et client (pas de directive).
+
+// ── Formatters date ────────────────────────────────────────────────────────────
+
+export const fmtShort = (d: Date | string) =>
+  new Date(d).toLocaleDateString("fr-FR", { day: "numeric", month: "short" })
+
+export const fmtDate = (d: Date | string) =>
+  new Date(d).toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" })
+
+export const fmtDateTime = (d: Date | string) =>
+  new Date(d).toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })
 
 export const STATUS_CONFIG = {
   WISHLIST:  { label: "Repéré",       short: "Repéré",     cls: "bg-slate-500/15 text-slate-600 border-slate-500/20 dark:text-slate-400", dot: "bg-slate-400",   color: "#94a3b8" },

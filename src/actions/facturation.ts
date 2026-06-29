@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma"
 import { revalidatePath } from "next/cache"
 import { type NumberFormat, buildNumberParts } from "@/lib/number-format"
 import { auth } from "@/lib/auth"
+import { nextInvoiceNumber, defaultEmitterId } from "@/lib/invoice-helpers"
 import { enforceRateLimit } from "@/lib/rate-limit"
 import { escapeHtml } from "@/lib/escape-html"
 import { put } from "@vercel/blob"
@@ -64,32 +65,6 @@ async function nextQuoteNumber(userId: string) {
   return `${scopePrefix}${String(count + 1).padStart(digits, "0")}`
 }
 
-async function nextInvoiceNumber(userId: string) {
-  const profile = await prisma.userProfile?.findUnique({
-    where: { userId },
-    select: { invoicePrefix: true, invoiceNumberFormat: true },
-  }).catch(() => null)
-  const prefix = profile?.invoicePrefix ?? "FAC"
-  const format = (profile?.invoiceNumberFormat ?? "PREFIX-YYYY-NNN") as NumberFormat
-  const { scopePrefix, digits } = buildNumberParts(format, prefix, new Date())
-  const count = await prisma.invoice.count({
-    where: { userId, number: { startsWith: scopePrefix } },
-  })
-  return `${scopePrefix}${String(count + 1).padStart(digits, "0")}`
-}
-
-// ── Émetteur ────────────────────────────────────────────────────────────────────
-// Société émettrice par défaut, pré-renseignée à la création d'un document.
-// Retombe sur le premier profil si aucun n'est marqué par défaut, null si aucun.
-async function defaultEmitterId(userId: string): Promise<string | null> {
-  const def = await prisma.emitterProfile.findFirst({
-    where: { userId, isDefault: true },
-    select: { id: true },
-  })
-  if (def) return def.id
-  const any = await prisma.emitterProfile.findFirst({ where: { userId }, select: { id: true } })
-  return any?.id ?? null
-}
 
 // Profil émetteur préféré pour un client donné : mémorise le dernier utilisé.
 // Permet que la bonne source fiscale (AE, etc.) soit pré-sélectionnée à la création.
@@ -1030,7 +1005,7 @@ export async function setRecurringInvoiceLines(
 
 export async function resendQuoteEmail(quoteId: string, _userId: string) {
   const userId = await requireAuth()
-  enforceRateLimit(`email:${userId}`, 10, 60_000) // 10 emails/min max
+  await enforceRateLimit(`email:${userId}`, 10, 60_000) // 10 emails/min max
   const quote = await prisma.quote.findFirst({
     where: { id: quoteId, userId, status: "SENT" },
     include: { client: true, user: true },
@@ -1062,7 +1037,7 @@ export async function resendQuoteEmail(quoteId: string, _userId: string) {
 
 export async function sendQuoteEmail(quoteId: string, _userId: string) {
   const userId = await requireAuth()
-  enforceRateLimit(`email:${userId}`, 10, 60_000)
+  await enforceRateLimit(`email:${userId}`, 10, 60_000)
   const quote = await prisma.quote.findFirst({
     where: { id: quoteId, userId },
     include: { client: true, user: true },
@@ -1095,7 +1070,7 @@ export async function sendQuoteEmail(quoteId: string, _userId: string) {
 
 export async function sendInvoiceEmail(invoiceId: string, _userId: string) {
   const userId = await requireAuth()
-  enforceRateLimit(`email:${userId}`, 10, 60_000)
+  await enforceRateLimit(`email:${userId}`, 10, 60_000)
   const invoice = await prisma.invoice.findFirst({
     where: { id: invoiceId, userId },
     include: { client: true, user: true },
@@ -1136,7 +1111,7 @@ export async function sendInvoiceEmail(invoiceId: string, _userId: string) {
 
 export async function sendInvoiceReminder(invoiceId: string, _userId: string) {
   const userId = await requireAuth()
-  enforceRateLimit(`email:${userId}`, 10, 60_000)
+  await enforceRateLimit(`email:${userId}`, 10, 60_000)
   const invoice = await prisma.invoice.findFirst({
     where: { id: invoiceId, userId, status: { in: ["SENT", "LATE"] } },
     include: { client: true, user: true },

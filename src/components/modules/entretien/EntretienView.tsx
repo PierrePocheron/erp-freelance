@@ -11,7 +11,7 @@ import {
 } from "@/actions/entretien"
 import {
   STATUS_CONFIG, PIPELINE_STATUSES, OUTCOME_STATUSES, CLOSED_STATUSES,
-  type JobAppStatus,
+  fmtShort, type JobAppStatus,
 } from "./status-config"
 import { ApplicationDialog } from "./ApplicationDialog"
 import { ApplicationPanel } from "./ApplicationPanel"
@@ -38,8 +38,6 @@ export type JobApp = {
 }
 export type CompanyOption = { id: string; name: string }
 
-const fmtShort = (d: Date | string) =>
-  new Date(d).toLocaleDateString("fr-FR", { day: "numeric", month: "short" })
 
 // ── EntretienView ──────────────────────────────────────────────────────────────
 

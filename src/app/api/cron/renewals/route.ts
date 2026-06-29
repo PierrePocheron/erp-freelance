@@ -48,23 +48,24 @@ export async function GET(req: NextRequest) {
     },
   })
 
-  const results = {
+  type Outcome =
+    | { ok: true }
+    | { ok: false; name: string; error: string }
+
+  const outcomes = await Promise.all<Outcome>(
+    renewals.map(async (renewal) => {
+      try {
+        await createRenewalDraftInvoice(renewal, renewal.postDev.project.userId)
+        return { ok: true }
+      } catch (err) {
+        return { ok: false, name: renewal.name, error: err instanceof Error ? err.message : String(err) }
+      }
+    })
+  )
+
+  return NextResponse.json({
     processed: renewals.length,
-    created: 0,
-    errors: [] as { name: string; error: string }[],
-  }
-
-  for (const renewal of renewals) {
-    try {
-      await createRenewalDraftInvoice(renewal, renewal.postDev.project.userId)
-      results.created++
-    } catch (err) {
-      results.errors.push({
-        name: renewal.name,
-        error: err instanceof Error ? err.message : String(err),
-      })
-    }
-  }
-
-  return NextResponse.json(results)
+    created: outcomes.filter(o => o.ok).length,
+    errors: outcomes.flatMap(o => o.ok ? [] : [{ name: o.name, error: o.error }]),
+  })
 }

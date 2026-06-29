@@ -4,15 +4,13 @@ import { revalidatePath } from "next/cache"
 import { prisma } from "@/lib/prisma"
 import { auth } from "@/lib/auth"
 import type { JobApplicationStatus, JobEventType } from "@/generated/prisma/enums"
+import { CLOSED_STATUSES } from "@/components/modules/entretien/status-config"
 
 async function requireAuth() {
   const session = await auth()
   if (!session?.user?.id) throw new Error("Non authentifié")
   return session.user.id
 }
-
-// Statuts considérés comme « clos » (sortis du pipeline actif).
-const CLOSED_STATUSES: JobApplicationStatus[] = ["ACCEPTED", "REJECTED", "WITHDRAWN", "GHOSTED"]
 
 type ApplicationInput = {
   companyName: string

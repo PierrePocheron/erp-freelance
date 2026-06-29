@@ -138,6 +138,26 @@ export async function makeRenewalChain(
   return { project, postDev, renewal }
 }
 
+export async function makeJobApplication(
+  userId: string,
+  opts: {
+    companyName?: string
+    position?: string
+    status?: string
+    priority?: number
+  } = {}
+) {
+  return prisma.jobApplication.create({
+    data: {
+      userId,
+      companyName: opts.companyName ?? "ACME Corp",
+      position: opts.position ?? "Développeur",
+      status: (opts.status ?? "WISHLIST") as never,
+      priority: opts.priority ?? 0,
+    },
+  })
+}
+
 export async function makeConditionsTemplate(
   userId: string,
   opts: { name: string; content: string; isDefault?: boolean }

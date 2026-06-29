@@ -1,7 +1,7 @@
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { EntretienView, type JobAppStatus } from "@/components/modules/entretien/EntretienView"
-import { STATUS_CONFIG } from "@/components/modules/entretien/status-config"
+import { STATUS_CONFIG, CLOSED_STATUSES } from "@/components/modules/entretien/status-config"
 import type { Metadata } from "next"
 
 export const metadata: Metadata = { title: "Entretiens — ERP Freelance" }
@@ -40,8 +40,7 @@ export default async function EntretiensPage({
     }),
   ])
 
-  const CLOSED: JobAppStatus[] = ["ACCEPTED", "REJECTED", "WITHDRAWN", "GHOSTED"]
-  const active   = applications.filter((a) => !CLOSED.includes(a.status as JobAppStatus))
+  const active   = applications.filter((a) => !CLOSED_STATUSES.includes(a.status as JobAppStatus))
   const upcoming = applications.filter((a) => a.nextActionAt && new Date(a.nextActionAt) >= new Date(new Date().setHours(0, 0, 0, 0)))
   const offers   = applications.filter((a) => a.status === "OFFER" || a.status === "ACCEPTED")
   const accepted = applications.filter((a) => a.status === "ACCEPTED")

@@ -2,85 +2,16 @@
 
 import { useCallback, useEffect, useState } from "react"
 
-// ── Définition des modules disponibles ────────────────────────────────────────
+// Constantes partagées — importe ET réexporte depuis le fichier sans directive
+// pour que les composants clients puissent continuer à importer depuis ce hook.
+import {
+  MODULE_DEFS, ALL_MODULE_IDS, MODULES_COOKIE, type ModuleId,
+  type ModuleCategory, type ModuleDef, CATEGORY_META, CATEGORY_ORDER,
+} from "@/lib/module-defs"
 
-export type ModuleId =
-  | "contacts"
-  | "societes"
-  | "facturation"
-  | "revenus"
-  | "projets"
-  | "taches"
-  | "calendrier"
-  | "graph"
-  | "sante"
-  | "entretien"
+export type { ModuleId, ModuleCategory, ModuleDef }
+export { MODULE_DEFS, ALL_MODULE_IDS, MODULES_COOKIE, CATEGORY_META, CATEGORY_ORDER }
 
-// Catégorie d'un module — structure l'écran d'initialisation.
-export type ModuleCategory = "core" | "recommended" | "bonus"
-
-export const CATEGORY_META: Record<ModuleCategory, { label: string; description: string }> = {
-  core:        { label: "Essentiels",  description: "Le socle d'un freelance : contacts, facturation, projets, tâches" },
-  recommended: { label: "Recommandés", description: "Confort au quotidien : sociétés, revenus, calendrier" },
-  bonus:       { label: "Bonus",       description: "Suivis optionnels selon vos besoins" },
-}
-
-export type ModuleDef = {
-  id:            ModuleId
-  label:         string
-  description:   string
-  icon:          string         // emoji pour affichage rapide
-  category:      ModuleCategory
-  defaultActive: boolean        // false → désactivé par défaut, activation manuelle requise
-}
-
-export const MODULE_DEFS: ModuleDef[] = [
-  {
-    id: "contacts", label: "Contacts / CRM", icon: "👥", category: "core", defaultActive: true,
-    description: "Gestion des contacts, prospects, clients et interactions",
-  },
-  {
-    id: "facturation", label: "Facturation", icon: "💳", category: "core", defaultActive: true,
-    description: "Devis, factures, acomptes et conditions de paiement",
-  },
-  {
-    id: "projets", label: "Projets", icon: "💻", category: "core", defaultActive: true,
-    description: "Suivi des projets, jalons, temps passé et statut",
-  },
-  {
-    id: "taches", label: "Tâches", icon: "✅", category: "core", defaultActive: true,
-    description: "Gestion des tâches et kanban global",
-  },
-  {
-    id: "societes", label: "Sociétés", icon: "🏢", category: "recommended", defaultActive: true,
-    description: "Répertoire des entreprises clientes avec leurs projets et contacts",
-  },
-  {
-    id: "revenus", label: "Revenus", icon: "💰", category: "recommended", defaultActive: true,
-    description: "Suivi des revenus manuels, récurrents et récapitulatif fiscal",
-  },
-  {
-    id: "calendrier", label: "Calendrier", icon: "📅", category: "recommended", defaultActive: true,
-    description: "Agenda, rappels, interactions et événements",
-  },
-  {
-    id: "graph", label: "Graph relationnel", icon: "🕸️", category: "bonus", defaultActive: false,
-    description: "Vue graphe de toutes vos relations clients / projets / factures",
-  },
-  {
-    id: "sante", label: "Santé", icon: "🏥", category: "bonus", defaultActive: false,
-    description: "Suivi des blessures, maladies, consultations et remboursements",
-  },
-  {
-    id: "entretien", label: "Entretiens", icon: "💼", category: "bonus", defaultActive: false,
-    description: "Suivi des candidatures, processus de recrutement et démarchage",
-  },
-]
-
-export const ALL_MODULE_IDS = MODULE_DEFS.map(m => m.id)
-// Catégories ordonnées pour l'affichage de l'onboarding.
-export const CATEGORY_ORDER: ModuleCategory[] = ["core", "recommended", "bonus"]
-// IDs actifs par défaut (modules avec defaultActive: true) = pré-sélection onboarding.
 const DEFAULT_ACTIVE_IDS = MODULE_DEFS.filter(m => m.defaultActive).map(m => m.id)
 
 const ONBOARDING_KEY = "erp-onboarding-done"
@@ -97,7 +28,6 @@ export function readNeedsOnboarding(): boolean {
 }
 
 const STORAGE_KEY = "erp-active-modules"
-export const MODULES_COOKIE = "erp-active-modules"
 const COOKIE_MAX_AGE = 60 * 60 * 24 * 365  // 1 an
 
 function writeCookie(ids: ModuleId[]) {

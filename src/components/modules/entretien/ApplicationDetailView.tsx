@@ -17,7 +17,7 @@ import {
 } from "@/actions/entretien"
 import {
   STATUS_CONFIG, PIPELINE_STATUSES, OUTCOME_STATUSES, EVENT_TYPE_CONFIG,
-  type JobAppStatus,
+  fmtDate, fmtDateTime, type JobAppStatus,
 } from "./status-config"
 import { ApplicationDialog } from "./ApplicationDialog"
 import type { JobEventType } from "@/generated/prisma/enums"
@@ -91,12 +91,6 @@ type ListContact = {
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
-
-const fmtDate = (d: Date | string) =>
-  new Date(d).toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" })
-
-const fmtDateTime = (d: Date | string) =>
-  new Date(d).toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })
 
 const EVENT_TYPES: JobEventType[] = [
   "APPLICATION", "CALL", "VIDEO", "ONSITE", "EMAIL", "MESSAGE", "TECHNICAL_TEST", "OFFER", "OTHER",
@@ -381,16 +375,14 @@ export function ApplicationDetailView({
   contacts: ListContact[]
   companies: { id: string; name: string }[]
 }) {
-  const [, startStatus] = useTransition()
-  const [, startEvent] = useTransition()
-  const [, startNotes] = useTransition()
+  const [, start] = useTransition()
 
   const [statusOpen, setStatusOpen] = useState(false)
   const [showDialog, setShowDialog] = useState(false)
 
-  // Édition inline des notes
+  // Édition inline des notes — initialisé lazily au clic pour ne pas dupliquer la prop
   const [editingNotes, setEditingNotes] = useState(false)
-  const [notesText, setNotesText] = useState(app.notes ?? "")
+  const [notesText, setNotesText] = useState("")
 
   // Add event form
   const [showAddEvent, setShowAddEvent] = useState(false)
@@ -405,7 +397,7 @@ export function ApplicationDetailView({
 
   function pickStatus(s: JobAppStatus) {
     setStatusOpen(false)
-    startStatus(async () => {
+    start(async () => {
       await updateApplicationStatus(app.id, s)
       toast.success(`Statut : ${STATUS_CONFIG[s].label}`)
     })
@@ -414,7 +406,7 @@ export function ApplicationDetailView({
   function submitEvent(e: React.FormEvent) {
     e.preventDefault()
     if (!evTitle.trim()) return
-    startEvent(async () => {
+    start(async () => {
       await addApplicationEvent(app.id, {
         date: evDate,
         type: evType,
@@ -427,7 +419,7 @@ export function ApplicationDetailView({
   }
 
   function handleDeleteEvent(id: string) {
-    startEvent(async () => {
+    start(async () => {
       await deleteApplicationEvent(id)
       toast.success("Événement supprimé")
     })
@@ -437,9 +429,6 @@ export function ApplicationDetailView({
     new Date(a.date).getTime() - new Date(b.date).getTime()
   )
 
-  const contactsForDialog = contacts.map(c => ({
-    id: c.id, name: c.name, email: c.email, phone: c.phone, company: c.company, type: c.type,
-  }))
 
   return (
     <div className="max-w-2xl mx-auto space-y-6 pb-16">
@@ -639,7 +628,7 @@ export function ApplicationDetailView({
               </button>
               <button
                 onClick={() => {
-                  startNotes(async () => {
+                  start(async () => {
                     await updateApplicationNotes(app.id, notesText)
                     setEditingNotes(false)
                     toast.success("Notes mises à jour")
@@ -774,7 +763,7 @@ export function ApplicationDetailView({
             company: app.company ? { id: app.company.id, name: app.company.name } : null,
             events: [],
           }}
-          contacts={contactsForDialog}
+          contacts={contacts}
           companies={companies}
           onClose={() => setShowDialog(false)}
         />

@@ -22,13 +22,9 @@ const limiters = new Map<string, Ratelimit>()
 function getLimiter(limit: number, windowMs: number): Ratelimit {
   const cacheKey = `${limit}:${windowMs}`
   if (!limiters.has(cacheKey)) {
-    // Upstash accepte ms/s/m/h/d comme unité de durée
-    const duration = windowMs % 60_000 === 0
-      ? (`${windowMs / 60_000} m` as const)
-      : (`${Math.round(windowMs / 1000)} s` as const)
     limiters.set(cacheKey, new Ratelimit({
       redis: redis!,
-      limiter: Ratelimit.slidingWindow(limit, duration),
+      limiter: Ratelimit.slidingWindow(limit, `${windowMs} ms`),
       prefix: "rl",
     }))
   }

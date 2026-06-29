@@ -17,7 +17,7 @@ export async function POST(req: NextRequest) {
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
   // Rate limit : 20 uploads/min par utilisateur
-  if (!checkRateLimit(`upload:${session.user.id}`, 20, 60_000)) {
+  if (!(await checkRateLimit(`upload:${session.user.id}`, 20, 60_000))) {
     return NextResponse.json({ error: "Trop de requêtes" }, { status: 429 })
   }
 

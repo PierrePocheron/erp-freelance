@@ -22,7 +22,8 @@ import {
   canCancelInvoice,
   canRevertQuoteToDraft,
 } from "@/lib/invoice-state"
-import { addMonths, advanceByFrequency } from "@/lib/dates"
+import { advanceByFrequency } from "@/lib/dates"
+import { createRenewalDraftInvoice } from "@/lib/renewal-invoice"
 
 async function requireAuth(): Promise<string> {
   const session = await auth()
@@ -457,84 +458,39 @@ export async function createInvoiceFromQuote(quoteId: string, _userId: string, t
   return invoice
 }
 
-// Facture un renouvellement (hébergement / domaine) pour sa période. Pré-remplit
-// une clause réutilisable selon le type (reconduction / nom de domaine) et avance
-// l'échéance du renouvellement (tacite reconduction), en réarmant les rappels.
+// Facture un renouvellement (hébergement / domaine) pour sa période. Délègue la
+// logique à createRenewalDraftInvoice (partagée avec le cron) puis revalide les caches.
 export async function createInvoiceFromRenewal(renewalId: string, _userId: string): Promise<{ id: string }> {
   const userId = await requireAuth()
   const renewal = await prisma.renewal.findFirst({
     where: { id: renewalId, postDev: { project: { userId } } },
-    include: { postDev: { select: { project: { select: { id: true, clientId: true, companyId: true, contactLinks: { select: { clientId: true, role: true }, orderBy: { createdAt: "asc" } } } } } } },
+    include: {
+      postDev: {
+        select: {
+          project: {
+            select: {
+              id: true,
+              userId: true,
+              clientId: true,
+              companyId: true,
+              contactLinks: { select: { clientId: true, role: true }, orderBy: { createdAt: "asc" } },
+            },
+          },
+        },
+      },
+    },
   })
   if (!renewal) throw new Error("Renouvellement introuvable")
   if (!renewal.amount || renewal.amount <= 0) {
     throw new Error("Renseignez d'abord un montant sur ce renouvellement")
   }
-  const project = renewal.postDev.project
 
-  // Clause par défaut : on cherche une condition réutilisable pertinente selon le
-  // type, sinon la condition marquée par défaut.
-  const wanted = renewal.type === "DOMAIN"
-    ? ["domaine", "reconduc", "abonnement"]
-    : ["reconduc", "abonnement", "hébergement", "hebergement"]
-  const templates = await prisma.conditionsTemplate.findMany({
-    where: { userId },
-    select: { name: true, content: true, isDefault: true },
-  })
-  const match =
-    templates.find((t) => wanted.some((w) => t.name.toLowerCase().includes(w))) ??
-    templates.find((t) => t.isDefault)
-  const generalConditions = match?.content ?? null
-
-  const periodLabel = renewal.periodMonths ? ` (${renewal.periodMonths} mois)` : ""
-  const number = await nextInvoiceNumber(userId)
-
-  // clientId pour la facture : contact CLIENT du projet en M2M, sinon clientId legacy, sinon premier contact société
-  const clientLink = project.contactLinks.find(l => l.role === "CLIENT") ?? project.contactLinks[0]
-  const billingClientId =
-    project.clientId ??
-    clientLink?.clientId ??
-    (project.companyId
-      ? (await prisma.client.findFirst({ where: { companyId: project.companyId, userId }, select: { id: true } }))?.id ?? null
-      : null)
-  if (!billingClientId) throw new Error("Le projet n'a pas de contact facturable — ajoutez un contact ou une société avec un contact")
-
-  const invoice = await prisma.invoice.create({
-    data: {
-      userId,
-      clientId: billingClientId,
-      projectId: project.id,
-      emitterProfileId: await defaultEmitterId(userId),
-      number,
-      type: "RECURRING",
-      status: "DRAFT",
-      totalHT: renewal.amount,
-      depositDeducted: 0,
-      generalConditions,
-      lines: {
-        create: [{
-          description: renewal.name + periodLabel,
-          quantity: 1,
-          unitPrice: renewal.amount,
-          taxRate: 0,
-          total: renewal.amount,
-        }],
-      },
-    },
-  })
-
-  if (renewal.periodMonths) {
-    const next = addMonths(renewal.expiresAt, renewal.periodMonths)
-    await prisma.renewal.update({
-      where: { id: renewalId },
-      data: { expiresAt: next, reminderSent30: false, reminderSent7: false },
-    })
-  }
+  const { invoiceId, projectId } = await createRenewalDraftInvoice(renewal, userId)
 
   revalidatePath("/facturation/factures")
   revalidatePath("/facturation")
-  revalidatePath(`/projets/${project.id}/post-dev`)
-  return invoice
+  revalidatePath(`/projets/${projectId}/post-dev`)
+  return { id: invoiceId }
 }
 
 export async function recordPayment(

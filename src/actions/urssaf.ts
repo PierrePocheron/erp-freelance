@@ -6,8 +6,20 @@ import { revalidatePath } from "next/cache"
 import {
   periodBounds,
   declarationDueDate,
+  declarationAvailableFrom,
+  periodToDeclare,
+  periodLabel,
   type FiscalCategory,
+  type DeclarationFrequency,
 } from "@/lib/urssaf"
+
+/** Marque comme terminé le rappel calendrier lié à cette période, s'il existe. */
+async function completeUrssafReminderTask(userId: string, period: string) {
+  await prisma.task.updateMany({
+    where: { userId, urssafPeriod: period, status: { not: "DONE" } },
+    data: { status: "DONE", completedAt: new Date() },
+  })
+}
 
 // ── Déclarations URSSAF ───────────────────────────────────────────────────────
 
@@ -205,7 +217,10 @@ export async function markUrssafDeclared(
     where: { id },
     data: { status: "DECLARED", declaredAt },
   })
+  await completeUrssafReminderTask(userId, decl.period)
   revalidatePath("/impots")
+  revalidatePath("/taches")
+  revalidatePath("/calendrier")
   return {}
 }
 
@@ -237,7 +252,10 @@ export async function markUrssafPaid(
       totalPaid:            data.cotisations + data.cfp + data.versementLiberatoire,
     },
   })
+  await completeUrssafReminderTask(userId, decl.period)
   revalidatePath("/impots")
+  revalidatePath("/taches")
+  revalidatePath("/calendrier")
   return {}
 }
 
@@ -251,6 +269,40 @@ export async function deleteUrssafDeclaration(id: string): Promise<{ error?: str
   await prisma.urssafDeclaration.delete({ where: { id } })
   revalidatePath("/impots")
   return {}
+}
+
+/**
+ * Crée, si besoin, une tâche/rappel calendrier pour déclarer la dernière
+ * période échue — idempotent, appelé à chaque chargement de l'app. La tâche
+ * apparaît automatiquement dans le calendrier (projection standard des Task
+ * avec dueDate) et se termine toute seule quand la déclaration correspondante
+ * passe à DECLARED ou PAID (voir markUrssafDeclared / markUrssafPaid).
+ */
+export async function ensureUrssafReminderTask(userId: string, frequency: DeclarationFrequency) {
+  const period = periodToDeclare(new Date(), frequency)
+
+  const [existingTask, existingDeclaration] = await Promise.all([
+    prisma.task.findFirst({ where: { userId, urssafPeriod: period } }),
+    prisma.urssafDeclaration.findUnique({ where: { userId_period: { userId, period } } }),
+  ])
+
+  if (existingDeclaration && existingTask && existingTask.status !== "DONE") {
+    // La déclaration existe déjà (créée sans passer par le rappel) — on solde la tâche.
+    await completeUrssafReminderTask(userId, period)
+    return
+  }
+  if (existingTask || existingDeclaration) return
+
+  await prisma.task.create({
+    data: {
+      userId,
+      title:       `Déclarer l'URSSAF — ${periodLabel(period)}`,
+      description: `Rappel : chiffre d'affaires à déclarer sur autoentrepreneur.urssaf.fr pour la période ${periodLabel(period)}. Ouvrez la page Impôts de l'app pour préparer et enregistrer la déclaration.`,
+      dueDate:     declarationAvailableFrom(period),
+      priority:    "MEDIUM",
+      urssafPeriod: period,
+    },
+  })
 }
 
 // ── Flags fiscaux sur factures et clients ─────────────────────────────────────

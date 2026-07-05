@@ -100,7 +100,10 @@ export function ImpotsView({
   const declaredCA = yearDecls.reduce((s, d) => s + d.amountBNC + d.amountBICServices + d.amountBICSales, 0)
   const paidTotal  = yearDecls.reduce((s, d) => s + d.totalPaid, 0)
   const nextDue    = declarations.find(d => d.status !== "PAID")?.dueDate ?? null
-  const pendingToDeclare = suggestedLines.reduce((s, l) => s + l.amount, 0)
+  // Seules les lignes réellement encaissées comptent dans l'estimation "à déclarer" —
+  // suggestedLines contient aussi les factures encore en attente pour qu'on puisse
+  // les rattacher au bon moment, mais elles ne sont pas dues tant qu'elles ne sont pas payées.
+  const pendingToDeclare = suggestedLines.filter(l => l.defaultIncluded).reduce((s, l) => s + l.amount, 0)
 
   return (
     <div className="space-y-6">
@@ -159,10 +162,12 @@ export function ImpotsView({
         <NewDeclarationDialog
           defaultPeriod={periodToDeclare}
           suggestedLines={suggestedLines}
+          existingPeriods={new Map(declarations.map(d => [d.period, d.id]))}
           rates={rates}
           vlEnabled={vlEnabled}
           onClose={() => setShowNew(false)}
           onCreated={() => { setShowNew(false); router.refresh() }}
+          onJumpToExisting={(id) => { setShowNew(false); setExpanded(id) }}
         />
       )}
       {payingId && (
@@ -369,13 +374,18 @@ type EditableLine = SuggestedLine & { included: boolean; key: string }
 let freeLineSeq = 0
 const lineKey = (l: SuggestedLine) => l.invoiceId ?? l.revenueId ?? `free-${freeLineSeq++}`
 
-function NewDeclarationDialog({ defaultPeriod, suggestedLines, rates, vlEnabled, onClose, onCreated }: {
-  defaultPeriod:  string
-  suggestedLines: SuggestedLine[]
-  rates:          UrssafRates
-  vlEnabled:      boolean
-  onClose:        () => void
-  onCreated:      () => void
+function NewDeclarationDialog({
+  defaultPeriod, suggestedLines, existingPeriods, rates, vlEnabled,
+  onClose, onCreated, onJumpToExisting,
+}: {
+  defaultPeriod:    string
+  suggestedLines:   SuggestedLine[]
+  existingPeriods:  Map<string, string>  // period → declaration id, pour bloquer les doublons
+  rates:            UrssafRates
+  vlEnabled:        boolean
+  onClose:          () => void
+  onCreated:        () => void
+  onJumpToExisting: (id: string) => void
 }) {
   const [isPending, startTransition] = useTransition()
   const [period, setPeriod]         = useState(defaultPeriod)
@@ -383,6 +393,7 @@ function NewDeclarationDialog({ defaultPeriod, suggestedLines, rates, vlEnabled,
   const [isFetching, setIsFetching] = useState(false)
   const [error, setError]           = useState<string | null>(null)
   const [search, setSearch]         = useState("")
+  const [showOthers, setShowOthers] = useState(false)
   const [lines, setLines]           = useState<EditableLine[]>(
     suggestedLines.map(l => ({ ...l, included: l.defaultIncluded, key: lineKey(l) }))
   )
@@ -391,11 +402,13 @@ function NewDeclarationDialog({ defaultPeriod, suggestedLines, rates, vlEnabled,
   const [freeAmount, setFreeAmount] = useState("")
   const [freeCat, setFreeCat]       = useState<FiscalCategory>("BNC")
 
+  const existingId = existingPeriods.get(period) ?? null
+
   // Recharge les factures/revenus rattachables à la période navigable (← →) —
   // sans ce refetch, changer de période ne mettait à jour que le libellé
   // affiché et laissait la liste figée sur la période initiale.
   useEffect(() => {
-    if (period === loadedPeriod) return
+    if (period === loadedPeriod || existingId) return
     let cancelled = false
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setIsFetching(true)
@@ -406,13 +419,21 @@ function NewDeclarationDialog({ defaultPeriod, suggestedLines, rates, vlEnabled,
       setIsFetching(false)
     })
     return () => { cancelled = true }
-  }, [period, loadedPeriod])
+  }, [period, loadedPeriod, existingId])
 
   const visibleLines = useMemo(() => {
     const q = search.trim().toLowerCase()
     if (!q) return lines
     return lines.filter(l => l.label.toLowerCase().includes(q))
   }, [lines, search])
+
+  // Regroupe pour garder la liste lisible même avec beaucoup de factures :
+  // les lignes déjà encaissées restent toujours visibles, les autres (envoyées,
+  // en retard…) sont repliées derrière un compteur — sauf pendant une recherche,
+  // où on veut voir tous les résultats correspondants sans étape supplémentaire.
+  const isSearching = search.trim().length > 0
+  const encaissees = visibleLines.filter(l => l.defaultIncluded)
+  const autres      = visibleLines.filter(l => !l.defaultIncluded)
 
   const included = lines.filter(l => l.included)
   const amounts = useMemo(() => {
@@ -470,103 +491,140 @@ function NewDeclarationDialog({ defaultPeriod, suggestedLines, rates, vlEnabled,
           className="rounded-lg border border-border px-2 py-1 text-xs hover:bg-accent">→</button>
       </div>
 
-      {/* Recherche parmi les factures / revenus de la période */}
-      {lines.length > 5 && (
-        <div className="flex items-center gap-1.5 rounded-lg border border-input bg-background px-2 py-1.5">
-          <Search className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-          <input
-            type="text"
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            placeholder="Filtrer par client, numéro…"
-            className="bg-transparent text-xs outline-none flex-1 min-w-0 placeholder:text-muted-foreground/50"
-          />
+      {/* Période déjà déclarée — on bloque la création et on redirige vers l'existante */}
+      {existingId ? (
+        <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 space-y-2">
+          <p className="text-xs text-amber-700 dark:text-amber-400">
+            Une déclaration existe déjà pour {periodLabel(period)}.
+          </p>
+          <Button size="sm" variant="outline" onClick={() => onJumpToExisting(existingId)} className="w-full">
+            Voir la déclaration
+          </Button>
         </div>
-      )}
-
-      {/* Lignes : toutes les factures/revenus de la période, quel que soit leur
-          statut (émise, envoyée, en retard, payée, en attente…) — pré-cochées
-          seulement si déjà encaissées. Relier directement plutôt que ressaisir. */}
-      <div className="space-y-1.5 max-h-64 overflow-y-auto relative">
-        {isFetching && (
-          <div className="absolute inset-0 z-10 flex items-center justify-center bg-card/70 rounded-lg">
-            <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-          </div>
-        )}
-        {lines.length === 0 && (
-          <p className="text-xs text-muted-foreground text-center py-4">
-            Aucune facture ni revenu rattachable à cette période.
-          </p>
-        )}
-        {lines.length > 0 && visibleLines.length === 0 && (
-          <p className="text-xs text-muted-foreground text-center py-4">
-            Aucun résultat pour « {search} »
-          </p>
-        )}
-        {visibleLines.map(l => {
-          const statusMeta = LINE_STATUS_META[l.status]
-          return (
-            <div key={l.key} className={`flex items-center gap-2 rounded-lg border p-2 ${
-              l.included ? "border-border bg-card" : "border-border/50 opacity-60"
-            }`}>
-              <input type="checkbox" checked={l.included} onChange={() => toggleLine(l.key)}
-                className="h-3.5 w-3.5 accent-[var(--primary)] shrink-0" />
-              <span className="flex-1 min-w-0 text-xs truncate">{l.label}</span>
-              {statusMeta && (
-                <span className={`rounded-full px-1.5 py-0.5 text-[9px] font-semibold shrink-0 ${statusMeta.cls}`}>
-                  {statusMeta.label}
-                </span>
-              )}
-              <select
-                value={l.category}
-                onChange={e => setCategory(l.key, e.target.value as FiscalCategory)}
-                className="rounded-md border border-input bg-background px-1.5 py-1 text-[10px] shrink-0"
-              >
-                {ALL_CATEGORIES.map(c => (
-                  <option key={c} value={c}>{FISCAL_CATEGORY_SHORT[c]}</option>
-                ))}
-              </select>
-              <span className="text-xs font-semibold tabular-nums shrink-0 w-16 text-right">{fmt(l.amount)} €</span>
+      ) : (
+        <>
+          {/* Recherche parmi les factures / revenus de la période */}
+          {lines.length > 5 && (
+            <div className="flex items-center gap-1.5 rounded-lg border border-input bg-background px-2 py-1.5">
+              <Search className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+              <input
+                type="text"
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                placeholder="Filtrer par client, numéro…"
+                className="bg-transparent text-xs outline-none flex-1 min-w-0 placeholder:text-muted-foreground/50"
+              />
             </div>
-          )
-        })}
-      </div>
+          )}
 
-      {/* Ligne libre */}
-      <div className="flex items-center gap-1.5">
-        <Input value={freeLabel} onChange={e => setFreeLabel(e.target.value)}
-          placeholder="Encaissement manuel…" className="h-8 text-xs flex-1" />
-        <select value={freeCat} onChange={e => setFreeCat(e.target.value as FiscalCategory)}
-          className="rounded-md border border-input bg-background px-1.5 py-1.5 text-[10px] shrink-0">
-          {ALL_CATEGORIES.map(c => <option key={c} value={c}>{FISCAL_CATEGORY_SHORT[c]}</option>)}
-        </select>
-        <Input value={freeAmount} onChange={e => setFreeAmount(e.target.value)}
-          placeholder="€" className="h-8 text-xs w-20" inputMode="decimal" />
-        <Button size="sm" variant="outline" onClick={addFreeLine} className="h-8 px-2 shrink-0">
-          <Plus className="h-3.5 w-3.5" />
-        </Button>
-      </div>
+          {/* Lignes : toutes les factures/revenus de la période, quel que soit leur
+              statut (émise, envoyée, en retard, payée, en attente…) — pré-cochées
+              seulement si déjà encaissées. Relier directement plutôt que ressaisir.
+              Les non-encaissées restent repliées par défaut pour que la liste reste
+              lisible même avec beaucoup de factures sur la période. */}
+          <div className="space-y-1.5 max-h-64 overflow-y-auto relative pr-0.5">
+            {isFetching && (
+              <div className="absolute inset-0 z-10 flex items-center justify-center bg-card/70 rounded-lg">
+                <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+              </div>
+            )}
+            {lines.length === 0 && (
+              <p className="text-xs text-muted-foreground text-center py-4">
+                Aucune facture ni revenu rattachable à cette période.
+              </p>
+            )}
+            {lines.length > 0 && visibleLines.length === 0 && (
+              <p className="text-xs text-muted-foreground text-center py-4">
+                Aucun résultat pour « {search} »
+              </p>
+            )}
+            {encaissees.map(l => <DeclarationLineRow key={l.key} line={l} onToggle={toggleLine} onCategory={setCategory} />)}
 
-      {/* Estimation */}
-      <div className="rounded-lg border border-border bg-muted/40 p-3 space-y-1 text-xs">
-        <Row label={`CA total (${included.length} ligne${included.length > 1 ? "s" : ""})`} value={`${fmt(estimate.totalCA)} €`} bold />
-        <Row label="Cotisations sociales" value={`${fmt(estimate.totalCotisations)} €`} />
-        <Row label="CFP" value={`${fmt(estimate.totalCFP)} €`} />
-        {vlEnabled && <Row label="Versement libératoire" value={`${fmt(estimate.totalVL)} €`} />}
-        <div className="border-t border-border pt-1">
-          <Row label="Total URSSAF estimé" value={`${fmt(estimate.totalDue)} €`} bold accent />
-        </div>
-      </div>
+            {autres.length > 0 && (isSearching ? (
+              autres.map(l => <DeclarationLineRow key={l.key} line={l} onToggle={toggleLine} onCategory={setCategory} />)
+            ) : (
+              <>
+                <button
+                  onClick={() => setShowOthers(v => !v)}
+                  className="flex items-center gap-1.5 w-full text-left text-[11px] text-muted-foreground hover:text-foreground px-1 py-1"
+                >
+                  {showOthers ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+                  {showOthers ? "Masquer" : "Afficher aussi"} {autres.length} facture{autres.length > 1 ? "s" : ""} non encore encaissée{autres.length > 1 ? "s" : ""}
+                </button>
+                {showOthers && autres.map(l => <DeclarationLineRow key={l.key} line={l} onToggle={toggleLine} onCategory={setCategory} />)}
+              </>
+            ))}
+          </div>
 
-      {error && <p className="text-xs text-red-600">{error}</p>}
+          {/* Ligne libre */}
+          <div className="flex items-center gap-1.5">
+            <Input value={freeLabel} onChange={e => setFreeLabel(e.target.value)}
+              placeholder="Encaissement manuel…" className="h-8 text-xs flex-1" />
+            <select value={freeCat} onChange={e => setFreeCat(e.target.value as FiscalCategory)}
+              className="rounded-md border border-input bg-background px-1.5 py-1.5 text-[10px] shrink-0">
+              {ALL_CATEGORIES.map(c => <option key={c} value={c}>{FISCAL_CATEGORY_SHORT[c]}</option>)}
+            </select>
+            <Input value={freeAmount} onChange={e => setFreeAmount(e.target.value)}
+              placeholder="€" className="h-8 text-xs w-20" inputMode="decimal" />
+            <Button size="sm" variant="outline" onClick={addFreeLine} className="h-8 px-2 shrink-0">
+              <Plus className="h-3.5 w-3.5" />
+            </Button>
+          </div>
 
-      <div className="flex justify-end gap-2">
-        <Button variant="outline" size="sm" onClick={onClose}>Annuler</Button>
-        <Button size="sm" onClick={handleCreate} disabled={isPending || included.length === 0}>
-          {isPending ? "Création…" : "Créer la déclaration"}
-        </Button>
-      </div>
+          {/* Estimation */}
+          <div className="rounded-lg border border-border bg-muted/40 p-3 space-y-1 text-xs">
+            <Row label={`CA total (${included.length} ligne${included.length > 1 ? "s" : ""})`} value={`${fmt(estimate.totalCA)} €`} bold />
+            <Row label="Cotisations sociales" value={`${fmt(estimate.totalCotisations)} €`} />
+            <Row label="CFP" value={`${fmt(estimate.totalCFP)} €`} />
+            {vlEnabled && <Row label="Versement libératoire" value={`${fmt(estimate.totalVL)} €`} />}
+            <div className="border-t border-border pt-1">
+              <Row label="Total URSSAF estimé" value={`${fmt(estimate.totalDue)} €`} bold accent />
+            </div>
+          </div>
+
+          {error && <p className="text-xs text-red-600">{error}</p>}
+
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" size="sm" onClick={onClose}>Annuler</Button>
+            <Button size="sm" onClick={handleCreate} disabled={isPending || included.length === 0}>
+              {isPending ? "Création…" : "Créer la déclaration"}
+            </Button>
+          </div>
+        </>
+      )}
     </DialogShell>
+  )
+}
+
+function DeclarationLineRow({ line: l, onToggle, onCategory }: {
+  line:       EditableLine
+  onToggle:   (key: string) => void
+  onCategory: (key: string, cat: FiscalCategory) => void
+}) {
+  const statusMeta = LINE_STATUS_META[l.status]
+  return (
+    <div className={`flex items-center gap-2 rounded-lg border p-2 ${
+      l.included ? "border-border bg-card" : "border-border/50 opacity-60"
+    }`}>
+      <input type="checkbox" checked={l.included} onChange={() => onToggle(l.key)}
+        className="h-3.5 w-3.5 accent-[var(--primary)] shrink-0" />
+      <span className="flex-1 min-w-0 text-xs truncate">{l.label}</span>
+      {statusMeta && (
+        <span className={`rounded-full px-1.5 py-0.5 text-[9px] font-semibold shrink-0 ${statusMeta.cls}`}>
+          {statusMeta.label}
+        </span>
+      )}
+      <select
+        value={l.category}
+        onChange={e => onCategory(l.key, e.target.value as FiscalCategory)}
+        className="rounded-md border border-input bg-background px-1.5 py-1 text-[10px] shrink-0"
+      >
+        {ALL_CATEGORIES.map(c => (
+          <option key={c} value={c}>{FISCAL_CATEGORY_SHORT[c]}</option>
+        ))}
+      </select>
+      <span className="text-xs font-semibold tabular-nums shrink-0 w-16 text-right">{fmt(l.amount)} €</span>
+    </div>
   )
 }
 

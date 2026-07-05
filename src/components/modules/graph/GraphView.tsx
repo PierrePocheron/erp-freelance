@@ -1,12 +1,31 @@
 "use client"
 
-import { useState, useMemo, useCallback, useRef, useEffect } from "react"
+import { useState, useMemo, useCallback, useRef, useEffect, useTransition } from "react"
 import dynamic from "next/dynamic"
 import Link from "next/link"
-import { X, Maximize2, ExternalLink, Search } from "lucide-react"
+import { useRouter } from "next/navigation"
+import { X, Maximize2, ExternalLink, Search, CheckCircle2, Clock, AlertCircle } from "lucide-react"
 import type { RawNode, RawLink, NodeType } from "./graph-types"
 import { NODE_TYPE_LABELS, NODE_BASE_COLORS, nodeColor } from "./graph-types"
+
+// ── Labels français des statuts ───────────────────────────────────────────────
+const STATUS_FR: Record<string, string> = {
+  // Factures / Devis
+  PAID: "Payée", SENT: "Envoyée", ISSUED: "Émise", LATE: "En retard",
+  DRAFT: "Brouillon", CANCELLED: "Annulée", EXPIRED: "Expiré",
+  // Revenus / Remboursements
+  PENDING: "En attente", RECEIVED: "Reçu",
+  // Projets
+  ACTIVE: "En cours", COMPLETED: "Terminé", PAUSED: "En pause",
+  // Candidatures
+  WISHLIST: "Repéré", APPLIED: "Candidaté", SCREENING: "Pré-qualif",
+  INTERVIEW: "Entretien", TECHNICAL: "Test technique", FINAL: "Entretien final",
+  OFFER: "Offre reçue", WITHDRAWN: "Désisté", GHOSTED: "Sans réponse",
+}
 import type { GraphMethods } from "./ForceGraphCanvas"
+import { updateInvoiceStatus } from "@/actions/facturation"
+import { markRevenueReceived, updateRevenue } from "@/actions/revenue"
+import { updateCompany, updateClient } from "@/actions/crm"
 
 // ── Dynamic import — jamais rendu côté serveur ──────────────────────────────
 const ForceGraphCanvas = dynamic(
@@ -60,16 +79,17 @@ function getDescendants(nodeId: string, allNodes: RawNode[]): Set<string> {
 
 // ── Type filter toggles ───────────────────────────────────────────────────────
 
-const ALL_TYPES: NodeType[] = ["SOURCE", "COMPANY", "CLIENT", "PROJECT", "INVOICE", "QUOTE", "REVENUE"]
+const ALL_TYPES: NodeType[] = ["SOURCE", "COMPANY", "CLIENT", "PROJECT", "INVOICE", "QUOTE", "REVENUE", "APPLICATION"]
 
 const TYPE_DOT: Record<NodeType, string> = {
-  SOURCE:  NODE_BASE_COLORS.SOURCE,
-  COMPANY: NODE_BASE_COLORS.COMPANY,
-  CLIENT:  NODE_BASE_COLORS.CLIENT,
-  PROJECT: NODE_BASE_COLORS.PROJECT,
-  INVOICE: NODE_BASE_COLORS.INVOICE,
-  QUOTE:   NODE_BASE_COLORS.QUOTE,
-  REVENUE: NODE_BASE_COLORS.REVENUE,
+  SOURCE:      NODE_BASE_COLORS.SOURCE,
+  COMPANY:     NODE_BASE_COLORS.COMPANY,
+  CLIENT:      NODE_BASE_COLORS.CLIENT,
+  PROJECT:     NODE_BASE_COLORS.PROJECT,
+  INVOICE:     NODE_BASE_COLORS.INVOICE,
+  QUOTE:       NODE_BASE_COLORS.QUOTE,
+  REVENUE:     NODE_BASE_COLORS.REVENUE,
+  APPLICATION: NODE_BASE_COLORS.APPLICATION,
 }
 
 function getDisplayColor(node: RawNode): string {
@@ -83,11 +103,18 @@ export function GraphView({ rawNodes, rawLinks }: { rawNodes: RawNode[]; rawLink
   const containerRef  = useRef<HTMLDivElement>(null)
   const graphRef      = useRef<GraphMethods>(null)
   const searchInputRef = useRef<HTMLInputElement>(null)
+  const router = useRouter()
+  const [isPending, startTransition] = useTransition()
 
   const [size, setSize]             = useState({ w: 800, h: 600 })
   const [collapsedIds, setCollapsed] = useState<Set<string>>(new Set())
   const [hiddenTypes, setHidden]    = useState<Set<NodeType>>(new Set())
   const [selected, setSelected]     = useState<RawNode | null>(null)
+  const [activeFilter, setActiveFilter]       = useState<"pending" | "incomplete" | null>(null)
+  const [assignCompanyId, setAssignCompanyId] = useState("")
+  const [quickWebsite,    setQuickWebsite]    = useState("")
+  const [quickEmail,      setQuickEmail]      = useState("")
+  const [quickPhone,      setQuickPhone]      = useState("")
   // Lecture immédiate depuis le DOM ; suppressHydrationWarning sur le div conteneur
   // évite l'erreur React de mismatch SSR/client tout en conservant la bonne couleur dès le 1er rendu
   const [isDark, setIsDark] = useState<boolean>(() =>
@@ -169,6 +196,23 @@ export function GraphView({ rawNodes, rawLinks }: { rawNodes: RawNode[]; rawLink
     return new Set([focusedNodeId, ...ancestors, ...descendants])
   }, [focusedNodeId, nodeMap, rawNodes])
 
+  // ── Quick filter : nœuds ciblés + tous leurs ancêtres ──────────────────
+  const filterVisibleIds = useMemo(() => {
+    if (!activeFilter) return null
+    const seeds: string[] = []
+    if (activeFilter === "pending") {
+      rawNodes.forEach(n => {
+        if (n.type === "INVOICE" && (n.status === "SENT" || n.status === "LATE")) seeds.push(n.id)
+        if (n.type === "REVENUE" && n.status === "PENDING") seeds.push(n.id)
+      })
+    } else {
+      rawNodes.forEach(n => { if (n.incomplete) seeds.push(n.id) })
+    }
+    const result = new Set(seeds)
+    seeds.forEach(id => getAncestors(id, nodeMap).forEach(a => result.add(a)))
+    return result
+  }, [activeFilter, rawNodes, nodeMap])
+
   // Zoom to fit dès qu'on entre en mode focus
   useEffect(() => {
     if (!focusedNodeId) return
@@ -181,6 +225,7 @@ export function GraphView({ rawNodes, rawLinks }: { rawNodes: RawNode[]; rawLink
     const visNodes = rawNodes.filter(n => {
       if (hiddenTypes.has(n.type)) return false
       if (focusVisibleIds && !focusVisibleIds.has(n.id)) return false
+      if (filterVisibleIds && !filterVisibleIds.has(n.id)) return false
       return isNodeVisible(n.id, nodeMap, collapsedIds)
     })
     const visIds = new Set(visNodes.map(n => n.id))
@@ -226,6 +271,14 @@ export function GraphView({ rawNodes, rawLinks }: { rawNodes: RawNode[]; rawLink
     })
   }, [])
 
+  // Reset des champs de saisie rapide au changement de nœud sélectionné
+  useEffect(() => {
+    setAssignCompanyId("")
+    setQuickWebsite("")
+    setQuickEmail("")
+    setQuickPhone("")
+  }, [selected?.id])
+
   // ── Sélection (clic simple) ──────────────────────────────────────────────
   const handleClick = useCallback((node: RawNode) => {
     setSelected(prev => prev?.id === node.id ? null : node)
@@ -239,6 +292,55 @@ export function GraphView({ rawNodes, rawLinks }: { rawNodes: RawNode[]; rawLink
       setSearchQuery("")
     }
   }, [focusedNodeId])
+
+  // ── Validation paiement depuis le panneau ────────────────────────────────
+  function handleMarkPaid(node: RawNode) {
+    startTransition(async () => {
+      const dbId = node.id.replace(/^(invoice|revenue)-/, "")
+      if (node.type === "INVOICE") {
+        await updateInvoiceStatus(dbId, "", "PAID")
+      } else if (node.type === "REVENUE") {
+        await markRevenueReceived(dbId, new Date(), "VIREMENT")
+      }
+      setSelected(null)
+      router.refresh()
+    })
+  }
+
+  // ── Complétion rapide depuis le volet détail ─────────────────────────────
+
+  function handleAssignCompany() {
+    if (!selected || !assignCompanyId) return
+    const dbId = selected.id.replace(/^revenue-/, "")
+    startTransition(async () => {
+      await updateRevenue(dbId, { companyId: assignCompanyId })
+      setSelected(null)
+      router.refresh()
+    })
+  }
+
+  function handleQuickSaveCompany() {
+    if (!selected || !quickWebsite.trim()) return
+    const dbId = selected.id.replace(/^company-/, "")
+    startTransition(async () => {
+      await updateCompany(dbId, { website: quickWebsite.trim() })
+      setSelected(null)
+      router.refresh()
+    })
+  }
+
+  function handleQuickSaveClient() {
+    if (!selected || (!quickEmail.trim() && !quickPhone.trim())) return
+    const dbId = selected.id.replace(/^client-/, "")
+    startTransition(async () => {
+      await updateClient(dbId, "", {
+        ...(quickEmail.trim() ? { email: quickEmail.trim() } : {}),
+        ...(quickPhone.trim() ? { phone: quickPhone.trim() } : {}),
+      })
+      setSelected(null)
+      router.refresh()
+    })
+  }
 
   // ── Toggle type filter ────────────────────────────────────────────────────
   function toggleType(t: NodeType) {
@@ -298,148 +400,165 @@ export function GraphView({ rawNodes, rawLinks }: { rawNodes: RawNode[]; rawLink
       </div>
 
       {/* ── Top-left controls ─────────────────────────────────────────────── */}
-      <div className="absolute top-4 left-4 z-10 flex flex-col gap-2">
+      <div className="absolute top-4 left-4 z-10 flex flex-col gap-2 w-60">
 
-        {/* Title */}
-        <div className="flex items-center gap-2 bg-card/80 backdrop-blur border border-border rounded-xl px-3 py-2 shadow-sm">
-          <span className="text-sm font-semibold">Graphe relationnel</span>
-          <span className="text-xs text-muted-foreground ml-1">
-            {nodes.length} nœud{nodes.length !== 1 ? "s" : ""}
-          </span>
-          {focusedNodeId && (
-            <span className="ml-1 inline-flex items-center gap-1 rounded-full bg-primary/15 text-primary text-[10px] font-medium px-1.5 py-0.5">
-              Focus
-            </span>
-          )}
-        </div>
+        {/* ── Titre + recherche ────────────────────────────────────────────── */}
+        <div className="bg-card/90 backdrop-blur border border-border rounded-xl shadow-sm overflow-hidden">
+          {/* Header titre */}
+          <div className="flex items-center justify-between px-3 pt-2.5 pb-1.5 border-b border-border/50">
+            <span className="text-xs font-semibold">Graphe relationnel</span>
+            <div className="flex items-center gap-1.5">
+              {(focusedNodeId || activeFilter) && (
+                <span className="inline-flex items-center gap-1 rounded-full bg-primary/15 text-primary text-[10px] font-medium px-1.5 py-0.5">
+                  {activeFilter === "pending" ? "En attente" : activeFilter === "incomplete" ? "À compléter" : "Focus"}
+                </span>
+              )}
+              <span className="text-[10px] text-muted-foreground tabular-nums">
+                {nodes.length} nœud{nodes.length !== 1 ? "s" : ""}
+              </span>
+            </div>
+          </div>
+          {/* Recherche */}
+          <div className="relative px-2.5 py-2">
+            <div className={`flex items-center gap-1.5 rounded-lg border px-2 py-1.5 transition-colors ${
+              focusedNodeId ? "border-primary/60 bg-primary/5" : "border-input bg-muted/40"
+            }`}>
+              <Search className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+              <input
+                ref={searchInputRef}
+                type="text"
+                placeholder="Rechercher…"
+                value={searchQuery}
+                onChange={e => {
+                  setSearchQuery(e.target.value)
+                  setFocusedNodeId(null)
+                  setShowSuggestions(true)
+                }}
+                onFocus={() => setShowSuggestions(true)}
+                onBlur={() => setTimeout(() => setShowSuggestions(false), 130)}
+                className="bg-transparent text-xs outline-none flex-1 min-w-0 placeholder:text-muted-foreground/50"
+              />
+              {searchQuery ? (
+                <button onMouseDown={clearSearch} className="text-muted-foreground hover:text-foreground shrink-0">
+                  <X className="h-3 w-3" />
+                </button>
+              ) : (
+                <kbd className="text-[10px] text-muted-foreground/40 bg-muted/60 border border-border/50 px-1 py-0.5 rounded font-mono leading-none shrink-0">/</kbd>
+              )}
+            </div>
 
-        {/* ── Barre de recherche ──────────────────────────────────────────── */}
-        <div className="relative">
-          <div className={`flex items-center gap-1.5 bg-card/80 backdrop-blur border rounded-xl px-2.5 py-1.5 shadow-sm transition-colors ${
-            focusedNodeId ? "border-primary/60" : searchQuery ? "border-border" : "border-border"
-          }`}>
-            <Search className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-            <input
-              ref={searchInputRef}
-              type="text"
-              placeholder="Rechercher un nœud…"
-              value={searchQuery}
-              onChange={e => {
-                setSearchQuery(e.target.value)
-                setFocusedNodeId(null)
-                setShowSuggestions(true)
-              }}
-              onFocus={() => setShowSuggestions(true)}
-              onBlur={() => setTimeout(() => setShowSuggestions(false), 130)}
-              className="bg-transparent text-xs outline-none w-40 placeholder:text-muted-foreground/50"
-            />
-            {searchQuery ? (
-              <button
-                onMouseDown={clearSearch}
-                className="text-muted-foreground hover:text-foreground"
-              >
-                <X className="h-3 w-3" />
-              </button>
-            ) : (
-              <kbd className="text-[10px] text-muted-foreground/50 bg-muted/60 border border-border/50 px-1 py-0.5 rounded font-mono leading-none shrink-0">
-                /
-              </kbd>
+            {/* Suggestions */}
+            {showSuggestions && matchingNodes.length > 0 && (
+              <div className="absolute top-full left-0 right-0 mx-2.5 bg-card/98 backdrop-blur border border-border rounded-xl shadow-xl overflow-hidden z-30">
+                {matchingNodes.map(n => (
+                  <button
+                    key={n.id}
+                    onMouseDown={() => {
+                      setFocusedNodeId(n.id)
+                      setSearchQuery(n.label)
+                      setShowSuggestions(false)
+                    }}
+                    className="flex items-center gap-2 w-full px-3 py-2 text-xs hover:bg-accent text-left transition-colors"
+                  >
+                    <span className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: getDisplayColor(n) }} />
+                    <span className="flex-1 min-w-0">
+                      <span className="font-medium block truncate">{n.label}</span>
+                      {n.meta.subtitle && <span className="text-muted-foreground block truncate">{n.meta.subtitle}</span>}
+                    </span>
+                    <span className="text-muted-foreground/50 text-[10px] shrink-0">{NODE_TYPE_LABELS[n.type]}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+            {showSuggestions && searchQuery.trim().length >= 2 && matchingNodes.length === 0 && (
+              <div className="absolute top-full left-0 right-0 mx-2.5 bg-card/98 backdrop-blur border border-border rounded-xl shadow-xl z-30 px-3 py-2.5 text-xs text-muted-foreground">
+                Aucun nœud correspondant
+              </div>
             )}
           </div>
+        </div>
 
-          {/* Suggestions */}
-          {showSuggestions && matchingNodes.length > 0 && (
-            <div className="absolute top-full mt-1 left-0 w-72 bg-card/98 backdrop-blur border border-border rounded-xl shadow-xl overflow-hidden z-30">
-              {matchingNodes.map(n => (
+        {/* ── Quick filters ────────────────────────────────────────────────── */}
+        <div className="bg-card/90 backdrop-blur border border-border rounded-xl shadow-sm p-2 space-y-1">
+          <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider px-1 pb-0.5">Filtres rapides</p>
+          <button
+            onClick={() => setActiveFilter(f => f === "pending" ? null : "pending")}
+            className={`flex items-center gap-2 w-full rounded-lg px-2.5 py-1.5 text-xs font-medium transition-colors ${
+              activeFilter === "pending"
+                ? "bg-amber-500/15 text-amber-700 dark:text-amber-400 border border-amber-500/30"
+                : "hover:bg-muted/60 text-muted-foreground border border-transparent"
+            }`}
+          >
+            <Clock className="h-3.5 w-3.5 shrink-0" />
+            En attente de paiement
+            <span className="ml-auto text-[10px] opacity-60">
+              {rawNodes.filter(n =>
+                (n.type === "INVOICE" && (n.status === "SENT" || n.status === "LATE")) ||
+                (n.type === "REVENUE" && n.status === "PENDING")
+              ).length}
+            </span>
+          </button>
+          <button
+            onClick={() => setActiveFilter(f => f === "incomplete" ? null : "incomplete")}
+            className={`flex items-center gap-2 w-full rounded-lg px-2.5 py-1.5 text-xs font-medium transition-colors ${
+              activeFilter === "incomplete"
+                ? "bg-amber-500/15 text-amber-700 dark:text-amber-400 border border-amber-500/30"
+                : "hover:bg-muted/60 text-muted-foreground border border-transparent"
+            }`}
+          >
+            <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+            Données à compléter
+            <span className="ml-auto text-[10px] opacity-60">
+              {rawNodes.filter(n => n.incomplete).length}
+            </span>
+          </button>
+        </div>
+
+        {/* ── Type filters ─────────────────────────────────────────────────── */}
+        <div className="bg-card/90 backdrop-blur border border-border rounded-xl shadow-sm p-2">
+          <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider px-1 pb-1">Types</p>
+          <div className="grid grid-cols-2 gap-0.5">
+            {ALL_TYPES.map(t => {
+              const count  = nodes.filter(n => n.type === t).length
+              const hidden = hiddenTypes.has(t)
+              return (
                 <button
-                  key={n.id}
-                  onMouseDown={() => {
-                    setFocusedNodeId(n.id)
-                    setSearchQuery(n.label)
-                    setShowSuggestions(false)
-                  }}
-                  className="flex items-center gap-2 w-full px-3 py-2 text-xs hover:bg-accent text-left transition-colors"
+                  key={t}
+                  onClick={() => toggleType(t)}
+                  className={`flex items-center gap-1.5 rounded-md px-1.5 py-1 text-xs transition-all ${
+                    hidden ? "opacity-30" : "opacity-100"
+                  } hover:bg-accent`}
                 >
-                  <span
-                    className="h-2 w-2 rounded-full shrink-0"
-                    style={{ backgroundColor: getDisplayColor(n) }}
-                  />
-                  <span className="flex-1 min-w-0">
-                    <span className="font-medium block truncate">{n.label}</span>
-                    {n.meta.subtitle && (
-                      <span className="text-muted-foreground block truncate">{n.meta.subtitle}</span>
-                    )}
-                  </span>
-                  <span className="text-muted-foreground/50 text-[10px] shrink-0 ml-1">
-                    {NODE_TYPE_LABELS[n.type]}
-                  </span>
+                  {t === "SOURCE" && sourceColors.length > 0 ? (
+                    <span className="flex items-center -space-x-1 shrink-0">
+                      {sourceColors.slice(0, 3).map((c, i) => (
+                        <span key={i} className="h-2 w-2 rounded-full border border-card/80" style={{ backgroundColor: c }} />
+                      ))}
+                    </span>
+                  ) : (
+                    <span className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: TYPE_DOT[t] }} />
+                  )}
+                  <span className="font-medium truncate">{NODE_TYPE_LABELS[t]}</span>
+                  <span className="ml-auto text-muted-foreground text-[10px] shrink-0">{count}</span>
                 </button>
-              ))}
-            </div>
-          )}
-
-          {/* Aucun résultat */}
-          {showSuggestions && searchQuery.trim().length >= 2 && matchingNodes.length === 0 && (
-            <div className="absolute top-full mt-1 left-0 w-72 bg-card/98 backdrop-blur border border-border rounded-xl shadow-xl z-30 px-3 py-2.5 text-xs text-muted-foreground">
-              Aucun nœud correspondant
-            </div>
-          )}
+              )
+            })}
+          </div>
         </div>
 
-        {/* Type filters */}
-        <div className="bg-card/80 backdrop-blur border border-border rounded-xl px-3 py-2 shadow-sm space-y-1">
-          {ALL_TYPES.map(t => {
-            const count  = nodes.filter(n => n.type === t).length
-            const hidden = hiddenTypes.has(t)
-            return (
-              <button
-                key={t}
-                onClick={() => toggleType(t)}
-                className={`flex items-center gap-2 w-full rounded-md px-1.5 py-1 text-xs transition-opacity ${
-                  hidden ? "opacity-35" : "opacity-100"
-                } hover:bg-accent`}
-              >
-                {/* Pour SOURCE : un point par source fiscale avec sa vraie couleur */}
-                {t === "SOURCE" && sourceColors.length > 0 ? (
-                  <span className="flex items-center -space-x-1.5 shrink-0">
-                    {sourceColors.slice(0, 5).map((c, i) => (
-                      <span
-                        key={i}
-                        className="h-2.5 w-2.5 rounded-full border border-card/80"
-                        style={{ backgroundColor: c }}
-                      />
-                    ))}
-                  </span>
-                ) : (
-                  <span
-                    className="h-2.5 w-2.5 rounded-full shrink-0"
-                    style={{ backgroundColor: TYPE_DOT[t] }}
-                  />
-                )}
-                <span className="font-medium">{NODE_TYPE_LABELS[t]}</span>
-                <span className="ml-auto text-muted-foreground">{count}</span>
-              </button>
-            )
-          })}
-        </div>
-
-        {/* Actions */}
-        <div className="flex gap-1.5">
+        {/* ── Actions + hint ───────────────────────────────────────────────── */}
+        <div className="flex items-center gap-1.5">
           <button
             onClick={() => graphRef.current?.zoomToFit(600)}
-            title="Centrer la vue"
-            className="flex items-center gap-1.5 rounded-lg border border-border bg-card/80 backdrop-blur px-2.5 py-1.5 text-xs text-muted-foreground hover:text-foreground hover:bg-accent shadow-sm"
+            className="flex items-center gap-1.5 rounded-lg border border-border bg-card/90 backdrop-blur px-2.5 py-1.5 text-xs text-muted-foreground hover:text-foreground hover:bg-accent shadow-sm"
           >
             <Maximize2 className="h-3.5 w-3.5" />
             Centrer
           </button>
+          <p className="text-[10px] text-muted-foreground/50 leading-tight">
+            Clic — panneau<br/>Double-clic — réduire
+          </p>
         </div>
-
-        {/* Hint */}
-        <p className="text-[10px] text-muted-foreground/60 px-0.5">
-          Clic — panneau · Double-clic — réduire · Fond — sortir du focus ·{" "}
-          <kbd className="font-mono bg-muted/60 border border-border/40 px-0.5 rounded text-[9px]">/</kbd> recherche
-        </p>
       </div>
 
       {/* ── Side panel ────────────────────────────────────────────────────── */}
@@ -516,8 +635,106 @@ export function GraphView({ rawNodes, rawLinks }: { rawNodes: RawNode[]; rawLink
                     className="inline-block rounded-full px-2 py-0.5 text-[10px] font-medium text-white"
                     style={{ backgroundColor: getDisplayColor(selected) + "cc" }}
                   >
-                    {selected.status}
+                    {STATUS_FR[selected.status] ?? selected.status}
                   </span>
+                </div>
+              )}
+
+              {/* Bloc complétion rapide */}
+              {selected.incomplete && (
+                <div className="space-y-2 rounded-xl border border-amber-500/30 bg-amber-500/8 p-3">
+                  <div className="flex items-center gap-2">
+                    <AlertCircle className="h-3.5 w-3.5 text-amber-600 shrink-0" />
+                    <span className="text-xs font-medium text-amber-700 dark:text-amber-400">
+                      {selected.type === "REVENUE"  && "Société non associée"}
+                      {selected.type === "COMPANY"  && "Site web manquant"}
+                      {selected.type === "CLIENT"   && "Coordonnées manquantes"}
+                    </span>
+                  </div>
+
+                  {/* REVENUE — picker société */}
+                  {selected.type === "REVENUE" && (
+                    <div className="space-y-1.5">
+                      <select
+                        value={assignCompanyId}
+                        onChange={e => setAssignCompanyId(e.target.value)}
+                        className="w-full rounded-lg border border-input bg-background px-2.5 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-primary"
+                      >
+                        <option value="">— Choisir une société…</option>
+                        {rawNodes
+                          .filter(n => n.type === "COMPANY")
+                          .sort((a, b) => a.label.localeCompare(b.label, "fr"))
+                          .map(n => (
+                            <option key={n.id} value={n.id.replace("company-", "")}>
+                              {n.label}
+                            </option>
+                          ))
+                        }
+                      </select>
+                      {assignCompanyId && (
+                        <button
+                          onClick={handleAssignCompany}
+                          disabled={isPending}
+                          className="w-full rounded-lg bg-amber-600 text-white text-xs font-medium py-1.5 hover:bg-amber-700 disabled:opacity-50 transition-colors"
+                        >
+                          {isPending ? "Enregistrement…" : "Confirmer"}
+                        </button>
+                      )}
+                    </div>
+                  )}
+
+                  {/* COMPANY — site web */}
+                  {selected.type === "COMPANY" && (
+                    <div className="space-y-1.5">
+                      <input
+                        type="url"
+                        value={quickWebsite}
+                        onChange={e => setQuickWebsite(e.target.value)}
+                        onKeyDown={e => e.key === "Enter" && handleQuickSaveCompany()}
+                        placeholder="https://exemple.com"
+                        className="w-full rounded-lg border border-input bg-background px-2.5 py-1.5 text-xs placeholder:text-muted-foreground/40 focus:outline-none focus:ring-1 focus:ring-primary"
+                      />
+                      {quickWebsite.trim() && (
+                        <button
+                          onClick={handleQuickSaveCompany}
+                          disabled={isPending}
+                          className="w-full rounded-lg bg-amber-600 text-white text-xs font-medium py-1.5 hover:bg-amber-700 disabled:opacity-50 transition-colors"
+                        >
+                          {isPending ? "Enregistrement…" : "Enregistrer"}
+                        </button>
+                      )}
+                    </div>
+                  )}
+
+                  {/* CLIENT — email + téléphone */}
+                  {selected.type === "CLIENT" && (
+                    <div className="space-y-1.5">
+                      <input
+                        type="email"
+                        value={quickEmail}
+                        onChange={e => setQuickEmail(e.target.value)}
+                        placeholder="email@exemple.com"
+                        className="w-full rounded-lg border border-input bg-background px-2.5 py-1.5 text-xs placeholder:text-muted-foreground/40 focus:outline-none focus:ring-1 focus:ring-primary"
+                      />
+                      <input
+                        type="tel"
+                        value={quickPhone}
+                        onChange={e => setQuickPhone(e.target.value)}
+                        onKeyDown={e => e.key === "Enter" && handleQuickSaveClient()}
+                        placeholder="+33 6 …"
+                        className="w-full rounded-lg border border-input bg-background px-2.5 py-1.5 text-xs placeholder:text-muted-foreground/40 focus:outline-none focus:ring-1 focus:ring-primary"
+                      />
+                      {(quickEmail.trim() || quickPhone.trim()) && (
+                        <button
+                          onClick={handleQuickSaveClient}
+                          disabled={isPending}
+                          className="w-full rounded-lg bg-amber-600 text-white text-xs font-medium py-1.5 hover:bg-amber-700 disabled:opacity-50 transition-colors"
+                        >
+                          {isPending ? "Enregistrement…" : "Enregistrer"}
+                        </button>
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -533,15 +750,29 @@ export function GraphView({ rawNodes, rawLinks }: { rawNodes: RawNode[]; rawLink
             </div>
 
             {/* Footer CTA */}
-            {selected.meta.href && (
-              <div className="p-4 border-t border-border">
-                <Link
-                  href={selected.meta.href}
-                  className="flex items-center justify-center gap-2 w-full rounded-lg bg-primary text-primary-foreground text-sm font-medium py-2 hover:opacity-90 transition-opacity"
-                >
-                  Ouvrir la page
-                  <ExternalLink className="h-3.5 w-3.5" />
-                </Link>
+            {(selected.meta.href || ((selected.type === "INVOICE" && (selected.status === "SENT" || selected.status === "LATE")) || (selected.type === "REVENUE" && selected.status === "PENDING"))) && (
+              <div className="p-4 border-t border-border space-y-2">
+                {/* Bouton valider paiement */}
+                {((selected.type === "INVOICE" && (selected.status === "SENT" || selected.status === "LATE")) ||
+                  (selected.type === "REVENUE" && selected.status === "PENDING")) && (
+                  <button
+                    onClick={() => handleMarkPaid(selected)}
+                    disabled={isPending}
+                    className="flex items-center justify-center gap-2 w-full rounded-lg bg-emerald-600 text-white text-sm font-medium py-2 hover:bg-emerald-700 disabled:opacity-50 transition-colors"
+                  >
+                    <CheckCircle2 className="h-3.5 w-3.5" />
+                    {isPending ? "Validation…" : selected.type === "INVOICE" ? "Marquer payée" : "Marquer reçu"}
+                  </button>
+                )}
+                {selected.meta.href && (
+                  <Link
+                    href={selected.meta.href}
+                    className="flex items-center justify-center gap-2 w-full rounded-lg bg-primary text-primary-foreground text-sm font-medium py-2 hover:opacity-90 transition-opacity"
+                  >
+                    Ouvrir la page
+                    <ExternalLink className="h-3.5 w-3.5" />
+                  </Link>
+                )}
               </div>
             )}
           </div>

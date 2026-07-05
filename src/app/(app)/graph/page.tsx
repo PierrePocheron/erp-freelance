@@ -9,7 +9,7 @@ export default async function GraphPage() {
   if (!session) redirect("/login")
   const userId = session.user.id
 
-  const [companies, clients, projects, projectContactLinks, invoices, quotes, fiscalSources, revenues] = await Promise.all([
+  const [companies, clients, projects, projectContactLinks, invoices, quotes, fiscalSources, revenues, applications] = await Promise.all([
     prisma.company.findMany({
       where: { userId },
       select: { id: true, name: true, city: true, website: true },
@@ -57,6 +57,14 @@ export default async function GraphPage() {
       },
       orderBy: { receivedAt: "asc" },
     }),
+    prisma.jobApplication.findMany({
+      where: { userId },
+      select: {
+        id: true, companyName: true, position: true, status: true,
+        companyId: true, contactId: true, salaryMin: true, salaryMax: true,
+      },
+      orderBy: { createdAt: "asc" },
+    }),
   ])
 
   const nodes: RawNode[] = []
@@ -67,17 +75,18 @@ export default async function GraphPage() {
     const contactCount  = clients.filter(cl => cl.companyId === c.id && cl.type !== "SELF").length
     const projectCount  = projects.filter(p => p.companyId === c.id).length
     nodes.push({
-      id:       `company-${c.id}`,
-      type:     "COMPANY",
-      label:    c.name,
-      parentId: null,
+      id:         `company-${c.id}`,
+      type:       "COMPANY",
+      label:      c.name,
+      parentId:   null,
+      incomplete: !c.website,
       meta: {
         href:     `/societes/${c.id}`,
         subtitle: [c.city, c.website].filter(Boolean).join(" · "),
         details: [
           { label: "Contacts",  value: String(contactCount)  },
           { label: "Projets",   value: String(projectCount)  },
-          ...(c.website ? [{ label: "Site", value: c.website }] : []),
+          ...(c.website ? [{ label: "Site", value: c.website }] : [{ label: "Site", value: "— manquant" }]),
         ],
       },
     })
@@ -90,16 +99,17 @@ export default async function GraphPage() {
     const parentId = c.companyId ? `company-${c.companyId}` : null
     const projCount = projects.filter(p => p.clientId === c.id).length
     nodes.push({
-      id:       nodeId,
-      type:     "CLIENT",
-      label:    c.name,
+      id:         nodeId,
+      type:       "CLIENT",
+      label:      c.name,
       parentId,
+      incomplete: !c.email && !c.phone,
       meta: {
         href:     `/contacts/${c.id}`,
         subtitle: c.email ?? c.city ?? undefined,
         details: [
           { label: "Projets", value: String(projCount) },
-          ...(c.email ? [{ label: "Email", value: c.email }] : []),
+          ...(c.email ? [{ label: "Email", value: c.email }] : [{ label: "Email", value: "— manquant" }]),
           ...(c.phone ? [{ label: "Tél",   value: c.phone }] : []),
         ],
       },
@@ -227,13 +237,15 @@ export default async function GraphPage() {
     const dateStr = date ? new Date(date).toLocaleDateString("fr-FR") : "—"
 
     nodes.push({
-      id:       revNodeId,
-      type:     "REVENUE",
-      label:    rev.label,
+      id:         revNodeId,
+      type:       "REVENUE",
+      label:      rev.label,
       parentId,
-      status:   rev.status ?? undefined,
-      amount:   rev.amount,
+      incomplete: parentId === null,
+      status:     rev.status ?? undefined,
+      amount:     rev.amount,
       meta: {
+        href:     `/revenus`,
         subtitle: `${rev.amount.toLocaleString("fr-FR")} €`,
         details: [
           { label: "Montant", value: `${rev.amount.toLocaleString("fr-FR", { minimumFractionDigits: 2 })} €` },
@@ -243,6 +255,82 @@ export default async function GraphPage() {
       },
     })
     if (parentId) links.push({ source: parentId, target: revNodeId })
+  }
+
+  // ── Job Applications (Entretiens) ─────────────────────────────────────────
+  // Parenté : contactId (recruteur) → client-{id} en priorité, sinon companyId.
+  const appNodeIds = new Set(nodes.map(n => n.id))
+  for (const app of applications) {
+    const appNodeId = `application-${app.id}`
+    const parentByContact = app.contactId && appNodeIds.has(`client-${app.contactId}`)
+      ? `client-${app.contactId}`
+      : null
+    const parentByCompany = !parentByContact && app.companyId && appNodeIds.has(`company-${app.companyId}`)
+      ? `company-${app.companyId}`
+      : null
+    const parentId = parentByContact ?? parentByCompany ?? null
+
+    const salaryStr = app.salaryMin && app.salaryMax
+      ? `${app.salaryMin / 1000}–${app.salaryMax / 1000} k€`
+      : app.salaryMin ? `dès ${app.salaryMin / 1000} k€` : null
+
+    nodes.push({
+      id:       appNodeId,
+      type:     "APPLICATION",
+      label:    app.position,
+      parentId,
+      status:   app.status,
+      meta: {
+        href:     `/entretiens/${app.id}`,
+        subtitle: app.companyName,
+        details: [
+          { label: "Entreprise", value: app.companyName },
+          { label: "Poste",      value: app.position    },
+          ...(salaryStr ? [{ label: "Salaire", value: salaryStr }] : []),
+        ],
+      },
+    })
+    appNodeIds.add(appNodeId)
+    if (parentId) links.push({ source: parentId, target: appNodeId })
+  }
+
+  // ── Hub Entretiens — regroupe toutes les sociétés de recrutement ──────────
+  // On construit ce nœud après les applications pour connaître les sociétés
+  // impliquées, puis on modifie leur parentId en place pour les relier.
+  if (applications.length > 0) {
+    const recruiterCompanyNodeIds = new Set<string>()
+    for (const app of applications) {
+      if (app.contactId) {
+        const contact = clients.find(c => c.id === app.contactId)
+        if (contact?.companyId) recruiterCompanyNodeIds.add(`company-${contact.companyId}`)
+      }
+      if (app.companyId && appNodeIds.has(`company-${app.companyId}`)) {
+        recruiterCompanyNodeIds.add(`company-${app.companyId}`)
+      }
+    }
+    if (recruiterCompanyNodeIds.size > 0) {
+      const hubId = "hub-entretiens"
+      nodes.push({
+        id:       hubId,
+        type:     "SOURCE",
+        label:    "Entretiens",
+        parentId: null,
+        meta: {
+          href:     "/entretiens",
+          color:    "#818cf8",  // indigo — identique aux nœuds APPLICATION
+          subtitle: `${applications.length} candidature${applications.length > 1 ? "s" : ""}`,
+          details: [
+            { label: "Candidatures", value: String(applications.length) },
+          ],
+        },
+      })
+      for (const node of nodes) {
+        if (recruiterCompanyNodeIds.has(node.id)) {
+          node.parentId = hubId
+          links.push({ source: hubId, target: node.id })
+        }
+      }
+    }
   }
 
   // ── Fiscal Sources ─────────────────────────────────────────────────────────

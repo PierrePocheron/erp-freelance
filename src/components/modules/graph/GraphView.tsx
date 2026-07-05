@@ -25,7 +25,7 @@ const STATUS_FR: Record<string, string> = {
 import type { GraphMethods } from "./ForceGraphCanvas"
 import { updateInvoiceStatus } from "@/actions/facturation"
 import { markRevenueReceived, updateRevenue } from "@/actions/revenue"
-import { updateCompany, updateClient } from "@/actions/crm"
+import { updateCompany, updateClientAll } from "@/actions/crm"
 
 // ── Dynamic import — jamais rendu côté serveur ──────────────────────────────
 const ForceGraphCanvas = dynamic(
@@ -115,6 +115,8 @@ export function GraphView({ rawNodes, rawLinks }: { rawNodes: RawNode[]; rawLink
   // d'un proche) n'a souvent qu'un contact, pas de société.
   const [assignParent,   setAssignParent]     = useState("")
   const [quickWebsite,    setQuickWebsite]    = useState("")
+  const [quickFirstName,  setQuickFirstName]  = useState("")
+  const [quickLastName,   setQuickLastName]   = useState("")
   const [quickEmail,      setQuickEmail]      = useState("")
   const [quickPhone,      setQuickPhone]      = useState("")
   // Lecture immédiate depuis le DOM ; suppressHydrationWarning sur le div conteneur
@@ -278,6 +280,8 @@ export function GraphView({ rawNodes, rawLinks }: { rawNodes: RawNode[]; rawLink
     /* eslint-disable react-hooks/set-state-in-effect */
     setAssignParent("")
     setQuickWebsite("")
+    setQuickFirstName("")
+    setQuickLastName("")
     setQuickEmail("")
     setQuickPhone("")
     /* eslint-enable react-hooks/set-state-in-effect */
@@ -335,12 +339,16 @@ export function GraphView({ rawNodes, rawLinks }: { rawNodes: RawNode[]; rawLink
   }
 
   function handleQuickSaveClient() {
-    if (!selected || (!quickEmail.trim() && !quickPhone.trim())) return
+    if (!selected) return
+    const hasInput = quickFirstName.trim() || quickLastName.trim() || quickEmail.trim() || quickPhone.trim()
+    if (!hasInput) return
     const dbId = selected.id.replace(/^client-/, "")
     startTransition(async () => {
-      await updateClient(dbId, "", {
-        ...(quickEmail.trim() ? { email: quickEmail.trim() } : {}),
-        ...(quickPhone.trim() ? { phone: quickPhone.trim() } : {}),
+      await updateClientAll(dbId, {
+        ...(quickFirstName.trim() ? { firstName: quickFirstName.trim() } : {}),
+        ...(quickLastName.trim()  ? { lastName: quickLastName.trim() }   : {}),
+        ...(quickEmail.trim()     ? { email: quickEmail.trim() }         : {}),
+        ...(quickPhone.trim()     ? { phone: quickPhone.trim() }         : {}),
       })
       setSelected(null)
       router.refresh()
@@ -646,7 +654,7 @@ export function GraphView({ rawNodes, rawLinks }: { rawNodes: RawNode[]; rawLink
                     <span className="text-xs font-medium text-amber-700 dark:text-amber-400">
                       {selected.type === "REVENUE"  && "Société ou contact non associé"}
                       {selected.type === "COMPANY"  && "Site web manquant"}
-                      {selected.type === "CLIENT"   && "Coordonnées manquantes"}
+                      {selected.type === "CLIENT"   && "Identité ou coordonnées manquantes"}
                     </span>
                   </div>
 
@@ -717,9 +725,25 @@ export function GraphView({ rawNodes, rawLinks }: { rawNodes: RawNode[]; rawLink
                     </div>
                   )}
 
-                  {/* CLIENT — email + téléphone */}
+                  {/* CLIENT — prénom/nom + email + téléphone */}
                   {selected.type === "CLIENT" && (
                     <div className="space-y-1.5">
+                      <div className="flex gap-1.5">
+                        <input
+                          type="text"
+                          value={quickFirstName}
+                          onChange={e => setQuickFirstName(e.target.value)}
+                          placeholder="Prénom"
+                          className="w-full rounded-lg border border-input bg-background px-2.5 py-1.5 text-xs placeholder:text-muted-foreground/40 focus:outline-none focus:ring-1 focus:ring-primary"
+                        />
+                        <input
+                          type="text"
+                          value={quickLastName}
+                          onChange={e => setQuickLastName(e.target.value)}
+                          placeholder="Nom"
+                          className="w-full rounded-lg border border-input bg-background px-2.5 py-1.5 text-xs placeholder:text-muted-foreground/40 focus:outline-none focus:ring-1 focus:ring-primary"
+                        />
+                      </div>
                       <input
                         type="email"
                         value={quickEmail}
@@ -735,7 +759,7 @@ export function GraphView({ rawNodes, rawLinks }: { rawNodes: RawNode[]; rawLink
                         placeholder="+33 6 …"
                         className="w-full rounded-lg border border-input bg-background px-2.5 py-1.5 text-xs placeholder:text-muted-foreground/40 focus:outline-none focus:ring-1 focus:ring-primary"
                       />
-                      {(quickEmail.trim() || quickPhone.trim()) && (
+                      {(quickFirstName.trim() || quickLastName.trim() || quickEmail.trim() || quickPhone.trim()) && (
                         <button
                           onClick={handleQuickSaveClient}
                           disabled={isPending}

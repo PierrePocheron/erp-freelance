@@ -186,8 +186,13 @@ export function CrmList({ groups, userId }: { groups: Group[]; userId: string })
 
       <Sheet open={open} onOpenChange={setOpen}>
         <SheetContent side="right" className="w-[460px] sm:max-w-[460px] p-0" showCloseButton={true}>
-          {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-          <ClientPanel client={panelData as any} loading={isPending || (open && panelData === null)} userId={userId} />
+          <ClientPanel
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            client={panelData as any}
+            loading={isPending || (open && panelData === null)}
+            userId={userId}
+            onRefresh={() => panelData && openClient(panelData.id)}
+          />
         </SheetContent>
       </Sheet>
     </>

@@ -10,6 +10,7 @@ import { STATUS_CONFIG, type JobAppStatus } from "@/components/modules/entretien
 import { ClientInfoCard } from "@/components/modules/crm/ClientInfoCard"
 import { ClientTasksSection } from "@/components/modules/crm/ClientTasksSection"
 import { ClientProjectsCard } from "@/components/modules/crm/ClientProjectsCard"
+import { FiscalCategoryCard } from "@/components/modules/crm/FiscalCategoryCard"
 
 const channelLabels: Record<string, string> = {
   EMAIL: "Email", CALL: "Appel", LINKEDIN: "LinkedIn",
@@ -192,6 +193,14 @@ export default async function ClientOverviewPage({
 
       {/* Colonne droite */}
       <div className="space-y-6">
+
+        {/* Catégorie fiscale URSSAF par défaut */}
+        {isOwner && (
+          <FiscalCategoryCard
+            clientId={id}
+            initial={client.defaultFiscalCategory as never}
+          />
+        )}
 
         {/* Projets — accès rapide + création en 1 clic (pré-rattaché au client) */}
         <ClientProjectsCard

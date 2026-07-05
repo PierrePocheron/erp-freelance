@@ -2,7 +2,7 @@ import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { notFound } from "next/navigation"
 import Link from "next/link"
-import { ChevronLeft, Download, Send, CheckCircle2, FileCheck2, Ban, Copy } from "lucide-react"
+import { ChevronLeft, Download, Send, CheckCircle2, FileCheck2, Ban, Copy, Landmark } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { LineItemsEditor } from "@/components/modules/facturation/LineItemsEditor"
 import { DeleteConfirmButton } from "@/components/modules/facturation/DeleteConfirmButton"
@@ -10,6 +10,8 @@ import { InvoicePaymentSection } from "@/components/modules/facturation/InvoiceP
 import { InvoiceConditionsForm } from "@/components/modules/facturation/InvoiceConditionsForm"
 import { EmitterSelect } from "@/components/modules/facturation/EmitterSelect"
 import { updateInvoiceStatus, deleteInvoice, updateInvoiceDueDate, updateInvoiceNotes, updateInvoiceEmitter, sendInvoiceEmail, sendInvoiceReminder, issueInvoice, cancelInvoice, duplicateInvoiceAsDraft } from "@/actions/facturation"
+import { setInvoiceUrssafExcluded } from "@/actions/urssaf"
+import { periodLabel } from "@/lib/urssaf"
 import { redirect } from "next/navigation"
 import { Input } from "@/components/ui/input"
 
@@ -47,6 +49,7 @@ export default async function FactureDetailPage({
       lines: { orderBy: { id: "asc" } },
       emailLogs: { orderBy: { sentAt: "desc" }, take: 3 },
       payments: { orderBy: { paidAt: "asc" } },
+      urssafLine: { include: { declaration: { select: { period: true, status: true } } } },
     },
   })
 
@@ -82,6 +85,16 @@ export default async function FactureDetailPage({
             <span className="font-mono text-lg font-bold">{invoice.number}</span>
             <span className={`rounded-full border px-2.5 py-0.5 text-xs font-medium ${status.cls}`}>{status.label}</span>
             <span className="text-xs text-muted-foreground border border-border rounded-full px-2 py-0.5">{typeLabels[invoice.type] ?? invoice.type}</span>
+            {invoice.urssafLine && (
+              <span className="text-xs text-violet-600 dark:text-violet-400 border border-violet-500/30 bg-violet-500/10 rounded-full px-2 py-0.5">
+                Déclarée {periodLabel(invoice.urssafLine.declaration.period).split(" · ")[0]}
+              </span>
+            )}
+            {invoice.urssafExcluded && (
+              <span className="text-xs text-muted-foreground border border-border bg-muted rounded-full px-2 py-0.5">
+                Hors URSSAF
+              </span>
+            )}
           </div>
           <p className="text-muted-foreground text-sm">
             {invoice.client.company ?? invoice.client.name}
@@ -317,6 +330,45 @@ export default async function FactureDetailPage({
           <p className="text-sm text-muted-foreground italic">Aucune condition renseignée.</p>
         )}
       </div>
+
+      {/* Fiscalité URSSAF */}
+      {invoice.status !== "CANCELLED" && (
+        <div className="rounded-xl border border-border/50 bg-card p-5 space-y-3">
+          <div className="flex items-center gap-2">
+            <Landmark className="h-4 w-4 text-primary" />
+            <h2 className="font-semibold text-sm">Fiscalité URSSAF</h2>
+          </div>
+          {invoice.urssafLine ? (
+            <p className="text-sm text-muted-foreground">
+              Déclarée dans la période{" "}
+              <Link href="/impots" className="text-primary hover:underline font-medium">
+                {periodLabel(invoice.urssafLine.declaration.period)}
+              </Link>
+              {invoice.urssafLine.declaration.status === "PAID" && " — cotisations payées ✓"}
+            </p>
+          ) : invoice.urssafExcluded ? (
+            <div className="flex items-center justify-between gap-3 flex-wrap">
+              <p className="text-sm text-muted-foreground">
+                Exclue des déclarations URSSAF (hors auto-entreprise) — terminée dès le paiement reçu.
+              </p>
+              <form action={async () => { "use server"; await setInvoiceUrssafExcluded(id, false) }}>
+                <Button type="submit" size="sm" variant="outline">Réintégrer à l&apos;URSSAF</Button>
+              </form>
+            </div>
+          ) : (
+            <div className="flex items-center justify-between gap-3 flex-wrap">
+              <p className="text-sm text-muted-foreground">
+                {invoice.status === "PAID"
+                  ? "Payée — sera proposée dans la prochaine déclaration URSSAF."
+                  : "Sera à déclarer à l'URSSAF une fois payée, selon la date d'encaissement."}
+              </p>
+              <form action={async () => { "use server"; await setInvoiceUrssafExcluded(id, true) }}>
+                <Button type="submit" size="sm" variant="outline">Exclure de l&apos;URSSAF</Button>
+              </form>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Paiements */}
       <InvoicePaymentSection

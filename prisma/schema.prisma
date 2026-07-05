@@ -538,6 +538,9 @@ model Task {
   startedAt      DateTime?
   dueDate        DateTime?
   completedAt    DateTime?
+  // Rappel de déclaration URSSAF auto-généré : "2026-T2". Marquée DONE
+  // automatiquement quand la déclaration correspondante est déclarée/payée.
+  urssafPeriod   String?
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
 
@@ -549,6 +552,8 @@ model Task {
   subTasks    Task[]       @relation("SubTasks")
   timeEntries TimeEntry[]
   taskTags    TaskTag[]    @relation("TaskToTaskTag")
+
+  @@index([userId, urssafPeriod])
 }
 
 model TaskTag {

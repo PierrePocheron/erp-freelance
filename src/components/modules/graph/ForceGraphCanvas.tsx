@@ -157,21 +157,33 @@ export const ForceGraphCanvas = forwardRef<GraphMethods, Props>(function ForceGr
   const lastClick   = useRef<{ id: string | number; time: number } | null>(null)
   const singleTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
+  // Un filtre réduit les nœuds affichés, mais ceux qui restent gardent leurs
+  // coordonnées héritées de la simulation complète (éparpillées sur tout le
+  // canvas) tant que rien ne relance la simulation. Cadrer sur ces positions
+  // figées dézoome à l'extrême pour englober une zone vide. On relance donc la
+  // simulation à chaque changement du jeu de nœuds visibles (filtre, type masqué,
+  // repli/dépli, focus recherche…) et on ne cadre qu'une fois qu'elle s'est
+  // réellement stabilisée (onEngineStop), plutôt qu'après un délai arbitraire.
+  const pendingAutoFit = useRef(false)
+  const pendingFitMs   = useRef(600)
+
   useImperativeHandle(ref, () => ({
-    // Un filtre réduit les nœuds affichés, mais ceux qui restent gardent leurs
-    // coordonnées héritées de la simulation complète (éparpillées sur tout le
-    // canvas) tant que rien ne relance la simulation. Sans réchauffe, zoomToFit
-    // cadre fidèlement cette zone vide et dézoome à l'extrême. On réchauffe donc
-    // la simulation pour laisser les nœuds visibles se regrouper avant de cadrer.
     zoomToFit: (ms = 600) => {
       const fg = fgRef.current
       if (!fg) return
+      pendingFitMs.current   = ms
+      pendingAutoFit.current = true
       fg.d3ReheatSimulation()
-      setTimeout(() => fg.zoomToFit(ms, 60), 350)
     },
   }))
 
-  // Configure D3 forces once mounted
+  const handleEngineStop = useCallback(() => {
+    if (!pendingAutoFit.current) return
+    pendingAutoFit.current = false
+    fgRef.current?.zoomToFit(pendingFitMs.current, 60)
+  }, [])
+
+  // Configure D3 forces une fois montées, puis demande le premier cadrage
   useEffect(() => {
     const t = setTimeout(() => {
       const fg = fgRef.current
@@ -182,16 +194,23 @@ export const ForceGraphCanvas = forwardRef<GraphMethods, Props>(function ForceGr
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const link = fg.d3Force("link") as any
       if (link?.distance) link.distance(40)        // liens un peu plus longs → labels respirent
+      pendingFitMs.current   = 800
+      pendingAutoFit.current = true
       fg.d3ReheatSimulation()
     }, 100)
     return () => clearTimeout(t)
   }, [])
 
-  // Zoom to fit after simulation stabilises
+  // Relance + recadre automatiquement dès que le jeu de nœuds visibles change —
+  // sans ça, filtrer ne fait qu'afficher un sous-ensemble de nœuds toujours
+  // éparpillés dans l'espace de l'ancien graphe complet.
   useEffect(() => {
-    const t = setTimeout(() => fgRef.current?.zoomToFit(800, 80), 1800)
-    return () => clearTimeout(t)
-  }, [])
+    const fg = fgRef.current
+    if (!fg) return
+    pendingFitMs.current   = 500
+    pendingAutoFit.current = true
+    fg.d3ReheatSimulation()
+  }, [nodes, links])
 
   // Double-click detection
   const handleClick = useCallback((raw: NodeObject) => {
@@ -495,6 +514,7 @@ export const ForceGraphCanvas = forwardRef<GraphMethods, Props>(function ForceGr
       linkDirectionalParticleSpeed={0.005}
       onNodeClick={handleClick}
       onBackgroundClick={onBackgroundClick}
+      onEngineStop={handleEngineStop}
       enableZoomInteraction
       enablePanInteraction
       enableNodeDrag

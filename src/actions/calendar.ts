@@ -880,8 +880,17 @@ export async function deleteCalendarItem(type: CalItemType, id: string): Promise
 
 /**
  * Synchronise les événements Google Calendar (lecture seule, calendrier principal).
+ *
+ * `monthsBack` borne la fenêtre passée récupérée (1 mois par défaut). On ne pull
+ * PAS tout l'historique par défaut — sur un compte Google avec des années
+ * d'ancienneté, singleEvents=true explose chaque récurrence sur tout cet
+ * historique (potentiellement des milliers d'événements), et la boucle
+ * d'écriture SQL séquentielle qui suit dépasse alors le timeout des fonctions
+ * serverless (10s par défaut sur Vercel sans maxDuration) — le sync ne se
+ * termine jamais côté client. Le client (CalendarView) élargit `monthsBack` à
+ * la demande quand l'utilisateur navigue au-delà de la fenêtre déjà synchro.
  */
-export async function syncGoogleEvents(): Promise<SyncResult> {
+export async function syncGoogleEvents(monthsBack: number = 1): Promise<SyncResult> {
   const session = await auth()
   const userId = session!.user.id
 
@@ -893,14 +902,8 @@ export async function syncGoogleEvents(): Promise<SyncResult> {
 
   try {
     // Récupération (pull) : fenêtre glissante récente → 3 mois dans le futur.
-    // ⚠️ Ne JAMAIS repartir de l'epoch (new Date(0)) : sur un compte Google avec
-    // des années d'historique, singleEvents=true explose chaque récurrence sur
-    // tout cet historique (potentiellement des milliers d'événements), et la
-    // boucle d'écriture SQL séquentielle qui suit dépasse alors largement le
-    // timeout des fonctions serverless (10s par défaut sur Vercel sans
-    // maxDuration) — le sync ne se termine jamais côté client.
     const from = new Date()
-    from.setMonth(from.getMonth() - 6)
+    from.setMonth(from.getMonth() - Math.max(1, Math.min(monthsBack, 24)))
     const to = new Date()
     to.setMonth(to.getMonth() + 3)
 

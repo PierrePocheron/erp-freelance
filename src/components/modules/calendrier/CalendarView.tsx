@@ -1121,14 +1121,20 @@ export function CalendarView({
     return `${first.toLocaleDateString("fr-FR", { day: "numeric", month: "short" })} – ${last.toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" })}`
   }
 
-  function handleSync() {
+  // Fenêtre Google déjà synchronisée en arrière (mois). 1 par défaut, comme le
+  // serveur — élargie à la volée par l'effet de navigation ci-dessous plutôt
+  // que de tout récupérer d'un coup (voir commentaire dans syncGoogleEvents).
+  const syncedMonthsBackRef = useRef(1)
+
+  function handleSync(monthsBack?: number) {
+    const target = monthsBack ?? syncedMonthsBackRef.current
     startSync(async () => {
       // Un timeout réseau ou une exception côté serveur (ex : fonction serverless
       // coupée avant de répondre) rejette cette promesse sans passer par le retour
       // { error } normal — sans ce try/catch, le bouton restait bloqué en "Sync…"
       // indéfiniment puisque aucun setSyncStatus n'était jamais atteint.
       try {
-        const result = await syncGoogleEvents()
+        const result = await syncGoogleEvents(target)
         if (result.needsPermission) {
           setSyncStatus("noPermission")
           setTimeout(() => setSyncStatus("idle"), 6000)
@@ -1137,6 +1143,7 @@ export function CalendarView({
           setSyncError(result.error)
           // l'erreur reste affichée jusqu'à la prochaine sync (pas d'auto-effacement)
         } else {
+          syncedMonthsBackRef.current = target
           setSyncStatus("success")
           setSyncCount(result.synced)
           setSyncError("")
@@ -1149,6 +1156,20 @@ export function CalendarView({
       }
     })
   }
+
+  // Élargit la synchro Google à la demande quand on navigue plus loin dans le
+  // passé que ce qui a déjà été récupéré — évite de tout pull d'un coup tout en
+  // gardant le calendrier alimenté quel que soit le mois consulté. +2 mois de
+  // marge pour ne pas redéclencher un sync à chaque changement de mois.
+  useEffect(() => {
+    if (!hasGoogleCalendar || isSyncing) return
+    const today = new Date()
+    const monthsBack = (today.getFullYear() - currentDate.getFullYear()) * 12
+      + (today.getMonth() - currentDate.getMonth())
+    if (monthsBack <= syncedMonthsBackRef.current) return
+    handleSync(monthsBack + 2)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentDate, hasGoogleCalendar])
 
   function handleMoveEvent(eventId: string, newStart: Date, newEnd: Date | null, allDay: boolean) {
     const ev = events.find(x => x.id === eventId)
@@ -1221,7 +1242,7 @@ export function CalendarView({
 
         {hasGoogleCalendar ? (
           <div className="flex items-center rounded-lg border border-border overflow-hidden">
-            <button onClick={handleSync} disabled={isSyncing} title="Synchroniser avec Google Calendar"
+            <button onClick={() => handleSync()} disabled={isSyncing} title="Synchroniser avec Google Calendar"
               className={cn("inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium transition-colors border-r border-border/50",
                 syncStatus === "success"      ? "text-emerald-600 bg-emerald-500/5"
                   : syncStatus === "error"        ? "text-red-600 bg-red-500/5"
@@ -1248,7 +1269,7 @@ export function CalendarView({
                   {showGoogleEvents ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
                   {showGoogleEvents ? "Masquer les événements Google" : "Afficher les événements Google"}
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={handleSync} disabled={isSyncing}>
+                <DropdownMenuItem onClick={() => handleSync()} disabled={isSyncing}>
                   <RefreshCw className="h-3.5 w-3.5" /> Synchroniser maintenant
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />

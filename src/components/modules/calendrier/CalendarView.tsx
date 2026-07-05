@@ -1123,20 +1123,29 @@ export function CalendarView({
 
   function handleSync() {
     startSync(async () => {
-      const result = await syncGoogleEvents()
-      if (result.needsPermission) {
-        setSyncStatus("noPermission")
-        setTimeout(() => setSyncStatus("idle"), 6000)
-      } else if (result.error) {
+      // Un timeout réseau ou une exception côté serveur (ex : fonction serverless
+      // coupée avant de répondre) rejette cette promesse sans passer par le retour
+      // { error } normal — sans ce try/catch, le bouton restait bloqué en "Sync…"
+      // indéfiniment puisque aucun setSyncStatus n'était jamais atteint.
+      try {
+        const result = await syncGoogleEvents()
+        if (result.needsPermission) {
+          setSyncStatus("noPermission")
+          setTimeout(() => setSyncStatus("idle"), 6000)
+        } else if (result.error) {
+          setSyncStatus("error")
+          setSyncError(result.error)
+          // l'erreur reste affichée jusqu'à la prochaine sync (pas d'auto-effacement)
+        } else {
+          setSyncStatus("success")
+          setSyncCount(result.synced)
+          setSyncError("")
+          router.refresh()
+          setTimeout(() => setSyncStatus("idle"), 4000)
+        }
+      } catch (err) {
         setSyncStatus("error")
-        setSyncError(result.error)
-        // l'erreur reste affichée jusqu'à la prochaine sync (pas d'auto-effacement)
-      } else {
-        setSyncStatus("success")
-        setSyncCount(result.synced)
-        setSyncError("")
-        router.refresh()
-        setTimeout(() => setSyncStatus("idle"), 4000)
+        setSyncError(err instanceof Error ? err.message : "Connexion interrompue")
       }
     })
   }

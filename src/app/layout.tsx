@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Poppins } from "next/font/google";
 import { Toaster } from "sonner";
 import { headers } from "next/headers";
+import Script from "next/script";
 import "./globals.css";
 
 const poppins = Poppins({
@@ -29,8 +30,16 @@ export default async function RootLayout({
       suppressHydrationWarning
     >
       <body className="h-full overflow-hidden bg-background text-foreground" suppressHydrationWarning>
-        {/* Script de thème inliné — doit s'exécuter avant tout rendu pour éviter le flash */}
-        <script nonce={nonce} suppressHydrationWarning dangerouslySetInnerHTML={{ __html: `(function(){try{var t=localStorage.getItem('theme');if(t==='dark'||(t===null&&window.matchMedia('(prefers-color-scheme:dark)').matches)){document.documentElement.classList.add('dark')}}catch(e){}})()` }} />
+        {/* Script de thème inliné — doit s'exécuter avant tout rendu pour éviter le flash.
+            next/script (beforeInteractive) plutôt qu'un <script> JSX brut : ce dernier se fait
+            re-réconcilier côté client à chaque router.refresh() (utilisé partout dans l'app),
+            ce que React 19 signale comme "script tag encountered while rendering". */}
+        <Script
+          id="theme-init"
+          strategy="beforeInteractive"
+          nonce={nonce}
+          dangerouslySetInnerHTML={{ __html: `(function(){try{var t=localStorage.getItem('theme');if(t==='dark'||(t===null&&window.matchMedia('(prefers-color-scheme:dark)').matches)){document.documentElement.classList.add('dark')}}catch(e){}})()` }}
+        />
         {children}
         <Toaster position="bottom-right" richColors />
       </body>

@@ -15,7 +15,7 @@ function fmtAmount(n: number): string {
 
 // Ordre de rendu : les nœuds parents sont peints en dernier → leur hitbox gagne
 const TYPE_Z: Record<NodeType, number> = {
-  REVENUE: 0, INVOICE: 0, QUOTE: 0, PROJECT: 1, CLIENT: 2, COMPANY: 3, SOURCE: 4,
+  REVENUE: 0, INVOICE: 0, QUOTE: 0, APPLICATION: 0, PROJECT: 1, CLIENT: 2, COMPANY: 3, SOURCE: 4,
 }
 
 // ── Icône minimaliste par type ──────────────────────────────────────────────
@@ -104,6 +104,27 @@ function drawNodeIcon(
       ctx.fillText("€", cx, cy + s * 0.07)
       break
     }
+    case "APPLICATION": {
+      // Mallette : rectangle + poignée en arc
+      const bw = s * 1.0, bh = s * 0.72
+      const bx = cx - bw / 2, by = cy - bh / 2 + s * 0.10
+      ctx.strokeRect(bx, by, bw, bh)
+      // Poignée
+      const hw = bw * 0.44, hh = s * 0.30
+      const hx = cx - hw / 2, hy = by - hh
+      ctx.beginPath()
+      ctx.moveTo(hx, by)
+      ctx.lineTo(hx, hy + hh * 0.38)
+      ctx.arc(cx, hy + hh * 0.38, hw / 2, Math.PI, 0)
+      ctx.lineTo(hx + hw, by)
+      ctx.stroke()
+      // Séparation horizontale au milieu
+      ctx.beginPath()
+      ctx.moveTo(bx, by + bh * 0.46)
+      ctx.lineTo(bx + bw, by + bh * 0.46)
+      ctx.stroke()
+      break
+    }
   }
 
   ctx.restore()
@@ -147,10 +168,10 @@ export const ForceGraphCanvas = forwardRef<GraphMethods, Props>(function ForceGr
       if (!fg) return
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const charge = fg.d3Force("charge") as any
-      if (charge?.strength) charge.strength(-28)   // moins de répulsion → clusters plus denses
+      if (charge?.strength) charge.strength(-80)   // répulsion modérée → clusters lisibles
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const link = fg.d3Force("link") as any
-      if (link?.distance) link.distance(22)         // liens plus courts → familles resserrées
+      if (link?.distance) link.distance(40)        // liens un peu plus longs → labels respirent
       fg.d3ReheatSimulation()
     }, 100)
     return () => clearTimeout(t)
@@ -332,7 +353,6 @@ export const ForceGraphCanvas = forwardRef<GraphMethods, Props>(function ForceGr
       ctx.beginPath(); ctx.arc(bx, by, 5, 0, 2 * Math.PI)
       ctx.fillStyle = "#22c55e"; ctx.fill()
       ctx.strokeStyle = "rgba(0,0,0,0.30)"; ctx.lineWidth = 0.8; ctx.stroke()
-      // Checkmark
       ctx.beginPath()
       ctx.strokeStyle = "#fff"; ctx.lineWidth = 1.4
       ctx.lineCap = "round"; ctx.lineJoin = "round"
@@ -340,6 +360,17 @@ export const ForceGraphCanvas = forwardRef<GraphMethods, Props>(function ForceGr
       ctx.lineTo(bx - 0.3, by + 2.2)
       ctx.lineTo(bx + 2.7, by - 1.9)
       ctx.stroke()
+    }
+
+    // ── Point amber : nœud "incomplet" ────────────────────────────────────
+    if (n.incomplete) {
+      const bx = x - r * 0.70, by = y - r * 0.70
+      ctx.beginPath(); ctx.arc(bx, by, 4.5, 0, 2 * Math.PI)
+      ctx.fillStyle = "#f59e0b"; ctx.fill()
+      ctx.strokeStyle = "rgba(0,0,0,0.25)"; ctx.lineWidth = 0.8; ctx.stroke()
+      ctx.fillStyle = "#fff"; ctx.font = `bold ${4.5}px sans-serif`
+      ctx.textAlign = "center"; ctx.textBaseline = "middle"
+      ctx.fillText("!", bx, by + 0.3)
     }
 
     // ── Anneau collapse tiretté ────────────────────────────────────────────

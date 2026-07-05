@@ -215,8 +215,8 @@ function CardItem({ client, showBilling, onClick }: { client: Client; showBillin
               {client.company ?? sourceLabels[client.source] ?? "—"}
             </p>
           </div>
-          <p className="font-semibold text-sm group-hover:text-primary transition-colors flex items-center gap-1 min-w-0">
-            <span className="truncate">{client.name}</span>
+          <p className="font-semibold text-sm group-hover:text-primary transition-colors flex items-center gap-1">
+            <span className="truncate min-w-0">{client.name}</span>
             {client.incomplete && (
               <span title="Informations à compléter" className="inline-flex shrink-0">
                 <AlertCircle className="h-3.5 w-3.5 text-amber-500" />
@@ -302,8 +302,8 @@ function ListSection({ items, showBilling, onOpen }: { items: Client[]; showBill
 
             {/* Nom + société */}
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium flex items-center gap-1 min-w-0">
-                <span className="truncate">{client.name}</span>
+              <p className="text-sm font-medium flex items-center gap-1">
+                <span className="truncate min-w-0">{client.name}</span>
                 {client.incomplete && (
                   <span title="Informations à compléter" className="inline-flex shrink-0">
                     <AlertCircle className="h-3.5 w-3.5 text-amber-500" />

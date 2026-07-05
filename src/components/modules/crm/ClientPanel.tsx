@@ -1,15 +1,17 @@
 "use client"
 
 import Link from "next/link"
-import { useState, useTransition } from "react"
+import { useRouter } from "next/navigation"
+import { useState, useEffect, useTransition } from "react"
 import {
   Mail, Phone, ExternalLink, Building2,
   MessageSquare, Bell, FolderKanban, FileText, Receipt,
   Phone as PhoneIcon, Mail as MailIcon, Video, Users,
-  UserCheck, Archive,
+  UserCheck, Archive, AlertCircle,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { updateClientType, updateProspectStage, addInteraction, addReminder } from "@/actions/crm"
+import { updateClientType, updateProspectStage, addInteraction, addReminder, updateClientAll } from "@/actions/crm"
+import { isContactIncomplete } from "@/lib/contact"
 import type { ProspectStage } from "./ProspectsView"
 import { toast } from "sonner"
 
@@ -84,6 +86,8 @@ type Quote = { id: string; number: string; status: string; totalHT: number; crea
 type ClientPanelData = {
   id: string
   name: string
+  firstName: string | null
+  lastName: string | null
   company: string | null
   email: string | null
   phone: string | null
@@ -104,21 +108,58 @@ export function ClientPanel({
   client,
   loading,
   userId,
+  onRefresh,
 }: {
   client: ClientPanelData | null
   loading: boolean
   userId?: string
+  onRefresh?: () => void
 }) {
   const [isPending, startTransition] = useTransition()
   const [, startStageTransition] = useTransition()
   const [, startLogTransition] = useTransition()
   const [, startReminderTransition] = useTransition()
+  const router = useRouter()
+  const [isSavingQuick, startQuickTransition] = useTransition()
   const [stageDropOpen, setStageDropOpen] = useState(false)
   const [quickPanel, setQuickPanel] = useState<"log" | "reminder" | null>(null)
   const [logChannel, setLogChannel] = useState("EMAIL")
   const [logSummary, setLogSummary] = useState("")
   const [reminderDate, setReminderDate] = useState(() => new Date().toISOString().split("T")[0])
   const [reminderNote, setReminderNote] = useState("")
+
+  // Complétion rapide — mêmes champs que sur le graphe
+  const [quickFirstName, setQuickFirstName] = useState("")
+  const [quickLastName, setQuickLastName] = useState("")
+  const [quickEmail, setQuickEmail] = useState("")
+  const [quickPhone, setQuickPhone] = useState("")
+
+  useEffect(() => {
+    /* eslint-disable react-hooks/set-state-in-effect */
+    setQuickFirstName("")
+    setQuickLastName("")
+    setQuickEmail("")
+    setQuickPhone("")
+    /* eslint-enable react-hooks/set-state-in-effect */
+  }, [client?.id])
+
+  function submitQuickComplete(e: React.FormEvent) {
+    e.preventDefault()
+    if (!client) return
+    const hasInput = quickFirstName.trim() || quickLastName.trim() || quickEmail.trim() || quickPhone.trim()
+    if (!hasInput) return
+    startQuickTransition(async () => {
+      await updateClientAll(client.id, {
+        ...(quickFirstName.trim() ? { firstName: quickFirstName.trim() } : {}),
+        ...(quickLastName.trim()  ? { lastName: quickLastName.trim() }   : {}),
+        ...(quickEmail.trim()     ? { email: quickEmail.trim() }         : {}),
+        ...(quickPhone.trim()     ? { phone: quickPhone.trim() }         : {}),
+      })
+      toast.success("Informations complétées")
+      onRefresh?.()
+      router.refresh()
+    })
+  }
 
   const fmt = (d: Date | string) =>
     new Date(d).toLocaleDateString("fr-FR", { day: "numeric", month: "short" })
@@ -282,6 +323,59 @@ export function ClientPanel({
             </a>
           )}
         </div>
+
+        {/* Complétion rapide — informations manquantes, comme sur le graphe */}
+        {isContactIncomplete(client) && (
+          <form onSubmit={submitQuickComplete} className="space-y-1.5 rounded-lg border border-amber-500/30 bg-amber-500/8 p-2.5">
+            <p className="flex items-center gap-1.5 text-xs font-medium text-amber-700 dark:text-amber-400">
+              <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+              Informations à compléter
+            </p>
+            {(!client.firstName || !client.lastName) && (
+              <div className="flex gap-1.5">
+                <input
+                  value={quickFirstName}
+                  onChange={(e) => setQuickFirstName(e.target.value)}
+                  placeholder="Prénom"
+                  className="w-full h-8 rounded-md border border-input bg-background px-2 text-xs placeholder:text-muted-foreground/40 focus:outline-none focus:ring-1 focus:ring-ring"
+                />
+                <input
+                  value={quickLastName}
+                  onChange={(e) => setQuickLastName(e.target.value)}
+                  placeholder="Nom"
+                  className="w-full h-8 rounded-md border border-input bg-background px-2 text-xs placeholder:text-muted-foreground/40 focus:outline-none focus:ring-1 focus:ring-ring"
+                />
+              </div>
+            )}
+            {!client.email && !client.phone && (
+              <>
+                <input
+                  type="email"
+                  value={quickEmail}
+                  onChange={(e) => setQuickEmail(e.target.value)}
+                  placeholder="email@exemple.com"
+                  className="w-full h-8 rounded-md border border-input bg-background px-2 text-xs placeholder:text-muted-foreground/40 focus:outline-none focus:ring-1 focus:ring-ring"
+                />
+                <input
+                  type="tel"
+                  value={quickPhone}
+                  onChange={(e) => setQuickPhone(e.target.value)}
+                  placeholder="+33 6 …"
+                  className="w-full h-8 rounded-md border border-input bg-background px-2 text-xs placeholder:text-muted-foreground/40 focus:outline-none focus:ring-1 focus:ring-ring"
+                />
+              </>
+            )}
+            {(quickFirstName.trim() || quickLastName.trim() || quickEmail.trim() || quickPhone.trim()) && (
+              <button
+                type="submit"
+                disabled={isSavingQuick}
+                className="w-full rounded-md bg-amber-600 text-white text-xs font-medium py-1.5 hover:bg-amber-700 disabled:opacity-50 transition-colors"
+              >
+                {isSavingQuick ? "Enregistrement…" : "Enregistrer"}
+              </button>
+            )}
+          </form>
+        )}
 
         {/* Quick actions */}
         <div className="flex flex-wrap gap-2">

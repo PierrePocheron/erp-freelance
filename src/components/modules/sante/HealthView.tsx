@@ -147,12 +147,15 @@ export function HealthView({
           <div className="flex flex-col items-end gap-1 shrink-0 mt-0.5">
             <span className="text-xs text-muted-foreground">{fmtShort(e.date)}</span>
             {!e.resolvedAt && (
-              <button
+              <span
+                role="button"
+                tabIndex={0}
                 onClick={(ev) => { ev.stopPropagation(); quickResolve(e.id) }}
-                className="text-[10px] font-medium text-emerald-600 hover:text-emerald-700 hover:underline"
+                onKeyDown={(ev) => { if (ev.key === "Enter" || ev.key === " ") { ev.stopPropagation(); quickResolve(e.id) } }}
+                className="text-[10px] font-medium text-emerald-600 hover:text-emerald-700 hover:underline cursor-pointer"
               >
                 Marquer résolu
-              </button>
+              </span>
             )}
           </div>
         </button>

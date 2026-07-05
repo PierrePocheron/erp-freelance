@@ -1,7 +1,9 @@
 "use client"
 
-import { useState, useTransition } from "react"
+import { useState, useTransition, useMemo } from "react"
 import { Plus, Pencil, Trash2, Power, PowerOff, RefreshCw, RefreshCwIcon, X, Zap } from "lucide-react"
+import { useSortState, cmp } from "@/hooks/use-sortable"
+import { Th } from "@/components/ui/sortable-header"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
@@ -78,6 +80,22 @@ export function RecurrentesManager({
   const [showCreate, setShowCreate] = useState(false)
   const [editId, setEditId] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
+  const { sortCol, sortDir, toggle } = useSortState("nextGenerationDate", "asc")
+
+  const sortedRows = useMemo(() => {
+    if (!sortCol) return recurringInvoices
+    return [...recurringInvoices].sort((a, b) => {
+      switch (sortCol) {
+        case "name":               return cmp(a.name, b.name, sortDir)
+        case "client":             return cmp(a.client.company ?? a.client.name, b.client.company ?? b.client.name, sortDir)
+        case "frequency":          return cmp(a.frequency, b.frequency, sortDir)
+        case "totalHT":            return cmp(a.totalHT, b.totalHT, sortDir)
+        case "nextGenerationDate": return cmp(new Date(a.nextGenerationDate), new Date(b.nextGenerationDate), sortDir)
+        case "isActive":           return cmp(a.isActive, b.isActive, sortDir)
+        default: return 0
+      }
+    })
+  }, [recurringInvoices, sortCol, sortDir])
 
   // Template fields
   const [clientId, setClientId] = useState("")
@@ -228,18 +246,18 @@ export function RecurrentesManager({
         <div className="rounded-xl border border-border/50 bg-card overflow-hidden">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-border text-xs text-muted-foreground">
-                <th className="px-4 py-3 text-left font-medium">Nom</th>
-                <th className="px-4 py-3 text-left font-medium">Client</th>
-                <th className="px-4 py-3 text-left font-medium">Fréquence</th>
-                <th className="px-4 py-3 text-right font-medium">Montant HT</th>
-                <th className="px-4 py-3 text-left font-medium">Prochaine génération</th>
-                <th className="px-4 py-3 text-left font-medium">Statut</th>
-                <th className="px-4 py-3 text-right font-medium">Actions</th>
+              <tr className="border-b border-border">
+                <Th label="Nom"                  col="name"               sortCol={sortCol} sortDir={sortDir} onSort={toggle} className="px-4 py-3" />
+                <Th label="Client"               col="client"             sortCol={sortCol} sortDir={sortDir} onSort={toggle} className="px-4 py-3" />
+                <Th label="Fréquence"            col="frequency"          sortCol={sortCol} sortDir={sortDir} onSort={toggle} className="px-4 py-3" />
+                <Th label="Montant HT"           col="totalHT"            sortCol={sortCol} sortDir={sortDir} onSort={toggle} className="px-4 py-3" align="right" />
+                <Th label="Prochaine génération" col="nextGenerationDate" sortCol={sortCol} sortDir={sortDir} onSort={toggle} className="px-4 py-3" />
+                <Th label="Statut"               col="isActive"           sortCol={sortCol} sortDir={sortDir} onSort={toggle} className="px-4 py-3" />
+                <th className="px-4 py-3 text-right text-xs text-muted-foreground font-medium">Actions</th>
               </tr>
             </thead>
             <tbody>
-              {recurringInvoices.map((row) => (
+              {sortedRows.map((row) => (
                 <tr key={row.id} className="border-b border-border/50 last:border-0 hover:bg-muted/20 transition-colors">
                   <td className="px-4 py-3 font-medium">{row.name}</td>
                   <td className="px-4 py-3 text-muted-foreground">

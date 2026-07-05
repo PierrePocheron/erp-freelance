@@ -1,8 +1,10 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useMemo } from "react"
 import Link from "next/link"
 import { FileText, LayoutGrid, List, Download } from "lucide-react"
+import { useSortState, cmp } from "@/hooks/use-sortable"
+import { Th } from "@/components/ui/sortable-header"
 import { CreateQuoteDialog } from "./CreateQuoteDialog"
 
 type Quote = {
@@ -53,6 +55,7 @@ export function DevisListView({
 }) {
   const [view, setView] = useState<"list" | "cards">("list")
   const [statusFilter, setStatusFilter] = useState("ALL")
+  const { sortCol, sortDir, toggle } = useSortState("createdAt", "desc")
 
   const DEVIS_FILTERS = [
     { value: "ALL", label: "Tous" },
@@ -64,6 +67,21 @@ export function DevisListView({
   ]
 
   const filtered = statusFilter === "ALL" ? quotes : quotes.filter((q) => q.status === statusFilter)
+
+  const sorted = useMemo(() => {
+    if (!sortCol) return filtered
+    return [...filtered].sort((a, b) => {
+      switch (sortCol) {
+        case "number":    return cmp(a.number, b.number, sortDir)
+        case "client":    return cmp(a.client.company ?? a.client.name, b.client.company ?? b.client.name, sortDir)
+        case "project":   return cmp(a.project?.name ?? null, b.project?.name ?? null, sortDir)
+        case "status":    return cmp(a.status, b.status, sortDir)
+        case "totalHT":   return cmp(a.totalHT, b.totalHT, sortDir)
+        case "createdAt": return cmp(new Date(a.createdAt), new Date(b.createdAt), sortDir)
+        default: return 0
+      }
+    })
+  }, [filtered, sortCol, sortDir])
 
   return (
     <div className="space-y-6">
@@ -153,17 +171,17 @@ export function DevisListView({
         <div className="rounded-xl border border-border/50 bg-card overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-border text-xs text-muted-foreground">
-                <th className="px-4 py-3 text-left font-medium">Numéro</th>
-                <th className="px-4 py-3 text-left font-medium">Client</th>
-                <th className="px-4 py-3 text-left font-medium hidden sm:table-cell">Projet</th>
-                <th className="px-4 py-3 text-left font-medium">Statut</th>
-                <th className="px-4 py-3 text-right font-medium">Total HT</th>
-                <th className="px-4 py-3 text-left font-medium hidden sm:table-cell">Date</th>
+              <tr className="border-b border-border">
+                <Th label="Numéro"   col="number"    sortCol={sortCol} sortDir={sortDir} onSort={toggle} className="px-4 py-3" />
+                <Th label="Client"   col="client"    sortCol={sortCol} sortDir={sortDir} onSort={toggle} className="px-4 py-3" />
+                <Th label="Projet"   col="project"   sortCol={sortCol} sortDir={sortDir} onSort={toggle} className="px-4 py-3 hidden sm:table-cell" />
+                <Th label="Statut"   col="status"    sortCol={sortCol} sortDir={sortDir} onSort={toggle} className="px-4 py-3" />
+                <Th label="Total HT" col="totalHT"   sortCol={sortCol} sortDir={sortDir} onSort={toggle} className="px-4 py-3" align="right" />
+                <Th label="Date"     col="createdAt" sortCol={sortCol} sortDir={sortDir} onSort={toggle} className="px-4 py-3 hidden sm:table-cell" />
               </tr>
             </thead>
             <tbody>
-              {filtered.map((q) => {
+              {sorted.map((q) => {
                 const status = statusConfig[q.status] ?? { label: q.status, cls: "bg-muted text-muted-foreground border-border" }
                 return (
                   <tr key={q.id} className="border-b border-border/50 last:border-0 hover:bg-muted/30 transition-colors">

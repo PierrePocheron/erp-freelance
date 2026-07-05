@@ -1,3 +1,4 @@
+import { Fragment } from "react"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import Link from "next/link"
@@ -132,9 +133,9 @@ export default async function SocietesPage() {
             <tbody>
               {hasGroups
                 ? grouped.map(({ source, companies: list }) => (
-                    <>
+                    <Fragment key={source?.id ?? "none"}>
                       {/* Group header */}
-                      <tr key={`hdr-${source?.id ?? "none"}`} className="border-b border-border/30 bg-muted/20">
+                      <tr className="border-b border-border/30 bg-muted/20">
                         <td colSpan={5} className="px-4 py-2">
                           <span className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
                             {source ? (
@@ -156,7 +157,7 @@ export default async function SocietesPage() {
                         </td>
                       </tr>
                       {list.map((co) => <CompanyRow key={co.id} co={co} />)}
-                    </>
+                    </Fragment>
                   ))
                 : companies.map((co) => <CompanyRow key={co.id} co={co} />)
               }

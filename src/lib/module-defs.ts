@@ -11,6 +11,7 @@ export type ModuleId =
   | "graph"
   | "sante"
   | "entretien"
+  | "impots"
 
 export type ModuleCategory = "core" | "recommended" | "bonus"
 
@@ -57,6 +58,10 @@ export const MODULE_DEFS: ModuleDef[] = [
   {
     id: "calendrier", label: "Calendrier", icon: "📅", category: "recommended", defaultActive: true,
     description: "Agenda, rappels, interactions et événements",
+  },
+  {
+    id: "impots", label: "Impôts / URSSAF", icon: "🏛️", category: "recommended", defaultActive: true,
+    description: "Déclarations URSSAF, cotisations et suivi des factures déclarées",
   },
   {
     id: "graph", label: "Graph relationnel", icon: "🕸️", category: "bonus", defaultActive: false,

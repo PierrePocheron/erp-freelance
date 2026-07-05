@@ -988,13 +988,14 @@ model FiscalSource {
 // ─── Revenus hors auto-entreprise ────────────────────────────────────────────
 
 enum RevenueType {
-  SALARY      // Salaire (CDI, CDD, intérim)
-  FREELANCE   // Mission AE (Auto-Entrepreneur)
-  STUDY       // Étude / mission rémunérée hors AE
-  INVESTMENT  // Investissements (dividendes, intérêts, PEA)
-  RENTAL      // Revenus locatifs
-  PLATFORM    // Plateformes (YouTube, Twitch, Patreon…)
-  OTHER       // Autre
+  SALARY        // Salaire (CDI, CDD, intérim)
+  FREELANCE     // Mission AE (Auto-Entrepreneur)
+  STUDY         // Étude / mission rémunérée hors AE
+  INVESTMENT    // Investissements (dividendes, intérêts, PEA)
+  RENTAL        // Revenus locatifs
+  PLATFORM      // Plateformes (YouTube, Twitch, Patreon…)
+  REIMBURSEMENT // Remboursement d'un proche (avance de frais partagés, prêt ponctuel…) — pas un revenu imposable
+  OTHER         // Autre
 }
 
 enum RevenueStatus {

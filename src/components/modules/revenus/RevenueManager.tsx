@@ -793,13 +793,14 @@ export function RevenueManager({
     : 0
 
   const typeColor: Record<string, string> = {
-    SALARY:     "text-blue-600 bg-blue-500/10",
-    STUDY:      "text-indigo-600 bg-indigo-500/10",
-    INVESTMENT: "text-emerald-600 bg-emerald-500/10",
-    RENTAL:     "text-teal-600 bg-teal-500/10",
-    FREELANCE:  "text-orange-600 bg-orange-500/10",
-    PLATFORM:   "text-purple-600 bg-purple-500/10",
-    OTHER:      "text-muted-foreground bg-muted",
+    SALARY:        "text-blue-600 bg-blue-500/10",
+    STUDY:         "text-indigo-600 bg-indigo-500/10",
+    INVESTMENT:    "text-emerald-600 bg-emerald-500/10",
+    RENTAL:        "text-teal-600 bg-teal-500/10",
+    FREELANCE:     "text-orange-600 bg-orange-500/10",
+    PLATFORM:      "text-purple-600 bg-purple-500/10",
+    REIMBURSEMENT: "text-pink-600 bg-pink-500/10",
+    OTHER:         "text-muted-foreground bg-muted",
   }
 
   return (

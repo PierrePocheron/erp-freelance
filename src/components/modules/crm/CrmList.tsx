@@ -4,7 +4,7 @@ import { useState, useTransition } from "react"
 import { getClientPanel } from "@/actions/crm"
 import { ClientPanel } from "./ClientPanel"
 import { Sheet, SheetContent } from "@/components/ui/sheet"
-import { LayoutGrid, List, Search, TrendingUp } from "lucide-react"
+import { LayoutGrid, List, Search, TrendingUp, AlertCircle } from "lucide-react"
 
 function fmtEur(n: number) {
   return n.toLocaleString("fr-FR", { maximumFractionDigits: 0 }) + " €"
@@ -48,6 +48,7 @@ type Client = {
   interactions: { date: Date | string; channel: string }[]
   reminders: { dueDate: Date | string }[]
   billing: { totalFacture: number; totalEncaisse: number }
+  incomplete?: boolean
 }
 
 type Group = { key: string; label: string; items: Client[] }
@@ -214,7 +215,14 @@ function CardItem({ client, showBilling, onClick }: { client: Client; showBillin
               {client.company ?? sourceLabels[client.source] ?? "—"}
             </p>
           </div>
-          <p className="font-semibold text-sm group-hover:text-primary transition-colors truncate">{client.name}</p>
+          <p className="font-semibold text-sm group-hover:text-primary transition-colors truncate flex items-center gap-1">
+            {client.name}
+            {client.incomplete && (
+              <span title="Informations à compléter" className="inline-flex shrink-0">
+                <AlertCircle className="h-3.5 w-3.5 text-amber-500" />
+              </span>
+            )}
+          </p>
           {client.email && <p className="text-xs text-muted-foreground truncate">{client.email}</p>}
         </div>
         <span className={`shrink-0 rounded-full border px-2 py-0.5 text-xs font-medium ${type.className}`}>
@@ -294,7 +302,14 @@ function ListSection({ items, showBilling, onOpen }: { items: Client[]; showBill
 
             {/* Nom + société */}
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium truncate">{client.name}</p>
+              <p className="text-sm font-medium truncate flex items-center gap-1">
+                {client.name}
+                {client.incomplete && (
+                  <span title="Informations à compléter" className="inline-flex shrink-0">
+                    <AlertCircle className="h-3.5 w-3.5 text-amber-500" />
+                  </span>
+                )}
+              </p>
               {client.company && (
                 <p className="text-xs text-muted-foreground truncate">{client.company}</p>
               )}

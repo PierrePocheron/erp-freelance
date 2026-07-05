@@ -3,6 +3,7 @@ import { redirect } from "next/navigation"
 import { prisma }   from "@/lib/prisma"
 import { GraphView } from "@/components/modules/graph/GraphView"
 import type { RawNode, RawLink } from "@/components/modules/graph/graph-types"
+import { isContactIncomplete } from "@/lib/contact"
 
 export default async function GraphPage() {
   const session = await auth()
@@ -103,10 +104,7 @@ export default async function GraphPage() {
       type:       "CLIENT",
       label:      c.name,
       parentId,
-      // Prénom + nom sont l'identité de référence du contact (Client.name n'est
-      // qu'un cache d'affichage) — leur absence doit être signalée au même titre
-      // que des coordonnées manquantes.
-      incomplete: !c.firstName || !c.lastName || (!c.email && !c.phone),
+      incomplete: isContactIncomplete(c),
       meta: {
         href:     `/contacts/${c.id}`,
         subtitle: c.email ?? c.city ?? undefined,

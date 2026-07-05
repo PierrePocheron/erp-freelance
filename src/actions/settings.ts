@@ -79,6 +79,26 @@ export async function saveProfile(_userId: string, data: ProfileData) {
   revalidatePath("/settings")
 }
 
+export type TaxSettingsData = {
+  legalStatus:          string
+  urssafFrequency:      "MONTHLY" | "QUARTERLY"
+  versementLiberatoire: boolean
+  rateBNCCotisations: number;         rateBNCVL: number;         rateBNCCFP: number
+  rateBICServicesCotisations: number; rateBICServicesVL: number; rateBICServicesCFP: number
+  rateBICSalesCotisations: number;    rateBICSalesVL: number;    rateBICSalesCFP: number
+}
+
+export async function saveTaxSettings(data: TaxSettingsData) {
+  const userId = await requireAuth()
+  await prisma.userProfile.upsert({
+    where:  { userId },
+    create: { userId, ...data } as never,
+    update: data as never,
+  })
+  revalidatePath("/settings")
+  revalidatePath("/impots")
+}
+
 export async function updateAccentColors(_userId: string, colorsJson: string) {
   const userId = await requireAuth()
   await prisma.userProfile?.upsert({
@@ -104,6 +124,9 @@ export async function deleteAllUserData(_userId: string) {
   // Revenus (référencent company, client, project — à supprimer avant eux)
   await prisma.revenue.deleteMany({ where: { userId } })
   await prisma.recurringRevenue.deleteMany({ where: { userId } })
+
+  // Fiscalité : déclarations URSSAF (les lignes cascadent) avant les factures
+  await prisma.urssafDeclaration.deleteMany({ where: { userId } })
 
   // Facturation : lignes & paiements avant les têtes
   await prisma.payment.deleteMany({ where: { invoice: { userId } } })

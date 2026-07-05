@@ -3,11 +3,12 @@
 import { useState, useTransition, useEffect } from "react"
 import {
   Pencil, Check, X, Mail, Phone, Building2, Tag,
-  MessageSquare, Loader2, MapPin, Hash,
+  MessageSquare, Loader2, MapPin, Hash, AlertCircle,
 } from "lucide-react"
 import { LinkedinIcon } from "@/components/ui/linkedin-icon"
 import { updateClientAll, updateProspectStage } from "@/actions/crm"
 import { cn } from "@/lib/utils"
+import { isContactIncomplete } from "@/lib/contact"
 import { CompanyCombobox } from "./CompanyCombobox"
 import { STAGE_CONFIG, type ProspectStage } from "./ProspectsView"
 
@@ -146,6 +147,12 @@ export function ClientInfoCard({ client, isOwner = true }: { client: ClientData;
 
   const temp = TEMP_CONFIG[client.temperature] ?? TEMP_CONFIG.COLD
   const typeLabel = TYPE_OPTIONS.find((t) => t.value === client.type)?.label ?? client.type
+
+  const missingParts: string[] = []
+  if (!client.firstName) missingParts.push("prénom")
+  if (!client.lastName)  missingParts.push("nom")
+  if (!client.email && !client.phone) missingParts.push("email ou téléphone")
+  const incomplete = isContactIncomplete(client)
 
   return (
     <div className={cn(
@@ -304,6 +311,22 @@ export function ClientInfoCard({ client, isOwner = true }: { client: ClientData;
       ) : (
         /* ── Mode lecture ── */
         <div className="space-y-3">
+          {/* Informations importantes manquantes — mises en avant, cliquable pour compléter */}
+          {incomplete && isOwner && (
+            <button
+              onClick={() => setEditing(true)}
+              className="w-full flex items-start gap-2.5 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2.5 text-left hover:bg-amber-500/15 transition-colors"
+            >
+              <AlertCircle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+              <div className="min-w-0">
+                <p className="text-xs font-medium text-amber-700 dark:text-amber-400">Informations à compléter</p>
+                <p className="text-xs text-amber-700/80 dark:text-amber-400/80 mt-0.5">
+                  Manque : {missingParts.join(", ")}
+                </p>
+              </div>
+            </button>
+          )}
+
           {/* Type + Température + Étape prospect */}
           <div className="flex items-center gap-2 flex-wrap">
             <span className={cn("rounded-full border px-2.5 py-0.5 text-xs font-medium", TYPE_CLS[client.type] ?? TYPE_CLS.INACTIVE)}>

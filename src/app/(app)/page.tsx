@@ -3,8 +3,8 @@ import { prisma } from "@/lib/prisma"
 import Link from "next/link"
 import {
   CheckSquare, AlertCircle, Clock, Users,
-  TrendingUp, Bell, Code2, Calendar, Circle,
-  AlertTriangle, Globe, UserMinus, Wallet, Receipt, Target,
+  TrendingUp, Bell, Code2, Calendar, Circle, PlayCircle,
+  Globe, UserMinus, Wallet, Receipt, Target,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { QuickActionsBar } from "@/components/modules/dashboard/QuickActionsBar"
@@ -25,6 +25,12 @@ export default async function DashboardPage() {
   const today = new Date()
   const todayStart = new Date(today.setHours(0, 0, 0, 0))
   const todayEnd = new Date(today.setHours(23, 59, 59, 999))
+  const weekStart = new Date(todayStart)
+  const _dow = weekStart.getDay()
+  weekStart.setDate(weekStart.getDate() + (_dow === 0 ? -6 : 1 - _dow))
+  const weekEnd = new Date(weekStart)
+  weekEnd.setDate(weekStart.getDate() + 6)
+  weekEnd.setHours(23, 59, 59, 999)
   const in30Days = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
   const followUpCutoff = new Date(Date.now() - 45 * 24 * 60 * 60 * 1000)
   /* eslint-enable react-hooks/purity */
@@ -60,6 +66,7 @@ export default async function DashboardPage() {
     pendingRevenues,
     pendingReimbursements,
     dashboardJobApps,
+    agendaTasks,
   ] = await Promise.all([
     prisma.task.findMany({
       where: {
@@ -250,6 +257,26 @@ export default async function DashboardPage() {
         nextActionAt: true, nextActionLabel: true,
       },
     }),
+    // Agenda semaine : en retard + échéances semaine + tâches démarrées
+    prisma.task.findMany({
+      where: {
+        AND: [
+          { OR: [{ project: { userId } }, { userId }] },
+          { status: { not: "DONE" } },
+          { parentTaskId: null },
+          { OR: [
+            { dueDate: { lte: weekEnd } },
+            { status: "IN_PROGRESS" },
+          ]},
+        ],
+      },
+      include: {
+        project: { select: { id: true, name: true } },
+        client:  { select: { id: true, name: true, company: true } },
+      },
+      orderBy: [{ dueDate: "asc" }, { updatedAt: "desc" }],
+      take: 15,
+    }),
   ])
 
   const totalPending   = unpaidInvoices.reduce((s, i) => s + i.totalHT - i.depositDeducted, 0)
@@ -331,6 +358,11 @@ export default async function DashboardPage() {
     .sort((a, b) => a.lastTouch.getTime() - b.lastTouch.getTime())
     .slice(0, 5)
 
+  // Groupes agenda semaine
+  const agendaOverdue      = agendaTasks.filter((t) => t.dueDate && new Date(t.dueDate) < todayStart)
+  const agendaWeek         = agendaTasks.filter((t) => t.dueDate && new Date(t.dueDate) >= todayStart && new Date(t.dueDate) <= weekEnd)
+  const agendaStartedOnly  = agendaTasks.filter((t) => t.status === "IN_PROGRESS" && (!t.dueDate || new Date(t.dueDate) > weekEnd))
+
   const hour = new Date().getHours()
   const greeting = hour < 12 ? "Bonjour" : hour < 18 ? "Bonjour" : "Bonsoir"
 
@@ -398,118 +430,142 @@ export default async function DashboardPage() {
         </div>
       )}
 
-      {/* Encaissements en attente — factures, revenus, remboursements santé */}
-      {(has("facturation") || has("revenus") || has("sante")) && (
-        <PendingIncomeCard
-          invoices={has("facturation") ? pendingInvoiceItems : []}
-          revenues={has("revenus") ? pendingRevenueItems : []}
-          reimbursements={has("sante") ? pendingReimbursementItems : []}
-        />
-      )}
-
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         {/* Colonne principale */}
         <div className="lg:col-span-2 space-y-6">
 
-          {/* Tâches en retard */}
-          {(has("taches") || has("projets")) && overdueTasks.length > 0 && (
-            <Section title="Tâches en retard" icon={<AlertTriangle className="h-4 w-4" />} href="/taches">
-              <div className="space-y-1.5">
-                {overdueTasks.map((task) => {
-                  const href = task.project ? `/projets/${task.project.id}/dev` : "/taches"
-                  const sub  = task.project?.name ?? task.client?.company ?? task.client?.name ?? "Tâche"
-                  return (
-                    <div key={task.id} className="flex items-center gap-2 rounded-lg px-3 py-2 hover:bg-muted/50 transition-colors group">
-                      <form action={async () => {
-                        "use server"
-                        const { completeTaskGlobal } = await import("@/actions/projet")
-                        await completeTaskGlobal(task.id)
-                      }}>
-                        <button type="submit" title="Marquer terminée" className="shrink-0 text-muted-foreground hover:text-emerald-500 transition-colors">
-                          <Circle className="h-3.5 w-3.5" />
-                        </button>
-                      </form>
-                      <Link href={href} className="flex-1 min-w-0 flex items-center gap-3">
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium truncate">{task.title}</p>
-                          <p className="text-xs text-muted-foreground">{sub}</p>
-                        </div>
-                        <span className="text-xs text-red-500 font-medium shrink-0">
-                          {new Date(task.dueDate!).toLocaleDateString("fr-FR", { day: "numeric", month: "short" })}
-                        </span>
-                      </Link>
+          {/* Agenda semaine — en retard + cette semaine + en cours */}
+          {(has("taches") || has("projets")) && agendaTasks.length > 0 && (
+            <Section title="Tâches" icon={<CheckSquare className="h-4 w-4" />} href="/taches">
+              <div>
+                {/* En retard */}
+                {agendaOverdue.length > 0 && (
+                  <div>
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-red-500 px-3 pt-2 pb-1">
+                      En retard · {agendaOverdue.length}
+                    </p>
+                    <div className="space-y-0.5">
+                      {agendaOverdue.map((task) => {
+                        const href = task.project ? `/projets/${task.project.id}/dev` : "/taches"
+                        const sub  = task.project?.name ?? task.client?.company ?? task.client?.name ?? null
+                        return (
+                          <div key={task.id} className="flex items-center gap-2 rounded-lg px-3 py-2 hover:bg-muted/50 transition-colors">
+                            <form action={async () => {
+                              "use server"
+                              const { completeTaskGlobal } = await import("@/actions/projet")
+                              await completeTaskGlobal(task.id)
+                            }}>
+                              <button type="submit" title="Marquer terminée" className="shrink-0 transition-colors">
+                                {task.status === "IN_PROGRESS"
+                                  ? <PlayCircle className="h-3.5 w-3.5 text-amber-500 hover:text-emerald-500" />
+                                  : <Circle className="h-3.5 w-3.5 text-muted-foreground hover:text-emerald-500" />}
+                              </button>
+                            </form>
+                            <Link href={href} className="flex-1 min-w-0 flex items-center gap-3">
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-medium truncate">{task.title}</p>
+                                {sub && <p className="text-xs text-muted-foreground">{sub}</p>}
+                              </div>
+                              <span className="text-xs text-red-500 font-medium shrink-0">
+                                {new Date(task.dueDate!).toLocaleDateString("fr-FR", { day: "numeric", month: "short" })}
+                              </span>
+                            </Link>
+                          </div>
+                        )
+                      })}
                     </div>
-                  )
-                })}
+                  </div>
+                )}
+                {/* Cette semaine */}
+                {agendaWeek.length > 0 && (
+                  <div>
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground px-3 pt-2 pb-1">
+                      Cette semaine · {agendaWeek.length}
+                    </p>
+                    <div className="space-y-0.5">
+                      {agendaWeek.map((task) => {
+                        const href = task.project ? `/projets/${task.project.id}/dev` : "/taches"
+                        const sub  = task.project?.name ?? task.client?.company ?? task.client?.name ?? null
+                        const isToday = task.dueDate && new Date(task.dueDate).toDateString() === new Date(todayStart).toDateString()
+                        return (
+                          <div key={task.id} className="flex items-center gap-2 rounded-lg px-3 py-2 hover:bg-muted/50 transition-colors">
+                            <form action={async () => {
+                              "use server"
+                              const { completeTaskGlobal } = await import("@/actions/projet")
+                              await completeTaskGlobal(task.id)
+                            }}>
+                              <button type="submit" title="Marquer terminée" className="shrink-0 transition-colors">
+                                {task.status === "IN_PROGRESS"
+                                  ? <PlayCircle className="h-3.5 w-3.5 text-amber-500 hover:text-emerald-500" />
+                                  : <Circle className="h-3.5 w-3.5 text-muted-foreground hover:text-emerald-500" />}
+                              </button>
+                            </form>
+                            <Link href={href} className="flex-1 min-w-0 flex items-center gap-3">
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-medium truncate">{task.title}</p>
+                                {sub && <p className="text-xs text-muted-foreground">{sub}</p>}
+                              </div>
+                              {task.dueDate && (
+                                <span className={`text-xs shrink-0 ${isToday ? "text-primary font-medium" : "text-muted-foreground"}`}>
+                                  {isToday ? "Aujourd'hui" : new Date(task.dueDate).toLocaleDateString("fr-FR", { weekday: "short", day: "numeric", month: "short" })}
+                                </span>
+                              )}
+                            </Link>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )}
+                {/* En cours sans date dans la semaine */}
+                {agendaStartedOnly.length > 0 && (
+                  <div>
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-amber-600 px-3 pt-2 pb-1">
+                      En cours · {agendaStartedOnly.length}
+                    </p>
+                    <div className="space-y-0.5">
+                      {agendaStartedOnly.map((task) => {
+                        const href = task.project ? `/projets/${task.project.id}/dev` : "/taches"
+                        const sub  = task.project?.name ?? task.client?.company ?? task.client?.name ?? null
+                        return (
+                          <div key={task.id} className="flex items-center gap-2 rounded-lg px-3 py-2 hover:bg-muted/50 transition-colors">
+                            <form action={async () => {
+                              "use server"
+                              const { completeTaskGlobal } = await import("@/actions/projet")
+                              await completeTaskGlobal(task.id)
+                            }}>
+                              <button type="submit" title="Marquer terminée" className="shrink-0 transition-colors">
+                                <PlayCircle className="h-3.5 w-3.5 text-amber-500 hover:text-emerald-500" />
+                              </button>
+                            </form>
+                            <Link href={href} className="flex-1 min-w-0 flex items-center gap-3">
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-medium truncate">{task.title}</p>
+                                {sub && <p className="text-xs text-muted-foreground">{sub}</p>}
+                              </div>
+                              {task.dueDate && (
+                                <span className="text-xs text-muted-foreground shrink-0">
+                                  {new Date(task.dueDate).toLocaleDateString("fr-FR", { day: "numeric", month: "short" })}
+                                </span>
+                              )}
+                            </Link>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )}
               </div>
             </Section>
           )}
 
-          {/* Tâches en cours */}
-          {(has("taches") || has("projets")) && tasksInProgress.length > 0 && (
-            <Section title="Tâches en cours" icon={<CheckSquare className="h-4 w-4" />} href="/taches">
-              <div className="space-y-1.5">
-                {tasksInProgress.map((task) => {
-                  const href = task.project ? `/projets/${task.project.id}/dev` : "/taches"
-                  const sub  = task.project?.name ?? task.client?.company ?? task.client?.name ?? "Tâche"
-                  return (
-                    <div key={task.id} className="flex items-center gap-2 rounded-lg px-3 py-2 hover:bg-muted/50 transition-colors group">
-                      <form action={async () => {
-                        "use server"
-                        const { completeTaskGlobal } = await import("@/actions/projet")
-                        await completeTaskGlobal(task.id)
-                      }}>
-                        <button type="submit" title="Marquer terminée" className="shrink-0 text-muted-foreground hover:text-emerald-500 transition-colors">
-                          <Circle className="h-3.5 w-3.5" />
-                        </button>
-                      </form>
-                      <Link href={href} className="flex-1 min-w-0 flex items-center gap-3">
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium truncate">{task.title}</p>
-                          <p className="text-xs text-muted-foreground">{sub}</p>
-                        </div>
-                        {task.dueDate && (
-                          <span className={`text-xs shrink-0 ${new Date(task.dueDate) < new Date() ? "text-red-500 font-medium" : "text-muted-foreground"}`}>
-                            {new Date(task.dueDate).toLocaleDateString("fr-FR", { day: "numeric", month: "short" })}
-                          </span>
-                        )}
-                      </Link>
-                    </div>
-                  )
-                })}
-              </div>
-            </Section>
-          )}
-
-          {/* Tâches dues aujourd'hui */}
-          {(has("taches") || has("projets")) && tasksDueToday.length > 0 && (
-            <Section title="Échéances aujourd'hui" icon={<Calendar className="h-4 w-4" />} href="/taches">
-              <div className="space-y-1.5">
-                {tasksDueToday.map((task) => {
-                  const href = task.project ? `/projets/${task.project.id}/dev` : "/taches"
-                  const sub  = task.project?.name ?? task.client?.company ?? task.client?.name ?? "Tâche"
-                  return (
-                    <div key={task.id} className="flex items-center gap-2 rounded-lg px-3 py-2 hover:bg-muted/50 transition-colors group">
-                      <form action={async () => {
-                        "use server"
-                        const { completeTaskGlobal } = await import("@/actions/projet")
-                        await completeTaskGlobal(task.id)
-                      }}>
-                        <button type="submit" title="Marquer terminée" className="shrink-0 text-muted-foreground hover:text-emerald-500 transition-colors">
-                          <Circle className="h-3.5 w-3.5" />
-                        </button>
-                      </form>
-                      <Link href={href} className="flex-1 min-w-0 flex items-center gap-2">
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium truncate">{task.title}</p>
-                          <p className="text-xs text-muted-foreground">{sub}</p>
-                        </div>
-                      </Link>
-                    </div>
-                  )
-                })}
-              </div>
-            </Section>
+          {/* En attente de réception */}
+          {(has("facturation") || has("revenus") || has("sante")) && (
+            <PendingIncomeCard
+              invoices={has("facturation") ? pendingInvoiceItems : []}
+              revenues={has("revenus") ? pendingRevenueItems : []}
+              reimbursements={has("sante") ? pendingReimbursementItems : []}
+            />
           )}
 
           {/* Factures impayées */}
@@ -750,7 +806,7 @@ export default async function DashboardPage() {
           )}
 
           {/* Tous ok — affiché si tous les widgets visibles sont vides */}
-          {(!(has("taches") || has("projets")) || (tasksInProgress.length === 0 && tasksDueToday.length === 0 && overdueTasks.length === 0)) &&
+          {(!(has("taches") || has("projets")) || agendaTasks.length === 0) &&
            (!has("facturation") || unpaidInvoices.length === 0) &&
            (!has("contacts") || (upcomingReminders.length === 0 && recentInteractions.length === 0 && followUpClients.length === 0 && dashboardProspects.length === 0)) &&
            (!has("projets") || (prods.length === 0 && upcomingMilestones.length === 0 && upcomingRenewals.length === 0)) &&

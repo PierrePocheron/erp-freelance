@@ -47,6 +47,7 @@ model User {
   healthConsultations HealthConsultation[]
   healthReimbursements HealthReimbursement[]
   jobApplications     JobApplication[]
+  urssafDeclarations  UrssafDeclaration[]
 }
 
 model ProjectIdea {
@@ -81,6 +82,22 @@ model UserProfile {
   pdfAccentColor      String   @default("#6366f1")
   customAccentColors  String?
   logoUrl             String?
+
+  // ── Fiscalité / imposition ──────────────────────────────────────────────
+  legalStatus          String               @default("AUTO_ENTREPRENEUR") // AUTO_ENTREPRENEUR | EI | EURL | SASU | OTHER
+  urssafFrequency      DeclarationFrequency @default(QUARTERLY)
+  versementLiberatoire Boolean              @default(true)
+  // Taux (%) par catégorie — modifiables si l'URSSAF les révise ou selon ACRE
+  rateBNCCotisations         Float @default(25.60)
+  rateBNCVL                  Float @default(2.20)
+  rateBNCCFP                 Float @default(0.20)
+  rateBICServicesCotisations Float @default(21.20)
+  rateBICServicesVL          Float @default(1.70)
+  rateBICServicesCFP         Float @default(0.10)
+  rateBICSalesCotisations    Float @default(12.30)
+  rateBICSalesVL             Float @default(1.00)
+  rateBICSalesCFP            Float @default(0.10)
+
   createdAt           DateTime @default(now())
   updatedAt         DateTime @updatedAt
 
@@ -308,6 +325,8 @@ model Client {
   country       String?
   siret         String?
   linkedinUrl   String?
+  // Catégorie fiscale par défaut des factures de ce client (pré-remplissage déclaration URSSAF)
+  defaultFiscalCategory FiscalCategory?
   createdAt     DateTime     @default(now())
   updatedAt     DateTime     @updatedAt
 
@@ -783,17 +802,19 @@ model Invoice {
   pdfUrl            String?
   notes             String?
   generalConditions String?
+  urssafExcluded    Boolean       @default(false) // hors auto-entreprise : terminée dès paiement, jamais à déclarer
   createdAt         DateTime      @default(now())
   updatedAt        DateTime      @updatedAt
 
-  user      User            @relation(fields: [userId], references: [id], onDelete: Cascade)
-  client    Client          @relation(fields: [clientId], references: [id])
-  project   Project?        @relation(fields: [projectId], references: [id])
-  quote     Quote?          @relation(fields: [quoteId], references: [id])
-  emitter   EmitterProfile? @relation(fields: [emitterProfileId], references: [id], onDelete: SetNull)
-  lines     InvoiceLine[]
-  emailLogs EmailLog[]
-  payments  Payment[]
+  user       User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  client     Client                 @relation(fields: [clientId], references: [id])
+  project    Project?               @relation(fields: [projectId], references: [id])
+  quote      Quote?                 @relation(fields: [quoteId], references: [id])
+  emitter    EmitterProfile?        @relation(fields: [emitterProfileId], references: [id], onDelete: SetNull)
+  lines      InvoiceLine[]
+  emailLogs  EmailLog[]
+  payments   Payment[]
+  urssafLine UrssafDeclarationLine?
 }
 
 model Payment {
@@ -1004,6 +1025,7 @@ model Revenue {
   company          Company?          @relation("RevenueCompany", fields: [companyId], references: [id], onDelete: SetNull)
   client           Client?           @relation("RevenueClient", fields: [clientId], references: [id], onDelete: SetNull)
   project          Project?          @relation("RevenueProject", fields: [projectId], references: [id], onDelete: SetNull)
+  urssafLine       UrssafDeclarationLine?
 
   @@index([userId])
   @@index([recurringRevenueId])
@@ -1230,4 +1252,78 @@ model JobApplicationEvent {
 
   @@index([userId])
   @@index([applicationId])
+}
+
+// ─── Fiscalité — déclarations URSSAF (auto-entrepreneur) ─────────────────────
+
+// Catégorie fiscale micro-entreprise : détermine les taux de cotisations
+// appliqués au CA déclaré. Portée aussi par Client.defaultFiscalCategory
+// pour pré-catégoriser les factures lors de la préparation d'une déclaration.
+enum FiscalCategory {
+  BNC           // Recettes des activités libérales
+  BIC_SERVICES  // Prestations de services commerciales ou artisanales
+  BIC_SALES     // Ventes de marchandises et assimilées
+}
+
+enum UrssafDeclarationStatus {
+  DRAFT     // en préparation — lignes modifiables
+  DECLARED  // déclarée sur autoentrepreneur.urssaf.fr
+  PAID      // cotisations prélevées / payées
+}
+
+enum DeclarationFrequency {
+  MONTHLY
+  QUARTERLY
+}
+
+model UrssafDeclaration {
+  id          String                  @id @default(cuid())
+  userId      String
+  period      String                  // "2026-T2" (trimestriel) ou "2026-07" (mensuel)
+  periodStart DateTime
+  periodEnd   DateTime
+  dueDate     DateTime?               // échéance de déclaration URSSAF
+  status      UrssafDeclarationStatus @default(DRAFT)
+  declaredAt  DateTime?
+  paidAt      DateTime?
+
+  // CA déclaré par catégorie (somme des lignes, dénormalisée pour l'affichage)
+  amountBNC         Float @default(0)
+  amountBICServices Float @default(0)
+  amountBICSales    Float @default(0)
+
+  // Montants réellement payés à l'URSSAF (saisis depuis le récap officiel)
+  cotisations          Float @default(0)
+  cfp                  Float @default(0) // Contribution Formation Professionnelle
+  versementLiberatoire Float @default(0)
+  totalPaid            Float @default(0)
+
+  notes     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user  User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lines UrssafDeclarationLine[]
+
+  @@unique([userId, period])
+  @@index([userId])
+}
+
+// Une ligne = un élément de CA déclaré. Pointe vers une facture, un revenu,
+// ou rien (libellé libre pour un encaissement sans entité dans l'app).
+// invoiceId/revenueId uniques : un même encaissement ne peut être déclaré qu'une fois.
+model UrssafDeclarationLine {
+  id            String         @id @default(cuid())
+  declarationId String
+  category      FiscalCategory
+  invoiceId     String?        @unique
+  revenueId     String?        @unique
+  label         String
+  amount        Float
+
+  declaration UrssafDeclaration @relation(fields: [declarationId], references: [id], onDelete: Cascade)
+  invoice     Invoice?          @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
+  revenue     Revenue?          @relation(fields: [revenueId], references: [id], onDelete: SetNull)
+
+  @@index([declarationId])
 }

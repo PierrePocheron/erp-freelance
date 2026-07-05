@@ -16,7 +16,7 @@ export default async function GraphPage() {
     }),
     prisma.client.findMany({
       where: { userId },
-      select: { id: true, name: true, type: true, companyId: true, email: true, city: true, phone: true },
+      select: { id: true, name: true, type: true, companyId: true, email: true, city: true, phone: true, firstName: true, lastName: true },
     }),
     prisma.project.findMany({
       where: { userId },
@@ -103,12 +103,16 @@ export default async function GraphPage() {
       type:       "CLIENT",
       label:      c.name,
       parentId,
-      incomplete: !c.email && !c.phone,
+      // Prénom + nom sont l'identité de référence du contact (Client.name n'est
+      // qu'un cache d'affichage) — leur absence doit être signalée au même titre
+      // que des coordonnées manquantes.
+      incomplete: !c.firstName || !c.lastName || (!c.email && !c.phone),
       meta: {
         href:     `/contacts/${c.id}`,
         subtitle: c.email ?? c.city ?? undefined,
         details: [
           { label: "Projets", value: String(projCount) },
+          { label: "Prénom / Nom", value: (c.firstName && c.lastName) ? `${c.firstName} ${c.lastName}` : "— à compléter" },
           ...(c.email ? [{ label: "Email", value: c.email }] : [{ label: "Email", value: "— manquant" }]),
           ...(c.phone ? [{ label: "Tél",   value: c.phone }] : []),
         ],

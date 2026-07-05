@@ -56,6 +56,15 @@ export function declarationDueDate(key: string): Date {
   return new Date(end.getFullYear(), end.getMonth() + 2, 0, 23, 59, 59, 999)
 }
 
+/**
+ * Premier jour où la période devient déclarable sur autoentrepreneur.urssaf.fr —
+ * le mois suivant la fin de la période (T2 avr–juin → déclarable dès le 1er juillet).
+ */
+export function declarationAvailableFrom(key: string): Date {
+  const { end } = periodBounds(key)
+  return new Date(end.getFullYear(), end.getMonth() + 1, 1)
+}
+
 /** Période précédente ("2026-T1" → "2025-T4", "2026-01" → "2025-12"). */
 export function previousPeriod(key: string): string {
   const [yStr, part] = key.split("-")

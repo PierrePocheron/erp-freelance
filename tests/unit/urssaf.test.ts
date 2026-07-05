@@ -7,6 +7,7 @@ import {
   nextPeriod,
   periodToDeclare,
   declarationDueDate,
+  declarationAvailableFrom,
   isQuarterKey,
   computeContributions,
   ratesFromProfile,
@@ -104,6 +105,23 @@ describe("declarationDueDate", () => {
     const due = declarationDueDate("2026-06")
     expect(due.getMonth()).toBe(6)
     expect(due.getDate()).toBe(31)
+  })
+})
+
+describe("declarationAvailableFrom", () => {
+  it("T2 (avr–juin) → déclarable dès le 1er juillet", () => {
+    const from = declarationAvailableFrom("2026-T2")
+    expect(from).toEqual(new Date(2026, 6, 1))
+  })
+
+  it("T4 → déclarable dès le 1er janvier de l'année suivante", () => {
+    const from = declarationAvailableFrom("2026-T4")
+    expect(from).toEqual(new Date(2027, 0, 1))
+  })
+
+  it("mensuel juin → déclarable dès le 1er juillet", () => {
+    const from = declarationAvailableFrom("2026-06")
+    expect(from).toEqual(new Date(2026, 6, 1))
   })
 })
 

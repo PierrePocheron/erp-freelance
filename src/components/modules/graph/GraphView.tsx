@@ -111,7 +111,9 @@ export function GraphView({ rawNodes, rawLinks }: { rawNodes: RawNode[]; rawLink
   const [hiddenTypes, setHidden]    = useState<Set<NodeType>>(new Set())
   const [selected, setSelected]     = useState<RawNode | null>(null)
   const [activeFilter, setActiveFilter]       = useState<"pending" | "incomplete" | null>(null)
-  const [assignCompanyId, setAssignCompanyId] = useState("")
+  // Valeur combinée "company:<id>" | "client:<id>" — un revenu personnel (remboursement
+  // d'un proche) n'a souvent qu'un contact, pas de société.
+  const [assignParent,   setAssignParent]     = useState("")
   const [quickWebsite,    setQuickWebsite]    = useState("")
   const [quickEmail,      setQuickEmail]      = useState("")
   const [quickPhone,      setQuickPhone]      = useState("")
@@ -274,7 +276,7 @@ export function GraphView({ rawNodes, rawLinks }: { rawNodes: RawNode[]; rawLink
   // Reset des champs de saisie rapide au changement de nœud sélectionné
   useEffect(() => {
     /* eslint-disable react-hooks/set-state-in-effect */
-    setAssignCompanyId("")
+    setAssignParent("")
     setQuickWebsite("")
     setQuickEmail("")
     setQuickPhone("")
@@ -311,11 +313,12 @@ export function GraphView({ rawNodes, rawLinks }: { rawNodes: RawNode[]; rawLink
 
   // ── Complétion rapide depuis le volet détail ─────────────────────────────
 
-  function handleAssignCompany() {
-    if (!selected || !assignCompanyId) return
+  function handleAssignParent() {
+    if (!selected || !assignParent) return
     const dbId = selected.id.replace(/^revenue-/, "")
+    const [kind, parentId] = assignParent.split(":")
     startTransition(async () => {
-      await updateRevenue(dbId, { companyId: assignCompanyId })
+      await updateRevenue(dbId, kind === "client" ? { clientId: parentId } : { companyId: parentId })
       setSelected(null)
       router.refresh()
     })
@@ -641,34 +644,47 @@ export function GraphView({ rawNodes, rawLinks }: { rawNodes: RawNode[]; rawLink
                   <div className="flex items-center gap-2">
                     <AlertCircle className="h-3.5 w-3.5 text-amber-600 shrink-0" />
                     <span className="text-xs font-medium text-amber-700 dark:text-amber-400">
-                      {selected.type === "REVENUE"  && "Société non associée"}
+                      {selected.type === "REVENUE"  && "Société ou contact non associé"}
                       {selected.type === "COMPANY"  && "Site web manquant"}
                       {selected.type === "CLIENT"   && "Coordonnées manquantes"}
                     </span>
                   </div>
 
-                  {/* REVENUE — picker société */}
+                  {/* REVENUE — picker société OU contact (ex : remboursement d'un proche) */}
                   {selected.type === "REVENUE" && (
                     <div className="space-y-1.5">
                       <select
-                        value={assignCompanyId}
-                        onChange={e => setAssignCompanyId(e.target.value)}
+                        value={assignParent}
+                        onChange={e => setAssignParent(e.target.value)}
                         className="w-full rounded-lg border border-input bg-background px-2.5 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-primary"
                       >
-                        <option value="">— Choisir une société…</option>
-                        {rawNodes
-                          .filter(n => n.type === "COMPANY")
-                          .sort((a, b) => a.label.localeCompare(b.label, "fr"))
-                          .map(n => (
-                            <option key={n.id} value={n.id.replace("company-", "")}>
-                              {n.label}
-                            </option>
-                          ))
-                        }
+                        <option value="">— Choisir une société ou un contact…</option>
+                        <optgroup label="Sociétés">
+                          {rawNodes
+                            .filter(n => n.type === "COMPANY")
+                            .sort((a, b) => a.label.localeCompare(b.label, "fr"))
+                            .map(n => (
+                              <option key={n.id} value={`company:${n.id.replace("company-", "")}`}>
+                                {n.label}
+                              </option>
+                            ))
+                          }
+                        </optgroup>
+                        <optgroup label="Contacts">
+                          {rawNodes
+                            .filter(n => n.type === "CLIENT")
+                            .sort((a, b) => a.label.localeCompare(b.label, "fr"))
+                            .map(n => (
+                              <option key={n.id} value={`client:${n.id.replace("client-", "")}`}>
+                                {n.label}
+                              </option>
+                            ))
+                          }
+                        </optgroup>
                       </select>
-                      {assignCompanyId && (
+                      {assignParent && (
                         <button
-                          onClick={handleAssignCompany}
+                          onClick={handleAssignParent}
                           disabled={isPending}
                           className="w-full rounded-lg bg-amber-600 text-white text-xs font-medium py-1.5 hover:bg-amber-700 disabled:opacity-50 transition-colors"
                         >

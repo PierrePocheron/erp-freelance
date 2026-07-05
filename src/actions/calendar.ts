@@ -892,8 +892,15 @@ export async function syncGoogleEvents(): Promise<SyncResult> {
   if (!accessToken) return { synced: 0, needsPermission: true }
 
   try {
-    // Récupération (pull) : tout le passé → 3 mois dans le futur.
-    const from = new Date(0)
+    // Récupération (pull) : fenêtre glissante récente → 3 mois dans le futur.
+    // ⚠️ Ne JAMAIS repartir de l'epoch (new Date(0)) : sur un compte Google avec
+    // des années d'historique, singleEvents=true explose chaque récurrence sur
+    // tout cet historique (potentiellement des milliers d'événements), et la
+    // boucle d'écriture SQL séquentielle qui suit dépasse alors largement le
+    // timeout des fonctions serverless (10s par défaut sur Vercel sans
+    // maxDuration) — le sync ne se termine jamais côté client.
+    const from = new Date()
+    from.setMonth(from.getMonth() - 6)
     const to = new Date()
     to.setMonth(to.getMonth() + 3)
 

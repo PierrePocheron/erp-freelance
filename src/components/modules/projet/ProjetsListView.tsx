@@ -1,8 +1,10 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useMemo } from "react"
 import Link from "next/link"
 import { LayoutGrid, List, Layers, Calendar, CheckSquare, Search, TrendingUp } from "lucide-react"
+import { useSortState, cmp } from "@/hooks/use-sortable"
+import { Th } from "@/components/ui/sortable-header"
 import { Badge } from "@/components/ui/badge"
 import { BillingBar } from "@/components/modules/billing/BillingBar"
 import { ProjectCard } from "./ProjectCard"
@@ -61,6 +63,7 @@ export function ProjetsListView({
   const [search, setSearch] = useState("")
   const [statusFilter, setStatusFilter] = useState("ALL")
   const [showBilling, setShowBilling] = useState(false)
+  const { sortCol, sortDir, toggle } = useSortState()
 
   const STATUS_FILTERS = [
     { value: "ALL",       label: "Tous"      },
@@ -80,6 +83,21 @@ export function ProjetsListView({
   const active    = [...filtered.filter((p) => p.status === "ACTIVE")].sort(byPriority)
   const completed = [...filtered.filter((p) => p.status === "COMPLETED")].sort(byPriority)
   const others    = [...filtered.filter((p) => p.status !== "ACTIVE" && p.status !== "COMPLETED")].sort(byPriority)
+
+  const listItems = useMemo(() => {
+    const all = [...active, ...completed, ...others]
+    if (!sortCol) return all
+    return [...all].sort((a, b) => {
+      switch (sortCol) {
+        case "name":     return cmp(a.name, b.name, sortDir)
+        case "company":  return cmp(a.company?.name ?? null, b.company?.name ?? null, sortDir)
+        case "priority": return cmp(PRIORITY_ORDER[a.priority ?? "MEDIUM"], PRIORITY_ORDER[b.priority ?? "MEDIUM"], sortDir)
+        case "status":   return cmp(a.status, b.status, sortDir)
+        case "endDate":  return cmp(a.endDate ? new Date(a.endDate) : null, b.endDate ? new Date(b.endDate) : null, sortDir)
+        default: return 0
+      }
+    })
+  }, [active, completed, others, sortCol, sortDir])
 
   return (
     <div className="space-y-8">
@@ -207,18 +225,18 @@ export function ProjetsListView({
         <div className="rounded-xl border border-border/50 bg-card overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-border text-xs text-muted-foreground">
-                <th className="px-4 py-3 text-left font-medium">Projet</th>
-                <th className="px-4 py-3 text-left font-medium hidden sm:table-cell">Société</th>
-                <th className="px-4 py-3 text-left font-medium">Priorité</th>
-                <th className="px-4 py-3 text-left font-medium">Statut</th>
-                <th className="px-4 py-3 text-left font-medium hidden md:table-cell">Tâches</th>
-                {showBilling && <th className="px-4 py-3 text-left font-medium hidden md:table-cell">Facturation</th>}
-                <th className="px-4 py-3 text-left font-medium hidden lg:table-cell">Fin estimée</th>
+              <tr className="border-b border-border">
+                <Th label="Projet"      col="name"     sortCol={sortCol} sortDir={sortDir} onSort={toggle} className="px-4 py-3" />
+                <Th label="Société"     col="company"  sortCol={sortCol} sortDir={sortDir} onSort={toggle} className="px-4 py-3 hidden sm:table-cell" />
+                <Th label="Priorité"    col="priority" sortCol={sortCol} sortDir={sortDir} onSort={toggle} className="px-4 py-3" />
+                <Th label="Statut"      col="status"   sortCol={sortCol} sortDir={sortDir} onSort={toggle} className="px-4 py-3" />
+                <th className="px-4 py-3 text-left font-medium text-xs text-muted-foreground hidden md:table-cell">Tâches</th>
+                {showBilling && <th className="px-4 py-3 text-left font-medium text-xs text-muted-foreground hidden md:table-cell">Facturation</th>}
+                <Th label="Fin estimée" col="endDate"  sortCol={sortCol} sortDir={sortDir} onSort={toggle} className="px-4 py-3 hidden lg:table-cell" />
               </tr>
             </thead>
             <tbody>
-              {[...active, ...completed, ...others].map((p) => {
+              {listItems.map((p) => {
                 const st = statusConfig[p.status]
                 const progress = p._count.tasks > 0 ? Math.round((p.tasksDone / p._count.tasks) * 100) : 0
                 const clientLabel = p.company?.name ?? p.contactLinks[0]?.client?.name ?? "—"

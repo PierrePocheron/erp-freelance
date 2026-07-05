@@ -1,8 +1,10 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useMemo } from "react"
 import Link from "next/link"
 import { Receipt, LayoutGrid, List, Download } from "lucide-react"
+import { useSortState, cmp } from "@/hooks/use-sortable"
+import { Th } from "@/components/ui/sortable-header"
 import { CreateInvoiceDialog } from "./CreateInvoiceDialog"
 import { ImportInvoiceModal } from "./ImportInvoiceModal"
 
@@ -67,8 +69,25 @@ export function FacturesListView({
 }) {
   const [view, setView] = useState<"list" | "cards">("list")
   const [statusFilter, setStatusFilter] = useState("ALL")
+  const { sortCol, sortDir, toggle } = useSortState("createdAt", "desc")
 
   const filtered = statusFilter === "ALL" ? invoices : invoices.filter((i) => i.status === statusFilter)
+
+  const sorted = useMemo(() => {
+    if (!sortCol) return filtered
+    return [...filtered].sort((a, b) => {
+      switch (sortCol) {
+        case "number":  return cmp(a.number, b.number, sortDir)
+        case "client":  return cmp(a.client.company ?? a.client.name, b.client.company ?? b.client.name, sortDir)
+        case "type":    return cmp(a.type, b.type, sortDir)
+        case "status":  return cmp(a.status, b.status, sortDir)
+        case "amount":  return cmp(a.totalHT - a.depositDeducted, b.totalHT - b.depositDeducted, sortDir)
+        case "createdAt": return cmp(new Date(a.createdAt), new Date(b.createdAt), sortDir)
+        case "dueDate": return cmp(a.dueDate ? new Date(a.dueDate) : null, b.dueDate ? new Date(b.dueDate) : null, sortDir)
+        default: return 0
+      }
+    })
+  }, [filtered, sortCol, sortDir])
 
   return (
     <div className="space-y-6">
@@ -152,18 +171,18 @@ export function FacturesListView({
         <div className="rounded-xl border border-border/50 bg-card overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-border text-xs text-muted-foreground">
-                <th className="px-4 py-3 text-left font-medium">Numéro</th>
-                <th className="px-4 py-3 text-left font-medium">Client</th>
-                <th className="px-4 py-3 text-left font-medium hidden sm:table-cell">Type</th>
-                <th className="px-4 py-3 text-left font-medium">Statut</th>
-                <th className="px-4 py-3 text-right font-medium">Montant HT</th>
-                <th className="px-4 py-3 text-left font-medium hidden md:table-cell">Créée le</th>
-                <th className="px-4 py-3 text-left font-medium hidden sm:table-cell">Échéance</th>
+              <tr className="border-b border-border">
+                <Th label="Numéro"    col="number"    sortCol={sortCol} sortDir={sortDir} onSort={toggle} className="px-4 py-3" />
+                <Th label="Client"    col="client"    sortCol={sortCol} sortDir={sortDir} onSort={toggle} className="px-4 py-3" />
+                <Th label="Type"      col="type"      sortCol={sortCol} sortDir={sortDir} onSort={toggle} className="px-4 py-3 hidden sm:table-cell" />
+                <Th label="Statut"    col="status"    sortCol={sortCol} sortDir={sortDir} onSort={toggle} className="px-4 py-3" />
+                <Th label="Montant HT" col="amount"  sortCol={sortCol} sortDir={sortDir} onSort={toggle} className="px-4 py-3" align="right" />
+                <Th label="Créée le"  col="createdAt" sortCol={sortCol} sortDir={sortDir} onSort={toggle} className="px-4 py-3 hidden md:table-cell" />
+                <Th label="Échéance"  col="dueDate"   sortCol={sortCol} sortDir={sortDir} onSort={toggle} className="px-4 py-3 hidden sm:table-cell" />
               </tr>
             </thead>
             <tbody>
-              {filtered.map((inv) => {
+              {sorted.map((inv) => {
                 const status = statusConfig[inv.status] ?? { label: inv.status, cls: "bg-muted text-muted-foreground border-border" }
                 const isLate = inv.dueDate && inv.status === "SENT" && new Date(inv.dueDate) < new Date()
                 return (

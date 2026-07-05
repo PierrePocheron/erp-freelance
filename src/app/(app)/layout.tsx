@@ -8,6 +8,7 @@ import { OnboardingGate } from "@/components/modules/onboarding/OnboardingGate"
 import { NotificationBell } from "@/components/modules/notifications/NotificationBell"
 import { ensureSelfClient } from "@/actions/user"
 import { getRunningTimer } from "@/actions/timetracking"
+import { ensureUrssafReminderTask } from "@/actions/urssaf"
 import { prisma } from "@/lib/prisma"
 
 export default async function AppLayout({
@@ -20,6 +21,12 @@ export default async function AppLayout({
 
   const userId = session.user.id
   await ensureSelfClient(userId)
+
+  const profile = await prisma.userProfile.findUnique({
+    where: { userId },
+    select: { urssafFrequency: true },
+  })
+  await ensureUrssafReminderTask(userId, profile?.urssafFrequency ?? "QUARTERLY")
 
   const [runningTimer, notifications] = await Promise.all([
     getRunningTimer(userId),

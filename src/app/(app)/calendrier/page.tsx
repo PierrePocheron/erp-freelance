@@ -192,7 +192,9 @@ export default async function CalendrierPage() {
       const clientLabel = cli ? ((cli as { company?: string | null; name: string }).company ?? cli.name) : null
       const d = new Date(t.dueDate!)
       const isAllDay = d.getHours() === 0 && d.getMinutes() === 0
-      const subtitle = proj
+      const subtitle = t.urssafPeriod
+        ? "Déclaration URSSAF"
+        : proj
         ? `${proj.name}${clientLabel ? ` · ${clientLabel}` : ""}`
         : (clientLabel ?? undefined)
       return {
@@ -203,7 +205,7 @@ export default async function CalendrierPage() {
         description: t.description ?? null,
         subtitle,
         type: "task" as const,
-        href: proj ? `/projets/${proj.id}/dev` : (t.clientId ? `/contacts/${t.clientId}` : undefined),
+        href: t.urssafPeriod ? "/impots" : proj ? `/projets/${proj.id}/dev` : (t.clientId ? `/contacts/${t.clientId}` : undefined),
         isLate: new Date(t.dueDate!) < now,
         categoryId: catTasks?.id ?? null,
         categoryColor: catTasks?.color ?? null,

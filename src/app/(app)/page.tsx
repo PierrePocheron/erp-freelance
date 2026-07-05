@@ -4,7 +4,7 @@ import Link from "next/link"
 import {
   CheckSquare, AlertCircle, Clock, Users,
   TrendingUp, Bell, Code2, Calendar, Circle, PlayCircle,
-  Globe, UserMinus, Wallet, Receipt, Target,
+  Globe, UserMinus, Wallet, Receipt, Target, ClipboardList,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { QuickActionsBar } from "@/components/modules/dashboard/QuickActionsBar"
@@ -12,6 +12,7 @@ import { ProdMonitorCard } from "@/components/modules/dashboard/ProdMonitorCard"
 import { PendingIncomeCard } from "@/components/modules/dashboard/PendingIncomeCard"
 import { JobHuntCard } from "@/components/modules/dashboard/JobHuntCard"
 import { getActiveModules } from "@/lib/modules-server"
+import { isContactIncomplete } from "@/lib/contact"
 
 export default async function DashboardPage() {
   const session = await auth()
@@ -31,6 +32,10 @@ export default async function DashboardPage() {
   const weekEnd = new Date(weekStart)
   weekEnd.setDate(weekStart.getDate() + 6)
   weekEnd.setHours(23, 59, 59, 999)
+  const tomorrowStart = new Date(todayStart)
+  tomorrowStart.setDate(tomorrowStart.getDate() + 1)
+  const tomorrowEnd = new Date(tomorrowStart)
+  tomorrowEnd.setHours(23, 59, 59, 999)
   const in30Days = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
   const followUpCutoff = new Date(Date.now() - 45 * 24 * 60 * 60 * 1000)
   /* eslint-enable react-hooks/purity */
@@ -67,6 +72,10 @@ export default async function DashboardPage() {
     pendingReimbursements,
     dashboardJobApps,
     agendaTasks,
+    tomorrowEvents,
+    incompleteContactsRaw,
+    incompleteCompaniesRaw,
+    incompleteRevenuesRaw,
   ] = await Promise.all([
     prisma.task.findMany({
       where: {
@@ -277,6 +286,25 @@ export default async function DashboardPage() {
       orderBy: [{ dueDate: "asc" }, { updatedAt: "desc" }],
       take: 15,
     }),
+    // Événements calendrier (manuels + synchronisés) prévus demain
+    prisma.calendarEvent.findMany({
+      where: { userId, startDate: { gte: tomorrowStart, lte: tomorrowEnd } },
+      include: { category: { select: { name: true, color: true } } },
+      orderBy: { startDate: "asc" },
+    }),
+    // Données à compléter — agrégé pour la mise en avant dashboard
+    prisma.client.findMany({
+      where: { userId, type: { not: "SELF" } },
+      select: { id: true, name: true, firstName: true, lastName: true, email: true, phone: true },
+    }),
+    prisma.company.findMany({
+      where: { userId },
+      select: { id: true, name: true, website: true },
+    }),
+    prisma.revenue.findMany({
+      where: { userId },
+      select: { id: true, label: true, companyId: true, clientId: true, projectId: true },
+    }),
   ])
 
   const totalPending   = unpaidInvoices.reduce((s, i) => s + i.totalHT - i.depositDeducted, 0)
@@ -363,6 +391,12 @@ export default async function DashboardPage() {
   const agendaWeek         = agendaTasks.filter((t) => t.dueDate && new Date(t.dueDate) >= todayStart && new Date(t.dueDate) <= weekEnd)
   const agendaStartedOnly  = agendaTasks.filter((t) => t.status === "IN_PROGRESS" && (!t.dueDate || new Date(t.dueDate) > weekEnd))
 
+  // ── Données à compléter — agrégé tous modules ─────────────────────────────
+  const incompleteContacts  = incompleteContactsRaw.filter(isContactIncomplete)
+  const incompleteCompanies = incompleteCompaniesRaw.filter((c) => !c.website)
+  const incompleteRevenues  = incompleteRevenuesRaw.filter((r) => !r.companyId && !r.clientId && !r.projectId)
+  const totalIncomplete = incompleteContacts.length + incompleteCompanies.length + incompleteRevenues.length
+
   const hour = new Date().getHours()
   const greeting = hour < 12 ? "Bonjour" : hour < 18 ? "Bonjour" : "Bonsoir"
 
@@ -388,51 +422,95 @@ export default async function DashboardPage() {
         {(has("taches") || has("projets")) && <KPICard href="/taches" icon={<CheckSquare className="h-4 w-4" />} label="En cours"    value={tasksInProgress.length}                                color="emerald" />}
       </div>
 
-      {/* Revenus encaissés {year} */}
-      {(has("facturation") || has("revenus")) && (
-        <div className="rounded-xl border border-border/50 bg-card px-5 py-4">
-          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-3">
-            Revenus encaissés — {currentYear}
-          </p>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        {/* Revenus encaissés {year} — carte compacte, une ligne */}
+        {(has("facturation") || has("revenus")) && (
+          <div className="rounded-xl border border-border/50 bg-card px-4 py-2.5 flex items-center gap-4 flex-wrap">
+            <p className="text-xs font-medium text-muted-foreground shrink-0">
+              Encaissé {currentYear}
+            </p>
             {has("facturation") && (
-              <Link href="/facturation/factures" className="group space-y-0.5">
-                <div className="flex items-center gap-1.5 text-xs text-muted-foreground group-hover:text-foreground transition-colors">
-                  <Receipt className="h-3.5 w-3.5 text-violet-500" />
-                  Auto-entreprise
-                </div>
-                <p className="text-lg font-bold tabular-nums text-violet-600">
-                  {encaisseAE.toLocaleString("fr-FR")} €
-                </p>
+              <Link href="/facturation/factures" className="group flex items-center gap-1.5 text-xs">
+                <Receipt className="h-3.5 w-3.5 text-violet-500 shrink-0" />
+                <span className="text-muted-foreground group-hover:text-foreground transition-colors">AE</span>
+                <span className="font-semibold tabular-nums text-violet-600">{encaisseAE.toLocaleString("fr-FR")} €</span>
               </Link>
             )}
             {has("revenus") && (
-              <Link href="/revenus" className="group space-y-0.5">
-                <div className="flex items-center gap-1.5 text-xs text-muted-foreground group-hover:text-foreground transition-colors">
-                  <Wallet className="h-3.5 w-3.5 text-teal-500" />
-                  Autres revenus
-                </div>
-                <p className="text-lg font-bold tabular-nums text-teal-600">
-                  {encaisseAutres.toLocaleString("fr-FR")} €
-                </p>
+              <Link href="/revenus" className="group flex items-center gap-1.5 text-xs">
+                <Wallet className="h-3.5 w-3.5 text-teal-500 shrink-0" />
+                <span className="text-muted-foreground group-hover:text-foreground transition-colors">Autres</span>
+                <span className="font-semibold tabular-nums text-teal-600">{encaisseAutres.toLocaleString("fr-FR")} €</span>
               </Link>
             )}
-            <div className="space-y-0.5 border-l border-border/50 pl-4">
-              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                <TrendingUp className="h-3.5 w-3.5 text-emerald-500" />
-                Total
-              </div>
-              <p className="text-lg font-bold tabular-nums text-emerald-600">
-                {encaisseTotal.toLocaleString("fr-FR")} €
-              </p>
-            </div>
+            <span className="ml-auto flex items-center gap-1.5 text-xs shrink-0">
+              <TrendingUp className="h-3.5 w-3.5 text-emerald-500" />
+              <span className="text-muted-foreground">Total</span>
+              <span className="font-bold tabular-nums text-emerald-600">{encaisseTotal.toLocaleString("fr-FR")} €</span>
+            </span>
           </div>
-        </div>
-      )}
+        )}
+
+        {/* Données à compléter — agrégé tous modules, mis en avant */}
+        {(has("contacts") || has("societes") || has("revenus")) && totalIncomplete > 0 && (
+          <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 px-4 py-2.5 flex items-center gap-4 flex-wrap">
+            <p className="flex items-center gap-1.5 text-xs font-medium text-amber-700 dark:text-amber-400 shrink-0">
+              <AlertCircle className="h-3.5 w-3.5" />
+              Données à compléter
+            </p>
+            {has("contacts") && incompleteContacts.length > 0 && (
+              <Link href="/contacts" className="group flex items-center gap-1 text-xs">
+                <span className="text-muted-foreground group-hover:text-foreground transition-colors">Contacts</span>
+                <span className="font-semibold tabular-nums text-amber-600">{incompleteContacts.length}</span>
+              </Link>
+            )}
+            {has("societes") && incompleteCompanies.length > 0 && (
+              <Link href="/societes" className="group flex items-center gap-1 text-xs">
+                <span className="text-muted-foreground group-hover:text-foreground transition-colors">Sociétés</span>
+                <span className="font-semibold tabular-nums text-amber-600">{incompleteCompanies.length}</span>
+              </Link>
+            )}
+            {has("revenus") && incompleteRevenues.length > 0 && (
+              <Link href="/revenus" className="group flex items-center gap-1 text-xs">
+                <span className="text-muted-foreground group-hover:text-foreground transition-colors">Revenus</span>
+                <span className="font-semibold tabular-nums text-amber-600">{incompleteRevenues.length}</span>
+              </Link>
+            )}
+            {has("graph") && (
+              <Link href="/graph" className="ml-auto text-xs text-amber-700 dark:text-amber-400 hover:underline shrink-0">
+                Voir dans le graphe →
+              </Link>
+            )}
+          </div>
+        )}
+      </div>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         {/* Colonne principale */}
         <div className="lg:col-span-2 space-y-6">
+
+          {/* Demain — événements calendrier du jour suivant */}
+          {has("calendrier") && tomorrowEvents.length > 0 && (
+            <Section title="Demain" icon={<ClipboardList className="h-4 w-4" />} href="/calendrier">
+              <div className="space-y-1.5">
+                {tomorrowEvents.map((ev) => (
+                  <Link key={ev.id} href="/calendrier" className="flex items-center gap-3 rounded-lg px-3 py-2 hover:bg-muted/50 transition-colors">
+                    <span
+                      className="h-2 w-2 rounded-full shrink-0"
+                      style={{ backgroundColor: ev.category?.color ?? "#94a3b8" }}
+                    />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium truncate">{ev.title}</p>
+                      {ev.category?.name && <p className="text-xs text-muted-foreground">{ev.category.name}</p>}
+                    </div>
+                    <span className="text-xs text-muted-foreground shrink-0">
+                      {ev.allDay ? "Toute la journée" : new Date(ev.startDate).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}
+                    </span>
+                  </Link>
+                ))}
+              </div>
+            </Section>
+          )}
 
           {/* Agenda semaine — en retard + cette semaine + en cours */}
           {(has("taches") || has("projets")) && agendaTasks.length > 0 && (
@@ -810,7 +888,9 @@ export default async function DashboardPage() {
            (!has("facturation") || unpaidInvoices.length === 0) &&
            (!has("contacts") || (upcomingReminders.length === 0 && recentInteractions.length === 0 && followUpClients.length === 0 && dashboardProspects.length === 0)) &&
            (!has("projets") || (prods.length === 0 && upcomingMilestones.length === 0 && upcomingRenewals.length === 0)) &&
-           (!has("entretien") || jobAppItems.length === 0) && (
+           (!has("entretien") || jobAppItems.length === 0) &&
+           (!has("calendrier") || tomorrowEvents.length === 0) &&
+           totalIncomplete === 0 && (
             <div className="rounded-xl border border-dashed border-border p-8 text-center text-muted-foreground text-sm">
               Tout est à jour ✓
             </div>

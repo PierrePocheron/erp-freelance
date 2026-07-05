@@ -191,6 +191,12 @@ export const ForceGraphCanvas = forwardRef<GraphMethods, Props>(function ForceGr
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const charge = fg.d3Force("charge") as any
       if (charge?.strength) charge.strength(-80)   // répulsion modérée → clusters lisibles
+      // Sans plafond, la répulsion s'applique entre TOUTES les paires de nœuds,
+      // y compris entre composantes non reliées par un lien. Un filtre qui ne
+      // garde que quelques petits arbres isolés les laisse alors se repousser
+      // indéfiniment (rien ne les rattire l'un vers l'autre) : plus la simulation
+      // tourne, plus ils s'écartent. Plafonner la portée borne cet écartement.
+      if (charge?.distanceMax) charge.distanceMax(260)
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const link = fg.d3Force("link") as any
       if (link?.distance) link.distance(40)        // liens un peu plus longs → labels respirent

@@ -12,55 +12,72 @@ import {
 // ── Déclarations URSSAF ───────────────────────────────────────────────────────
 
 export type SuggestedLine = {
-  category:  FiscalCategory
-  invoiceId: string | null
-  revenueId: string | null
-  label:     string
-  amount:    number
+  category:        FiscalCategory
+  invoiceId:        string | null
+  revenueId:        string | null
+  label:            string
+  amount:           number
+  status:           string  // statut réel de la facture/revenu source, pour affichage
+  defaultIncluded:  boolean // pré-coché : déjà encaissé sur la période (payée/reçu)
 }
 
 /**
- * Encaissements de la période non encore déclarés : factures payées non
- * exclues + revenus reçus dont la source fiscale est déclarable (AE_URSSAF).
- * Catégorie pré-remplie depuis Client.defaultFiscalCategory (BNC par défaut).
+ * Toutes les factures et revenus rattachables à la période — quel que soit leur
+ * statut (émise, envoyée, en retard, payée, en attente de réception…) — pour que
+ * l'utilisateur les relie directement à la déclaration sans ressaisie manuelle.
+ * Seules celles déjà encaissées sur la période sont pré-cochées par défaut ;
+ * les autres restent visibles pour être rattachées au bon moment.
+ * Exclut les factures déjà liées à une déclaration (contrainte d'unicité) et
+ * celles marquées hors URSSAF. Catégorie pré-remplie depuis
+ * Client.defaultFiscalCategory (BNC par défaut).
  */
 export async function suggestDeclarationLines(period: string): Promise<SuggestedLine[]> {
   const session = await auth()
   const userId = session!.user.id
   const { start, end } = periodBounds(period)
+  const inRange = { gte: start, lte: end }
 
   const [invoices, revenues] = await Promise.all([
     prisma.invoice.findMany({
       where: {
         userId,
-        status: "PAID",
-        paidAt: { gte: start, lte: end },
+        status: { notIn: ["DRAFT", "CANCELLED"] },
         urssafExcluded: false,
         urssafLine: null,
+        OR: [
+          { paidAt:   inRange },
+          { issuedAt: inRange },
+          { sentAt:   inRange },
+          { dueDate:  inRange },
+        ],
       },
       include: { client: { select: { name: true, defaultFiscalCategory: true } } },
-      orderBy: { paidAt: "asc" },
+      orderBy: [{ paidAt: "asc" }, { issuedAt: "asc" }],
     }),
     prisma.revenue.findMany({
       where: {
         userId,
-        status: "RECEIVED",
-        receivedAt: { gte: start, lte: end },
         urssafLine: null,
         fiscalSource: { bucket: "AE_URSSAF" },
+        OR: [
+          { receivedAt: inRange },
+          { expectedAt: inRange },
+        ],
       },
       include: { client: { select: { defaultFiscalCategory: true } } },
-      orderBy: { receivedAt: "asc" },
+      orderBy: [{ receivedAt: "asc" }, { expectedAt: "asc" }],
     }),
   ])
 
-  return [
+  const lines: SuggestedLine[] = [
     ...invoices.map(inv => ({
       category:  (inv.client.defaultFiscalCategory ?? "BNC") as FiscalCategory,
       invoiceId: inv.id,
       revenueId: null,
       label:     `${inv.number} — ${inv.client.name}`,
       amount:    inv.totalHT,
+      status:    inv.status,
+      defaultIncluded: inv.status === "PAID" && !!inv.paidAt && inv.paidAt >= start && inv.paidAt <= end,
     })),
     ...revenues.map(rev => ({
       category:  (rev.client?.defaultFiscalCategory ?? "BNC") as FiscalCategory,
@@ -68,8 +85,18 @@ export async function suggestDeclarationLines(period: string): Promise<Suggested
       revenueId: rev.id,
       label:     rev.label,
       amount:    rev.amount,
+      status:    rev.status,
+      defaultIncluded: rev.status === "RECEIVED" && !!rev.receivedAt && rev.receivedAt >= start && rev.receivedAt <= end,
     })),
   ]
+
+  // Encaissées d'abord, puis par ordre alphabétique — les lignes en attente
+  // restent visibles mais ne polluent pas le haut de la liste pré-cochée.
+  return lines.sort((a, b) =>
+    a.defaultIncluded === b.defaultIncluded
+      ? a.label.localeCompare(b.label, "fr")
+      : a.defaultIncluded ? -1 : 1
+  )
 }
 
 type LineInput = {

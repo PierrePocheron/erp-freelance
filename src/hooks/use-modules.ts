@@ -29,10 +29,19 @@ export function readNeedsOnboarding(): boolean {
 
 const STORAGE_KEY = "erp-active-modules"
 const COOKIE_MAX_AGE = 60 * 60 * 24 * 365  // 1 an
+// Diffusé à chaque écriture pour resynchroniser toutes les instances du hook
+// (Sidebar, CommandPalette, ModulesPanel...) sans passer par un contexte React.
+const MODULES_CHANGED_EVENT = "erp-modules-changed"
 
 function writeCookie(ids: ModuleId[]) {
   if (typeof document === "undefined") return
   document.cookie = `${MODULES_COOKIE}=${encodeURIComponent(JSON.stringify(ids))};path=/;max-age=${COOKIE_MAX_AGE};SameSite=Lax`
+}
+
+function persist(ids: ModuleId[]) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(ids))
+  writeCookie(ids)
+  window.dispatchEvent(new Event(MODULES_CHANGED_EVENT))
 }
 
 function readFromStorage(): Set<ModuleId> {
@@ -54,12 +63,17 @@ export function useModules() {
     () => new Set(DEFAULT_ACTIVE_IDS)  // SSR-safe default (modules defaultActive uniquement)
   )
 
-  // Hydrate depuis localStorage côté client + synchronise le cookie serveur
+  // Hydrate depuis localStorage côté client + synchronise le cookie serveur.
+  // Se resynchronise aussi sur MODULES_CHANGED_EVENT : chaque composant appelle
+  // useModules() indépendamment (Sidebar, CommandPalette, ModulesPanel...) et
+  // possède donc son propre state React — sans cet événement, activer/désactiver
+  // un module depuis un composant ne serait jamais vu par les autres.
   useEffect(() => {
-    const stored = readFromStorage()
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setActiveModules(stored)
-    writeCookie([...stored])
+    const sync = () => setActiveModules(readFromStorage())
+    sync()
+    writeCookie([...readFromStorage()])
+    window.addEventListener(MODULES_CHANGED_EVENT, sync)
+    return () => window.removeEventListener(MODULES_CHANGED_EVENT, sync)
   }, [])
 
   const isActive = useCallback(
@@ -72,27 +86,21 @@ export function useModules() {
       const next = new Set(prev)
       if (next.has(id)) next.delete(id)
       else next.add(id)
-      const ids = [...next]
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(ids))
-      writeCookie(ids)
+      persist([...next])
       return next
     })
   }, [])
 
   const enableAll = useCallback(() => {
     const all = new Set<ModuleId>(ALL_MODULE_IDS)
-    const ids = [...all]
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(ids))
-    writeCookie(ids)
+    persist([...all])
     setActiveModules(all)
   }, [])
 
   // Applique une sélection complète (utilisé par l'écran d'initialisation).
   const setModules = useCallback((ids: ModuleId[]) => {
     const set = new Set<ModuleId>(ids.filter(id => ALL_MODULE_IDS.includes(id)))
-    const validIds = [...set]
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(validIds))
-    writeCookie(validIds)
+    persist([...set])
     setActiveModules(set)
   }, [])
 

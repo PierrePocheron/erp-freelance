@@ -1,17 +1,17 @@
 "use client"
 
-import { useState, useMemo, useTransition } from "react"
+import { useState, useMemo, useEffect, useTransition } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import {
   Landmark, Plus, ChevronDown, ChevronUp, CheckCircle2, Clock,
-  Trash2, X, AlertTriangle, Receipt, Wallet, ExternalLink,
+  Trash2, X, AlertTriangle, Receipt, Wallet, ExternalLink, Search, Loader2,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
   createUrssafDeclaration, markUrssafDeclared, markUrssafPaid,
-  deleteUrssafDeclaration, type SuggestedLine,
+  deleteUrssafDeclaration, suggestDeclarationLines, type SuggestedLine,
 } from "@/actions/urssaf"
 import {
   computeContributions, periodLabel, previousPeriod, nextPeriod,
@@ -52,6 +52,16 @@ const STATUS_META: Record<string, { label: string; cls: string }> = {
   DRAFT:    { label: "Brouillon", cls: "bg-muted text-muted-foreground" },
   DECLARED: { label: "Déclarée",  cls: "bg-amber-500/15 text-amber-700 dark:text-amber-400" },
   PAID:     { label: "Payée",     cls: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400" },
+}
+
+// Statut de la facture/revenu source d'une ligne suggérée (pas le statut de la déclaration)
+const LINE_STATUS_META: Record<string, { label: string; cls: string }> = {
+  PAID:     { label: "Payée",      cls: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400" },
+  RECEIVED: { label: "Reçu",       cls: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400" },
+  SENT:     { label: "Envoyée",    cls: "bg-blue-500/15 text-blue-700 dark:text-blue-400" },
+  ISSUED:   { label: "Émise",      cls: "bg-violet-500/15 text-violet-700 dark:text-violet-400" },
+  LATE:     { label: "En retard",  cls: "bg-red-500/15 text-red-700 dark:text-red-400" },
+  PENDING:  { label: "En attente", cls: "bg-amber-500/15 text-amber-700 dark:text-amber-400" },
 }
 
 const ALL_CATEGORIES: FiscalCategory[] = ["BNC", "BIC_SERVICES", "BIC_SALES"]
@@ -354,7 +364,10 @@ function RecapPill({ label, estimate, actual, highlight }: {
 
 // ── Dialog nouvelle déclaration ────────────────────────────────────────────────
 
-type EditableLine = SuggestedLine & { included: boolean }
+type EditableLine = SuggestedLine & { included: boolean; key: string }
+
+let freeLineSeq = 0
+const lineKey = (l: SuggestedLine) => l.invoiceId ?? l.revenueId ?? `free-${freeLineSeq++}`
 
 function NewDeclarationDialog({ defaultPeriod, suggestedLines, rates, vlEnabled, onClose, onCreated }: {
   defaultPeriod:  string
@@ -365,15 +378,41 @@ function NewDeclarationDialog({ defaultPeriod, suggestedLines, rates, vlEnabled,
   onCreated:      () => void
 }) {
   const [isPending, startTransition] = useTransition()
-  const [period, setPeriod] = useState(defaultPeriod)
-  const [error, setError]   = useState<string | null>(null)
-  const [lines, setLines]   = useState<EditableLine[]>(
-    suggestedLines.map(l => ({ ...l, included: true }))
+  const [period, setPeriod]         = useState(defaultPeriod)
+  const [loadedPeriod, setLoadedPeriod] = useState(defaultPeriod)
+  const [isFetching, setIsFetching] = useState(false)
+  const [error, setError]           = useState<string | null>(null)
+  const [search, setSearch]         = useState("")
+  const [lines, setLines]           = useState<EditableLine[]>(
+    suggestedLines.map(l => ({ ...l, included: l.defaultIncluded, key: lineKey(l) }))
   )
   // Ligne libre (encaissement sans facture ni revenu dans l'app)
   const [freeLabel, setFreeLabel]   = useState("")
   const [freeAmount, setFreeAmount] = useState("")
   const [freeCat, setFreeCat]       = useState<FiscalCategory>("BNC")
+
+  // Recharge les factures/revenus rattachables à la période navigable (← →) —
+  // sans ce refetch, changer de période ne mettait à jour que le libellé
+  // affiché et laissait la liste figée sur la période initiale.
+  useEffect(() => {
+    if (period === loadedPeriod) return
+    let cancelled = false
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setIsFetching(true)
+    suggestDeclarationLines(period).then(fresh => {
+      if (cancelled) return
+      setLines(fresh.map(l => ({ ...l, included: l.defaultIncluded, key: lineKey(l) })))
+      setLoadedPeriod(period)
+      setIsFetching(false)
+    })
+    return () => { cancelled = true }
+  }, [period, loadedPeriod])
+
+  const visibleLines = useMemo(() => {
+    const q = search.trim().toLowerCase()
+    if (!q) return lines
+    return lines.filter(l => l.label.toLowerCase().includes(q))
+  }, [lines, search])
 
   const included = lines.filter(l => l.included)
   const amounts = useMemo(() => {
@@ -386,12 +425,12 @@ function NewDeclarationDialog({ defaultPeriod, suggestedLines, rates, vlEnabled,
     [amounts, rates, vlEnabled]
   )
 
-  function setCategory(idx: number, cat: FiscalCategory) {
-    setLines(prev => prev.map((l, i) => i === idx ? { ...l, category: cat } : l))
+  function setCategory(key: string, cat: FiscalCategory) {
+    setLines(prev => prev.map(l => l.key === key ? { ...l, category: cat } : l))
   }
 
-  function toggleLine(idx: number) {
-    setLines(prev => prev.map((l, i) => i === idx ? { ...l, included: !l.included } : l))
+  function toggleLine(key: string) {
+    setLines(prev => prev.map(l => l.key === key ? { ...l, included: !l.included } : l))
   }
 
   function addFreeLine() {
@@ -400,6 +439,7 @@ function NewDeclarationDialog({ defaultPeriod, suggestedLines, rates, vlEnabled,
     setLines(prev => [...prev, {
       category: freeCat, invoiceId: null, revenueId: null,
       label: freeLabel.trim(), amount, included: true,
+      status: "PAID", defaultIncluded: true, key: `free-${freeLineSeq++}`,
     }])
     setFreeLabel(""); setFreeAmount("")
   }
@@ -430,32 +470,66 @@ function NewDeclarationDialog({ defaultPeriod, suggestedLines, rates, vlEnabled,
           className="rounded-lg border border-border px-2 py-1 text-xs hover:bg-accent">→</button>
       </div>
 
-      {/* Lignes suggérées */}
-      <div className="space-y-1.5 max-h-64 overflow-y-auto">
+      {/* Recherche parmi les factures / revenus de la période */}
+      {lines.length > 5 && (
+        <div className="flex items-center gap-1.5 rounded-lg border border-input bg-background px-2 py-1.5">
+          <Search className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+          <input
+            type="text"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Filtrer par client, numéro…"
+            className="bg-transparent text-xs outline-none flex-1 min-w-0 placeholder:text-muted-foreground/50"
+          />
+        </div>
+      )}
+
+      {/* Lignes : toutes les factures/revenus de la période, quel que soit leur
+          statut (émise, envoyée, en retard, payée, en attente…) — pré-cochées
+          seulement si déjà encaissées. Relier directement plutôt que ressaisir. */}
+      <div className="space-y-1.5 max-h-64 overflow-y-auto relative">
+        {isFetching && (
+          <div className="absolute inset-0 z-10 flex items-center justify-center bg-card/70 rounded-lg">
+            <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+          </div>
+        )}
         {lines.length === 0 && (
           <p className="text-xs text-muted-foreground text-center py-4">
-            Aucun encaissement à déclarer sur cette période.
+            Aucune facture ni revenu rattachable à cette période.
           </p>
         )}
-        {lines.map((l, i) => (
-          <div key={i} className={`flex items-center gap-2 rounded-lg border p-2 ${
-            l.included ? "border-border bg-card" : "border-border/50 opacity-45"
-          }`}>
-            <input type="checkbox" checked={l.included} onChange={() => toggleLine(i)}
-              className="h-3.5 w-3.5 accent-[var(--primary)] shrink-0" />
-            <span className="flex-1 min-w-0 text-xs truncate">{l.label}</span>
-            <select
-              value={l.category}
-              onChange={e => setCategory(i, e.target.value as FiscalCategory)}
-              className="rounded-md border border-input bg-background px-1.5 py-1 text-[10px] shrink-0"
-            >
-              {ALL_CATEGORIES.map(c => (
-                <option key={c} value={c}>{FISCAL_CATEGORY_SHORT[c]}</option>
-              ))}
-            </select>
-            <span className="text-xs font-semibold tabular-nums shrink-0 w-16 text-right">{fmt(l.amount)} €</span>
-          </div>
-        ))}
+        {lines.length > 0 && visibleLines.length === 0 && (
+          <p className="text-xs text-muted-foreground text-center py-4">
+            Aucun résultat pour « {search} »
+          </p>
+        )}
+        {visibleLines.map(l => {
+          const statusMeta = LINE_STATUS_META[l.status]
+          return (
+            <div key={l.key} className={`flex items-center gap-2 rounded-lg border p-2 ${
+              l.included ? "border-border bg-card" : "border-border/50 opacity-60"
+            }`}>
+              <input type="checkbox" checked={l.included} onChange={() => toggleLine(l.key)}
+                className="h-3.5 w-3.5 accent-[var(--primary)] shrink-0" />
+              <span className="flex-1 min-w-0 text-xs truncate">{l.label}</span>
+              {statusMeta && (
+                <span className={`rounded-full px-1.5 py-0.5 text-[9px] font-semibold shrink-0 ${statusMeta.cls}`}>
+                  {statusMeta.label}
+                </span>
+              )}
+              <select
+                value={l.category}
+                onChange={e => setCategory(l.key, e.target.value as FiscalCategory)}
+                className="rounded-md border border-input bg-background px-1.5 py-1 text-[10px] shrink-0"
+              >
+                {ALL_CATEGORIES.map(c => (
+                  <option key={c} value={c}>{FISCAL_CATEGORY_SHORT[c]}</option>
+                ))}
+              </select>
+              <span className="text-xs font-semibold tabular-nums shrink-0 w-16 text-right">{fmt(l.amount)} €</span>
+            </div>
+          )
+        })}
       </div>
 
       {/* Ligne libre */}

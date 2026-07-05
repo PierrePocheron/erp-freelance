@@ -29,6 +29,7 @@ export default async function TachesPage() {
         dueDate: true,
         startedAt: true,
         completedAt: true,
+        urssafPeriod: true,
         project: {
           select: {
             id: true,

@@ -5,7 +5,7 @@ import Link from "next/link"
 import {
   CheckCircle2, Circle, PlayCircle, Loader2,
   AlertTriangle, ChevronDown, ChevronRight, Plus, Trash2,
-  Building2, FolderOpen, Pencil,
+  Building2, FolderOpen, Pencil, Landmark,
 } from "lucide-react"
 import { startTask, completeTask, reopenTask, createClientTask, deleteTask, updateTaskFields } from "@/actions/projet"
 import { AddTaskForm } from "@/components/modules/projet/AddTaskForm"
@@ -30,6 +30,7 @@ type Task = {
   dueDate: Date | null
   startedAt: Date | null
   completedAt: Date | null
+  urssafPeriod: string | null
   project: ProjectRef | null
   client: ClientRef | null
   taskTags: Tag[]
@@ -235,6 +236,19 @@ function TaskRow({ task }: { task: Task }) {
         >
           {task.title}
         </span>
+      )}
+
+      {/* Lien vers la déclaration URSSAF liée — le statut de la tâche (fait/à faire)
+          indique directement si la déclaration a été faite ou non. */}
+      {task.urssafPeriod && (
+        <Link
+          href="/impots"
+          title="Ouvrir la page Impôts"
+          className="hidden sm:flex items-center gap-1 shrink-0 rounded-full border border-violet-500/30 bg-violet-500/10 px-1.5 py-0.5 text-[10px] font-medium text-violet-700 dark:text-violet-400 hover:bg-violet-500/20 transition-colors"
+        >
+          <Landmark className="h-3 w-3" />
+          Impôts
+        </Link>
       )}
 
       {/* Tags */}

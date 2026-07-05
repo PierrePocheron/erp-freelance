@@ -273,10 +273,12 @@ export function GraphView({ rawNodes, rawLinks }: { rawNodes: RawNode[]; rawLink
 
   // Reset des champs de saisie rapide au changement de nœud sélectionné
   useEffect(() => {
+    /* eslint-disable react-hooks/set-state-in-effect */
     setAssignCompanyId("")
     setQuickWebsite("")
     setQuickEmail("")
     setQuickPhone("")
+    /* eslint-enable react-hooks/set-state-in-effect */
   }, [selected?.id])
 
   // ── Sélection (clic simple) ──────────────────────────────────────────────
@@ -406,17 +408,10 @@ export function GraphView({ rawNodes, rawLinks }: { rawNodes: RawNode[]; rawLink
         <div className="bg-card/90 backdrop-blur border border-border rounded-xl shadow-sm overflow-hidden">
           {/* Header titre */}
           <div className="flex items-center justify-between px-3 pt-2.5 pb-1.5 border-b border-border/50">
-            <span className="text-xs font-semibold">Graphe relationnel</span>
-            <div className="flex items-center gap-1.5">
-              {(focusedNodeId || activeFilter) && (
-                <span className="inline-flex items-center gap-1 rounded-full bg-primary/15 text-primary text-[10px] font-medium px-1.5 py-0.5">
-                  {activeFilter === "pending" ? "En attente" : activeFilter === "incomplete" ? "À compléter" : "Focus"}
-                </span>
-              )}
-              <span className="text-[10px] text-muted-foreground tabular-nums">
-                {nodes.length} nœud{nodes.length !== 1 ? "s" : ""}
-              </span>
-            </div>
+            <span className="text-xs font-semibold">Graph</span>
+            <span className="text-[10px] text-muted-foreground tabular-nums">
+              {nodes.length} nœud{nodes.length !== 1 ? "s" : ""}
+            </span>
           </div>
           {/* Recherche */}
           <div className="relative px-2.5 py-2">

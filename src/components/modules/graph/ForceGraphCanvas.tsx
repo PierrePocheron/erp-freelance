@@ -158,7 +158,17 @@ export const ForceGraphCanvas = forwardRef<GraphMethods, Props>(function ForceGr
   const singleTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useImperativeHandle(ref, () => ({
-    zoomToFit: (ms = 600) => fgRef.current?.zoomToFit(ms, 60),
+    // Un filtre réduit les nœuds affichés, mais ceux qui restent gardent leurs
+    // coordonnées héritées de la simulation complète (éparpillées sur tout le
+    // canvas) tant que rien ne relance la simulation. Sans réchauffe, zoomToFit
+    // cadre fidèlement cette zone vide et dézoome à l'extrême. On réchauffe donc
+    // la simulation pour laisser les nœuds visibles se regrouper avant de cadrer.
+    zoomToFit: (ms = 600) => {
+      const fg = fgRef.current
+      if (!fg) return
+      fg.d3ReheatSimulation()
+      setTimeout(() => fg.zoomToFit(ms, 60), 350)
+    },
   }))
 
   // Configure D3 forces once mounted

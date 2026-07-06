@@ -7,6 +7,7 @@ import { ContactsNav } from "@/components/modules/crm/ContactsNav"
 import { STAGE_CONFIG } from "@/components/modules/crm/ProspectsView"
 import { Users, Flame, Thermometer, TrendingUp, AlertCircle, ChevronRight } from "lucide-react"
 import { isContactIncomplete } from "@/lib/contact"
+import { IncompleteContactsSheet } from "@/components/modules/crm/IncompleteContactsSheet"
 
 export default async function CRMPage() {
   const session = await auth()
@@ -53,7 +54,8 @@ export default async function CRMPage() {
     incomplete: isContactIncomplete(c),
   }))
 
-  const incompleteCount = clientsWithBilling.filter((c) => c.incomplete).length
+  const incompleteContacts = clientsWithBilling.filter((c) => c.incomplete)
+  const incompleteCount = incompleteContacts.length
   const toComplete     = clientsWithBilling.filter((c) => c.type === "TO_COMPLETE")
   const prospects      = clientsWithBilling.filter((c) => c.type === "PROSPECT")
   const activeClients  = clientsWithBilling.filter((c) => c.type === "CLIENT")
@@ -100,7 +102,13 @@ export default async function CRMPage() {
         )}
         {/* Données manquantes (prénom/nom ou coordonnées) — distinct du type "À compléter" ci-dessus */}
         {incompleteCount > 0 ? (
-          <StatCard icon={<AlertCircle className="h-4 w-4 text-amber-500" />} label="Infos manquantes" value={incompleteCount} highlight="amber" />
+          <IncompleteContactsSheet
+            contacts={incompleteContacts.map((c) => ({
+              id: c.id, name: c.name, company: c.company,
+              firstName: c.firstName, lastName: c.lastName,
+              email: c.email, phone: c.phone,
+            }))}
+          />
         ) : (
           <StatCard icon={<Thermometer className="h-4 w-4 text-amber-500" />} label="Rappels" value={pendingReminders} />
         )}

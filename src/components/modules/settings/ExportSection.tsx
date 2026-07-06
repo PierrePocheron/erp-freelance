@@ -118,7 +118,7 @@ export function ExportSection({ stats }: Props) {
   }
 
   const statItems = [
-    { label: "Clients", value: stats.clients },
+    { label: "Contacts", value: stats.clients },
     { label: "Projets", value: stats.projects },
     { label: "Tâches", value: stats.tasks },
     { label: "Devis", value: stats.quotes },

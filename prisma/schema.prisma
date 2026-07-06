@@ -398,6 +398,15 @@ enum MilestoneStatus {
   DONE
 }
 
+enum MilestoneType {
+  DEADLINE    // Échéance
+  MEETING     // Réunion
+  CALL        // Appel
+  APPOINTMENT // Rendez-vous
+  ON_SITE     // Sur place
+  OTHER       // Autre
+}
+
 enum TaskStatus {
   TODO
   IN_PROGRESS
@@ -511,7 +520,9 @@ model Milestone {
   id        String          @id @default(cuid())
   projectId String
   name      String
-  date      DateTime
+  date      DateTime        // date + heure de début (heure optionnelle côté UI, minuit par défaut)
+  endDate   DateTime?       // heure de fin optionnelle
+  type      MilestoneType   @default(OTHER)
   status    MilestoneStatus @default(UPCOMING)
   createdAt DateTime        @default(now())
 

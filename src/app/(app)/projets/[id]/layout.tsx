@@ -10,6 +10,7 @@ import { TagSelector } from "@/components/modules/projet/TagSelector"
 import { ProjectSettingsDialog } from "@/components/modules/projet/ProjectSettingsDialog"
 import { ProjectContactsManager } from "@/components/modules/projet/ProjectContactsManager"
 import { addProjectContact, removeProjectContact, updateProjectCompany } from "@/actions/projet"
+import { getOrCreateDefaultTags } from "@/actions/tags"
 import { UserAvatar } from "@/components/ui/user-avatar"
 
 export default async function ProjectLayout({
@@ -42,11 +43,7 @@ export default async function ProjectLayout({
         user: { select: { name: true, email: true, image: true } },
       },
     }),
-    prisma.tag.findMany({
-      where: { userId },
-      orderBy: { name: "asc" },
-      select: { id: true, name: true, color: true },
-    }).catch(() => [] as { id: string; name: string; color: string }[]),
+    getOrCreateDefaultTags().catch(() => [] as { id: string; name: string; color: string }[]),
     prisma.project.findFirst({
       where: { id, OR: [{ userId }, { members: { some: { userId } } }] },
       select: { tags: { select: { id: true, name: true } } },

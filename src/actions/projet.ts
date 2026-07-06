@@ -556,19 +556,58 @@ export async function deleteTask(taskId: string, projectId?: string) {
 
 // ── Milestones ─────────────────────────────────────────────────────────────
 
-export async function createMilestone(projectId: string, formData: FormData) {
+export type MilestoneInput = {
+  name: string
+  date: Date
+  endDate?: Date | null
+  type?: string
+  status?: "UPCOMING" | "IN_PROGRESS" | "DONE"
+}
+
+export async function createMilestone(projectId: string, data: MilestoneInput) {
   const userId = await requireAuth()
   const proj = await prisma.project.findFirst({ where: { id: projectId, userId }, select: { id: true } })
   if (!proj) throw new Error("Projet introuvable")
   const milestone = await prisma.milestone.create({
     data: {
       projectId,
-      name: formData.get("name") as string,
-      date: new Date(formData.get("date") as string),
+      name: data.name,
+      date: data.date,
+      endDate: data.endDate ?? null,
+      type: (data.type ?? "OTHER") as never,
+      status: data.status ?? "UPCOMING",
     },
   })
   revalidatePath(`/projets/${projectId}`)
+  revalidatePath(`/projets/${projectId}/dev`)
   return milestone
+}
+
+export async function updateMilestone(milestoneId: string, projectId: string, data: MilestoneInput) {
+  const userId = await requireAuth()
+  const proj = await prisma.project.findFirst({ where: { id: projectId, userId }, select: { id: true } })
+  if (!proj) throw new Error("Projet introuvable")
+  await prisma.milestone.update({
+    where: { id: milestoneId },
+    data: {
+      name: data.name,
+      date: data.date,
+      endDate: data.endDate ?? null,
+      type: (data.type ?? "OTHER") as never,
+      ...(data.status ? { status: data.status } : {}),
+    },
+  })
+  revalidatePath(`/projets/${projectId}`)
+  revalidatePath(`/projets/${projectId}/dev`)
+}
+
+export async function deleteMilestone(milestoneId: string, projectId: string) {
+  const userId = await requireAuth()
+  const proj = await prisma.project.findFirst({ where: { id: projectId, userId }, select: { id: true } })
+  if (!proj) throw new Error("Projet introuvable")
+  await prisma.milestone.delete({ where: { id: milestoneId } })
+  revalidatePath(`/projets/${projectId}`)
+  revalidatePath(`/projets/${projectId}/dev`)
 }
 
 export async function updateMilestoneStatus(
@@ -585,19 +624,38 @@ export async function updateMilestoneStatus(
 
 // ── Useful Links ───────────────────────────────────────────────────────────
 
-export async function createUsefulLink(projectId: string, formData: FormData) {
+export type UsefulLinkInput = { label: string; url: string; category?: string }
+
+export async function createUsefulLink(projectId: string, data: UsefulLinkInput) {
   const userId = await requireAuth()
   const proj = await prisma.project.findFirst({ where: { id: projectId, userId }, select: { id: true } })
   if (!proj) throw new Error("Projet introuvable")
   await prisma.usefulLink.create({
     data: {
       projectId,
-      label: formData.get("label") as string,
-      url: formData.get("url") as string,
-      category: ((formData.get("category") as string) || "OTHER") as import("@/generated/prisma/client").LinkCategory,
+      label: data.label,
+      url: data.url,
+      category: (data.category || "OTHER") as import("@/generated/prisma/client").LinkCategory,
     },
   })
   revalidatePath(`/projets/${projectId}`)
+  revalidatePath(`/projets/${projectId}/dev`)
+}
+
+export async function updateUsefulLink(linkId: string, projectId: string, data: UsefulLinkInput) {
+  const userId = await requireAuth()
+  const link = await prisma.usefulLink.findFirst({ where: { id: linkId, project: { userId } }, select: { id: true } })
+  if (!link) throw new Error("Lien introuvable")
+  await prisma.usefulLink.update({
+    where: { id: linkId },
+    data: {
+      label: data.label,
+      url: data.url,
+      category: (data.category || "OTHER") as import("@/generated/prisma/client").LinkCategory,
+    },
+  })
+  revalidatePath(`/projets/${projectId}`)
+  revalidatePath(`/projets/${projectId}/dev`)
 }
 
 export async function deleteUsefulLink(linkId: string, projectId: string) {
@@ -609,6 +667,7 @@ export async function deleteUsefulLink(linkId: string, projectId: string) {
   if (!link) throw new Error("Lien introuvable")
   await prisma.usefulLink.delete({ where: { id: linkId } })
   revalidatePath(`/projets/${projectId}`)
+  revalidatePath(`/projets/${projectId}/dev`)
 }
 
 // ── Journal ────────────────────────────────────────────────────────────────

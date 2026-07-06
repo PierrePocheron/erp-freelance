@@ -5,21 +5,20 @@ import { TaskShortcut } from "@/components/modules/projet/TaskShortcut"
 import { DevTaskBoard } from "@/components/modules/projet/DevTaskBoard"
 import { TagManager } from "@/components/modules/projet/TagManager"
 import {
-  createMilestone,
   updateMilestoneStatus,
-  createUsefulLink,
-  deleteUsefulLink,
   createJournalEntry,
   createDeliverable,
   updateDeliverableStatus,
   migrateGroupsToTags,
 } from "@/actions/projet"
+import { MilestoneDialog, MILESTONE_TYPE_LABELS, MILESTONE_TYPE_COLORS } from "@/components/modules/projet/MilestoneDialog"
+import { UsefulLinkDialog } from "@/components/modules/projet/UsefulLinkDialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
   CheckSquare, Flag, Link2, BookOpen, Package,
-  ExternalLink, Trash2, CheckCircle2, Circle, Clock,
+  ExternalLink, CheckCircle2, Circle, Clock,
 } from "lucide-react"
 import { LINK_CATEGORY_CONFIG, normalizeUrl } from "@/lib/link-categories"
 import { type TaskShape } from "@/components/modules/projet/TaskItem"
@@ -31,10 +30,13 @@ const milestoneColors = {
 }
 const milestoneLabels = { UPCOMING: "À venir", IN_PROGRESS: "En cours", DONE: "Terminé" }
 
-const linkCategories = Object.entries(LINK_CATEGORY_CONFIG).map(([value, cfg]) => ({
-  value,
-  label: cfg.label,
-}))
+function fmtTime(d: Date | string) {
+  return new Date(d).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })
+}
+function hasTime(d: Date | string) {
+  const dt = new Date(d)
+  return dt.getHours() !== 0 || dt.getMinutes() !== 0
+}
 
 export default async function ProjectDevPage({
   params,
@@ -132,7 +134,7 @@ export default async function ProjectDevPage({
           {project.milestones.length > 0 && (
             <div className="space-y-2">
               {project.milestones.map((m) => (
-                <div key={m.id} className="flex items-center gap-3 py-1.5">
+                <div key={m.id} className="flex items-center gap-3 py-1.5 group">
                   <form action={async () => {
                     "use server"
                     const next = m.status === "UPCOMING" ? "IN_PROGRESS" : m.status === "IN_PROGRESS" ? "DONE" : "UPCOMING"
@@ -142,21 +144,23 @@ export default async function ProjectDevPage({
                       {m.status === "DONE" ? <CheckCircle2 className="h-4 w-4 text-emerald-500" /> : <Circle className="h-4 w-4" />}
                     </button>
                   </form>
-                  <span className="flex-1 text-sm">{m.name}</span>
-                  <span className="text-xs text-muted-foreground">
+                  <span className="flex-1 text-sm min-w-0 truncate">{m.name}</span>
+                  <Badge variant="outline" className={`text-xs shrink-0 ${MILESTONE_TYPE_COLORS[m.type] ?? MILESTONE_TYPE_COLORS.OTHER}`}>
+                    {MILESTONE_TYPE_LABELS[m.type] ?? m.type}
+                  </Badge>
+                  <span className="text-xs text-muted-foreground shrink-0 whitespace-nowrap">
                     {new Date(m.date).toLocaleDateString("fr-FR", { day: "numeric", month: "short" })}
+                    {hasTime(m.date) && ` · ${fmtTime(m.date)}`}
+                    {m.endDate && ` – ${fmtTime(m.endDate)}`}
                   </span>
-                  <Badge variant="outline" className={`text-xs ${milestoneColors[m.status]}`}>{milestoneLabels[m.status]}</Badge>
+                  <Badge variant="outline" className={`text-xs shrink-0 ${milestoneColors[m.status]}`}>{milestoneLabels[m.status]}</Badge>
+                  <MilestoneDialog projectId={id} milestone={m} />
                 </div>
               ))}
             </div>
           )}
 
-          <form action={async (fd: FormData) => { "use server"; await createMilestone(id, fd) }} className="flex gap-2">
-            <Input name="name" placeholder="Nom du jalon" className="h-8 text-sm" required />
-            <Input name="date" type="date" className="h-8 text-sm w-36" required />
-            <Button type="submit" size="sm" variant="outline">Ajouter</Button>
-          </form>
+          <MilestoneDialog projectId={id} />
         </div>
 
         {/* Livrables */}
@@ -217,25 +221,14 @@ export default async function ProjectDevPage({
                       <Badge variant="outline" className={`text-xs ml-auto shrink-0 ${cat.cls}`}>{cat.label}</Badge>
                       <ExternalLink className="h-3 w-3 shrink-0 text-muted-foreground" />
                     </a>
-                    <form action={async () => { "use server"; await deleteUsefulLink(l.id, id) }}>
-                      <button type="submit" className="text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity">
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </button>
-                    </form>
+                    <UsefulLinkDialog projectId={id} link={l} />
                   </div>
                 )
               })}
             </div>
           )}
 
-          <form action={async (fd: FormData) => { "use server"; await createUsefulLink(id, fd) }} className="space-y-2">
-            <Input name="label" placeholder="Label (ex: GitHub repo)" className="h-8 text-sm" required />
-            <Input name="url" placeholder="https://..." className="h-8 text-sm" required />
-            <select name="category" className="flex h-8 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm">
-              {linkCategories.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
-            </select>
-            <Button type="submit" size="sm" variant="outline" className="w-full">Ajouter</Button>
-          </form>
+          <UsefulLinkDialog projectId={id} />
         </div>
 
         {/* Journal */}

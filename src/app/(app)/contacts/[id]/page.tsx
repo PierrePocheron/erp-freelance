@@ -6,9 +6,11 @@ import { deleteClient } from "@/actions/crm"
 import { Bell, MessageSquare, Trash2 } from "lucide-react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
+import { STATUS_CONFIG, type JobAppStatus } from "@/components/modules/entretien/status-config"
 import { ClientInfoCard } from "@/components/modules/crm/ClientInfoCard"
 import { ClientTasksSection } from "@/components/modules/crm/ClientTasksSection"
 import { ClientProjectsCard } from "@/components/modules/crm/ClientProjectsCard"
+import { FiscalCategoryCard } from "@/components/modules/crm/FiscalCategoryCard"
 
 const channelLabels: Record<string, string> = {
   EMAIL: "Email", CALL: "Appel", LINKEDIN: "LinkedIn",
@@ -62,6 +64,42 @@ export default async function ClientOverviewPage({
 
   if (!client) notFound()
 
+  // Candidatures liées (si c'est un recruteur)
+  const linkedApplications = client.type === "RECRUITER"
+    ? await prisma.jobApplication.findMany({
+        where: { userId, contactId: id },
+        select: { id: true, companyName: true, position: true, status: true, nextActionAt: true },
+        orderBy: { updatedAt: "desc" },
+      })
+    : []
+
+  // Toutes les factures liées à ce client (directement ou via ses projets)
+  const allClientInvoices = await prisma.invoice.findMany({
+    where: {
+      userId,
+      status: { not: "DRAFT" },
+      OR: [
+        { clientId: id },
+        { project: { clientId: id } },
+        { project: { contactLinks: { some: { clientId: id } } } },
+      ],
+    },
+    select: { totalHT: true, depositDeducted: true, status: true },
+  })
+
+  // Projets liés via la table M2M (rôle quelconque) mais pas déjà dans client.projects
+  const linkedProjectIds = new Set(client.projects.map(p => p.id))
+  const m2mProjects = await prisma.project.findMany({
+    where: {
+      userId,
+      contactLinks: { some: { clientId: id } },
+      id: { notIn: [...linkedProjectIds] },
+    },
+    select: { id: true, name: true, status: true },
+  })
+  // Liste complète des projets pour la section "Projets"
+  const allProjects = [...client.projects, ...m2mProjects]
+
   // Sociétés et contacts pour alimenter le dialog « Nouveau projet »
   const [allCompanies, allContacts] = await Promise.all([
     prisma.company.findMany({
@@ -79,7 +117,7 @@ export default async function ClientOverviewPage({
   // Récupérer aussi les tâches via les projets du client
   const projectTasks = await prisma.task.findMany({
     where: {
-      project: { OR: [{ contactId: id }, { clientId: id }], userId },
+      project: { OR: [{ clientId: id }, { contactLinks: { some: { clientId: id } } }], userId },
       isGroup: false,
       parentTaskId: null,
       clientId: null, // éviter les doublons
@@ -105,11 +143,11 @@ export default async function ClientOverviewPage({
   const isOwner = client.userId === userId
   const allTasks = [...client.tasks, ...projectTasks]
 
-  const totalBilled = client.invoices
+  const totalBilled = allClientInvoices
     .filter((i) => i.status === "PAID")
     .reduce((s, i) => s + i.totalHT - i.depositDeducted, 0)
 
-  const pendingAmount = client.invoices
+  const pendingAmount = allClientInvoices
     .filter((i) => i.status === "SENT" || i.status === "LATE")
     .reduce((s, i) => s + i.totalHT - i.depositDeducted, 0)
 
@@ -132,10 +170,12 @@ export default async function ClientOverviewPage({
           companyId: client.companyId,
           email: client.email,
           phone: client.phone,
+          linkedinUrl: client.linkedinUrl ?? null,
           source: client.source,
           notes: client.notes,
           type: client.type,
           temperature: client.temperature,
+          prospectStage: client.prospectStage,
           address: client.address ?? null,
           postalCode: client.postalCode ?? null,
           city: client.city ?? null,
@@ -154,15 +194,52 @@ export default async function ClientOverviewPage({
       {/* Colonne droite */}
       <div className="space-y-6">
 
+        {/* Catégorie fiscale URSSAF par défaut */}
+        {isOwner && (
+          <FiscalCategoryCard
+            clientId={id}
+            initial={client.defaultFiscalCategory as never}
+          />
+        )}
+
         {/* Projets — accès rapide + création en 1 clic (pré-rattaché au client) */}
         <ClientProjectsCard
           userId={userId}
           clientId={id}
-          projects={client.projects}
+          projects={allProjects}
           companies={allCompanies}
           contacts={allContacts}
           defaultCompanyId={client.companyId}
         />
+
+        {/* Candidatures liées (recruteur) */}
+        {linkedApplications.length > 0 && (
+          <div className="rounded-xl border border-border/50 bg-card p-5 space-y-3">
+            <div className="flex items-center justify-between">
+              <h2 className="font-semibold text-sm">Candidatures</h2>
+              <Link href="/entretiens" className="text-xs text-primary hover:underline">Voir tout →</Link>
+            </div>
+            <div className="space-y-1.5">
+              {linkedApplications.map((a) => {
+                const cfg = STATUS_CONFIG[a.status as JobAppStatus] ?? STATUS_CONFIG.WISHLIST
+                return (
+                  <Link key={a.id} href={`/entretiens/${a.id}`}
+                    className="flex items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-muted/50 transition-colors"
+                  >
+                    <span className={`h-1.5 w-1.5 rounded-full shrink-0 ${cfg.dot}`} />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-medium truncate">{a.companyName}</p>
+                      <p className="text-[10px] text-muted-foreground truncate">{a.position}</p>
+                    </div>
+                    <span className={`text-[10px] rounded-full border px-1.5 py-0.5 shrink-0 ${cfg.cls}`}>
+                      {cfg.short}
+                    </span>
+                  </Link>
+                )
+              })}
+            </div>
+          </div>
+        )}
 
         {/* Stats */}
         <div className="rounded-xl border border-border/50 bg-card p-5 space-y-3">
@@ -174,7 +251,7 @@ export default async function ClientOverviewPage({
             </div>
             <div className="flex items-center justify-between text-sm">
               <span className="text-muted-foreground">Projets</span>
-              <span className="font-medium">{client._count.projects}</span>
+              <span className="font-medium">{allProjects.length}</span>
             </div>
             {totalBilled > 0 && (
               <div className="flex items-center justify-between text-sm">
@@ -199,7 +276,7 @@ export default async function ClientOverviewPage({
                 <Bell className="h-4 w-4 text-amber-600" />
                 <h2 className="font-semibold text-sm text-amber-700 dark:text-amber-400">Rappels</h2>
               </div>
-              <Link href={`/client/${id}/rappels`} className="text-xs text-primary hover:underline">Voir tout</Link>
+              <Link href={`/contacts/${id}/rappels`} className="text-xs text-primary hover:underline">Voir tout</Link>
             </div>
             <div className="space-y-2">
               {client.reminders.map((r) => (
@@ -222,7 +299,7 @@ export default async function ClientOverviewPage({
                 <MessageSquare className="h-4 w-4 text-muted-foreground" />
                 <h2 className="font-semibold text-sm">Dernières interactions</h2>
               </div>
-              <Link href={`/client/${id}/interactions`} className="text-xs text-primary hover:underline">Voir tout</Link>
+              <Link href={`/contacts/${id}/interactions`} className="text-xs text-primary hover:underline">Voir tout</Link>
             </div>
             <div className="space-y-2">
               {client.interactions.map((i) => (
@@ -243,7 +320,7 @@ export default async function ClientOverviewPage({
             action={async () => {
               "use server"
               await deleteClient(id, userId)
-              redirect("/client")
+              redirect("/contacts")
             }}
           >
             <Button type="submit" variant="destructive" size="sm" className="w-full">

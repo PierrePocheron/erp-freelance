@@ -55,6 +55,33 @@ export async function deleteTimeEntry(entryId: string, _userId: string, projectI
   revalidatePath(`/projets/${projectId}/dev`)
 }
 
+/** Saisie manuelle d'une session déjà passée (pas de chrono en direct). */
+export async function createManualTimeEntry(
+  taskId: string,
+  projectId: string,
+  startedAt: Date,
+  endedAt: Date,
+  note?: string | null
+): Promise<{ error?: string }> {
+  const userId = await requireAuth()
+  if (endedAt <= startedAt) return { error: "L'heure de fin doit être après l'heure de début" }
+
+  const task = await prisma.task.findFirst({
+    where: { id: taskId, OR: [{ userId }, { project: { userId } }] },
+    select: { id: true },
+  })
+  if (!task) return { error: "Tâche introuvable" }
+
+  const duration = Math.round((endedAt.getTime() - startedAt.getTime()) / 1000)
+  await prisma.timeEntry.create({
+    data: { taskId, userId, startedAt, endedAt, duration, note: note?.trim() || null },
+  })
+
+  revalidatePath(`/projets/${projectId}/temps`)
+  revalidatePath(`/projets/${projectId}/dev`)
+  return {}
+}
+
 export async function getRunningTimer(_userId: string) {
   const userId = await requireAuth()
   return prisma.timeEntry.findFirst({

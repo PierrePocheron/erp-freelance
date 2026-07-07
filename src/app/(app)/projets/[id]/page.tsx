@@ -2,12 +2,23 @@ import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { notFound } from "next/navigation"
 import Link from "next/link"
-import { Calendar, Clock, CheckSquare, BookOpen, Link2, ExternalLink, FileText, Receipt, Flag } from "lucide-react"
+import { Calendar, Clock, CheckSquare, BookOpen, Link2, ExternalLink, FileText, Receipt, Flag, CheckCircle2, Circle } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { createJournalEntry } from "@/actions/projet"
+import { createJournalEntry, updateMilestoneStatus } from "@/actions/projet"
 import { QuickNoteForm } from "@/components/modules/projet/QuickNoteForm"
 import { JournalEntryItem } from "@/components/modules/projet/JournalEntryItem"
 import { LINK_CATEGORY_CONFIG, normalizeUrl } from "@/lib/link-categories"
+import { MilestoneDialog, MILESTONE_TYPE_LABELS, MILESTONE_TYPE_COLORS } from "@/components/modules/projet/MilestoneDialog"
+import { UsefulLinkDialog } from "@/components/modules/projet/UsefulLinkDialog"
+import { REVENUE_TYPE_LABELS } from "@/lib/revenue-constants"
+
+function fmtTime(d: Date | string) {
+  return new Date(d).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })
+}
+function hasTime(d: Date | string) {
+  const dt = new Date(d)
+  return dt.getHours() !== 0 || dt.getMinutes() !== 0
+}
 
 const quoteStatusLabel: Record<string, string> = {
   DRAFT: "Brouillon", VALIDATED: "Validé", SENT: "Envoyé",
@@ -36,6 +47,11 @@ const invoiceStatusCls: Record<string, string> = {
 }
 const invoiceTypeLabel: Record<string, string> = {
   DEPOSIT: "Acompte", FINAL: "Solde", RECURRING: "Récurrent", STANDALONE: "Standard",
+}
+const revenueStatusLabel: Record<string, string> = { PENDING: "En attente", RECEIVED: "Reçu" }
+const revenueStatusCls: Record<string, string> = {
+  PENDING: "bg-amber-500/15 text-amber-600",
+  RECEIVED: "bg-emerald-500/15 text-emerald-600",
 }
 
 export default async function ProjectOverviewPage({
@@ -72,6 +88,10 @@ export default async function ProjectOverviewPage({
       },
       invoices: {
         select: { id: true, number: true, status: true, type: true, totalHT: true, depositDeducted: true, dueDate: true },
+        orderBy: { createdAt: "desc" },
+      },
+      revenues: {
+        select: { id: true, type: true, label: true, amount: true, currency: true, status: true, receivedAt: true, expectedAt: true },
         orderBy: { createdAt: "desc" },
       },
       members: {
@@ -112,37 +132,50 @@ export default async function ProjectOverviewPage({
     .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())[0]
 
   const hasBilling = project.quotes.length > 0 || project.invoices.length > 0
+  const invoicedTotal = project.invoices.reduce((s, inv) => s + (inv.totalHT - inv.depositDeducted), 0)
+  const invoicedReceived = project.invoices
+    .filter((inv) => inv.status === "PAID")
+    .reduce((s, inv) => s + (inv.totalHT - inv.depositDeducted), 0)
+
+  const hasRevenue = project.revenues.length > 0
+  const totalRevenue = project.revenues.reduce((s, r) => s + r.amount, 0)
+  const receivedRevenue = project.revenues
+    .filter((r) => r.status === "RECEIVED")
+    .reduce((s, r) => s + r.amount, 0)
 
   return (
     <div className="space-y-6">
 
       {/* Liens rapides — raccourcis */}
-      {project.usefulLinks.length > 0 && (
-        <div className="rounded-xl border border-border/50 bg-card p-4">
-          <div className="flex items-center gap-2 mb-3">
-            <Link2 className="h-3.5 w-3.5 text-muted-foreground" />
-            <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Liens rapides</span>
-          </div>
+      <div className="rounded-xl border border-border/50 bg-card p-4 space-y-3">
+        <div className="flex items-center gap-2">
+          <Link2 className="h-3.5 w-3.5 text-muted-foreground" />
+          <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Liens rapides</span>
+        </div>
+        {project.usefulLinks.length > 0 && (
           <div className="flex flex-wrap gap-2">
             {project.usefulLinks.map((l) => {
               const cat = LINK_CATEGORY_CONFIG[l.category] ?? LINK_CATEGORY_CONFIG.OTHER
               return (
-                <a
-                  key={l.id}
-                  href={normalizeUrl(l.url)}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-opacity hover:opacity-80 ${cat.cls}`}
-                >
-                  <span className={`h-1.5 w-1.5 rounded-full shrink-0 ${cat.dot}`} />
-                  {l.label}
-                  <ExternalLink className="h-2.5 w-2.5 opacity-60" />
-                </a>
+                <div key={l.id} className="group inline-flex items-center gap-1 rounded-full border pl-1 pr-2 py-1">
+                  <a
+                    href={normalizeUrl(l.url)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className={`inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-xs font-medium transition-opacity hover:opacity-80 ${cat.cls}`}
+                  >
+                    <span className={`h-1.5 w-1.5 rounded-full shrink-0 ${cat.dot}`} />
+                    {l.label}
+                    <ExternalLink className="h-2.5 w-2.5 opacity-60" />
+                  </a>
+                  <UsefulLinkDialog projectId={id} link={l} />
+                </div>
               )
             })}
           </div>
-        </div>
-      )}
+        )}
+        <UsefulLinkDialog projectId={id} />
+      </div>
 
       {/* Bento stats */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
@@ -255,10 +288,10 @@ export default async function ProjectOverviewPage({
 
           {/* Jalons */}
           <div className="rounded-xl border border-border/50 bg-card p-5 space-y-3">
-            <Link href={`/projets/${id}/dev`} className="flex items-center gap-2 font-semibold text-sm hover:text-primary transition-colors">
+            <div className="flex items-center gap-2 font-semibold text-sm">
               <Flag className="h-4 w-4 text-muted-foreground" />
-              Jalons →
-            </Link>
+              Jalons
+            </div>
             {project.milestones.length === 0 ? (
               <p className="text-xs text-muted-foreground italic">Aucun jalon défini</p>
             ) : (
@@ -275,19 +308,35 @@ export default async function ProjectOverviewPage({
                     m.status === "IN_PROGRESS" ? "En cours" :
                     isPast ? "En retard" : "À venir"
                   return (
-                    <div key={m.id} className="flex items-center gap-2 py-1">
+                    <div key={m.id} className="flex items-center gap-2 py-1 group">
+                      <form action={async () => {
+                        "use server"
+                        const next = m.status === "UPCOMING" ? "IN_PROGRESS" : m.status === "IN_PROGRESS" ? "DONE" : "UPCOMING"
+                        await updateMilestoneStatus(m.id, id, next)
+                      }}>
+                        <button type="submit" className="text-muted-foreground hover:text-primary transition-colors">
+                          {m.status === "DONE" ? <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" /> : <Circle className="h-3.5 w-3.5" />}
+                        </button>
+                      </form>
+                      <span className="flex-1 text-sm truncate min-w-0">{m.name}</span>
+                      <span className={`shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-medium ${MILESTONE_TYPE_COLORS[m.type] ?? MILESTONE_TYPE_COLORS.OTHER}`}>
+                        {MILESTONE_TYPE_LABELS[m.type] ?? m.type}
+                      </span>
+                      <span className="shrink-0 text-xs text-muted-foreground whitespace-nowrap">
+                        {new Date(m.date).toLocaleDateString("fr-FR", { day: "numeric", month: "short" })}
+                        {hasTime(m.date) && ` · ${fmtTime(m.date)}`}
+                        {m.endDate && ` – ${fmtTime(m.endDate)}`}
+                      </span>
                       <span className={`shrink-0 rounded-full px-1.5 py-0.5 text-xs font-medium ${statusCls}`}>
                         {statusLabel}
                       </span>
-                      <span className="flex-1 text-sm truncate">{m.name}</span>
-                      <span className="shrink-0 text-xs text-muted-foreground">
-                        {new Date(m.date).toLocaleDateString("fr-FR", { day: "numeric", month: "short" })}
-                      </span>
+                      <MilestoneDialog projectId={id} milestone={m} />
                     </div>
                   )
                 })}
               </div>
             )}
+            <MilestoneDialog projectId={id} />
           </div>
 
           {hasBilling ? (
@@ -296,6 +345,22 @@ export default async function ProjectOverviewPage({
                 <Receipt className="h-4 w-4 text-muted-foreground" />
                 Facturation →
               </Link>
+
+              {invoicedTotal > 0 && (
+                <div className="space-y-1">
+                  <div className="flex items-baseline justify-between">
+                    <p className="text-lg font-bold">
+                      {invoicedReceived.toLocaleString("fr-FR")} <span className="text-xs font-normal text-muted-foreground">/ {invoicedTotal.toLocaleString("fr-FR")} € reçus</span>
+                    </p>
+                  </div>
+                  <div className="h-1 rounded-full bg-muted overflow-hidden">
+                    <div
+                      className="h-full rounded-full bg-emerald-500 transition-all"
+                      style={{ width: `${Math.min(100, Math.round((invoicedReceived / invoicedTotal) * 100))}%` }}
+                    />
+                  </div>
+                </div>
+              )}
 
               {project.quotes.length > 0 && (
                 <div className="space-y-1.5">
@@ -345,6 +410,38 @@ export default async function ProjectOverviewPage({
                   })}
                 </div>
               )}
+            </div>
+          ) : hasRevenue ? (
+            <div className="rounded-xl border border-border/50 bg-card p-5 space-y-4">
+              <Link href="/revenus" className="flex items-center gap-2 font-semibold text-sm hover:text-primary transition-colors">
+                <Receipt className="h-4 w-4 text-muted-foreground" />
+                Revenus →
+              </Link>
+
+              <div className="space-y-1">
+                <p className="text-lg font-bold">
+                  {receivedRevenue.toLocaleString("fr-FR")} <span className="text-xs font-normal text-muted-foreground">/ {totalRevenue.toLocaleString("fr-FR")} € reçus</span>
+                </p>
+                <div className="h-1 rounded-full bg-muted overflow-hidden">
+                  <div
+                    className="h-full rounded-full bg-emerald-500 transition-all"
+                    style={{ width: `${totalRevenue > 0 ? Math.min(100, Math.round((receivedRevenue / totalRevenue) * 100)) : 0}%` }}
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                {project.revenues.map((r) => (
+                  <div key={r.id} className="flex items-center gap-2 text-sm py-0.5">
+                    <span className="text-xs text-muted-foreground shrink-0">{REVENUE_TYPE_LABELS[r.type] ?? r.type}</span>
+                    <span className="flex-1 truncate">{r.label}</span>
+                    <span className={`shrink-0 rounded-full px-1.5 py-0.5 text-xs font-medium ${revenueStatusCls[r.status] ?? ""}`}>
+                      {revenueStatusLabel[r.status] ?? r.status}
+                    </span>
+                    <span className="ml-auto shrink-0 text-xs font-medium tabular-nums">{r.amount.toLocaleString("fr-FR")} €</span>
+                  </div>
+                ))}
+              </div>
             </div>
           ) : (
             <div className="rounded-xl border border-dashed border-border/50 p-5 text-center space-y-1">

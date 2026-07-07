@@ -6,6 +6,7 @@ import { ChevronLeft } from "lucide-react"
 import { ClientTabs } from "@/components/modules/crm/ClientTabs"
 import { ClientTypeSelect } from "@/components/modules/crm/ClientTypeSelect"
 import { TemperatureSelect } from "@/components/modules/crm/TemperatureSelect"
+import { ProspectStageInline } from "@/components/modules/crm/ProspectStageInline"
 import type { Metadata } from "next"
 
 export async function generateMetadata({
@@ -18,7 +19,7 @@ export async function generateMetadata({
     where: { id },
     select: { name: true, company: true },
   })
-  const label = client ? (client.company ? `${client.name} · ${client.company}` : client.name) : "Fiche client"
+  const label = client ? (client.company ? `${client.name} · ${client.company}` : client.name) : "Fiche contact"
   return { title: `${label} — ERP Freelance` }
 }
 
@@ -44,7 +45,7 @@ export default async function ClientLayout({
     },
     select: {
       id: true, userId: true, name: true, company: true, companyId: true,
-      type: true, temperature: true,
+      type: true, temperature: true, prospectStage: true,
     },
   })
 
@@ -54,10 +55,10 @@ export default async function ClientLayout({
     <div className="space-y-5">
       <div>
         <Link
-          href="/client"
+          href="/contacts"
           className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground mb-3"
         >
-          <ChevronLeft className="h-4 w-4" /> Clients
+          <ChevronLeft className="h-4 w-4" /> Contacts
         </Link>
 
         <div className="flex items-start justify-between gap-4">
@@ -77,8 +78,11 @@ export default async function ClientLayout({
               <p className="text-sm text-muted-foreground">Contact</p>
             )}
             <h1 className="text-2xl font-bold tracking-tight">{client.name}</h1>
-            <div className="flex items-center gap-3 pt-1">
+            <div className="flex items-center gap-3 pt-1 flex-wrap">
               <ClientTypeSelect clientId={id} userId={userId} value={client.type} />
+              {client.type === "PROSPECT" && (
+                <ProspectStageInline clientId={id} value={client.prospectStage} />
+              )}
               <TemperatureSelect clientId={id} userId={userId} value={client.temperature} />
             </div>
           </div>

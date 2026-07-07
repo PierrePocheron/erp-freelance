@@ -1,8 +1,10 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useMemo } from "react"
 import Link from "next/link"
 import { Receipt, LayoutGrid, List, Download } from "lucide-react"
+import { useSortState, cmp } from "@/hooks/use-sortable"
+import { Th } from "@/components/ui/sortable-header"
 import { CreateInvoiceDialog } from "./CreateInvoiceDialog"
 import { ImportInvoiceModal } from "./ImportInvoiceModal"
 
@@ -67,8 +69,25 @@ export function FacturesListView({
 }) {
   const [view, setView] = useState<"list" | "cards">("list")
   const [statusFilter, setStatusFilter] = useState("ALL")
+  const { sortCol, sortDir, toggle } = useSortState("createdAt", "desc")
 
   const filtered = statusFilter === "ALL" ? invoices : invoices.filter((i) => i.status === statusFilter)
+
+  const sorted = useMemo(() => {
+    if (!sortCol) return filtered
+    return [...filtered].sort((a, b) => {
+      switch (sortCol) {
+        case "number":  return cmp(a.number, b.number, sortDir)
+        case "client":  return cmp(a.client.company ?? a.client.name, b.client.company ?? b.client.name, sortDir)
+        case "type":    return cmp(a.type, b.type, sortDir)
+        case "status":  return cmp(a.status, b.status, sortDir)
+        case "amount":  return cmp(a.totalHT - a.depositDeducted, b.totalHT - b.depositDeducted, sortDir)
+        case "createdAt": return cmp(new Date(a.createdAt), new Date(b.createdAt), sortDir)
+        case "dueDate": return cmp(a.dueDate ? new Date(a.dueDate) : null, b.dueDate ? new Date(b.dueDate) : null, sortDir)
+        default: return 0
+      }
+    })
+  }, [filtered, sortCol, sortDir])
 
   return (
     <div className="space-y-6">
@@ -77,9 +96,18 @@ export function FacturesListView({
           <h2 className="text-xl font-semibold">Factures</h2>
           <p className="text-sm text-muted-foreground">{filtered.length} / {invoices.length} facture{invoices.length !== 1 ? "s" : ""}</p>
         </div>
-        <div className="flex items-center gap-2">
-          {/* Status filters */}
-          <div className="flex rounded-lg border border-border overflow-hidden text-xs">
+        <div className="flex items-center gap-2 flex-wrap">
+          {/* Status filters — select on mobile, buttons on sm+ */}
+          <select
+            className="sm:hidden rounded-lg border border-border px-2.5 py-1.5 text-xs bg-background text-foreground"
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+          >
+            {STATUS_FILTERS.map((f) => (
+              <option key={f.value} value={f.value}>{f.label}</option>
+            ))}
+          </select>
+          <div className="hidden sm:flex rounded-lg border border-border overflow-hidden text-xs">
             {STATUS_FILTERS.map((f) => (
               <button
                 key={f.value}
@@ -140,21 +168,21 @@ export function FacturesListView({
           Aucune facture pour ce filtre
         </p>
       ) : view === "list" ? (
-        <div className="rounded-xl border border-border/50 bg-card overflow-hidden">
+        <div className="rounded-xl border border-border/50 bg-card overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-border text-xs text-muted-foreground">
-                <th className="px-4 py-3 text-left font-medium">Numéro</th>
-                <th className="px-4 py-3 text-left font-medium">Client</th>
-                <th className="px-4 py-3 text-left font-medium">Type</th>
-                <th className="px-4 py-3 text-left font-medium">Statut</th>
-                <th className="px-4 py-3 text-right font-medium">Montant HT</th>
-                <th className="px-4 py-3 text-left font-medium">Créée le</th>
-                <th className="px-4 py-3 text-left font-medium">Échéance</th>
+              <tr className="border-b border-border">
+                <Th label="Numéro"    col="number"    sortCol={sortCol} sortDir={sortDir} onSort={toggle} className="px-4 py-3" />
+                <Th label="Client"    col="client"    sortCol={sortCol} sortDir={sortDir} onSort={toggle} className="px-4 py-3" />
+                <Th label="Type"      col="type"      sortCol={sortCol} sortDir={sortDir} onSort={toggle} className="px-4 py-3 hidden sm:table-cell" />
+                <Th label="Statut"    col="status"    sortCol={sortCol} sortDir={sortDir} onSort={toggle} className="px-4 py-3" />
+                <Th label="Montant HT" col="amount"  sortCol={sortCol} sortDir={sortDir} onSort={toggle} className="px-4 py-3" align="right" />
+                <Th label="Créée le"  col="createdAt" sortCol={sortCol} sortDir={sortDir} onSort={toggle} className="px-4 py-3 hidden md:table-cell" />
+                <Th label="Échéance"  col="dueDate"   sortCol={sortCol} sortDir={sortDir} onSort={toggle} className="px-4 py-3 hidden sm:table-cell" />
               </tr>
             </thead>
             <tbody>
-              {filtered.map((inv) => {
+              {sorted.map((inv) => {
                 const status = statusConfig[inv.status] ?? { label: inv.status, cls: "bg-muted text-muted-foreground border-border" }
                 const isLate = inv.dueDate && inv.status === "SENT" && new Date(inv.dueDate) < new Date()
                 return (
@@ -163,17 +191,17 @@ export function FacturesListView({
                       <Link href={`/facturation/factures/${inv.id}`} className="text-primary hover:underline font-mono text-xs font-medium">{inv.number}</Link>
                     </td>
                     <td className="px-4 py-3 text-muted-foreground">{inv.client.company ?? inv.client.name}</td>
-                    <td className="px-4 py-3 text-xs text-muted-foreground">{typeLabels[inv.type] ?? inv.type}</td>
+                    <td className="px-4 py-3 text-xs text-muted-foreground hidden sm:table-cell">{typeLabels[inv.type] ?? inv.type}</td>
                     <td className="px-4 py-3">
                       <span className={`rounded-full border px-2 py-0.5 text-xs font-medium ${status.cls}`}>{status.label}</span>
                     </td>
                     <td className="px-4 py-3 text-right font-medium">
                       {(inv.totalHT - inv.depositDeducted).toLocaleString("fr-FR")} €
                     </td>
-                    <td className="px-4 py-3 text-xs text-muted-foreground">
+                    <td className="px-4 py-3 text-xs text-muted-foreground hidden md:table-cell">
                       {new Date(inv.createdAt).toLocaleDateString("fr-FR")}
                     </td>
-                    <td className={`px-4 py-3 text-xs ${isLate ? "text-red-500 font-medium" : "text-muted-foreground"}`}>
+                    <td className={`px-4 py-3 text-xs hidden sm:table-cell ${isLate ? "text-red-500 font-medium" : "text-muted-foreground"}`}>
                       {inv.dueDate ? new Date(inv.dueDate).toLocaleDateString("fr-FR") : "—"}
                     </td>
                   </tr>

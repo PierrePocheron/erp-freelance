@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma"
 import { notFound } from "next/navigation"
 import { Clock, Timer, TrendingUp, AlertTriangle, Trash2, Download } from "lucide-react"
 import { deleteTimeEntry } from "@/actions/timetracking"
+import { AddTimeEntryDialog } from "@/components/modules/projet/AddTimeEntryDialog"
 
 function fmtSeconds(s: number): string {
   const h = Math.floor(s / 3600)
@@ -78,6 +79,12 @@ export default async function ProjectTempsPage({
       entries: task.timeEntries,
     }
   })
+
+  // Liste plate (tâches + sous-tâches) pour le sélecteur du dialog d'ajout manuel
+  const taskOptions = project.tasks.flatMap((t) => [
+    { id: t.id, title: t.title },
+    ...t.subTasks.map((st) => ({ id: st.id, title: `${t.title} → ${st.title}` })),
+  ])
 
   const totalTrackedSeconds = taskStats.reduce((s, t) => s + t.totalSeconds, 0)
   const totalTrackedHours = totalTrackedSeconds / 3600
@@ -248,17 +255,20 @@ export default async function ProjectTempsPage({
         <div className="flex items-center gap-2">
           <Timer className="h-4 w-4 text-muted-foreground" />
           <h2 className="font-semibold text-sm">Entrées récentes</h2>
-          {totalTrackedSeconds > 0 && (
-            <a
-              href={`/api/export/temps/${id}`}
-              download
-              className="ml-auto flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
-              title="Exporter en CSV"
-            >
-              <Download className="h-3.5 w-3.5" />
-              Export CSV
-            </a>
-          )}
+          <div className="ml-auto flex items-center gap-3">
+            <AddTimeEntryDialog projectId={id} tasks={taskOptions} />
+            {totalTrackedSeconds > 0 && (
+              <a
+                href={`/api/export/temps/${id}`}
+                download
+                className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                title="Exporter en CSV"
+              >
+                <Download className="h-3.5 w-3.5" />
+                Export CSV
+              </a>
+            )}
+          </div>
         </div>
 
         {taskStats.every((t) => t.entries.length === 0) ? (

@@ -5,7 +5,7 @@ import Link from "next/link"
 import {
   CheckCircle2, Circle, PlayCircle, Loader2,
   AlertTriangle, ChevronDown, ChevronRight, Plus, Trash2,
-  Building2, FolderOpen, Pencil,
+  Building2, FolderOpen, Pencil, Landmark,
 } from "lucide-react"
 import { startTask, completeTask, reopenTask, createClientTask, deleteTask, updateTaskFields } from "@/actions/projet"
 import { AddTaskForm } from "@/components/modules/projet/AddTaskForm"
@@ -30,14 +30,13 @@ type Task = {
   dueDate: Date | null
   startedAt: Date | null
   completedAt: Date | null
+  urssafPeriod: string | null
   project: ProjectRef | null
   client: ClientRef | null
   taskTags: Tag[]
   timeEntries: { id: string; duration: number | null }[]
   _count: { subTasks: number }
 }
-
-type GroupByMode = "project" | "client" | "duedate"
 
 const PRIORITY_NUM: Record<string, number> = { LOW: 1, MEDIUM: 2, HIGH: 3, URGENT: 4 }
 const BADGE_CLS: Record<number, string> = {
@@ -87,14 +86,17 @@ function QuickAddClientTask({ clientId }: { clientId: string | null }) {
   const [open, setOpen] = useState(false)
   const [isPending, startTransitionFn] = useTransition()
   const inputRef = useRef<HTMLInputElement>(null)
+  const dateRef  = useRef<HTMLInputElement>(null)
 
   function submit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
     const title = inputRef.current?.value.trim()
     if (!title) return
+    const dueDate = dateRef.current?.value || null
     startTransitionFn(async () => {
-      await createClientTask(clientId, title)
+      await createClientTask(clientId, title, dueDate)
       if (inputRef.current) inputRef.current.value = ""
+      if (dateRef.current)  dateRef.current.value  = ""
       inputRef.current?.focus()
     })
   }
@@ -118,6 +120,13 @@ function QuickAddClientTask({ clientId }: { clientId: string | null }) {
         autoFocus
         placeholder="Titre de la tâche..."
         className="flex-1 h-8 text-sm px-2 rounded-md border border-border bg-background focus:outline-none focus:ring-1 focus:ring-ring"
+        onKeyDown={(e) => { if (e.key === "Escape") setOpen(false) }}
+      />
+      <input
+        ref={dateRef}
+        type="date"
+        title="Échéance (optionnelle)"
+        className="h-8 text-sm px-2 rounded-md border border-border bg-background text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
         onKeyDown={(e) => { if (e.key === "Escape") setOpen(false) }}
       />
       <button
@@ -227,6 +236,19 @@ function TaskRow({ task }: { task: Task }) {
         >
           {task.title}
         </span>
+      )}
+
+      {/* Lien vers la déclaration URSSAF liée — le statut de la tâche (fait/à faire)
+          indique directement si la déclaration a été faite ou non. */}
+      {task.urssafPeriod && (
+        <Link
+          href="/impots"
+          title="Ouvrir la page Impôts"
+          className="hidden sm:flex items-center gap-1 shrink-0 rounded-full border border-violet-500/30 bg-violet-500/10 px-1.5 py-0.5 text-[10px] font-medium text-violet-700 dark:text-violet-400 hover:bg-violet-500/20 transition-colors"
+        >
+          <Landmark className="h-3 w-3" />
+          Impôts
+        </Link>
       )}
 
       {/* Tags */}
@@ -411,7 +433,7 @@ function ClientTaskGroup({ group }: { group: ClientGroup }) {
         <Building2 className="h-4 w-4 text-muted-foreground shrink-0" />
         {group.clientId ? (
           <Link
-            href={`/client/${group.clientId}`}
+            href={`/contacts/${group.clientId}`}
             onClick={(e) => e.stopPropagation()}
             className="font-semibold text-sm hover:text-primary hover:underline underline-offset-2 transition-colors truncate max-w-[60%]"
           >
@@ -484,105 +506,13 @@ function ClientTaskGroup({ group }: { group: ClientGroup }) {
   )
 }
 
-// ── Collapsible group ─────────────────────────────────────────────────────────
-
-function TaskGroup({
-  title, tasks, defaultOpen = true, accent,
-  projectId, clientId,
-}: {
-  title: string
-  tasks: Task[]
-  defaultOpen?: boolean
-  accent?: string
-  projectId?: string
-  clientId?: string | null
-}) {
-  const [open, setOpen] = useState(defaultOpen)
-  const [showDone, setShowDone] = useState(false)
-
-  const activeTasks = tasks.filter((t) => t.status !== "DONE")
-  const doneTasks = tasks
-    .filter((t) => t.status === "DONE")
-    .sort((a, b) => {
-      const da = a.completedAt ? new Date(a.completedAt).getTime() : 0
-      const db = b.completedAt ? new Date(b.completedAt).getTime() : 0
-      return db - da
-    })
-  const total = tasks.length
-
-  const showAddForm = projectId !== undefined || clientId !== undefined
-
-  return (
-    <div className="rounded-xl border border-border/50 bg-card overflow-hidden">
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        className="w-full flex items-center gap-2 px-4 py-3 hover:bg-muted/30 transition-colors"
-      >
-        {open ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
-        {accent && <span className="h-2.5 w-2.5 rounded-full shrink-0" style={{ backgroundColor: accent }} />}
-        <span className="font-semibold text-sm flex-1 text-left">{title}</span>
-        <span className="text-xs text-muted-foreground">{doneTasks.length}/{total}</span>
-        {total > 0 && (
-          <div className="w-20 h-1 rounded-full bg-muted overflow-hidden shrink-0">
-            <div className="h-full rounded-full bg-emerald-500 transition-all" style={{ width: `${(doneTasks.length / total) * 100}%` }} />
-          </div>
-        )}
-      </button>
-
-      {open && (
-        <div className="px-2 pb-2 space-y-0.5 border-t border-border/30">
-          {activeTasks.map((t) => <TaskRow key={t.id} task={t} />)}
-
-          {/* Formulaire d'ajout rapide */}
-          {showAddForm && (
-            <div className="pt-0.5">
-              {projectId
-                ? <AddTaskForm projectId={projectId} placeholder="Nouvelle tâche..." />
-                : <QuickAddClientTask clientId={clientId ?? null} />
-              }
-            </div>
-          )}
-
-          {/* Section terminées */}
-          {doneTasks.length > 0 && (
-            <div className="mt-1 border-t border-border/30 pt-1">
-              <button
-                type="button"
-                onClick={() => setShowDone((v) => !v)}
-                className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors px-2 py-1"
-              >
-                {showDone ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
-                Terminées ({doneTasks.length})
-              </button>
-              {showDone && (
-                <div className="space-y-0.5 opacity-60">
-                  {doneTasks.map((t) => <TaskRow key={t.id} task={t} />)}
-                </div>
-              )}
-            </div>
-          )}
-
-          {activeTasks.length === 0 && doneTasks.length === 0 && !showAddForm && (
-            <p className="text-xs text-muted-foreground px-3 py-3">Aucune tâche</p>
-          )}
-        </div>
-      )}
-    </div>
-  )
-}
-
 // ── GlobalTasksView ───────────────────────────────────────────────────────────
 
 export function GlobalTasksView({
   tasks,
-  projects,
-  clients,
   allTags,
 }: {
   tasks: Task[]
-  projects: Array<{ id: string; name: string; client: ClientRef | null }>
-  clients: ClientRef[]
   allTags: Tag[]
 }) {
   const [statusFilter, setStatusFilter] = useState<"ALL" | "TODO" | "IN_PROGRESS" | "DONE">("ALL")
@@ -592,7 +522,7 @@ export function GlobalTasksView({
   function toggleTag(id: string) {
     setActiveTagIds((prev) => {
       const next = new Set(prev)
-      next.has(id) ? next.delete(id) : next.add(id)
+      if (next.has(id)) { next.delete(id) } else { next.add(id) }
       return next
     })
   }
@@ -704,7 +634,7 @@ export function GlobalTasksView({
           >
             <option value="ALL">Toutes dates</option>
             <option value="OVERDUE">En retard</option>
-            <option value="TODAY">Aujourd'hui</option>
+            <option value="TODAY">{"Aujourd'hui"}</option>
             <option value="WEEK">Cette semaine</option>
             <option value="NONE">Sans échéance</option>
           </select>

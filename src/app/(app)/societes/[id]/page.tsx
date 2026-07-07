@@ -11,6 +11,8 @@ import { Button } from "@/components/ui/button"
 import { deleteCompany } from "@/actions/crm"
 import { NewContactForCompanyButton } from "@/components/modules/societes/NewContactForCompanyButton"
 import { NewProjectForCompanyButton } from "@/components/modules/societes/NewProjectForCompanyButton"
+import { CompanyTypeSelect } from "@/components/modules/societes/CompanyTypeSelect"
+import { STATUS_CONFIG, type JobAppStatus } from "@/components/modules/entretien/status-config"
 
 const fmt = (n: number) => n.toLocaleString("fr-FR", { minimumFractionDigits: 0, maximumFractionDigits: 0 })
 const fmtDate = (d: Date | string) =>
@@ -29,6 +31,8 @@ export default async function CompanyDetailPage({
     prisma.company.findFirst({
       where: { id, userId },
       include: {
+        fiscalSource: { select: { id: true, name: true, color: true, bucket: true } },
+        // companyType inclus via include (champ scalaire — toujours dans l'objet)
         contacts: {
           orderBy: { name: "asc" },
           select: { id: true, name: true, email: true, phone: true, type: true },
@@ -60,7 +64,12 @@ export default async function CompanyDetailPage({
         dueDate: true,
         createdAt: true,
         project: { select: { id: true, name: true } },
-        client: { select: { id: true, name: true } },
+        client:  { select: { id: true, name: true } },
+        emitter: {
+          select: {
+            fiscalSource: { select: { id: true, name: true, color: true, bucket: true } },
+          },
+        },
       },
     }),
 
@@ -123,6 +132,16 @@ export default async function CompanyDetailPage({
 
   if (!company) notFound()
 
+  // Candidatures liées (ESN / RECRUTEMENT)
+  const linkedApplications =
+    company.companyType === "ESN" || company.companyType === "RECRUTEMENT"
+      ? await prisma.jobApplication.findMany({
+          where: { userId, companyId: id },
+          select: { id: true, companyName: true, position: true, status: true, nextActionAt: true },
+          orderBy: { updatedAt: "desc" },
+        })
+      : []
+
   // ── Métriques financières ─────────────────────────────────────────────────────
 
   const netAmount = (inv: { totalHT: number; depositDeducted: number }) =>
@@ -136,6 +155,17 @@ export default async function CompanyDetailPage({
   const nbInvoices   = invoices.length
   const nbQuotes     = quotes.length
   const nbQuotesSent = quotes.filter(q => !["DRAFT"].includes(q.status)).length
+
+  // ── Sources fiscales utilisées pour cette société ─────────────────────────────
+  // Déduit depuis les profils émetteurs des factures (sans champ supplémentaire sur Company)
+
+  type FiscalSourceInfo = { id: string; name: string; color: string; bucket: string }
+  const fiscalSourceMap = new Map<string, FiscalSourceInfo>()
+  for (const inv of invoices) {
+    const fs = inv.emitter?.fiscalSource
+    if (fs) fiscalSourceMap.set(fs.id, fs)
+  }
+  const usedFiscalSources = [...fiscalSourceMap.values()]
 
   // ── Métriques projets ─────────────────────────────────────────────────────────
 
@@ -206,7 +236,10 @@ export default async function CompanyDetailPage({
             <Building2 className="h-5 w-5 text-primary" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold tracking-tight">{company.name}</h1>
+            <div className="flex items-center gap-2">
+              <h1 className="text-2xl font-bold tracking-tight">{company.name}</h1>
+              <CompanyTypeSelect companyId={company.id} value={company.companyType ?? null} />
+            </div>
             {company.city && (
               <p className="text-sm text-muted-foreground flex items-center gap-1 mt-0.5">
                 <MapPin className="h-3.5 w-3.5" />
@@ -478,7 +511,7 @@ export default async function CompanyDetailPage({
                   {company.contacts.map((c) => (
                     <tr key={c.id} className="border-b border-border/50 last:border-0 hover:bg-muted/30 transition-colors">
                       <td className="px-5 py-3">
-                        <Link href={`/client/${c.id}`} className="font-medium hover:text-primary transition-colors">
+                        <Link href={`/contacts/${c.id}`} className="font-medium hover:text-primary transition-colors">
                           {c.name}
                         </Link>
                         {c.email && <p className="text-xs text-muted-foreground mt-0.5">{c.email}</p>}
@@ -599,6 +632,35 @@ export default async function CompanyDetailPage({
         {/* ── Colonne droite ── */}
         <div className="space-y-6">
 
+          {/* Candidatures liées (ESN / RECRUTEMENT) */}
+          {linkedApplications.length > 0 && (
+            <div className="rounded-xl border border-border/50 bg-card p-5 space-y-3">
+              <div className="flex items-center justify-between">
+                <h2 className="font-semibold text-sm">Candidatures</h2>
+                <Link href="/entretiens" className="text-xs text-primary hover:underline">Voir tout →</Link>
+              </div>
+              <div className="space-y-1.5">
+                {linkedApplications.map((a) => {
+                  const cfg = STATUS_CONFIG[a.status as JobAppStatus] ?? STATUS_CONFIG.WISHLIST
+                  return (
+                    <Link key={a.id} href={`/entretiens/${a.id}`}
+                      className="flex items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-muted/50 transition-colors"
+                    >
+                      <span className={`h-1.5 w-1.5 rounded-full shrink-0 ${cfg.dot}`} />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-medium truncate">{a.position}</p>
+                        <p className="text-[10px] text-muted-foreground truncate">{a.companyName}</p>
+                      </div>
+                      <span className={`text-[10px] rounded-full border px-1.5 py-0.5 shrink-0 ${cfg.cls}`}>
+                        {cfg.short}
+                      </span>
+                    </Link>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+
           {/* Bilan financier */}
           <div className="rounded-xl border border-border/50 bg-card p-5 space-y-4">
             <h2 className="font-semibold text-sm flex items-center gap-2">
@@ -695,6 +757,44 @@ export default async function CompanyDetailPage({
             </div>
           </div>
 
+          {/* Sources fiscales */}
+          {(company.fiscalSource || usedFiscalSources.length > 0) && (
+            <div className="rounded-xl border border-border/50 bg-card p-5 space-y-3">
+              <h2 className="font-semibold text-sm">Sources fiscales</h2>
+              <div className="space-y-2">
+                {/* Source par défaut (champ direct sur la société) */}
+                {company.fiscalSource && (
+                  <div className="flex items-center gap-2.5">
+                    <span
+                      className="h-2.5 w-2.5 rounded-full shrink-0 ring-2 ring-border"
+                      style={{ backgroundColor: company.fiscalSource.color }}
+                    />
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-medium leading-tight">{company.fiscalSource.name}</p>
+                      <p className="text-[10px] text-muted-foreground">{FISCAL_BUCKET_LABELS[company.fiscalSource.bucket] ?? company.fiscalSource.bucket}</p>
+                    </div>
+                    <span className="text-[10px] text-muted-foreground bg-muted border border-border px-1.5 py-0.5 rounded font-mono shrink-0">défaut</span>
+                  </div>
+                )}
+                {/* Autres sources utilisées via facturation (profils émetteurs) */}
+                {usedFiscalSources
+                  .filter(fs => fs.id !== company.fiscalSource?.id)
+                  .map(fs => (
+                    <div key={fs.id} className="flex items-center gap-2.5">
+                      <span
+                        className="h-2.5 w-2.5 rounded-full shrink-0 ring-2 ring-border"
+                        style={{ backgroundColor: fs.color }}
+                      />
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium leading-tight">{fs.name}</p>
+                        <p className="text-[10px] text-muted-foreground">{FISCAL_BUCKET_LABELS[fs.bucket] ?? fs.bucket}</p>
+                      </div>
+                    </div>
+                  ))}
+              </div>
+            </div>
+          )}
+
           {/* Danger zone */}
           <div className="rounded-xl border border-destructive/20 bg-destructive/5 p-5 space-y-3">
             <h2 className="font-semibold text-sm text-destructive">Zone dangereuse</h2>
@@ -719,6 +819,14 @@ export default async function CompanyDetailPage({
       </div>
     </div>
   )
+}
+
+// ── Constantes ────────────────────────────────────────────────────────────────
+
+const FISCAL_BUCKET_LABELS: Record<string, string> = {
+  AE_URSSAF:     "AE — Déclaré URSSAF",
+  NON_IMPOSABLE: "Non imposable",
+  OTHER:         "Autre",
 }
 
 // ── Composant KPI ─────────────────────────────────────────────────────────────

@@ -15,12 +15,28 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { createCompany } from "@/actions/crm"
 
+type FiscalSourceOption = {
+  id: string
+  name: string
+  color: string
+  bucket: string
+  isActive: boolean
+}
+
+const BUCKET_LABELS: Record<string, string> = {
+  AE_URSSAF:     "AE / URSSAF",
+  NON_IMPOSABLE: "Non imposable",
+  OTHER:         "Autre",
+}
+
 export function CreateCompanyDialog({
   userId,
+  fiscalSources = [],
   open: controlledOpen,
   onOpenChange: controlledOnOpenChange,
 }: {
   userId: string
+  fiscalSources?: FiscalSourceOption[]
   open?: boolean
   onOpenChange?: (v: boolean) => void
 }) {
@@ -41,6 +57,7 @@ export function CreateCompanyDialog({
     startTransition(async () => {
       const company = await createCompany({
         name: (fd.get("name") as string).trim(),
+        companyType: (fd.get("companyType") as string) || null,
         siret: (fd.get("siret") as string) || undefined,
         vatNumber: (fd.get("vatNumber") as string) || undefined,
         email: (fd.get("email") as string) || undefined,
@@ -51,6 +68,7 @@ export function CreateCompanyDialog({
         city: (fd.get("city") as string) || undefined,
         country: (fd.get("country") as string) || undefined,
         notes: (fd.get("notes") as string) || undefined,
+        fiscalSourceId: (fd.get("fiscalSourceId") as string) || null,
       })
       handleOpenChange(false)
       router.push(`/societes/${company.id}`)
@@ -82,6 +100,58 @@ export function CreateCompanyDialog({
               <Label htmlFor="co-name">Nom *</Label>
               <Input id="co-name" name="name" placeholder="Acme Corp" required autoFocus />
             </div>
+
+            {/* Type de société */}
+            <div className="space-y-1.5">
+              <Label htmlFor="co-type">Type</Label>
+              <select
+                id="co-type"
+                name="companyType"
+                defaultValue=""
+                className="w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-ring"
+              >
+                <option value="">— Non renseigné —</option>
+                <option value="CLIENT">Client</option>
+                <option value="ESN">ESN / SSII</option>
+                <option value="RECRUTEMENT">Cabinet de recrutement</option>
+                <option value="PARTENAIRE">Partenaire</option>
+                <option value="FOURNISSEUR">Fournisseur</option>
+                <option value="AUTRE">Autre</option>
+              </select>
+            </div>
+
+            {/* Source fiscale */}
+            {fiscalSources.length > 0 && (
+              <div className="space-y-1.5">
+                <Label htmlFor="co-fiscal">Source fiscale</Label>
+                <select
+                  id="co-fiscal"
+                  name="fiscalSourceId"
+                  defaultValue=""
+                  className="w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-ring"
+                >
+                  <option value="">— Aucune —</option>
+                  {fiscalSources.filter(s => s.isActive).map((src) => (
+                    <option key={src.id} value={src.id}>
+                      {src.name} ({BUCKET_LABELS[src.bucket] ?? src.bucket})
+                    </option>
+                  ))}
+                  {fiscalSources.some(s => !s.isActive) && (
+                    <>
+                      <option disabled>── inactives ──</option>
+                      {fiscalSources.filter(s => !s.isActive).map((src) => (
+                        <option key={src.id} value={src.id}>
+                          {src.name} ({BUCKET_LABELS[src.bucket] ?? src.bucket})
+                        </option>
+                      ))}
+                    </>
+                  )}
+                </select>
+                <p className="text-xs text-muted-foreground">
+                  Catégorie utilisée par défaut pour la facturation et les revenus de cette société.
+                </p>
+              </div>
+            )}
 
             {/* SIRET / TVA */}
             <div className="grid grid-cols-2 gap-3">

@@ -30,7 +30,7 @@ export default async function CalendrierPage() {
   const to = new Date()
   to.setMonth(to.getMonth() + 2)
 
-  const [categories, googleScope, projects, clients, tasks, milestones, reminders, interactions, invoices, renewals, calEvents] = await Promise.all([
+  const [categories, googleScope, projects, clients, tasks, milestones, reminders, interactions, invoices, renewals, calEvents, healthConsultations, jobApplications, jobEvents] = await Promise.all([
     getOrCreateDefaultCategories(),
     hasCalendarScope(userId),
     prisma.project.findMany({
@@ -136,6 +136,24 @@ export default async function CalendrierPage() {
         AND e."startDate" <= ${to}
       ORDER BY e."startDate" ASC
     `.catch(() => [] as RawCalEvent[]),
+    // Santé : consultations dans la fenêtre
+    prisma.healthConsultation.findMany({
+      where: { userId, date: { gte: from, lte: to } },
+      select: { id: true, date: true, title: true, practitionerName: true, practitionerType: true },
+    }),
+    // Entretiens : prochains points planifiés
+    prisma.jobApplication.findMany({
+      where: { userId, nextActionAt: { gte: from, lte: to } },
+      select: { id: true, nextActionAt: true, nextActionLabel: true, companyName: true, position: true },
+    }),
+    // Entretiens : points de contact datés (hors annulés)
+    prisma.jobApplicationEvent.findMany({
+      where: { userId, date: { gte: from, lte: to }, cancelledAt: null },
+      select: {
+        id: true, date: true, title: true, type: true,
+        application: { select: { id: true, companyName: true, position: true } },
+      },
+    }),
   ])
 
   const now = new Date()
@@ -174,7 +192,9 @@ export default async function CalendrierPage() {
       const clientLabel = cli ? ((cli as { company?: string | null; name: string }).company ?? cli.name) : null
       const d = new Date(t.dueDate!)
       const isAllDay = d.getHours() === 0 && d.getMinutes() === 0
-      const subtitle = proj
+      const subtitle = t.urssafPeriod
+        ? "Déclaration URSSAF"
+        : proj
         ? `${proj.name}${clientLabel ? ` · ${clientLabel}` : ""}`
         : (clientLabel ?? undefined)
       return {
@@ -185,7 +205,7 @@ export default async function CalendrierPage() {
         description: t.description ?? null,
         subtitle,
         type: "task" as const,
-        href: proj ? `/projets/${proj.id}/dev` : (t.clientId ? `/client/${t.clientId}` : undefined),
+        href: t.urssafPeriod ? "/impots" : proj ? `/projets/${proj.id}/dev` : (t.clientId ? `/contacts/${t.clientId}` : undefined),
         isLate: new Date(t.dueDate!) < now,
         categoryId: catTasks?.id ?? null,
         categoryColor: catTasks?.color ?? null,
@@ -220,7 +240,7 @@ export default async function CalendrierPage() {
       date: r.dueDate,
       title: r.client.name + (r.note ? ` — ${r.note}` : ""),
       type: "reminder" as const,
-      href: `/client/${r.client.id}/rappels`,
+      href: `/contacts/${r.client.id}/rappels`,
       isLate: new Date(r.dueDate) < now,
       clientId: r.client.id,
       clientName: r.client.name,
@@ -237,7 +257,7 @@ export default async function CalendrierPage() {
         description: i.response ?? null,
         subtitle: `${clientLabel} · ${i.channel.toLowerCase()}`,
         type: "interaction" as const,
-        href: `/client/${i.client.id}`,
+        href: `/contacts/${i.client.id}`,
         clientId: i.client.id,
         clientName: clientLabel,
       }
@@ -289,6 +309,49 @@ export default async function CalendrierPage() {
         clientName: e.clientName ?? null,
       }
     }),
+    // Santé : consultations
+    ...healthConsultations.map((c) => {
+      const d = new Date(c.date)
+      const isAllDay = d.getHours() === 0 && d.getMinutes() === 0
+      return {
+        id: `health-${c.id}`,
+        date: c.date,
+        allDay: isAllDay,
+        title: `🥼 ${c.practitionerName}`,
+        subtitle: c.title,
+        type: "health" as const,
+        href: "/sante",
+        isLate: false,
+      }
+    }),
+    // Entretiens : prochains points planifiés
+    ...jobApplications.map((a) => {
+      const d = new Date(a.nextActionAt!)
+      const isAllDay = d.getHours() === 0 && d.getMinutes() === 0
+      return {
+        id: `jobnext-${a.id}`,
+        date: a.nextActionAt!,
+        allDay: isAllDay,
+        title: a.nextActionLabel ?? `Entretien · ${a.position}`,
+        subtitle: `${a.companyName} · ${a.position}`,
+        type: "interview" as const,
+        href: `/entretiens/${a.id}`,
+        isLate: new Date(a.nextActionAt!) < now,
+      }
+    }),
+    ...jobEvents.map((ev) => {
+      const d = new Date(ev.date)
+      const isAllDay = d.getHours() === 0 && d.getMinutes() === 0
+      return {
+        id: `jobevent-${ev.id}`,
+        date: ev.date,
+        allDay: isAllDay,
+        title: ev.title,
+        subtitle: `${ev.application.companyName} · ${ev.application.position}`,
+        type: "interview" as const,
+        href: `/entretiens/${ev.application.id}`,
+      }
+    }),
   ]
 
   return (
@@ -296,7 +359,7 @@ export default async function CalendrierPage() {
       <div className="shrink-0">
         <h1 className="text-2xl font-bold tracking-tight">Calendrier</h1>
         <p className="text-sm text-muted-foreground">
-          Tâches, jalons, rappels, factures et renouvellements
+          Tâches, jalons, rappels, factures, entretiens et santé
         </p>
       </div>
 

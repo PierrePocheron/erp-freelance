@@ -4,16 +4,29 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { cn } from "@/lib/utils"
 
-const tabs = [
-  { label: "Aperçu", suffix: "" },
-  { label: "Dev", suffix: "/dev" },
-  { label: "Temps", suffix: "/temps" },
-  { label: "Post-Dev", suffix: "/post-dev" },
+const BASE_TABS = [
+  { label: "Aperçu",    suffix: "" },
+  { label: "Temps",     suffix: "/temps" },
 ]
 
-export function ProjectTabs({ projectId }: { projectId: string }) {
+const DEV_TABS = [
+  { label: "Dev",       suffix: "/dev" },
+  { label: "Post-Dev",  suffix: "/post-dev" },
+]
+
+export function ProjectTabs({
+  projectId,
+  hasDevTag = false,
+}: {
+  projectId: string
+  hasDevTag?: boolean
+}) {
   const pathname = usePathname()
   const base = `/projets/${projectId}`
+
+  const tabs = hasDevTag
+    ? [BASE_TABS[0], ...DEV_TABS, BASE_TABS[1]]
+    : BASE_TABS
 
   return (
     <div className="flex gap-1 border-b border-border">

@@ -10,7 +10,9 @@ import {
   pushGoogleEvent,
   deleteGoogleEvent,
   getOrCreateErpCalendar,
+  checkGoogleCalendarStatus,
   type SyncResult,
+  type GoogleConnectionStatus,
 } from "@/lib/google-calendar"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -535,7 +537,7 @@ export async function createCalendarItem(input: CalItemInput): Promise<{ error?:
         })
         revalidatePath("/taches")
         if (projectId) revalidatePath(`/projets/${projectId}`)
-        if (clientId)  revalidatePath(`/client/${clientId}`)
+        if (clientId)  revalidatePath(`/contacts/${clientId}`)
         break
       }
 
@@ -561,7 +563,7 @@ export async function createCalendarItem(input: CalItemInput): Promise<{ error?:
             response: description,
           },
         })
-        revalidatePath(`/client/${clientId}`)
+        revalidatePath(`/contacts/${clientId}`)
         break
       }
 
@@ -575,7 +577,7 @@ export async function createCalendarItem(input: CalItemInput): Promise<{ error?:
             note: description ? `${title} — ${description}` : title,
           },
         })
-        revalidatePath(`/client/${clientId}`)
+        revalidatePath(`/contacts/${clientId}`)
         break
       }
 
@@ -647,7 +649,7 @@ export async function moveCalendarItem(
         await prisma.task.update({ where: { id }, data: { dueDate: newStart } })
         revalidatePath("/taches")
         if (t.projectId) revalidatePath(`/projets/${t.projectId}`)
-        if (t.clientId)  revalidatePath(`/client/${t.clientId}`)
+        if (t.clientId)  revalidatePath(`/contacts/${t.clientId}`)
         break
       }
       case "milestone": {
@@ -667,7 +669,7 @@ export async function moveCalendarItem(
         })
         if (!r) return { error: "Rappel introuvable" }
         await prisma.reminder.update({ where: { id }, data: { dueDate: newStart } })
-        revalidatePath(`/client/${r.clientId}`)
+        revalidatePath(`/contacts/${r.clientId}`)
         break
       }
       case "interaction": {
@@ -677,7 +679,7 @@ export async function moveCalendarItem(
         })
         if (!i) return { error: "Interaction introuvable" }
         await prisma.interaction.update({ where: { id }, data: { date: newStart } })
-        revalidatePath(`/client/${i.clientId}`)
+        revalidatePath(`/contacts/${i.clientId}`)
         break
       }
       case "manual": {
@@ -739,7 +741,7 @@ export async function updateCalendarItem(
         })
         revalidatePath("/taches")
         if (t.projectId) revalidatePath(`/projets/${t.projectId}`)
-        if (t.clientId)  revalidatePath(`/client/${t.clientId}`)
+        if (t.clientId)  revalidatePath(`/contacts/${t.clientId}`)
         break
       }
       case "milestone": {
@@ -769,7 +771,7 @@ export async function updateCalendarItem(
             ...(data.startDate !== undefined ? { dueDate: data.startDate } : {}),
           },
         })
-        revalidatePath(`/client/${r.clientId}`)
+        revalidatePath(`/contacts/${r.clientId}`)
         break
       }
       case "interaction": {
@@ -786,7 +788,7 @@ export async function updateCalendarItem(
             ...(data.channel ? { channel: data.channel as never } : {}),
           },
         })
-        revalidatePath(`/client/${i.clientId}`)
+        revalidatePath(`/contacts/${i.clientId}`)
         break
       }
       case "manual": {
@@ -830,7 +832,7 @@ export async function deleteCalendarItem(type: CalItemType, id: string): Promise
         await prisma.task.delete({ where: { id } })
         revalidatePath("/taches")
         if (t.projectId) revalidatePath(`/projets/${t.projectId}`)
-        if (t.clientId)  revalidatePath(`/client/${t.clientId}`)
+        if (t.clientId)  revalidatePath(`/contacts/${t.clientId}`)
         break
       }
       case "milestone": {
@@ -844,14 +846,14 @@ export async function deleteCalendarItem(type: CalItemType, id: string): Promise
         const r = await prisma.reminder.findFirst({ where: { id, client: { userId } }, select: { clientId: true } })
         if (!r) return { error: "Rappel introuvable" }
         await prisma.reminder.delete({ where: { id } })
-        revalidatePath(`/client/${r.clientId}`)
+        revalidatePath(`/contacts/${r.clientId}`)
         break
       }
       case "interaction": {
         const i = await prisma.interaction.findFirst({ where: { id, client: { userId } }, select: { clientId: true } })
         if (!i) return { error: "Interaction introuvable" }
         await prisma.interaction.delete({ where: { id } })
-        revalidatePath(`/client/${i.clientId}`)
+        revalidatePath(`/contacts/${i.clientId}`)
         break
       }
       case "manual": {
@@ -880,8 +882,29 @@ export async function deleteCalendarItem(type: CalItemType, id: string): Promise
 
 /**
  * Synchronise les événements Google Calendar (lecture seule, calendrier principal).
+ *
+ * `monthsBack` borne la fenêtre passée récupérée (1 mois par défaut). On ne pull
+ * PAS tout l'historique par défaut — sur un compte Google avec des années
+ * d'ancienneté, singleEvents=true explose chaque récurrence sur tout cet
+ * historique (potentiellement des milliers d'événements), et la boucle
+ * d'écriture SQL séquentielle qui suit dépasse alors le timeout des fonctions
+ * serverless (10s par défaut sur Vercel sans maxDuration) — le sync ne se
+ * termine jamais côté client. Le client (CalendarView) élargit `monthsBack` à
+ * la demande quand l'utilisateur navigue au-delà de la fenêtre déjà synchro.
  */
-export async function syncGoogleEvents(): Promise<SyncResult> {
+/**
+ * Vérifie l'état de la connexion Google Calendar sans déclencher de sync
+ * complète — utilisé pour refléter l'état réel (connecté / erreur / non
+ * connecté) sur le bouton dès l'ouverture de la page, avant toute action
+ * de l'utilisateur.
+ */
+export async function getGoogleCalendarConnectionStatus(): Promise<GoogleConnectionStatus> {
+  const session = await auth()
+  const userId = session!.user.id
+  return checkGoogleCalendarStatus(userId)
+}
+
+export async function syncGoogleEvents(monthsBack: number = 1): Promise<SyncResult> {
   const session = await auth()
   const userId = session!.user.id
 
@@ -892,8 +915,9 @@ export async function syncGoogleEvents(): Promise<SyncResult> {
   if (!accessToken) return { synced: 0, needsPermission: true }
 
   try {
-    // Récupération (pull) : tout le passé → 3 mois dans le futur.
-    const from = new Date(0)
+    // Récupération (pull) : fenêtre glissante récente → 3 mois dans le futur.
+    const from = new Date()
+    from.setMonth(from.getMonth() - Math.max(1, Math.min(monthsBack, 24)))
     const to = new Date()
     to.setMonth(to.getMonth() + 3)
 

@@ -16,8 +16,9 @@ import { Button } from "@/components/ui/button"
 import {
   DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu"
-import { createCalendarItem, moveCalendarItem, updateCalendarItem, deleteCalendarItem, syncGoogleEvents } from "@/actions/calendar"
+import { createCalendarItem, moveCalendarItem, updateCalendarItem, deleteCalendarItem, syncGoogleEvents, getGoogleCalendarConnectionStatus } from "@/actions/calendar"
 import { DatePicker, TimePicker } from "./DateTimePicker"
+import { useModules } from "@/hooks/use-modules"
 
 // Natures de création (rattachement → nature)
 type CalNature = "event" | "task" | "interaction" | "reminder" | "milestone" | "note"
@@ -55,7 +56,7 @@ export type CalendarEvent = {
   title: string
   subtitle?: string
   description?: string | null
-  type: "task" | "milestone" | "reminder" | "interaction" | "invoice" | "renewal" | "manual"
+  type: "task" | "milestone" | "reminder" | "interaction" | "invoice" | "renewal" | "manual" | "health" | "interview"
   href?: string
   isLate?: boolean
   categoryId?: string | null
@@ -89,6 +90,8 @@ const typeConfig = {
   invoice:   { dot: "bg-blue-500",    badge: "bg-blue-500/15 text-blue-700 border-blue-500/20",       color: "#3b82f6", label: "Facture" },
   renewal:   { dot: "bg-red-500",     badge: "bg-red-500/15 text-red-700 border-red-500/20",          color: "#ef4444", label: "Renouvellement" },
   manual:    { dot: "bg-purple-500",  badge: "bg-purple-500/15 text-purple-700 border-purple-500/20", color: "#8b5cf6", label: "Événement" },
+  health:    { dot: "bg-rose-500",    badge: "bg-rose-500/15 text-rose-700 border-rose-500/20",       color: "#f43f5e", label: "Santé" },
+  interview: { dot: "bg-sky-500",     badge: "bg-sky-500/15 text-sky-700 border-sky-500/20",          color: "#0ea5e9", label: "Entretien" },
 } as const
 
 const VIEW_LABELS: Record<ViewMode, string> = {
@@ -541,6 +544,7 @@ function NewEventDialog({
 
   useEffect(() => {
     if (open) {
+      /* eslint-disable react-hooks/set-state-in-effect */
       setRattachement("none"); setNature("event")
       setTitle(""); setDescription(""); setProjectId(""); setClientId(""); setError("")
       setChannel("EMAIL"); setPriority("MEDIUM")
@@ -548,6 +552,7 @@ function NewEventDialog({
       setTime(timeStringFromDate(defaultDate, undefined))
       setAllDay(false); setEndDate("")
       setCategoryId(categories[0]?.id ?? "")
+      /* eslint-enable react-hooks/set-state-in-effect */
     }
   }, [open, defaultDate, categories])
 
@@ -743,7 +748,7 @@ function NewEventDialog({
 
           {nature === "note" && (
             <p className="text-[11px] text-muted-foreground/70">
-              Crée une entrée dans le journal du projet + un repère daté dans l'agenda.
+              {"Crée une entrée dans le journal du projet + un repère daté dans l'agenda."}
             </p>
           )}
 
@@ -912,10 +917,10 @@ function EventDetailDialog({
                 </Link>
               )}
               {linkedClient && (
-                <Link href={`/client/${linkedClient.id}`} onClick={onClose}
+                <Link href={`/contacts/${linkedClient.id}`} onClick={onClose}
                   className="inline-flex items-center gap-1.5 text-xs text-primary hover:underline">
                   <ExternalLink className="h-3 w-3" />
-                  Voir le client — {linkedClient.label}
+                  Voir le contact — {linkedClient.label}
                 </Link>
               )}
             </div>
@@ -1012,6 +1017,7 @@ export function CalendarView({
   hasGoogleCalendar?: boolean
   className?: string
 }) {
+  const { isActive } = useModules()
   const [viewMode, setViewMode]         = useState<ViewMode>("month")
   const [currentDate, setCurrentDate]   = useState(() => { const d = new Date(); d.setHours(0,0,0,0); return d })
   const [selectedDay, setSelectedDay]   = useState<Date | null>(null)
@@ -1024,6 +1030,10 @@ export function CalendarView({
   const [syncStatus, setSyncStatus]     = useState<"idle" | "success" | "error" | "noPermission">("idle")
   const [syncCount, setSyncCount]       = useState(0)
   const [syncError, setSyncError]       = useState<string>("")
+  // État réel de la connexion (persistant, contrairement à syncStatus qui
+  // revient à "idle" après quelques secondes) — reflète si la synchro
+  // fonctionnerait maintenant, sans attendre un clic sur "Sync".
+  const [connectionStatus, setConnectionStatus] = useState<"checking" | "connected" | "error">("checking")
   const [showGoogleEvents, setShowGoogleEvents] = useState(true)
   const [, startRefresh]                = useTransition()
   const [justMovedId, setJustMovedId]   = useState<string | null>(null)
@@ -1053,7 +1063,9 @@ export function CalendarView({
 
   useEffect(() => {
     const stored = localStorage.getItem(VIEW_STORAGE_KEY) as ViewMode | null
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (stored && ["day","3day","5day","week","month"].includes(stored)) setViewMode(stored)
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setMounted(true)
   }, [])
 
@@ -1113,25 +1125,74 @@ export function CalendarView({
     return `${first.toLocaleDateString("fr-FR", { day: "numeric", month: "short" })} – ${last.toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" })}`
   }
 
-  function handleSync() {
+  // Vérifie l'état réel de la connexion dès l'ouverture de la page (sans
+  // attendre un clic sur "Sync") — répond à "comment savoir si la synchro
+  // est toujours active en rouvrant l'app le lendemain".
+  useEffect(() => {
+    if (!hasGoogleCalendar) return
+    let cancelled = false
+    getGoogleCalendarConnectionStatus()
+      .then((res) => {
+        if (cancelled) return
+        setConnectionStatus(res.status === "connected" ? "connected" : "error")
+      })
+      .catch(() => { if (!cancelled) setConnectionStatus("error") })
+    return () => { cancelled = true }
+  }, [hasGoogleCalendar])
+
+  // Fenêtre Google déjà synchronisée en arrière (mois). 1 par défaut, comme le
+  // serveur — élargie à la volée par l'effet de navigation ci-dessous plutôt
+  // que de tout récupérer d'un coup (voir commentaire dans syncGoogleEvents).
+  const syncedMonthsBackRef = useRef(1)
+
+  function handleSync(monthsBack?: number) {
+    const target = monthsBack ?? syncedMonthsBackRef.current
     startSync(async () => {
-      const result = await syncGoogleEvents()
-      if (result.needsPermission) {
-        setSyncStatus("noPermission")
-        setTimeout(() => setSyncStatus("idle"), 6000)
-      } else if (result.error) {
+      // Un timeout réseau ou une exception côté serveur (ex : fonction serverless
+      // coupée avant de répondre) rejette cette promesse sans passer par le retour
+      // { error } normal — sans ce try/catch, le bouton restait bloqué en "Sync…"
+      // indéfiniment puisque aucun setSyncStatus n'était jamais atteint.
+      try {
+        const result = await syncGoogleEvents(target)
+        if (result.needsPermission) {
+          setSyncStatus("noPermission")
+          setConnectionStatus("error")
+          setTimeout(() => setSyncStatus("idle"), 6000)
+        } else if (result.error) {
+          setSyncStatus("error")
+          setSyncError(result.error)
+          setConnectionStatus("error")
+          // l'erreur reste affichée jusqu'à la prochaine sync (pas d'auto-effacement)
+        } else {
+          syncedMonthsBackRef.current = target
+          setSyncStatus("success")
+          setSyncCount(result.synced)
+          setSyncError("")
+          setConnectionStatus("connected")
+          router.refresh()
+          setTimeout(() => setSyncStatus("idle"), 4000)
+        }
+      } catch (err) {
         setSyncStatus("error")
-        setSyncError(result.error)
-        // l'erreur reste affichée jusqu'à la prochaine sync (pas d'auto-effacement)
-      } else {
-        setSyncStatus("success")
-        setSyncCount(result.synced)
-        setSyncError("")
-        router.refresh()
-        setTimeout(() => setSyncStatus("idle"), 4000)
+        setSyncError(err instanceof Error ? err.message : "Connexion interrompue")
+        setConnectionStatus("error")
       }
     })
   }
+
+  // Élargit la synchro Google à la demande quand on navigue plus loin dans le
+  // passé que ce qui a déjà été récupéré — évite de tout pull d'un coup tout en
+  // gardant le calendrier alimenté quel que soit le mois consulté. +2 mois de
+  // marge pour ne pas redéclencher un sync à chaque changement de mois.
+  useEffect(() => {
+    if (!hasGoogleCalendar || isSyncing) return
+    const today = new Date()
+    const monthsBack = (today.getFullYear() - currentDate.getFullYear()) * 12
+      + (today.getMonth() - currentDate.getMonth())
+    if (monthsBack <= syncedMonthsBackRef.current) return
+    handleSync(monthsBack + 2)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentDate, hasGoogleCalendar])
 
   function handleMoveEvent(eventId: string, newStart: Date, newEnd: Date | null, allDay: boolean) {
     const ev = events.find(x => x.id === eventId)
@@ -1157,9 +1218,16 @@ export function CalendarView({
     })
   }
 
+  // Masque les événements des modules désactivés (santé, entretien).
+  const moduleFiltered = events.filter(e => {
+    if (e.type === "health"    && !isActive("sante"))     return false
+    if (e.type === "interview" && !isActive("entretien")) return false
+    return true
+  })
+
   const baseEvents = (hasGoogleCalendar && !showGoogleEvents)
-    ? events.filter(e => !e.isGoogle)
-    : events
+    ? moduleFiltered.filter(e => !e.isGoogle)
+    : moduleFiltered
 
   const filteredEvents = hiddenTypes.size > 0
     ? baseEvents.filter(e => !hiddenTypes.has(e.type))
@@ -1189,7 +1257,7 @@ export function CalendarView({
             <ChevronRight className="h-4 w-4" />
           </button>
           <button onClick={goToToday} className="rounded-lg border border-border px-2.5 py-1.5 text-xs font-medium hover:bg-muted transition-colors">
-            Aujourd'hui
+            {"Aujourd'hui"}
           </button>
         </div>
 
@@ -1197,18 +1265,37 @@ export function CalendarView({
 
         {hasGoogleCalendar ? (
           <div className="flex items-center rounded-lg border border-border overflow-hidden">
-            <button onClick={handleSync} disabled={isSyncing} title="Synchroniser avec Google Calendar"
+            <button onClick={() => handleSync()} disabled={isSyncing}
+              title={
+                connectionStatus === "error"    ? "Connexion Google Calendar en erreur — cliquez pour réessayer"
+                  : connectionStatus === "checking" ? "Vérification de la connexion Google Calendar…"
+                  : "Synchroniser avec Google Calendar"
+              }
               className={cn("inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium transition-colors border-r border-border/50",
                 syncStatus === "success"      ? "text-emerald-600 bg-emerald-500/5"
                   : syncStatus === "error"        ? "text-red-600 bg-red-500/5"
                   : syncStatus === "noPermission" ? "text-amber-600 bg-amber-500/5"
+                  : connectionStatus === "connected" ? "text-emerald-600 bg-emerald-500/5"
+                  : connectionStatus === "error"     ? "text-red-600 bg-red-500/5"
                   : "text-muted-foreground hover:bg-muted")}
             >
+              <span className={cn("h-1.5 w-1.5 rounded-full shrink-0",
+                syncStatus === "success" || connectionStatus === "connected" ? "bg-emerald-500"
+                  : syncStatus === "error" || syncStatus === "noPermission" || connectionStatus === "error" ? "bg-red-500"
+                  : "bg-muted-foreground/40 animate-pulse")}
+              />
               {isSyncing ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
                 : syncStatus === "success" ? <Check className="h-3.5 w-3.5" />
                 : (syncStatus === "error" || syncStatus === "noPermission") ? <AlertCircle className="h-3.5 w-3.5" />
                 : <RefreshCw className="h-3.5 w-3.5" />}
-              <span>{isSyncing ? "Sync…" : syncStatus === "success" ? `${syncCount} sync` : syncStatus === "error" ? "Erreur" : syncStatus === "noPermission" ? "Autorisation" : "Sync"}</span>
+              <span>
+                {isSyncing ? "Sync…"
+                  : syncStatus === "success" ? `${syncCount} sync`
+                  : syncStatus === "error" ? "Erreur"
+                  : syncStatus === "noPermission" ? "Autorisation"
+                  : connectionStatus === "error" ? "Reconnexion"
+                  : "Sync"}
+              </span>
             </button>
             <DropdownMenu>
               <DropdownMenuTrigger title="Paramètres Google Calendar"
@@ -1216,20 +1303,27 @@ export function CalendarView({
                 <Settings2 className="h-3.5 w-3.5" />
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-56">
-                <div className="flex items-center gap-1.5 px-1.5 py-1 text-xs font-medium text-emerald-600">
-                  <Check className="h-3.5 w-3.5" /> Google Agenda autorisé
+                <div className={cn("flex items-center gap-1.5 px-1.5 py-1 text-xs font-medium",
+                  connectionStatus === "error" ? "text-red-600"
+                    : connectionStatus === "checking" ? "text-muted-foreground"
+                    : "text-emerald-600")}
+                >
+                  {connectionStatus === "error" ? <AlertCircle className="h-3.5 w-3.5" /> : <Check className="h-3.5 w-3.5" />}
+                  {connectionStatus === "error" ? "Connexion en erreur — réautorisez"
+                    : connectionStatus === "checking" ? "Vérification de la connexion…"
+                    : "Google Agenda connecté"}
                 </div>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={() => setShowGoogleEvents(v => !v)}>
                   {showGoogleEvents ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
                   {showGoogleEvents ? "Masquer les événements Google" : "Afficher les événements Google"}
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={handleSync} disabled={isSyncing}>
+                <DropdownMenuItem onClick={() => handleSync()} disabled={isSyncing}>
                   <RefreshCw className="h-3.5 w-3.5" /> Synchroniser maintenant
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={grantCalendarAccess}>
-                  <KeyRound className="h-3.5 w-3.5" /> Réautoriser l'accès
+                  <KeyRound className="h-3.5 w-3.5" /> {"Réautoriser l'accès"}
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>

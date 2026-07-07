@@ -184,6 +184,7 @@ type DocProps = {
     siret?: string | null
     phone?: string | null
     website?: string | null
+    bankName?: string | null
     iban?: string | null
     bic?: string | null
   }
@@ -275,12 +276,12 @@ export function InvoicePDF({
             {client.address && <Text style={{ fontSize: 9, color: "#64748b" }}>{client.address}</Text>}
           </View>
           <View style={styles.metaBlock}>
-            <Text style={styles.metaLabel}>Date d'émission</Text>
+            <Text style={styles.metaLabel}>{"Date d'émission"}</Text>
             <Text style={styles.metaValue}>{fmtDate(createdAt)}</Text>
           </View>
           {expiresAt && !isFacture && (
             <View style={styles.metaBlock}>
-              <Text style={styles.metaLabel}>Valable jusqu'au</Text>
+              <Text style={styles.metaLabel}>{"Valable jusqu'au"}</Text>
               <Text style={styles.metaValue}>{fmtDate(expiresAt)}</Text>
             </View>
           )}
@@ -364,12 +365,15 @@ export function InvoicePDF({
           )}
         </View>
 
-        {/* IBAN */}
+        {/* Règlement */}
         {emitter.iban && isFacture && (
           <View style={{ marginTop: 16, padding: 10, backgroundColor: "#f8fafc", borderRadius: 4 }}>
             <Text style={{ fontSize: 8, color: "#64748b", textTransform: "uppercase", marginBottom: 4 }}>
-              Coordonnées bancaires
+              Règlement
             </Text>
+            <Text style={{ fontSize: 9, marginBottom: 2 }}>Par virement bancaire :</Text>
+            {emitter.bankName && <Text style={{ fontSize: 9 }}>Banque : {emitter.bankName}</Text>}
+            {emitter.siret && <Text style={{ fontSize: 9 }}>SIRET : {emitter.siret}</Text>}
             <Text style={{ fontSize: 9 }}>IBAN : {emitter.iban}</Text>
             {emitter.bic && <Text style={{ fontSize: 9 }}>BIC : {emitter.bic}</Text>}
           </View>

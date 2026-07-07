@@ -93,7 +93,7 @@ export async function importData(jsonString: string): Promise<ImportResult> {
           address: e.address ?? null, postalCode: e.postalCode ?? null,
           city: e.city ?? null, country: e.country ?? "France",
           phone: e.phone ?? null, email: e.email ?? null, website: e.website ?? null,
-          iban: e.iban ?? null, bic: e.bic ?? null,
+          bankName: e.bankName ?? null, iban: e.iban ?? null, bic: e.bic ?? null,
           defaultConditions: e.defaultConditions ?? null, legalMentions: e.legalMentions ?? null,
           pdfAccentColor: e.pdfAccentColor ?? "#6366f1",
           customAccentColors: e.customAccentColors ?? null, logoUrl: e.logoUrl ?? null,

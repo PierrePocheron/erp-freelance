@@ -1,8 +1,10 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useMemo } from "react"
 import Link from "next/link"
 import { FileText, LayoutGrid, List, Download } from "lucide-react"
+import { useSortState, cmp } from "@/hooks/use-sortable"
+import { Th } from "@/components/ui/sortable-header"
 import { CreateQuoteDialog } from "./CreateQuoteDialog"
 
 type Quote = {
@@ -53,6 +55,7 @@ export function DevisListView({
 }) {
   const [view, setView] = useState<"list" | "cards">("list")
   const [statusFilter, setStatusFilter] = useState("ALL")
+  const { sortCol, sortDir, toggle } = useSortState("createdAt", "desc")
 
   const DEVIS_FILTERS = [
     { value: "ALL", label: "Tous" },
@@ -65,6 +68,21 @@ export function DevisListView({
 
   const filtered = statusFilter === "ALL" ? quotes : quotes.filter((q) => q.status === statusFilter)
 
+  const sorted = useMemo(() => {
+    if (!sortCol) return filtered
+    return [...filtered].sort((a, b) => {
+      switch (sortCol) {
+        case "number":    return cmp(a.number, b.number, sortDir)
+        case "client":    return cmp(a.client.company ?? a.client.name, b.client.company ?? b.client.name, sortDir)
+        case "project":   return cmp(a.project?.name ?? null, b.project?.name ?? null, sortDir)
+        case "status":    return cmp(a.status, b.status, sortDir)
+        case "totalHT":   return cmp(a.totalHT, b.totalHT, sortDir)
+        case "createdAt": return cmp(new Date(a.createdAt), new Date(b.createdAt), sortDir)
+        default: return 0
+      }
+    })
+  }, [filtered, sortCol, sortDir])
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-3">
@@ -73,7 +91,17 @@ export function DevisListView({
           <p className="text-sm text-muted-foreground">{filtered.length} / {quotes.length} devis</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
-          <div className="flex rounded-lg border border-border overflow-hidden text-xs">
+          {/* Status filters — select on mobile, buttons on sm+ */}
+          <select
+            className="sm:hidden rounded-lg border border-border px-2.5 py-1.5 text-xs bg-background text-foreground"
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+          >
+            {DEVIS_FILTERS.map((f) => (
+              <option key={f.value} value={f.value}>{f.label}</option>
+            ))}
+          </select>
+          <div className="hidden sm:flex rounded-lg border border-border overflow-hidden text-xs">
             {DEVIS_FILTERS.map((f) => (
               <button
                 key={f.value}
@@ -140,20 +168,20 @@ export function DevisListView({
           Aucun devis pour ce filtre
         </p>
       ) : view === "list" ? (
-        <div className="rounded-xl border border-border/50 bg-card overflow-hidden">
+        <div className="rounded-xl border border-border/50 bg-card overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-border text-xs text-muted-foreground">
-                <th className="px-4 py-3 text-left font-medium">Numéro</th>
-                <th className="px-4 py-3 text-left font-medium">Client</th>
-                <th className="px-4 py-3 text-left font-medium">Projet</th>
-                <th className="px-4 py-3 text-left font-medium">Statut</th>
-                <th className="px-4 py-3 text-right font-medium">Total HT</th>
-                <th className="px-4 py-3 text-left font-medium">Date</th>
+              <tr className="border-b border-border">
+                <Th label="Numéro"   col="number"    sortCol={sortCol} sortDir={sortDir} onSort={toggle} className="px-4 py-3" />
+                <Th label="Client"   col="client"    sortCol={sortCol} sortDir={sortDir} onSort={toggle} className="px-4 py-3" />
+                <Th label="Projet"   col="project"   sortCol={sortCol} sortDir={sortDir} onSort={toggle} className="px-4 py-3 hidden sm:table-cell" />
+                <Th label="Statut"   col="status"    sortCol={sortCol} sortDir={sortDir} onSort={toggle} className="px-4 py-3" />
+                <Th label="Total HT" col="totalHT"   sortCol={sortCol} sortDir={sortDir} onSort={toggle} className="px-4 py-3" align="right" />
+                <Th label="Date"     col="createdAt" sortCol={sortCol} sortDir={sortDir} onSort={toggle} className="px-4 py-3 hidden sm:table-cell" />
               </tr>
             </thead>
             <tbody>
-              {filtered.map((q) => {
+              {sorted.map((q) => {
                 const status = statusConfig[q.status] ?? { label: q.status, cls: "bg-muted text-muted-foreground border-border" }
                 return (
                   <tr key={q.id} className="border-b border-border/50 last:border-0 hover:bg-muted/30 transition-colors">
@@ -161,16 +189,16 @@ export function DevisListView({
                       <Link href={`/facturation/devis/${q.id}`} className="text-primary hover:underline font-mono text-xs font-medium">{q.number}</Link>
                     </td>
                     <td className="px-4 py-3">
-                      <Link href={`/clients/${q.client.id}`} className="text-muted-foreground hover:text-primary hover:underline transition-colors">
+                      <Link href={`/contacts/${q.client.id}`} className="text-muted-foreground hover:text-primary hover:underline transition-colors">
                         {q.client.company ?? q.client.name}
                       </Link>
                     </td>
-                    <td className="px-4 py-3 text-muted-foreground text-xs">{q.project?.name ?? "—"}</td>
+                    <td className="px-4 py-3 text-muted-foreground text-xs hidden sm:table-cell">{q.project?.name ?? "—"}</td>
                     <td className="px-4 py-3">
                       <span className={`rounded-full border px-2 py-0.5 text-xs font-medium ${status.cls}`}>{status.label}</span>
                     </td>
                     <td className="px-4 py-3 text-right font-medium">{q.totalHT.toLocaleString("fr-FR")} €</td>
-                    <td className="px-4 py-3 text-xs text-muted-foreground">
+                    <td className="px-4 py-3 text-xs text-muted-foreground hidden sm:table-cell">
                       {new Date(q.createdAt).toLocaleDateString("fr-FR")}
                     </td>
                   </tr>
@@ -195,7 +223,7 @@ export function DevisListView({
                 </div>
                 <div>
                   <Link
-                    href={`/clients/${q.client.id}`}
+                    href={`/contacts/${q.client.id}`}
                     onClick={(e) => e.stopPropagation()}
                     className="font-semibold text-sm leading-tight hover:text-primary hover:underline transition-colors"
                   >

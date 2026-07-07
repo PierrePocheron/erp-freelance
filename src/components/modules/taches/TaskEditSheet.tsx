@@ -42,12 +42,14 @@ export function TaskEditSheet({ task, open, onOpenChange }: {
 
   useEffect(() => {
     if (!open) return
+    /* eslint-disable react-hooks/set-state-in-effect */
     setTitle(task.title)
     setDescription(task.description ?? "")
     setDueDate(task.dueDate ? new Date(task.dueDate).toISOString().split("T")[0] : "")
     setPriority(task.priority)
     setImportance(task.importance)
     setEstimatedHours(task.estimatedHours?.toString() ?? "")
+    /* eslint-enable react-hooks/set-state-in-effect */
   }, [open, task.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   function handleSave() {

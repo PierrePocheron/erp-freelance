@@ -29,9 +29,10 @@ function IdeaCard({
   onDelete: (id: string) => void
 }) {
   const router = useRouter()
-  const [expanded, setExpanded] = useState(false)
-  const [isPending, startTransition] = useTransition()
-  const [title, setTitle] = useState(idea.title)
+  const [expanded,       setExpanded]       = useState(false)
+  const [confirmDelete,  setConfirmDelete]  = useState(false)
+  const [isPending,      startTransition]   = useTransition()
+  const [title,          setTitle]          = useState(idea.title)
   const [content, setContent] = useState(idea.content)
   const [showConvert, setShowConvert] = useState(false)
   const [companyId, setCompanyId] = useState(companies[0]?.id ?? "")
@@ -54,7 +55,6 @@ function IdeaCard({
   }
 
   function handleDelete() {
-    if (!confirm(`Supprimer l'idée "${idea.title}" ?`)) return
     onDelete(idea.id)
     startTransition(() => deleteProjectIdea(idea.id, userId))
   }
@@ -158,14 +158,27 @@ function IdeaCard({
           >
             <ArrowRight className="h-3.5 w-3.5" />
           </button>
-          <button
-            type="button"
-            onClick={handleDelete}
-            className="text-muted-foreground hover:text-destructive p-1 transition-colors"
-            title="Supprimer"
-          >
-            <Trash2 className="h-3.5 w-3.5" />
-          </button>
+          {confirmDelete ? (
+            <div className="flex items-center gap-1">
+              <button type="button" onClick={handleDelete}
+                className="text-[10px] font-medium text-destructive hover:opacity-80 px-1">
+                Oui
+              </button>
+              <button type="button" onClick={() => setConfirmDelete(false)}
+                className="text-[10px] text-muted-foreground hover:text-foreground px-1">
+                Non
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setConfirmDelete(true)}
+              className="text-muted-foreground hover:text-destructive p-1 transition-colors"
+              title="Supprimer"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </button>
+          )}
         </div>
       </div>
 
@@ -193,7 +206,7 @@ function IdeaCard({
                 className="text-[10px] text-muted-foreground hover:text-primary transition-colors flex items-center gap-1"
               >
                 <Copy className="h-3 w-3" />
-                Copier pour l'IA
+                {"Copier pour l'IA"}
               </button>
             </div>
           </div>
@@ -230,7 +243,7 @@ function IdeaCard({
                     onChange={(e) => setKeepIdea(e.target.checked)}
                     className="rounded"
                   />
-                  Conserver l'idée après conversion
+                  {"Conserver l'idée après conversion"}
                 </label>
               </div>
               <div className="flex gap-2">
@@ -341,8 +354,8 @@ export function ProjectIdeasPanel({
           {ideas.length === 0 ? (
             <div className="rounded-xl border border-dashed border-border py-10 text-center">
               <Lightbulb className="h-8 w-8 text-muted-foreground mx-auto mb-2 opacity-40" />
-              <p className="text-sm text-muted-foreground">Aucune idée pour l'instant</p>
-              <p className="text-xs text-muted-foreground mt-0.5">Notez vos idées de projets avant de les lancer</p>
+              <p className="text-sm text-muted-foreground">{"Aucune idée pour l'instant"}</p>
+              <p className="text-xs text-muted-foreground mt-0.5">{"Notez vos idées de projets avant de les lancer"}</p>
             </div>
           ) : (
             <div className="space-y-2">

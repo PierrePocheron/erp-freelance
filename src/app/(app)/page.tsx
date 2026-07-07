@@ -3,22 +3,42 @@ import { prisma } from "@/lib/prisma"
 import Link from "next/link"
 import {
   CheckSquare, AlertCircle, Clock, Users,
-  TrendingUp, Bell, Code2, Calendar, Circle,
-  AlertTriangle, Globe, UserMinus, Wallet, Receipt,
+  TrendingUp, Bell, Code2, Calendar, Circle, PlayCircle,
+  Globe, UserMinus, Wallet, Receipt, Target, ClipboardList,
 } from "lucide-react"
+import { cn } from "@/lib/utils"
 import { QuickActionsBar } from "@/components/modules/dashboard/QuickActionsBar"
 import { ProdMonitorCard } from "@/components/modules/dashboard/ProdMonitorCard"
+import { PendingIncomeCard } from "@/components/modules/dashboard/PendingIncomeCard"
+import { JobHuntCard } from "@/components/modules/dashboard/JobHuntCard"
+import { getActiveModules } from "@/lib/modules-server"
+import { isContactIncomplete } from "@/lib/contact"
 
 export default async function DashboardPage() {
   const session = await auth()
   const userId = session!.user.id
   const firstName = session?.user?.name?.split(" ")[0] ?? "vous"
 
+  const enabledModules = await getActiveModules()
+  const has = (id: string) => enabledModules.has(id as never)
+
+  /* eslint-disable react-hooks/purity */
   const today = new Date()
   const todayStart = new Date(today.setHours(0, 0, 0, 0))
   const todayEnd = new Date(today.setHours(23, 59, 59, 999))
+  const weekStart = new Date(todayStart)
+  const _dow = weekStart.getDay()
+  weekStart.setDate(weekStart.getDate() + (_dow === 0 ? -6 : 1 - _dow))
+  const weekEnd = new Date(weekStart)
+  weekEnd.setDate(weekStart.getDate() + 6)
+  weekEnd.setHours(23, 59, 59, 999)
+  const tomorrowStart = new Date(todayStart)
+  tomorrowStart.setDate(tomorrowStart.getDate() + 1)
+  const tomorrowEnd = new Date(tomorrowStart)
+  tomorrowEnd.setHours(23, 59, 59, 999)
   const in30Days = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
   const followUpCutoff = new Date(Date.now() - 45 * 24 * 60 * 60 * 1000)
+  /* eslint-enable react-hooks/purity */
   const currentYear = new Date().getFullYear()
   const yearStart = new Date(currentYear, 0, 1)
   const yearEnd   = new Date(currentYear, 11, 31, 23, 59, 59)
@@ -47,25 +67,40 @@ export default async function DashboardPage() {
     quickContacts,
     paidInvoicesYTD,
     receivedRevenuesYTD,
+    dashboardProspects,
+    pendingRevenues,
+    pendingReimbursements,
+    dashboardJobApps,
+    agendaTasks,
+    tomorrowEvents,
+    incompleteContactsRaw,
+    incompleteCompaniesRaw,
+    incompleteRevenuesRaw,
   ] = await Promise.all([
     prisma.task.findMany({
       where: {
-        project: { userId },
+        OR: [{ project: { userId } }, { userId }],
         dueDate: { gte: todayStart, lte: todayEnd },
         status: { not: "DONE" },
         parentTaskId: null,
       },
-      include: { project: { select: { id: true, name: true } } },
+      include: {
+        project: { select: { id: true, name: true } },
+        client:  { select: { id: true, name: true, company: true } },
+      },
       orderBy: { dueDate: "asc" },
       take: 5,
     }),
     prisma.task.findMany({
       where: {
-        project: { userId },
+        OR: [{ project: { userId } }, { userId }],
         status: "IN_PROGRESS",
         parentTaskId: null,
       },
-      include: { project: { select: { id: true, name: true } } },
+      include: {
+        project: { select: { id: true, name: true } },
+        client:  { select: { id: true, name: true, company: true } },
+      },
       orderBy: { updatedAt: "desc" },
       take: 5,
     }),
@@ -73,6 +108,7 @@ export default async function DashboardPage() {
       where: {
         client: { userId },
         isDone: false,
+        // eslint-disable-next-line react-hooks/purity
         dueDate: { lte: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) },
       },
       include: { client: { select: { id: true, name: true } } },
@@ -145,12 +181,15 @@ export default async function DashboardPage() {
     }),
     prisma.task.findMany({
       where: {
-        project: { userId },
+        OR: [{ project: { userId } }, { userId }],
         dueDate: { lt: todayStart },
         status: { not: "DONE" },
         parentTaskId: null,
       },
-      include: { project: { select: { id: true, name: true } } },
+      include: {
+        project: { select: { id: true, name: true } },
+        client:  { select: { id: true, name: true, company: true } },
+      },
       orderBy: { dueDate: "asc" },
       take: 6,
     }),
@@ -190,12 +229,123 @@ export default async function DashboardPage() {
       where: { userId, status: "RECEIVED", period: { startsWith: yearPrefix } },
       select: { amount: true },
     }),
+    // Prospects pour le widget pipeline dashboard
+    prisma.client.findMany({
+      where: { userId, type: "PROSPECT" },
+      orderBy: [{ temperature: "desc" }, { updatedAt: "desc" }],
+      select: {
+        id: true,
+        name: true,
+        company: true,
+        temperature: true,
+        prospectStage: true,
+        interactions: { orderBy: { date: "desc" }, take: 1, select: { date: true } },
+      },
+    }),
+    // Revenus en attente de réception
+    prisma.revenue.findMany({
+      where: { userId, status: "PENDING" },
+      orderBy: [{ expectedAt: "asc" }, { createdAt: "desc" }],
+      select: { id: true, label: true, amount: true, expectedAt: true },
+    }),
+    // Remboursements santé en attente
+    prisma.healthReimbursement.findMany({
+      where: { userId, status: "PENDING" },
+      orderBy: [{ expectedDate: "asc" }, { createdAt: "desc" }],
+      select: {
+        id: true, amount: true, source: true, expectedDate: true, notes: true,
+        consultation: { select: { practitionerName: true, title: true } },
+      },
+    }),
+    // Candidatures actives (module entretien)
+    prisma.jobApplication.findMany({
+      where: { userId, status: { notIn: ["ACCEPTED", "REJECTED", "WITHDRAWN", "GHOSTED"] } },
+      orderBy: [{ nextActionAt: "asc" }, { updatedAt: "desc" }],
+      select: {
+        id: true, companyName: true, position: true, status: true,
+        nextActionAt: true, nextActionLabel: true,
+      },
+    }),
+    // Agenda semaine : en retard + échéances semaine + tâches démarrées
+    prisma.task.findMany({
+      where: {
+        AND: [
+          { OR: [{ project: { userId } }, { userId }] },
+          { status: { not: "DONE" } },
+          { parentTaskId: null },
+          { OR: [
+            { dueDate: { lte: weekEnd } },
+            { status: "IN_PROGRESS" },
+          ]},
+        ],
+      },
+      include: {
+        project: { select: { id: true, name: true } },
+        client:  { select: { id: true, name: true, company: true } },
+      },
+      orderBy: [{ dueDate: "asc" }, { updatedAt: "desc" }],
+      take: 15,
+    }),
+    // Événements calendrier (manuels + synchronisés) prévus demain
+    prisma.calendarEvent.findMany({
+      where: { userId, startDate: { gte: tomorrowStart, lte: tomorrowEnd } },
+      include: { category: { select: { name: true, color: true } } },
+      orderBy: { startDate: "asc" },
+    }),
+    // Données à compléter — agrégé pour la mise en avant dashboard
+    prisma.client.findMany({
+      where: { userId, type: { not: "SELF" } },
+      select: { id: true, name: true, firstName: true, lastName: true, email: true, phone: true },
+    }),
+    prisma.company.findMany({
+      where: { userId },
+      select: { id: true, name: true, website: true },
+    }),
+    prisma.revenue.findMany({
+      where: { userId },
+      select: { id: true, label: true, companyId: true, clientId: true, projectId: true },
+    }),
   ])
 
   const totalPending   = unpaidInvoices.reduce((s, i) => s + i.totalHT - i.depositDeducted, 0)
   const encaisseAE     = paidInvoicesYTD.reduce((s, i) => s + i.totalHT - i.depositDeducted, 0)
   const encaisseAutres = receivedRevenuesYTD.reduce((s, r) => s + r.amount, 0)
   const encaisseTotal  = encaisseAE + encaisseAutres
+
+  // ── Encaissements en attente (factures + revenus + remboursements santé) ──────
+  const pendingInvoiceItems = unpaidInvoices.map((inv) => ({
+    id: inv.id,
+    number: inv.number,
+    clientName: inv.client.company ?? inv.client.name,
+    amount: inv.totalHT - inv.depositDeducted,
+    dueDate: inv.dueDate ? inv.dueDate.toISOString() : null,
+    isLate: !!inv.dueDate && new Date(inv.dueDate) < new Date(),
+  }))
+  const pendingRevenueItems = pendingRevenues.map((r) => ({
+    id: r.id,
+    label: r.label,
+    amount: r.amount,
+    expectedAt: r.expectedAt ? r.expectedAt.toISOString() : null,
+  }))
+  const pendingReimbursementItems = pendingReimbursements.map((r) => ({
+    id: r.id,
+    label: r.consultation
+      ? `${r.consultation.practitionerName}${r.consultation.title ? ` — ${r.consultation.title}` : ""}`
+      : (r.notes ?? "Remboursement"),
+    amount: r.amount,
+    source: r.source,
+    expectedDate: r.expectedDate ? r.expectedDate.toISOString() : null,
+  }))
+
+  // ── Entretiens (candidatures actives) ─────────────────────────────────────────
+  const jobAppItems = dashboardJobApps.map((a) => ({
+    id: a.id,
+    companyName: a.companyName,
+    position: a.position,
+    status: a.status,
+    nextActionAt: a.nextActionAt ? a.nextActionAt.toISOString() : null,
+    nextActionLabel: a.nextActionLabel,
+  }))
 
   // Prods : aplatit le dernier check pour la carte de monitoring.
   const prods = prodSites.map((pd) => ({
@@ -208,6 +358,22 @@ export default async function DashboardPage() {
     checkedAt: pd.monitoringChecks[0]?.checkedAt ?? null,
   }))
 
+  // Pipeline prospects
+  const PIPELINE_ACTIVE_STAGES = ["IDENTIFIED", "CONTACTED", "NO_RESPONSE", "REPLIED", "MEETING", "PROPOSAL_SENT", "NEGOTIATION"]
+  const prospectsActive = dashboardProspects.filter((p) => PIPELINE_ACTIVE_STAGES.includes(p.prospectStage))
+  const prospectsHot    = dashboardProspects.filter((p) => p.temperature === "HOT" && PIPELINE_ACTIVE_STAGES.includes(p.prospectStage))
+  // eslint-disable-next-line react-hooks/purity
+  const prospectStale30 = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
+  const prospectsStale  = prospectsActive.filter((p) => {
+    const last = p.interactions[0]?.date ?? null
+    return !last || new Date(last) < prospectStale30
+  })
+  // Comptage par étape (seulement les étapes non-nulles)
+  const prospectByStage: Record<string, number> = {}
+  for (const p of prospectsActive) {
+    prospectByStage[p.prospectStage] = (prospectByStage[p.prospectStage] ?? 0) + 1
+  }
+
   // Clients à relancer : dernier contact (interaction ou création) plus vieux que 45 j.
   const followUpClients = followUpCandidates
     .map((c) => ({
@@ -219,6 +385,17 @@ export default async function DashboardPage() {
     .filter((c) => c.lastTouch < followUpCutoff)
     .sort((a, b) => a.lastTouch.getTime() - b.lastTouch.getTime())
     .slice(0, 5)
+
+  // Groupes agenda semaine
+  const agendaOverdue      = agendaTasks.filter((t) => t.dueDate && new Date(t.dueDate) < todayStart)
+  const agendaWeek         = agendaTasks.filter((t) => t.dueDate && new Date(t.dueDate) >= todayStart && new Date(t.dueDate) <= weekEnd)
+  const agendaStartedOnly  = agendaTasks.filter((t) => t.status === "IN_PROGRESS" && (!t.dueDate || new Date(t.dueDate) > weekEnd))
+
+  // ── Données à compléter — agrégé tous modules ─────────────────────────────
+  const incompleteContacts  = incompleteContactsRaw.filter(isContactIncomplete)
+  const incompleteCompanies = incompleteCompaniesRaw.filter((c) => !c.website)
+  const incompleteRevenues  = incompleteRevenuesRaw.filter((r) => !r.companyId && !r.clientId && !r.projectId)
+  const totalIncomplete = incompleteContacts.length + incompleteCompanies.length + incompleteRevenues.length
 
   const hour = new Date().getHours()
   const greeting = hour < 12 ? "Bonjour" : hour < 18 ? "Bonjour" : "Bonsoir"
@@ -237,67 +414,97 @@ export default async function DashboardPage() {
 
       {/* KPI row */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
-        <KPICard href="/projets" icon={<Code2 className="h-4 w-4" />} label="Projets actifs" value={activeProjects} color="indigo" />
-        <KPICard href="/facturation/factures" icon={<TrendingUp className="h-4 w-4" />} label="En attente" value={`${totalPending.toLocaleString("fr-FR")} €`} color="blue" />
-        <KPICard href="/facturation/factures" icon={<AlertCircle className="h-4 w-4" />} label="En retard" value={lateInvoices} color={lateInvoices > 0 ? "red" : "muted"} />
-        <KPICard href="/facturation/devis" icon={<Clock className="h-4 w-4" />} label="Devis envoyés" value={pendingQuotes} color="amber" />
-        <KPICard href="/client" icon={<Bell className="h-4 w-4" />} label="Rappels" value={upcomingReminders.length} color={upcomingReminders.some(r => new Date(r.dueDate) < new Date()) ? "red" : "muted"} />
-        <KPICard href="/projets" icon={<CheckSquare className="h-4 w-4" />} label="En cours" value={tasksInProgress.length} color="emerald" />
+        {has("projets")     && <KPICard href="/projets"              icon={<Code2 className="h-4 w-4" />}     label="Projets actifs"  value={activeProjects}                                        color="indigo" />}
+        {has("facturation") && <KPICard href="/facturation/factures" icon={<TrendingUp className="h-4 w-4" />} label="En attente"       value={`${totalPending.toLocaleString("fr-FR")} €`}           color="blue"  />}
+        {has("facturation") && <KPICard href="/facturation/factures" icon={<AlertCircle className="h-4 w-4" />} label="En retard"       value={lateInvoices}                                          color={lateInvoices > 0 ? "red" : "muted"} />}
+        {has("facturation") && <KPICard href="/facturation/devis"    icon={<Clock className="h-4 w-4" />}      label="Devis envoyés"   value={pendingQuotes}                                         color="amber" />}
+        {has("contacts")    && <KPICard href="/contacts"             icon={<Bell className="h-4 w-4" />}       label="Rappels"         value={upcomingReminders.length}                              color={upcomingReminders.some(r => new Date(r.dueDate) < new Date()) ? "red" : "muted"} />}
+        {(has("taches") || has("projets")) && <KPICard href="/taches" icon={<CheckSquare className="h-4 w-4" />} label="En cours"    value={tasksInProgress.length}                                color="emerald" />}
       </div>
 
-      {/* Revenus encaissés {year} */}
-      <div className="rounded-xl border border-border/50 bg-card px-5 py-4">
-        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-3">
-          Revenus encaissés — {currentYear}
-        </p>
-        <div className="grid grid-cols-3 gap-4">
-          <Link href="/facturation/factures" className="group space-y-0.5">
-            <div className="flex items-center gap-1.5 text-xs text-muted-foreground group-hover:text-foreground transition-colors">
-              <Receipt className="h-3.5 w-3.5 text-violet-500" />
-              Auto-entreprise
-            </div>
-            <p className="text-lg font-bold tabular-nums text-violet-600">
-              {encaisseAE.toLocaleString("fr-FR")} €
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        {/* Revenus encaissés {year} — carte compacte, une ligne */}
+        {(has("facturation") || has("revenus")) && (
+          <div className="rounded-xl border border-border/50 bg-card px-4 py-2.5 flex items-center gap-4 flex-wrap">
+            <p className="text-xs font-medium text-muted-foreground shrink-0">
+              Encaissé {currentYear}
             </p>
-          </Link>
-          <Link href="/revenus" className="group space-y-0.5">
-            <div className="flex items-center gap-1.5 text-xs text-muted-foreground group-hover:text-foreground transition-colors">
-              <Wallet className="h-3.5 w-3.5 text-teal-500" />
-              Autres revenus
-            </div>
-            <p className="text-lg font-bold tabular-nums text-teal-600">
-              {encaisseAutres.toLocaleString("fr-FR")} €
-            </p>
-          </Link>
-          <div className="space-y-0.5 border-l border-border/50 pl-4">
-            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            {has("facturation") && (
+              <Link href="/facturation/factures" className="group flex items-center gap-1.5 text-xs">
+                <Receipt className="h-3.5 w-3.5 text-violet-500 shrink-0" />
+                <span className="text-muted-foreground group-hover:text-foreground transition-colors">AE</span>
+                <span className="font-semibold tabular-nums text-violet-600">{encaisseAE.toLocaleString("fr-FR")} €</span>
+              </Link>
+            )}
+            {has("revenus") && (
+              <Link href="/revenus" className="group flex items-center gap-1.5 text-xs">
+                <Wallet className="h-3.5 w-3.5 text-teal-500 shrink-0" />
+                <span className="text-muted-foreground group-hover:text-foreground transition-colors">Autres</span>
+                <span className="font-semibold tabular-nums text-teal-600">{encaisseAutres.toLocaleString("fr-FR")} €</span>
+              </Link>
+            )}
+            <span className="ml-auto flex items-center gap-1.5 text-xs shrink-0">
               <TrendingUp className="h-3.5 w-3.5 text-emerald-500" />
-              Total
-            </div>
-            <p className="text-lg font-bold tabular-nums text-emerald-600">
-              {encaisseTotal.toLocaleString("fr-FR")} €
-            </p>
+              <span className="text-muted-foreground">Total</span>
+              <span className="font-bold tabular-nums text-emerald-600">{encaisseTotal.toLocaleString("fr-FR")} €</span>
+            </span>
           </div>
-        </div>
+        )}
+
+        {/* Données à compléter — agrégé tous modules, mis en avant */}
+        {(has("contacts") || has("societes") || has("revenus")) && totalIncomplete > 0 && (
+          <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 px-4 py-2.5 flex items-center gap-4 flex-wrap">
+            <p className="flex items-center gap-1.5 text-xs font-medium text-amber-700 dark:text-amber-400 shrink-0">
+              <AlertCircle className="h-3.5 w-3.5" />
+              Données à compléter
+            </p>
+            {has("contacts") && incompleteContacts.length > 0 && (
+              <Link href="/contacts" className="group flex items-center gap-1 text-xs">
+                <span className="text-muted-foreground group-hover:text-foreground transition-colors">Contacts</span>
+                <span className="font-semibold tabular-nums text-amber-600">{incompleteContacts.length}</span>
+              </Link>
+            )}
+            {has("societes") && incompleteCompanies.length > 0 && (
+              <Link href="/societes" className="group flex items-center gap-1 text-xs">
+                <span className="text-muted-foreground group-hover:text-foreground transition-colors">Sociétés</span>
+                <span className="font-semibold tabular-nums text-amber-600">{incompleteCompanies.length}</span>
+              </Link>
+            )}
+            {has("revenus") && incompleteRevenues.length > 0 && (
+              <Link href="/revenus" className="group flex items-center gap-1 text-xs">
+                <span className="text-muted-foreground group-hover:text-foreground transition-colors">Revenus</span>
+                <span className="font-semibold tabular-nums text-amber-600">{incompleteRevenues.length}</span>
+              </Link>
+            )}
+            {has("graph") && (
+              <Link href="/graph" className="ml-auto text-xs text-amber-700 dark:text-amber-400 hover:underline shrink-0">
+                Voir dans le graphe →
+              </Link>
+            )}
+          </div>
+        )}
       </div>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         {/* Colonne principale */}
         <div className="lg:col-span-2 space-y-6">
 
-          {/* Tâches en retard */}
-          {overdueTasks.length > 0 && (
-            <Section title="Tâches en retard" icon={<AlertTriangle className="h-4 w-4" />} href="/projets">
+          {/* Demain — événements calendrier du jour suivant */}
+          {has("calendrier") && tomorrowEvents.length > 0 && (
+            <Section title="Demain" icon={<ClipboardList className="h-4 w-4" />} href="/calendrier">
               <div className="space-y-1.5">
-                {overdueTasks.map((task) => (
-                  <Link key={task.id} href={`/projets/${task.project!.id}/dev`} className="flex items-center gap-3 rounded-lg px-3 py-2 hover:bg-muted/50 transition-colors">
-                    <span className="h-2 w-2 rounded-full bg-red-500 shrink-0" />
+                {tomorrowEvents.map((ev) => (
+                  <Link key={ev.id} href="/calendrier" className="flex items-center gap-3 rounded-lg px-3 py-2 hover:bg-muted/50 transition-colors">
+                    <span
+                      className="h-2 w-2 rounded-full shrink-0"
+                      style={{ backgroundColor: ev.category?.color ?? "#94a3b8" }}
+                    />
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium truncate">{task.title}</p>
-                      <p className="text-xs text-muted-foreground">{task.project!.name}</p>
+                      <p className="text-sm font-medium truncate">{ev.title}</p>
+                      {ev.category?.name && <p className="text-xs text-muted-foreground">{ev.category.name}</p>}
                     </div>
-                    <span className="text-xs text-red-500 font-medium shrink-0">
-                      {new Date(task.dueDate!).toLocaleDateString("fr-FR", { day: "numeric", month: "short" })}
+                    <span className="text-xs text-muted-foreground shrink-0">
+                      {ev.allDay ? "Toute la journée" : new Date(ev.startDate).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}
                     </span>
                   </Link>
                 ))}
@@ -305,47 +512,142 @@ export default async function DashboardPage() {
             </Section>
           )}
 
-          {/* Tâches en cours */}
-          {tasksInProgress.length > 0 && (
-            <Section title="Tâches en cours" icon={<CheckSquare className="h-4 w-4" />} href="/projets">
-              <div className="space-y-1.5">
-                {tasksInProgress.map((task) => (
-                  <Link key={task.id} href={`/projets/${task.project!.id}/dev`} className="flex items-center gap-3 rounded-lg px-3 py-2 hover:bg-muted/50 transition-colors group">
-                    <span className="h-2 w-2 rounded-full bg-amber-500 shrink-0" />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium truncate">{task.title}</p>
-                      <p className="text-xs text-muted-foreground">{task.project!.name}</p>
+          {/* Agenda semaine — en retard + cette semaine + en cours */}
+          {(has("taches") || has("projets")) && agendaTasks.length > 0 && (
+            <Section title="Tâches" icon={<CheckSquare className="h-4 w-4" />} href="/taches">
+              <div>
+                {/* En retard */}
+                {agendaOverdue.length > 0 && (
+                  <div>
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-red-500 px-3 pt-2 pb-1">
+                      En retard · {agendaOverdue.length}
+                    </p>
+                    <div className="space-y-0.5">
+                      {agendaOverdue.map((task) => {
+                        const href = task.project ? `/projets/${task.project.id}/dev` : "/taches"
+                        const sub  = task.project?.name ?? task.client?.company ?? task.client?.name ?? null
+                        return (
+                          <div key={task.id} className="flex items-center gap-2 rounded-lg px-3 py-2 hover:bg-muted/50 transition-colors">
+                            <form action={async () => {
+                              "use server"
+                              const { completeTaskGlobal } = await import("@/actions/projet")
+                              await completeTaskGlobal(task.id)
+                            }}>
+                              <button type="submit" title="Marquer terminée" className="shrink-0 transition-colors">
+                                {task.status === "IN_PROGRESS"
+                                  ? <PlayCircle className="h-3.5 w-3.5 text-amber-500 hover:text-emerald-500" />
+                                  : <Circle className="h-3.5 w-3.5 text-muted-foreground hover:text-emerald-500" />}
+                              </button>
+                            </form>
+                            <Link href={href} className="flex-1 min-w-0 flex items-center gap-3">
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-medium truncate">{task.title}</p>
+                                {sub && <p className="text-xs text-muted-foreground">{sub}</p>}
+                              </div>
+                              <span className="text-xs text-red-500 font-medium shrink-0">
+                                {new Date(task.dueDate!).toLocaleDateString("fr-FR", { day: "numeric", month: "short" })}
+                              </span>
+                            </Link>
+                          </div>
+                        )
+                      })}
                     </div>
-                    {task.dueDate && (
-                      <span className={`text-xs shrink-0 ${new Date(task.dueDate) < new Date() ? "text-red-500 font-medium" : "text-muted-foreground"}`}>
-                        {new Date(task.dueDate).toLocaleDateString("fr-FR", { day: "numeric", month: "short" })}
-                      </span>
-                    )}
-                  </Link>
-                ))}
+                  </div>
+                )}
+                {/* Cette semaine */}
+                {agendaWeek.length > 0 && (
+                  <div>
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground px-3 pt-2 pb-1">
+                      Cette semaine · {agendaWeek.length}
+                    </p>
+                    <div className="space-y-0.5">
+                      {agendaWeek.map((task) => {
+                        const href = task.project ? `/projets/${task.project.id}/dev` : "/taches"
+                        const sub  = task.project?.name ?? task.client?.company ?? task.client?.name ?? null
+                        const isToday = task.dueDate && new Date(task.dueDate).toDateString() === new Date(todayStart).toDateString()
+                        return (
+                          <div key={task.id} className="flex items-center gap-2 rounded-lg px-3 py-2 hover:bg-muted/50 transition-colors">
+                            <form action={async () => {
+                              "use server"
+                              const { completeTaskGlobal } = await import("@/actions/projet")
+                              await completeTaskGlobal(task.id)
+                            }}>
+                              <button type="submit" title="Marquer terminée" className="shrink-0 transition-colors">
+                                {task.status === "IN_PROGRESS"
+                                  ? <PlayCircle className="h-3.5 w-3.5 text-amber-500 hover:text-emerald-500" />
+                                  : <Circle className="h-3.5 w-3.5 text-muted-foreground hover:text-emerald-500" />}
+                              </button>
+                            </form>
+                            <Link href={href} className="flex-1 min-w-0 flex items-center gap-3">
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-medium truncate">{task.title}</p>
+                                {sub && <p className="text-xs text-muted-foreground">{sub}</p>}
+                              </div>
+                              {task.dueDate && (
+                                <span className={`text-xs shrink-0 ${isToday ? "text-primary font-medium" : "text-muted-foreground"}`}>
+                                  {isToday ? "Aujourd'hui" : new Date(task.dueDate).toLocaleDateString("fr-FR", { weekday: "short", day: "numeric", month: "short" })}
+                                </span>
+                              )}
+                            </Link>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )}
+                {/* En cours sans date dans la semaine */}
+                {agendaStartedOnly.length > 0 && (
+                  <div>
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-amber-600 px-3 pt-2 pb-1">
+                      En cours · {agendaStartedOnly.length}
+                    </p>
+                    <div className="space-y-0.5">
+                      {agendaStartedOnly.map((task) => {
+                        const href = task.project ? `/projets/${task.project.id}/dev` : "/taches"
+                        const sub  = task.project?.name ?? task.client?.company ?? task.client?.name ?? null
+                        return (
+                          <div key={task.id} className="flex items-center gap-2 rounded-lg px-3 py-2 hover:bg-muted/50 transition-colors">
+                            <form action={async () => {
+                              "use server"
+                              const { completeTaskGlobal } = await import("@/actions/projet")
+                              await completeTaskGlobal(task.id)
+                            }}>
+                              <button type="submit" title="Marquer terminée" className="shrink-0 transition-colors">
+                                <PlayCircle className="h-3.5 w-3.5 text-amber-500 hover:text-emerald-500" />
+                              </button>
+                            </form>
+                            <Link href={href} className="flex-1 min-w-0 flex items-center gap-3">
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-medium truncate">{task.title}</p>
+                                {sub && <p className="text-xs text-muted-foreground">{sub}</p>}
+                              </div>
+                              {task.dueDate && (
+                                <span className="text-xs text-muted-foreground shrink-0">
+                                  {new Date(task.dueDate).toLocaleDateString("fr-FR", { day: "numeric", month: "short" })}
+                                </span>
+                              )}
+                            </Link>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )}
               </div>
             </Section>
           )}
 
-          {/* Tâches dues aujourd'hui */}
-          {tasksDueToday.length > 0 && (
-            <Section title="Échéances aujourd'hui" icon={<Calendar className="h-4 w-4" />} href="/projets">
-              <div className="space-y-1.5">
-                {tasksDueToday.map((task) => (
-                  <Link key={task.id} href={`/projets/${task.project!.id}/dev`} className="flex items-center gap-3 rounded-lg px-3 py-2 hover:bg-muted/50 transition-colors">
-                    <span className="h-2 w-2 rounded-full bg-red-500 shrink-0" />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium truncate">{task.title}</p>
-                      <p className="text-xs text-muted-foreground">{task.project!.name}</p>
-                    </div>
-                  </Link>
-                ))}
-              </div>
-            </Section>
+          {/* En attente de réception */}
+          {(has("facturation") || has("revenus") || has("sante")) && (
+            <PendingIncomeCard
+              invoices={has("facturation") ? pendingInvoiceItems : []}
+              revenues={has("revenus") ? pendingRevenueItems : []}
+              reimbursements={has("sante") ? pendingReimbursementItems : []}
+            />
           )}
 
           {/* Factures impayées */}
-          {unpaidInvoices.length > 0 && (
+          {has("facturation") && unpaidInvoices.length > 0 && (
             <Section title="Factures en attente" icon={<TrendingUp className="h-4 w-4" />} href="/facturation/factures">
               <div className="space-y-1.5">
                 {unpaidInvoices.map((inv) => {
@@ -376,7 +678,7 @@ export default async function DashboardPage() {
           )}
 
           {/* Jalons à venir */}
-          {upcomingMilestones.length > 0 && (
+          {has("projets") && upcomingMilestones.length > 0 && (
             <Section title="Jalons à venir" icon={<Calendar className="h-4 w-4" />} href="/projets">
               <div className="space-y-1.5">
                 {upcomingMilestones.map((m) => (
@@ -396,7 +698,7 @@ export default async function DashboardPage() {
           )}
 
           {/* Renouvellements imminents */}
-          {upcomingRenewals.length > 0 && (
+          {has("projets") && upcomingRenewals.length > 0 && (
             <Section title="Renouvellements imminents" icon={<Globe className="h-4 w-4" />} href="/projets">
               <div className="space-y-1.5">
                 {upcomingRenewals.map((r) => {
@@ -423,11 +725,94 @@ export default async function DashboardPage() {
         {/* Colonne secondaire */}
         <div className="space-y-6">
           {/* Monitoring des prods */}
-          <ProdMonitorCard prods={prods} />
+          {has("projets") && <ProdMonitorCard prods={prods} />}
+
+          {/* Entretiens — candidatures actives */}
+          {has("entretien") && <JobHuntCard applications={jobAppItems} activeCount={jobAppItems.length} />}
+
+          {/* Pipeline Prospects */}
+          {has("contacts") && dashboardProspects.length > 0 && (
+            <div className="rounded-xl border border-border/50 bg-card overflow-hidden">
+              <div className="flex items-center justify-between px-4 py-3 border-b border-border/50">
+                <div className="flex items-center gap-2 text-sm font-semibold">
+                  <span className="text-muted-foreground"><Target className="h-4 w-4" /></span>
+                  Prospection
+                </div>
+                <Link href="/contacts/prospects" className="text-xs text-primary hover:underline">Voir tout →</Link>
+              </div>
+              <div className="p-3 space-y-3">
+                {/* Stats row */}
+                <div className="grid grid-cols-3 gap-2">
+                  <Link href="/contacts/prospects" className="rounded-lg bg-muted/40 px-2 py-2 text-center hover:bg-muted/70 transition-colors">
+                    <p className="text-lg font-bold">{prospectsActive.length}</p>
+                    <p className="text-[10px] text-muted-foreground leading-tight">En pipeline</p>
+                  </Link>
+                  <Link href="/contacts/prospects" className={cn("rounded-lg px-2 py-2 text-center transition-colors", prospectsHot.length > 0 ? "bg-red-500/10 hover:bg-red-500/15" : "bg-muted/40 hover:bg-muted/70")}>
+                    <p className={cn("text-lg font-bold", prospectsHot.length > 0 ? "text-red-600" : "")}>{prospectsHot.length}</p>
+                    <p className="text-[10px] text-muted-foreground leading-tight">Chauds</p>
+                  </Link>
+                  <Link href="/contacts/prospects" className={cn("rounded-lg px-2 py-2 text-center transition-colors", prospectsStale.length > 0 ? "bg-amber-500/10 hover:bg-amber-500/15" : "bg-muted/40 hover:bg-muted/70")}>
+                    <p className={cn("text-lg font-bold", prospectsStale.length > 0 ? "text-amber-600" : "")}>{prospectsStale.length}</p>
+                    <p className="text-[10px] text-muted-foreground leading-tight">Inactifs</p>
+                  </Link>
+                </div>
+
+                {/* Stage chips */}
+                {Object.keys(prospectByStage).length > 0 && (
+                  <div className="flex flex-wrap gap-1.5">
+                    {PIPELINE_ACTIVE_STAGES.filter((s) => (prospectByStage[s] ?? 0) > 0).map((stage) => {
+                      const pipelineLabels: Record<string, string> = {
+                        IDENTIFIED: "Identifié", CONTACTED: "Contacté", NO_RESPONSE: "Sans réponse",
+                        REPLIED: "A répondu", MEETING: "RDV", PROPOSAL_SENT: "Devis envoyé", NEGOTIATION: "Négociation",
+                      }
+                      const pipelineColors: Record<string, string> = {
+                        IDENTIFIED: "bg-slate-500/15 text-slate-600", CONTACTED: "bg-blue-500/15 text-blue-600",
+                        NO_RESPONSE: "bg-amber-500/15 text-amber-700", REPLIED: "bg-teal-500/15 text-teal-600",
+                        MEETING: "bg-purple-500/15 text-purple-600", PROPOSAL_SENT: "bg-indigo-500/15 text-indigo-600",
+                        NEGOTIATION: "bg-violet-500/15 text-violet-600",
+                      }
+                      return (
+                        <Link
+                          key={stage}
+                          href={`/contacts/prospects?stage=${stage}`}
+                          className={cn("rounded-full border border-transparent px-2 py-0.5 text-[10px] font-medium hover:opacity-80 transition-opacity", pipelineColors[stage])}
+                        >
+                          {pipelineLabels[stage]} ({prospectByStage[stage]})
+                        </Link>
+                      )
+                    })}
+                  </div>
+                )}
+
+                {/* Top prospects chauds */}
+                {prospectsHot.length > 0 && (
+                  <div className="space-y-0.5 border-t border-border/50 pt-2">
+                    {prospectsHot.slice(0, 3).map((p) => {
+                      const stageShort: Record<string, string> = {
+                        IDENTIFIED: "Identifié", CONTACTED: "Contacté", NO_RESPONSE: "Sans réponse",
+                        REPLIED: "A répondu", MEETING: "RDV", PROPOSAL_SENT: "Devis env.", NEGOTIATION: "Négo.",
+                      }
+                      return (
+                        <Link
+                          key={p.id}
+                          href={`/contacts/${p.id}`}
+                          className="flex items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-muted/50 transition-colors"
+                        >
+                          <span className="h-1.5 w-1.5 rounded-full bg-red-500 shrink-0" />
+                          <p className="text-xs font-medium truncate flex-1">{p.company ?? p.name}</p>
+                          <span className="text-[10px] text-muted-foreground shrink-0">{stageShort[p.prospectStage] ?? p.prospectStage}</span>
+                        </Link>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* Rappels */}
-          {upcomingReminders.length > 0 && (
-            <Section title="Rappels" icon={<Bell className="h-4 w-4" />} href="/client">
+          {has("contacts") && upcomingReminders.length > 0 && (
+            <Section title="Rappels" icon={<Bell className="h-4 w-4" />} href="/contacts">
               <div className="space-y-1.5">
                 {upcomingReminders.map((r) => {
                   const isLate = new Date(r.dueDate) < new Date()
@@ -442,7 +827,7 @@ export default async function DashboardPage() {
                           <Circle className="h-3.5 w-3.5" />
                         </button>
                       </form>
-                      <Link href={`/client/${r.client.id}/rappels`} className="flex-1 min-w-0">
+                      <Link href={`/contacts/${r.client.id}/rappels`} className="flex-1 min-w-0">
                         <p className="text-sm font-medium">{r.client.name}</p>
                         {r.note && <p className="text-xs text-muted-foreground truncate">{r.note}</p>}
                         <p className={`text-xs ${isLate ? "text-red-500 font-medium" : "text-muted-foreground"}`}>
@@ -458,11 +843,11 @@ export default async function DashboardPage() {
           )}
 
           {/* Activité récente */}
-          {recentInteractions.length > 0 && (
-            <Section title="Activité récente" icon={<Users className="h-4 w-4" />} href="/client">
+          {has("contacts") && recentInteractions.length > 0 && (
+            <Section title="Activité récente" icon={<Users className="h-4 w-4" />} href="/contacts">
               <div className="space-y-1.5">
                 {recentInteractions.map((i) => (
-                  <Link key={i.id} href={`/client/${i.client.id}/interactions`} className="flex items-start gap-3 rounded-lg px-3 py-2 hover:bg-muted/50 transition-colors">
+                  <Link key={i.id} href={`/contacts/${i.client.id}/interactions`} className="flex items-start gap-3 rounded-lg px-3 py-2 hover:bg-muted/50 transition-colors">
                     <span className="h-2 w-2 rounded-full bg-muted-foreground mt-1.5 shrink-0" />
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium">{i.client.name}</p>
@@ -478,13 +863,14 @@ export default async function DashboardPage() {
           )}
 
           {/* Clients à relancer */}
-          {followUpClients.length > 0 && (
-            <Section title="Clients à relancer" icon={<UserMinus className="h-4 w-4" />} href="/client">
+          {has("contacts") && followUpClients.length > 0 && (
+            <Section title="Clients à relancer" icon={<UserMinus className="h-4 w-4" />} href="/contacts">
               <div className="space-y-1.5">
                 {followUpClients.map((c) => {
+                  // eslint-disable-next-line react-hooks/purity
                   const days = Math.floor((Date.now() - c.lastTouch.getTime()) / (24 * 60 * 60 * 1000))
                   return (
-                    <Link key={c.id} href={`/client/${c.id}/interactions`} className="flex items-center gap-3 rounded-lg px-3 py-2 hover:bg-muted/50 transition-colors">
+                    <Link key={c.id} href={`/contacts/${c.id}/interactions`} className="flex items-center gap-3 rounded-lg px-3 py-2 hover:bg-muted/50 transition-colors">
                       <span className="h-2 w-2 rounded-full bg-muted-foreground/40 shrink-0" />
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium truncate">{c.company ?? c.name}</p>
@@ -497,8 +883,14 @@ export default async function DashboardPage() {
             </Section>
           )}
 
-          {/* Tous ok */}
-          {tasksInProgress.length === 0 && tasksDueToday.length === 0 && unpaidInvoices.length === 0 && upcomingReminders.length === 0 && (
+          {/* Tous ok — affiché si tous les widgets visibles sont vides */}
+          {(!(has("taches") || has("projets")) || agendaTasks.length === 0) &&
+           (!has("facturation") || unpaidInvoices.length === 0) &&
+           (!has("contacts") || (upcomingReminders.length === 0 && recentInteractions.length === 0 && followUpClients.length === 0 && dashboardProspects.length === 0)) &&
+           (!has("projets") || (prods.length === 0 && upcomingMilestones.length === 0 && upcomingRenewals.length === 0)) &&
+           (!has("entretien") || jobAppItems.length === 0) &&
+           (!has("calendrier") || tomorrowEvents.length === 0) &&
+           totalIncomplete === 0 && (
             <div className="rounded-xl border border-dashed border-border p-8 text-center text-muted-foreground text-sm">
               Tout est à jour ✓
             </div>

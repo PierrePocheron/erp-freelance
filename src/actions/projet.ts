@@ -84,7 +84,6 @@ export async function createProject(_userId: string, formData: FormData) {
     data: {
       userId,
       companyId: parsed.companyId || null,
-      contactId,
       // clientId conservé pour compat facturation (Phase 2 le retirera)
       clientId: contactId,
       name: parsed.name,
@@ -92,6 +91,10 @@ export async function createProject(_userId: string, formData: FormData) {
       startDate: parsed.startDate ? new Date(parsed.startDate) : undefined,
       endDate: parsed.endDate ? new Date(parsed.endDate) : undefined,
       estimatedHours: parsed.estimatedHours,
+      // Crée le lien M2M si un contact est fourni
+      ...(contactId ? {
+        contactLinks: { create: { clientId: contactId, role: "CLIENT" } },
+      } : {}),
     },
   })
   revalidatePath("/projets")
@@ -110,15 +113,50 @@ export async function updateProjectCompany(projectId: string, companyId: string 
   revalidatePath("/projets")
 }
 
-export async function updateProjectContact(projectId: string, contactId: string | null) {
+/**
+ * Ajoute un contact au projet avec un rôle et un label optionnel.
+ * Si le contact est déjà lié, met à jour son rôle/label.
+ */
+export async function addProjectContact(
+  projectId: string,
+  clientId: string,
+  role: "CLIENT" | "COLLEAGUE" | "PARTNER" | "SUPPLIER" | "OTHER" = "OTHER",
+  label?: string,
+) {
   const userId = await requireAuth()
-  if (contactId) {
-    const contact = await prisma.client.findFirst({ where: { id: contactId, userId }, select: { id: true } })
-    if (!contact) throw new Error("Contact introuvable")
-  }
   await prisma.project.findFirstOrThrow({ where: { id: projectId, userId } })
-  await prisma.project.update({ where: { id: projectId }, data: { contactId } })
+  const contact = await prisma.client.findFirst({ where: { id: clientId, userId }, select: { id: true } })
+  if (!contact) throw new Error("Contact introuvable")
+
+  await prisma.projectContact.upsert({
+    where: { projectId_clientId: { projectId, clientId } },
+    create: { projectId, clientId, role, label: label || null },
+    update: { role, label: label || null },
+  })
   revalidatePath(`/projets/${projectId}`)
+}
+
+/**
+ * Retire un contact du projet.
+ */
+export async function removeProjectContact(projectId: string, clientId: string) {
+  const userId = await requireAuth()
+  await prisma.project.findFirstOrThrow({ where: { id: projectId, userId } })
+  await prisma.projectContact.deleteMany({ where: { projectId, clientId } })
+  revalidatePath(`/projets/${projectId}`)
+}
+
+/** @deprecated Utiliser addProjectContact / removeProjectContact */
+export async function updateProjectContact(projectId: string, contactId: string | null) {
+  if (contactId) {
+    await addProjectContact(projectId, contactId, "CLIENT")
+  } else {
+    // Retire tous les contacts de rôle CLIENT si on efface
+    const userId = await requireAuth()
+    await prisma.project.findFirstOrThrow({ where: { id: projectId, userId } })
+    await prisma.projectContact.deleteMany({ where: { projectId, role: "CLIENT" } })
+    revalidatePath(`/projets/${projectId}`)
+  }
 }
 
 export async function updateProjectStatus(
@@ -128,6 +166,17 @@ export async function updateProjectStatus(
   const userId = await requireAuth()
   await prisma.project.findFirstOrThrow({ where: { id: projectId, userId } })
   await prisma.project.update({ where: { id: projectId }, data: { status } })
+  revalidatePath("/projets")
+  revalidatePath(`/projets/${projectId}`)
+}
+
+export async function updateProjectPriority(
+  projectId: string,
+  priority: "LOW" | "MEDIUM" | "HIGH" | "URGENT"
+) {
+  const userId = await requireAuth()
+  await prisma.project.findFirstOrThrow({ where: { id: projectId, userId } })
+  await prisma.project.update({ where: { id: projectId }, data: { priority } })
   revalidatePath("/projets")
   revalidatePath(`/projets/${projectId}`)
 }
@@ -219,7 +268,7 @@ export async function createClientTask(
     },
   })
   revalidatePath("/taches")
-  if (clientId) revalidatePath(`/client/${clientId}`)
+  if (clientId) revalidatePath(`/contacts/${clientId}`)
   return task
 }
 
@@ -254,6 +303,17 @@ export async function completeTask(taskId: string, projectId: string) {
     data: { status: "DONE", completedAt: new Date() },
   })
   revalidatePath(`/projets/${projectId}`)
+}
+
+export async function completeTaskGlobal(taskId: string) {
+  const userId = await requireAuth()
+  await requireTaskOwnership(taskId, userId)
+  await prisma.task.update({
+    where: { id: taskId },
+    data: { status: "DONE", completedAt: new Date() },
+  })
+  revalidatePath("/")
+  revalidatePath("/taches")
 }
 
 export async function reopenTask(taskId: string, projectId: string) {
@@ -496,19 +556,58 @@ export async function deleteTask(taskId: string, projectId?: string) {
 
 // ── Milestones ─────────────────────────────────────────────────────────────
 
-export async function createMilestone(projectId: string, formData: FormData) {
+export type MilestoneInput = {
+  name: string
+  date: Date
+  endDate?: Date | null
+  type?: string
+  status?: "UPCOMING" | "IN_PROGRESS" | "DONE"
+}
+
+export async function createMilestone(projectId: string, data: MilestoneInput) {
   const userId = await requireAuth()
   const proj = await prisma.project.findFirst({ where: { id: projectId, userId }, select: { id: true } })
   if (!proj) throw new Error("Projet introuvable")
   const milestone = await prisma.milestone.create({
     data: {
       projectId,
-      name: formData.get("name") as string,
-      date: new Date(formData.get("date") as string),
+      name: data.name,
+      date: data.date,
+      endDate: data.endDate ?? null,
+      type: (data.type ?? "OTHER") as never,
+      status: data.status ?? "UPCOMING",
     },
   })
   revalidatePath(`/projets/${projectId}`)
+  revalidatePath(`/projets/${projectId}/dev`)
   return milestone
+}
+
+export async function updateMilestone(milestoneId: string, projectId: string, data: MilestoneInput) {
+  const userId = await requireAuth()
+  const proj = await prisma.project.findFirst({ where: { id: projectId, userId }, select: { id: true } })
+  if (!proj) throw new Error("Projet introuvable")
+  await prisma.milestone.update({
+    where: { id: milestoneId },
+    data: {
+      name: data.name,
+      date: data.date,
+      endDate: data.endDate ?? null,
+      type: (data.type ?? "OTHER") as never,
+      ...(data.status ? { status: data.status } : {}),
+    },
+  })
+  revalidatePath(`/projets/${projectId}`)
+  revalidatePath(`/projets/${projectId}/dev`)
+}
+
+export async function deleteMilestone(milestoneId: string, projectId: string) {
+  const userId = await requireAuth()
+  const proj = await prisma.project.findFirst({ where: { id: projectId, userId }, select: { id: true } })
+  if (!proj) throw new Error("Projet introuvable")
+  await prisma.milestone.delete({ where: { id: milestoneId } })
+  revalidatePath(`/projets/${projectId}`)
+  revalidatePath(`/projets/${projectId}/dev`)
 }
 
 export async function updateMilestoneStatus(
@@ -525,19 +624,38 @@ export async function updateMilestoneStatus(
 
 // ── Useful Links ───────────────────────────────────────────────────────────
 
-export async function createUsefulLink(projectId: string, formData: FormData) {
+export type UsefulLinkInput = { label: string; url: string; category?: string }
+
+export async function createUsefulLink(projectId: string, data: UsefulLinkInput) {
   const userId = await requireAuth()
   const proj = await prisma.project.findFirst({ where: { id: projectId, userId }, select: { id: true } })
   if (!proj) throw new Error("Projet introuvable")
   await prisma.usefulLink.create({
     data: {
       projectId,
-      label: formData.get("label") as string,
-      url: formData.get("url") as string,
-      category: ((formData.get("category") as string) || "OTHER") as import("@/generated/prisma/client").LinkCategory,
+      label: data.label,
+      url: data.url,
+      category: (data.category || "OTHER") as import("@/generated/prisma/client").LinkCategory,
     },
   })
   revalidatePath(`/projets/${projectId}`)
+  revalidatePath(`/projets/${projectId}/dev`)
+}
+
+export async function updateUsefulLink(linkId: string, projectId: string, data: UsefulLinkInput) {
+  const userId = await requireAuth()
+  const link = await prisma.usefulLink.findFirst({ where: { id: linkId, project: { userId } }, select: { id: true } })
+  if (!link) throw new Error("Lien introuvable")
+  await prisma.usefulLink.update({
+    where: { id: linkId },
+    data: {
+      label: data.label,
+      url: data.url,
+      category: (data.category || "OTHER") as import("@/generated/prisma/client").LinkCategory,
+    },
+  })
+  revalidatePath(`/projets/${projectId}`)
+  revalidatePath(`/projets/${projectId}/dev`)
 }
 
 export async function deleteUsefulLink(linkId: string, projectId: string) {
@@ -549,6 +667,7 @@ export async function deleteUsefulLink(linkId: string, projectId: string) {
   if (!link) throw new Error("Lien introuvable")
   await prisma.usefulLink.delete({ where: { id: linkId } })
   revalidatePath(`/projets/${projectId}`)
+  revalidatePath(`/projets/${projectId}/dev`)
 }
 
 // ── Journal ────────────────────────────────────────────────────────────────

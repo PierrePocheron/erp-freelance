@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma"
 import { revalidatePath } from "next/cache"
 import { auth } from "@/lib/auth"
 import { computeContactName } from "@/lib/contact"
+import type { ClientType, ClientSource, Temperature, ProspectStage, InteractionChannel } from "@/generated/prisma/enums"
 
 async function requireAuth(): Promise<string> {
   const session = await auth()
@@ -52,6 +53,7 @@ export async function searchCompanies(query: string) {
 
 export async function createCompany(data: {
   name: string
+  companyType?: string | null
   siret?: string
   vatNumber?: string
   email?: string
@@ -62,6 +64,7 @@ export async function createCompany(data: {
   city?: string
   country?: string
   notes?: string
+  fiscalSourceId?: string | null
 }) {
   const userId = await requireAuth()
   const name = data.name.trim()
@@ -70,6 +73,7 @@ export async function createCompany(data: {
     data: {
       userId,
       name,
+      companyType: (data.companyType || null) as never,
       siret: data.siret?.trim() || null,
       vatNumber: data.vatNumber?.trim() || null,
       email: data.email?.trim() || null,
@@ -80,10 +84,11 @@ export async function createCompany(data: {
       city: data.city?.trim() || null,
       country: data.country?.trim() || null,
       notes: data.notes?.trim() || null,
+      fiscalSourceId: data.fiscalSourceId || null,
     },
   })
   revalidatePath("/societes")
-  revalidatePath("/client")
+  revalidatePath("/contacts")
   return company
 }
 
@@ -91,6 +96,7 @@ export async function updateCompany(
   companyId: string,
   data: {
     name?: string
+    companyType?: string | null
     siret?: string | null
     vatNumber?: string | null
     email?: string | null
@@ -101,6 +107,7 @@ export async function updateCompany(
     city?: string | null
     country?: string | null
     notes?: string | null
+    fiscalSourceId?: string | null
   }
 ) {
   const userId = await requireAuth()
@@ -109,9 +116,11 @@ export async function updateCompany(
 
   const clean: Record<string, unknown> = {}
   if (data.name?.trim()) clean.name = data.name.trim()
+  if ("companyType" in data) clean.companyType = data.companyType || null
   for (const k of ["siret", "vatNumber", "email", "phone", "website", "address", "postalCode", "city", "country", "notes"] as const) {
     if (k in data) clean[k] = (data[k] ?? "")?.toString().trim() || null
   }
+  if ("fiscalSourceId" in data) clean.fiscalSourceId = data.fiscalSourceId || null
   await prisma.company.update({ where: { id: companyId, userId }, data: clean as never })
 
   // Resynchronise le cache d'affichage des contacts si le nom a changé.
@@ -120,7 +129,7 @@ export async function updateCompany(
   }
   revalidatePath("/societes")
   revalidatePath(`/societes/${companyId}`)
-  revalidatePath("/client")
+  revalidatePath("/contacts")
 }
 
 export async function deleteCompany(companyId: string) {
@@ -129,7 +138,7 @@ export async function deleteCompany(companyId: string) {
   await prisma.client.updateMany({ where: { companyId, userId }, data: { company: null } })
   await prisma.company.delete({ where: { id: companyId, userId } })
   revalidatePath("/societes")
-  revalidatePath("/client")
+  revalidatePath("/contacts")
 }
 
 // ── Client CRUD ───────────────────────────────────────────────────────────────
@@ -170,7 +179,7 @@ export async function createQuickClient(
     },
   })
   revalidatePath("/projets")
-  revalidatePath("/client")
+  revalidatePath("/contacts")
   return client
 }
 
@@ -214,9 +223,9 @@ export async function createClient(
       name,
       email: data.email?.trim() || null,
       phone: data.phone?.trim() || null,
-      type: (data.type as any) || "TO_COMPLETE",
-      source: (data.source as any) || "OTHER",
-      temperature: (data.temperature as any) || "COLD",
+      type: (data.type as ClientType) || "TO_COMPLETE",
+      source: (data.source as ClientSource) || "OTHER",
+      temperature: (data.temperature as Temperature) || "COLD",
       priorityScore: 1,
       notes: data.notes?.trim() || null,
       address: data.address?.trim() || null,
@@ -226,7 +235,7 @@ export async function createClient(
       siret: data.siret?.trim() || null,
     },
   })
-  revalidatePath("/client")
+  revalidatePath("/contacts")
   return client
 }
 
@@ -245,30 +254,83 @@ export async function updateClient(
   const userId = await requireAuth()
   await prisma.client.update({
     where: { id: clientId, userId },
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     data: data as any,
   })
-  revalidatePath(`/client/${clientId}`)
-  revalidatePath("/client")
+  revalidatePath(`/contacts/${clientId}`)
+  revalidatePath("/contacts")
+}
+
+export async function updateCompanyType(companyId: string, type: string | null) {
+  const userId = await requireAuth()
+  await prisma.company.update({
+    where: { id: companyId, userId },
+    data: { companyType: (type || null) as never },
+  })
+  revalidatePath(`/societes/${companyId}`)
+  revalidatePath("/societes")
 }
 
 export async function updateClientType(clientId: string, _userId: string, type: string) {
   const userId = await requireAuth()
   await prisma.client.update({
     where: { id: clientId, userId },
-    data: { type: type as any },
+    data: { type: type as ClientType },
   })
-  revalidatePath(`/client/${clientId}`)
-  revalidatePath("/client")
+  revalidatePath(`/contacts/${clientId}`)
+  revalidatePath("/contacts")
 }
 
 export async function updateClientTemperature(clientId: string, _userId: string, temperature: string) {
   const userId = await requireAuth()
   await prisma.client.update({
     where: { id: clientId, userId },
-    data: { temperature: temperature as any },
+    data: { temperature: temperature as Temperature },
   })
-  revalidatePath(`/client/${clientId}`)
-  revalidatePath("/client")
+  revalidatePath(`/contacts/${clientId}`)
+  revalidatePath("/contacts")
+}
+
+export async function updateProspectStage(clientId: string, stage: ProspectStage) {
+  const userId = await requireAuth()
+  const data: Record<string, unknown> = { prospectStage: stage }
+  // Gagné → convertit automatiquement en client
+  if (stage === "WON") data.type = "CLIENT"
+  await prisma.client.update({ where: { id: clientId, userId }, data: data as never })
+  revalidatePath(`/contacts/${clientId}`)
+  revalidatePath("/contacts")
+}
+
+export async function createProspect(data: {
+  name: string
+  email?: string
+  source?: string
+  companyId?: string
+  companyName?: string
+}) {
+  const userId = await requireAuth()
+  const { companyId, companyName } = await resolveCompany(userId, {
+    companyId: data.companyId,
+    companyName: data.companyName,
+  })
+  const name = data.name.trim()
+  if (!name) throw new Error("Le nom est requis")
+  const client = await prisma.client.create({
+    data: {
+      userId,
+      name,
+      email: data.email?.trim() || null,
+      companyId,
+      company: companyName,
+      type: "PROSPECT",
+      source: (data.source as ClientSource) || "OTHER",
+      temperature: "COLD",
+      prospectStage: "IDENTIFIED",
+      priorityScore: 1,
+    },
+  })
+  revalidatePath("/contacts")
+  return client
 }
 
 export async function updateClientPriority(clientId: string, _userId: string, priorityScore: number) {
@@ -277,8 +339,8 @@ export async function updateClientPriority(clientId: string, _userId: string, pr
     where: { id: clientId, userId },
     data: { priorityScore },
   })
-  revalidatePath(`/client/${clientId}`)
-  revalidatePath("/client")
+  revalidatePath(`/contacts/${clientId}`)
+  revalidatePath("/contacts")
 }
 
 export async function updateClientAll(
@@ -300,6 +362,7 @@ export async function updateClientAll(
     city?: string | null
     country?: string | null
     siret?: string | null
+    linkedinUrl?: string | null
   }
 ) {
   const userId = await requireAuth()
@@ -347,16 +410,18 @@ export async function updateClientAll(
   if ("city" in data) clean.city = data.city?.trim() || null
   if ("country" in data) clean.country = data.country?.trim() || null
   if ("siret" in data) clean.siret = data.siret?.trim() || null
+  if ("linkedinUrl" in data) clean.linkedinUrl = data.linkedinUrl?.trim() || null
 
   await prisma.client.update({ where: { id: clientId, userId }, data: clean as never })
-  revalidatePath(`/client/${clientId}`)
-  revalidatePath("/client")
+  revalidatePath(`/contacts/${clientId}`)
+  revalidatePath("/contacts")
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export async function deleteClient(clientId: string, _userId: string) {
   const userId = await requireAuth()
   await prisma.client.delete({ where: { id: clientId, userId } })
-  revalidatePath("/client")
+  revalidatePath("/contacts")
 }
 
 // ── Interactions ──────────────────────────────────────────────────────────────
@@ -372,13 +437,14 @@ export async function addInteraction(
     data: {
       clientId,
       date: new Date(data.date),
-      channel: data.channel as any,
+      channel: data.channel as InteractionChannel,
       summary: data.summary,
       response: data.response || null,
     },
   })
-  revalidatePath(`/client/${clientId}`)
-  revalidatePath("/client")
+  revalidatePath(`/contacts/${clientId}`)
+  revalidatePath("/contacts")
+  revalidatePath("/contacts/prospects")
 }
 
 export async function updateInteraction(
@@ -387,26 +453,28 @@ export async function updateInteraction(
   data: { date: string; channel: string; summary: string; response?: string | null }
 ) {
   const userId = await requireAuth()
-  const client = await prisma.client.findFirst({ where: { id: clientId, userId }, select: { id: true } })
-  if (!client) throw new Error("Non autorisé")
-  await prisma.interaction.update({
-    where: { id: interactionId },
+  // Scope par l'interaction elle-même (via le client propriétaire), pas par le
+  // clientId fourni par l'appelant — sinon IDOR (clientId attaquant + interactionId victime).
+  const updated = await prisma.interaction.updateMany({
+    where: { id: interactionId, client: { userId } },
     data: {
       date: new Date(data.date),
-      channel: data.channel as any,
+      channel: data.channel as InteractionChannel,
       summary: data.summary,
       response: data.response || null,
     },
   })
-  revalidatePath(`/client/${clientId}`)
+  if (updated.count === 0) throw new Error("Non autorisé")
+  revalidatePath(`/contacts/${clientId}`)
 }
 
 export async function deleteInteraction(interactionId: string, clientId: string) {
   const userId = await requireAuth()
-  const client = await prisma.client.findFirst({ where: { id: clientId, userId }, select: { id: true } })
-  if (!client) throw new Error("Non autorisé")
-  await prisma.interaction.delete({ where: { id: interactionId } })
-  revalidatePath(`/client/${clientId}`)
+  const deleted = await prisma.interaction.deleteMany({
+    where: { id: interactionId, client: { userId } },
+  })
+  if (deleted.count === 0) throw new Error("Non autorisé")
+  revalidatePath(`/contacts/${clientId}`)
 }
 
 // ── Reminders ─────────────────────────────────────────────────────────────────
@@ -422,30 +490,32 @@ export async function addReminder(clientId: string, data: { dueDate: string; not
       note: data.note || null,
     },
   })
-  revalidatePath(`/client/${clientId}`)
+  revalidatePath(`/contacts/${clientId}`)
+  revalidatePath("/contacts/prospects")
 }
 
 export async function toggleReminder(reminderId: string, clientId: string, isDone: boolean) {
   const userId = await requireAuth()
-  const client = await prisma.client.findFirst({ where: { id: clientId, userId }, select: { id: true } })
-  if (!client) throw new Error("Non autorisé")
-  await prisma.reminder.update({
-    where: { id: reminderId },
+  const updated = await prisma.reminder.updateMany({
+    where: { id: reminderId, client: { userId } },
     data: { isDone, doneAt: isDone ? new Date() : null },
   })
-  revalidatePath(`/client/${clientId}`)
+  if (updated.count === 0) throw new Error("Non autorisé")
+  revalidatePath(`/contacts/${clientId}`)
 }
 
 export async function deleteReminder(reminderId: string, clientId: string) {
   const userId = await requireAuth()
-  const client = await prisma.client.findFirst({ where: { id: clientId, userId }, select: { id: true } })
-  if (!client) throw new Error("Non autorisé")
-  await prisma.reminder.delete({ where: { id: reminderId } })
-  revalidatePath(`/client/${clientId}`)
+  const deleted = await prisma.reminder.deleteMany({
+    where: { id: reminderId, client: { userId } },
+  })
+  if (deleted.count === 0) throw new Error("Non autorisé")
+  revalidatePath(`/contacts/${clientId}`)
 }
 
 // ── Panel ─────────────────────────────────────────────────────────────────────
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export async function getClientPanel(clientId: string, _userId: string) {
   const userId = await requireAuth()
   return prisma.client.findFirst({

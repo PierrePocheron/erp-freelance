@@ -37,22 +37,36 @@ export function CreateClientDialog({
     if (!v) {
       setCompany(defaultCompany ? { id: defaultCompany.id, name: defaultCompany.name } : { id: null, name: "" })
       setShowNewCompany(false)
+      setNewCompanyName("")
+      setNewCompanyEmail("")
+      setNewCompanyPhone("")
+      setNewCompanyCity("")
     }
     controlledOnOpenChange?.(v)
   }
 
-  function handleCreateCompany(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault()
-    const fd = new FormData(e.currentTarget)
+  // Référence vers les inputs du mini-formulaire société (pas de <form> imbriqué,
+  // car les <form> imbriqués sont invalides en HTML et provoquent la fermeture du dialog)
+  const [newCompanyName,  setNewCompanyName]  = useState("")
+  const [newCompanyEmail, setNewCompanyEmail] = useState("")
+  const [newCompanyPhone, setNewCompanyPhone] = useState("")
+  const [newCompanyCity,  setNewCompanyCity]  = useState("")
+
+  function handleCreateCompany() {
+    if (!newCompanyName.trim()) return
     startCreatingCompany(async () => {
       const created = await createCompany({
-        name: (fd.get("companyName") as string).trim(),
-        email: (fd.get("companyEmail") as string) || undefined,
-        phone: (fd.get("companyPhone") as string) || undefined,
-        city: (fd.get("companyCity") as string) || undefined,
+        name:  newCompanyName.trim(),
+        email: newCompanyEmail || undefined,
+        phone: newCompanyPhone || undefined,
+        city:  newCompanyCity  || undefined,
       })
       setCompany({ id: created.id, name: created.name })
       setShowNewCompany(false)
+      setNewCompanyName("")
+      setNewCompanyEmail("")
+      setNewCompanyPhone("")
+      setNewCompanyCity("")
     })
   }
 
@@ -79,7 +93,7 @@ export function CreateClientDialog({
         siret: (fd.get("siret") as string) || undefined,
       })
       handleOpenChange(false)
-      router.push(`/client/${client.id}`)
+      router.push(`/contacts/${client.id}`)
     })
   }
 
@@ -134,25 +148,47 @@ export function CreateClientDialog({
                   </div>
 
                   {showNewCompany ? (
-                    <form onSubmit={handleCreateCompany} className="rounded-lg border border-border bg-muted/40 p-3 space-y-2.5">
+                    <div className="rounded-lg border border-border bg-muted/40 p-3 space-y-2.5">
                       <p className="text-xs font-medium text-muted-foreground">Nouvelle société</p>
                       <div className="space-y-1.5">
                         <Label className="text-xs">Nom *</Label>
-                        <Input name="companyName" placeholder="Acme Corp" autoFocus autoComplete="off" required />
+                        <Input
+                          value={newCompanyName}
+                          onChange={e => setNewCompanyName(e.target.value)}
+                          placeholder="Acme Corp"
+                          autoFocus
+                          autoComplete="off"
+                        />
                       </div>
                       <div className="grid grid-cols-2 gap-2">
                         <div className="space-y-1.5">
                           <Label className="text-xs">Email</Label>
-                          <Input name="companyEmail" type="email" placeholder="contact@acme.fr" autoComplete="off" />
+                          <Input
+                            value={newCompanyEmail}
+                            onChange={e => setNewCompanyEmail(e.target.value)}
+                            type="email"
+                            placeholder="contact@acme.fr"
+                            autoComplete="off"
+                          />
                         </div>
                         <div className="space-y-1.5">
                           <Label className="text-xs">Téléphone</Label>
-                          <Input name="companyPhone" placeholder="+33 1 00 00 00 00" autoComplete="off" />
+                          <Input
+                            value={newCompanyPhone}
+                            onChange={e => setNewCompanyPhone(e.target.value)}
+                            placeholder="+33 1 00 00 00 00"
+                            autoComplete="off"
+                          />
                         </div>
                       </div>
                       <div className="space-y-1.5">
                         <Label className="text-xs">Ville</Label>
-                        <Input name="companyCity" placeholder="Paris" autoComplete="off" />
+                        <Input
+                          value={newCompanyCity}
+                          onChange={e => setNewCompanyCity(e.target.value)}
+                          placeholder="Paris"
+                          autoComplete="off"
+                        />
                       </div>
                       <div className="flex gap-2 pt-0.5">
                         <Button
@@ -164,11 +200,17 @@ export function CreateClientDialog({
                         >
                           Annuler
                         </Button>
-                        <Button type="submit" size="sm" className="flex-1" disabled={isCreatingCompany}>
+                        <Button
+                          type="button"
+                          size="sm"
+                          className="flex-1"
+                          disabled={isCreatingCompany || !newCompanyName.trim()}
+                          onClick={handleCreateCompany}
+                        >
                           {isCreatingCompany ? "Création..." : "Créer la société"}
                         </Button>
                       </div>
-                    </form>
+                    </div>
                   ) : (
                     <CompanyCombobox value={company} onChange={setCompany} />
                   )}
@@ -217,7 +259,7 @@ export function CreateClientDialog({
                   <div className="space-y-1.5">
                     <Label>Température</Label>
                     <select name="temperature" className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-ring">
-                      <option value="COLD">Froid</option>
+                      <option value="COLD">Neutre</option>
                       <option value="WARM">Tiède</option>
                       <option value="HOT">Chaud</option>
                     </select>

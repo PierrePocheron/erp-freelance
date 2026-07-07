@@ -4,7 +4,9 @@ import { prisma } from "@/lib/prisma"
 import { revalidatePath } from "next/cache"
 import { type NumberFormat, buildNumberParts } from "@/lib/number-format"
 import { auth } from "@/lib/auth"
+import { nextInvoiceNumber, defaultEmitterId } from "@/lib/invoice-helpers"
 import { enforceRateLimit } from "@/lib/rate-limit"
+import { escapeHtml } from "@/lib/escape-html"
 import { put } from "@vercel/blob"
 import { buildInvoicePdfBuffer } from "@/lib/invoice-pdf"
 import {
@@ -21,7 +23,8 @@ import {
   canCancelInvoice,
   canRevertQuoteToDraft,
 } from "@/lib/invoice-state"
-import { addMonths, advanceByFrequency } from "@/lib/dates"
+import { advanceByFrequency } from "@/lib/dates"
+import { createRenewalDraftInvoice } from "@/lib/renewal-invoice"
 
 async function requireAuth(): Promise<string> {
   const session = await auth()
@@ -62,31 +65,25 @@ async function nextQuoteNumber(userId: string) {
   return `${scopePrefix}${String(count + 1).padStart(digits, "0")}`
 }
 
-async function nextInvoiceNumber(userId: string) {
-  const profile = await prisma.userProfile?.findUnique({
-    where: { userId },
-    select: { invoicePrefix: true, invoiceNumberFormat: true },
-  }).catch(() => null)
-  const prefix = profile?.invoicePrefix ?? "FAC"
-  const format = (profile?.invoiceNumberFormat ?? "PREFIX-YYYY-NNN") as NumberFormat
-  const { scopePrefix, digits } = buildNumberParts(format, prefix, new Date())
-  const count = await prisma.invoice.count({
-    where: { userId, number: { startsWith: scopePrefix } },
-  })
-  return `${scopePrefix}${String(count + 1).padStart(digits, "0")}`
-}
 
-// ── Émetteur ────────────────────────────────────────────────────────────────────
-// Société émettrice par défaut, pré-renseignée à la création d'un document.
-// Retombe sur le premier profil si aucun n'est marqué par défaut, null si aucun.
-async function defaultEmitterId(userId: string): Promise<string | null> {
-  const def = await prisma.emitterProfile.findFirst({
-    where: { userId, isDefault: true },
-    select: { id: true },
+// Profil émetteur préféré pour un client donné : mémorise le dernier utilisé.
+// Permet que la bonne source fiscale (AE, etc.) soit pré-sélectionnée à la création.
+async function preferredEmitterForClient(userId: string, clientId: string): Promise<string | null> {
+  const recentInv = await prisma.invoice.findFirst({
+    where: { userId, clientId, emitterProfileId: { not: null } },
+    orderBy: { createdAt: "desc" },
+    select: { emitterProfileId: true },
   })
-  if (def) return def.id
-  const any = await prisma.emitterProfile.findFirst({ where: { userId }, select: { id: true } })
-  return any?.id ?? null
+  if (recentInv?.emitterProfileId) return recentInv.emitterProfileId
+
+  const recentQ = await prisma.quote.findFirst({
+    where: { userId, clientId, emitterProfileId: { not: null } },
+    orderBy: { createdAt: "desc" },
+    select: { emitterProfileId: true },
+  })
+  if (recentQ?.emitterProfileId) return recentQ.emitterProfileId
+
+  return defaultEmitterId(userId)
 }
 
 // ── Devis ─────────────────────────────────────────────────────────────────────
@@ -121,7 +118,7 @@ export async function createQuoteWithLines(
       userId,
       clientId: data.clientId,
       projectId: data.projectId || null,
-      emitterProfileId: await defaultEmitterId(userId),
+      emitterProfileId: await preferredEmitterForClient(userId, data.clientId),
       number,
       depositPercent: data.depositPercent ?? 0,
       expiresAt,
@@ -364,7 +361,7 @@ export async function createInvoice(
       clientId: data.clientId,
       projectId: data.projectId || null,
       quoteId: data.quoteId || null,
-      emitterProfileId: await defaultEmitterId(userId),
+      emitterProfileId: await preferredEmitterForClient(userId, data.clientId),
       number,
       type: (data.type as never) || "STANDALONE",
       dueDate: data.dueDate ? new Date(data.dueDate) : null,
@@ -436,83 +433,39 @@ export async function createInvoiceFromQuote(quoteId: string, _userId: string, t
   return invoice
 }
 
-// Facture un renouvellement (hébergement / domaine) pour sa période. Pré-remplit
-// une clause réutilisable selon le type (reconduction / nom de domaine) et avance
-// l'échéance du renouvellement (tacite reconduction), en réarmant les rappels.
+// Facture un renouvellement (hébergement / domaine) pour sa période. Délègue la
+// logique à createRenewalDraftInvoice (partagée avec le cron) puis revalide les caches.
 export async function createInvoiceFromRenewal(renewalId: string, _userId: string): Promise<{ id: string }> {
   const userId = await requireAuth()
   const renewal = await prisma.renewal.findFirst({
     where: { id: renewalId, postDev: { project: { userId } } },
-    include: { postDev: { select: { project: { select: { id: true, clientId: true, contactId: true, companyId: true } } } } },
+    include: {
+      postDev: {
+        select: {
+          project: {
+            select: {
+              id: true,
+              userId: true,
+              clientId: true,
+              companyId: true,
+              contactLinks: { select: { clientId: true, role: true }, orderBy: { createdAt: "asc" } },
+            },
+          },
+        },
+      },
+    },
   })
   if (!renewal) throw new Error("Renouvellement introuvable")
   if (!renewal.amount || renewal.amount <= 0) {
     throw new Error("Renseignez d'abord un montant sur ce renouvellement")
   }
-  const project = renewal.postDev.project
 
-  // Clause par défaut : on cherche une condition réutilisable pertinente selon le
-  // type, sinon la condition marquée par défaut.
-  const wanted = renewal.type === "DOMAIN"
-    ? ["domaine", "reconduc", "abonnement"]
-    : ["reconduc", "abonnement", "hébergement", "hebergement"]
-  const templates = await prisma.conditionsTemplate.findMany({
-    where: { userId },
-    select: { name: true, content: true, isDefault: true },
-  })
-  const match =
-    templates.find((t) => wanted.some((w) => t.name.toLowerCase().includes(w))) ??
-    templates.find((t) => t.isDefault)
-  const generalConditions = match?.content ?? null
-
-  const periodLabel = renewal.periodMonths ? ` (${renewal.periodMonths} mois)` : ""
-  const number = await nextInvoiceNumber(userId)
-
-  // clientId pour la facture : contact du projet, ou premier contact de la société
-  const billingClientId =
-    project.clientId ??
-    project.contactId ??
-    (project.companyId
-      ? (await prisma.client.findFirst({ where: { companyId: project.companyId, userId }, select: { id: true } }))?.id ?? null
-      : null)
-  if (!billingClientId) throw new Error("Le projet n'a pas de contact facturable — ajoutez un contact ou une société avec un contact")
-
-  const invoice = await prisma.invoice.create({
-    data: {
-      userId,
-      clientId: billingClientId,
-      projectId: project.id,
-      emitterProfileId: await defaultEmitterId(userId),
-      number,
-      type: "RECURRING",
-      status: "DRAFT",
-      totalHT: renewal.amount,
-      depositDeducted: 0,
-      generalConditions,
-      lines: {
-        create: [{
-          description: renewal.name + periodLabel,
-          quantity: 1,
-          unitPrice: renewal.amount,
-          taxRate: 0,
-          total: renewal.amount,
-        }],
-      },
-    },
-  })
-
-  if (renewal.periodMonths) {
-    const next = addMonths(renewal.expiresAt, renewal.periodMonths)
-    await prisma.renewal.update({
-      where: { id: renewalId },
-      data: { expiresAt: next, reminderSent30: false, reminderSent7: false },
-    })
-  }
+  const { invoiceId, projectId } = await createRenewalDraftInvoice(renewal, userId)
 
   revalidatePath("/facturation/factures")
   revalidatePath("/facturation")
-  revalidatePath(`/projets/${project.id}/post-dev`)
-  return invoice
+  revalidatePath(`/projets/${projectId}/post-dev`)
+  return { id: invoiceId }
 }
 
 export async function recordPayment(
@@ -552,9 +505,11 @@ export async function recordPayment(
 
 export async function deletePayment(paymentId: string, invoiceId: string, _userId: string) {
   const userId = await requireAuth()
-  const invoice = await prisma.invoice.findFirst({ where: { id: invoiceId, userId } })
-  if (!invoice) return
-  await prisma.payment.delete({ where: { id: paymentId } })
+  // Scope le paiement par sa facture propriétaire (pas par l'invoiceId fourni).
+  const deleted = await prisma.payment.deleteMany({
+    where: { id: paymentId, invoice: { userId } },
+  })
+  if (deleted.count === 0) return
   revalidatePath(`/facturation/factures/${invoiceId}`)
   revalidatePath("/facturation/factures")
   revalidatePath("/facturation")
@@ -1005,6 +960,14 @@ export async function setRecurringInvoiceLines(
   lines: RecurringLine[]
 ) {
   const userId = await requireAuth()
+  // Vérifie que le modèle récurrent appartient bien à l'utilisateur avant de
+  // toucher ses lignes (sinon IDOR : DELETE/INSERT sur les lignes d'autrui).
+  const owns = await prisma.$queryRawUnsafe<{ id: string }[]>(
+    `SELECT id FROM "RecurringInvoice" WHERE id = $1 AND "userId" = $2`,
+    recurringInvoiceId,
+    userId
+  )
+  if (owns.length === 0) throw new Error("Modèle introuvable")
   // RecurringInvoiceLine is not in Prisma schema (raw SQL migration) — use $executeRawUnsafe
   await prisma.$executeRawUnsafe(
     `DELETE FROM "RecurringInvoiceLine" WHERE "recurringInvoiceId" = $1`,
@@ -1042,7 +1005,7 @@ export async function setRecurringInvoiceLines(
 
 export async function resendQuoteEmail(quoteId: string, _userId: string) {
   const userId = await requireAuth()
-  enforceRateLimit(`email:${userId}`, 10, 60_000) // 10 emails/min max
+  await enforceRateLimit(`email:${userId}`, 10, 60_000) // 10 emails/min max
   const quote = await prisma.quote.findFirst({
     where: { id: quoteId, userId, status: "SENT" },
     include: { client: true, user: true },
@@ -1060,11 +1023,11 @@ export async function resendQuoteEmail(quoteId: string, _userId: string) {
     to: quote.client.email,
     subject: `Rappel — Devis ${quote.number}`,
     html: `
-      <p>Bonjour ${quote.client.name},</p>
+      <p>Bonjour ${escapeHtml(quote.client.name)},</p>
       <p>Je me permets de vous relancer concernant le devis <strong>${quote.number}</strong> d'un montant de <strong>${quote.totalHT.toLocaleString("fr-FR")} €</strong> HT que je vous ai adressé.</p>
       ${quote.expiresAt ? `<p>Ce devis est valable jusqu'au ${new Date(quote.expiresAt).toLocaleDateString("fr-FR")}.</p>` : ""}
       <p><a href="${pdfUrl}">Consulter le devis</a></p>
-      <p>Cordialement,<br>${quote.user.name}</p>
+      <p>Cordialement,<br>${escapeHtml(quote.user.name)}</p>
     `,
   })
 
@@ -1074,7 +1037,7 @@ export async function resendQuoteEmail(quoteId: string, _userId: string) {
 
 export async function sendQuoteEmail(quoteId: string, _userId: string) {
   const userId = await requireAuth()
-  enforceRateLimit(`email:${userId}`, 10, 60_000)
+  await enforceRateLimit(`email:${userId}`, 10, 60_000)
   const quote = await prisma.quote.findFirst({
     where: { id: quoteId, userId },
     include: { client: true, user: true },
@@ -1092,11 +1055,11 @@ export async function sendQuoteEmail(quoteId: string, _userId: string) {
     to: quote.client.email,
     subject: `Devis ${quote.number}`,
     html: `
-      <p>Bonjour ${quote.client.name},</p>
+      <p>Bonjour ${escapeHtml(quote.client.name)},</p>
       <p>Veuillez trouver ci-joint le devis <strong>${quote.number}</strong> d'un montant de <strong>${quote.totalHT.toLocaleString("fr-FR")} €</strong> HT.</p>
       ${quote.expiresAt ? `<p>Ce devis est valable jusqu'au ${new Date(quote.expiresAt).toLocaleDateString("fr-FR")}.</p>` : ""}
       <p><a href="${pdfUrl}">Télécharger le devis</a></p>
-      <p>Cordialement,<br>${quote.user.name}</p>
+      <p>Cordialement,<br>${escapeHtml(quote.user.name)}</p>
     `,
   })
 
@@ -1107,7 +1070,7 @@ export async function sendQuoteEmail(quoteId: string, _userId: string) {
 
 export async function sendInvoiceEmail(invoiceId: string, _userId: string) {
   const userId = await requireAuth()
-  enforceRateLimit(`email:${userId}`, 10, 60_000)
+  await enforceRateLimit(`email:${userId}`, 10, 60_000)
   const invoice = await prisma.invoice.findFirst({
     where: { id: invoiceId, userId },
     include: { client: true, user: true },
@@ -1124,10 +1087,10 @@ export async function sendInvoiceEmail(invoiceId: string, _userId: string) {
     to: invoice.client.email ?? invoice.user.email ?? "",
     subject: `Facture ${invoice.number}`,
     html: `
-      <p>Bonjour ${invoice.client.name},</p>
+      <p>Bonjour ${escapeHtml(invoice.client.name)},</p>
       <p>Veuillez trouver ci-joint la facture <strong>${invoice.number}</strong> d'un montant de <strong>${invoice.totalHT.toLocaleString("fr-FR")} €</strong>.</p>
       <p><a href="${pdfUrl}">Télécharger la facture</a></p>
-      <p>Cordialement,<br>${invoice.user.name}</p>
+      <p>Cordialement,<br>${escapeHtml(invoice.user.name)}</p>
     `,
   })
 
@@ -1148,7 +1111,7 @@ export async function sendInvoiceEmail(invoiceId: string, _userId: string) {
 
 export async function sendInvoiceReminder(invoiceId: string, _userId: string) {
   const userId = await requireAuth()
-  enforceRateLimit(`email:${userId}`, 10, 60_000)
+  await enforceRateLimit(`email:${userId}`, 10, 60_000)
   const invoice = await prisma.invoice.findFirst({
     where: { id: invoiceId, userId, status: { in: ["SENT", "LATE"] } },
     include: { client: true, user: true },
@@ -1174,13 +1137,13 @@ export async function sendInvoiceReminder(invoiceId: string, _userId: string) {
     to: invoice.client.email,
     subject,
     html: `
-      <p>Bonjour ${invoice.client.name},</p>
+      <p>Bonjour ${escapeHtml(invoice.client.name)},</p>
       ${isLate && daysLate
         ? `<p>Sauf erreur de notre part, la facture <strong>${invoice.number}</strong> d'un montant de <strong>${(invoice.totalHT - invoice.depositDeducted).toLocaleString("fr-FR")} €</strong> est en retard de <strong>${daysLate} jour(s)</strong>.</p>`
         : `<p>Nous vous rappelons que la facture <strong>${invoice.number}</strong> d'un montant de <strong>${(invoice.totalHT - invoice.depositDeducted).toLocaleString("fr-FR")} €</strong> est toujours en attente de règlement.</p>`
       }
       <p><a href="${pdfUrl}">Voir la facture</a></p>
-      <p>Cordialement,<br>${invoice.user.name}</p>
+      <p>Cordialement,<br>${escapeHtml(invoice.user.name)}</p>
     `,
   })
 

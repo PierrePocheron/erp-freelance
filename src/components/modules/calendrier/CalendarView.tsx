@@ -16,7 +16,7 @@ import { Button } from "@/components/ui/button"
 import {
   DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu"
-import { createCalendarItem, moveCalendarItem, updateCalendarItem, deleteCalendarItem, syncGoogleEvents } from "@/actions/calendar"
+import { createCalendarItem, moveCalendarItem, updateCalendarItem, deleteCalendarItem, syncGoogleEvents, getGoogleCalendarConnectionStatus } from "@/actions/calendar"
 import { DatePicker, TimePicker } from "./DateTimePicker"
 import { useModules } from "@/hooks/use-modules"
 
@@ -1030,6 +1030,10 @@ export function CalendarView({
   const [syncStatus, setSyncStatus]     = useState<"idle" | "success" | "error" | "noPermission">("idle")
   const [syncCount, setSyncCount]       = useState(0)
   const [syncError, setSyncError]       = useState<string>("")
+  // État réel de la connexion (persistant, contrairement à syncStatus qui
+  // revient à "idle" après quelques secondes) — reflète si la synchro
+  // fonctionnerait maintenant, sans attendre un clic sur "Sync".
+  const [connectionStatus, setConnectionStatus] = useState<"checking" | "connected" | "error">("checking")
   const [showGoogleEvents, setShowGoogleEvents] = useState(true)
   const [, startRefresh]                = useTransition()
   const [justMovedId, setJustMovedId]   = useState<string | null>(null)
@@ -1121,6 +1125,21 @@ export function CalendarView({
     return `${first.toLocaleDateString("fr-FR", { day: "numeric", month: "short" })} – ${last.toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" })}`
   }
 
+  // Vérifie l'état réel de la connexion dès l'ouverture de la page (sans
+  // attendre un clic sur "Sync") — répond à "comment savoir si la synchro
+  // est toujours active en rouvrant l'app le lendemain".
+  useEffect(() => {
+    if (!hasGoogleCalendar) return
+    let cancelled = false
+    getGoogleCalendarConnectionStatus()
+      .then((res) => {
+        if (cancelled) return
+        setConnectionStatus(res.status === "connected" ? "connected" : "error")
+      })
+      .catch(() => { if (!cancelled) setConnectionStatus("error") })
+    return () => { cancelled = true }
+  }, [hasGoogleCalendar])
+
   // Fenêtre Google déjà synchronisée en arrière (mois). 1 par défaut, comme le
   // serveur — élargie à la volée par l'effet de navigation ci-dessous plutôt
   // que de tout récupérer d'un coup (voir commentaire dans syncGoogleEvents).
@@ -1137,22 +1156,26 @@ export function CalendarView({
         const result = await syncGoogleEvents(target)
         if (result.needsPermission) {
           setSyncStatus("noPermission")
+          setConnectionStatus("error")
           setTimeout(() => setSyncStatus("idle"), 6000)
         } else if (result.error) {
           setSyncStatus("error")
           setSyncError(result.error)
+          setConnectionStatus("error")
           // l'erreur reste affichée jusqu'à la prochaine sync (pas d'auto-effacement)
         } else {
           syncedMonthsBackRef.current = target
           setSyncStatus("success")
           setSyncCount(result.synced)
           setSyncError("")
+          setConnectionStatus("connected")
           router.refresh()
           setTimeout(() => setSyncStatus("idle"), 4000)
         }
       } catch (err) {
         setSyncStatus("error")
         setSyncError(err instanceof Error ? err.message : "Connexion interrompue")
+        setConnectionStatus("error")
       }
     })
   }
@@ -1242,18 +1265,37 @@ export function CalendarView({
 
         {hasGoogleCalendar ? (
           <div className="flex items-center rounded-lg border border-border overflow-hidden">
-            <button onClick={() => handleSync()} disabled={isSyncing} title="Synchroniser avec Google Calendar"
+            <button onClick={() => handleSync()} disabled={isSyncing}
+              title={
+                connectionStatus === "error"    ? "Connexion Google Calendar en erreur — cliquez pour réessayer"
+                  : connectionStatus === "checking" ? "Vérification de la connexion Google Calendar…"
+                  : "Synchroniser avec Google Calendar"
+              }
               className={cn("inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium transition-colors border-r border-border/50",
                 syncStatus === "success"      ? "text-emerald-600 bg-emerald-500/5"
                   : syncStatus === "error"        ? "text-red-600 bg-red-500/5"
                   : syncStatus === "noPermission" ? "text-amber-600 bg-amber-500/5"
+                  : connectionStatus === "connected" ? "text-emerald-600 bg-emerald-500/5"
+                  : connectionStatus === "error"     ? "text-red-600 bg-red-500/5"
                   : "text-muted-foreground hover:bg-muted")}
             >
+              <span className={cn("h-1.5 w-1.5 rounded-full shrink-0",
+                syncStatus === "success" || connectionStatus === "connected" ? "bg-emerald-500"
+                  : syncStatus === "error" || syncStatus === "noPermission" || connectionStatus === "error" ? "bg-red-500"
+                  : "bg-muted-foreground/40 animate-pulse")}
+              />
               {isSyncing ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
                 : syncStatus === "success" ? <Check className="h-3.5 w-3.5" />
                 : (syncStatus === "error" || syncStatus === "noPermission") ? <AlertCircle className="h-3.5 w-3.5" />
                 : <RefreshCw className="h-3.5 w-3.5" />}
-              <span>{isSyncing ? "Sync…" : syncStatus === "success" ? `${syncCount} sync` : syncStatus === "error" ? "Erreur" : syncStatus === "noPermission" ? "Autorisation" : "Sync"}</span>
+              <span>
+                {isSyncing ? "Sync…"
+                  : syncStatus === "success" ? `${syncCount} sync`
+                  : syncStatus === "error" ? "Erreur"
+                  : syncStatus === "noPermission" ? "Autorisation"
+                  : connectionStatus === "error" ? "Reconnexion"
+                  : "Sync"}
+              </span>
             </button>
             <DropdownMenu>
               <DropdownMenuTrigger title="Paramètres Google Calendar"
@@ -1261,8 +1303,15 @@ export function CalendarView({
                 <Settings2 className="h-3.5 w-3.5" />
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-56">
-                <div className="flex items-center gap-1.5 px-1.5 py-1 text-xs font-medium text-emerald-600">
-                  <Check className="h-3.5 w-3.5" /> Google Agenda autorisé
+                <div className={cn("flex items-center gap-1.5 px-1.5 py-1 text-xs font-medium",
+                  connectionStatus === "error" ? "text-red-600"
+                    : connectionStatus === "checking" ? "text-muted-foreground"
+                    : "text-emerald-600")}
+                >
+                  {connectionStatus === "error" ? <AlertCircle className="h-3.5 w-3.5" /> : <Check className="h-3.5 w-3.5" />}
+                  {connectionStatus === "error" ? "Connexion en erreur — réautorisez"
+                    : connectionStatus === "checking" ? "Vérification de la connexion…"
+                    : "Google Agenda connecté"}
                 </div>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={() => setShowGoogleEvents(v => !v)}>

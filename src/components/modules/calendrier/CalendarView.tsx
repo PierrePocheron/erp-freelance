@@ -56,7 +56,7 @@ export type CalendarEvent = {
   title: string
   subtitle?: string
   description?: string | null
-  type: "task" | "milestone" | "reminder" | "interaction" | "invoice" | "renewal" | "manual" | "health" | "interview"
+  type: "task" | "milestone" | "reminder" | "interaction" | "invoice" | "renewal" | "manual" | "health" | "interview" | "expense"
   href?: string
   isLate?: boolean
   categoryId?: string | null
@@ -92,6 +92,7 @@ const typeConfig = {
   manual:    { dot: "bg-purple-500",  badge: "bg-purple-500/15 text-purple-700 border-purple-500/20", color: "#8b5cf6", label: "Événement" },
   health:    { dot: "bg-rose-500",    badge: "bg-rose-500/15 text-rose-700 border-rose-500/20",       color: "#f43f5e", label: "Santé" },
   interview: { dot: "bg-sky-500",     badge: "bg-sky-500/15 text-sky-700 border-sky-500/20",          color: "#0ea5e9", label: "Entretien" },
+  expense:   { dot: "bg-fuchsia-500", badge: "bg-fuchsia-500/15 text-fuchsia-700 border-fuchsia-500/20", color: "#d946ef", label: "Dépense" },
 } as const
 
 const VIEW_LABELS: Record<ViewMode, string> = {
@@ -1222,6 +1223,7 @@ export function CalendarView({
   const moduleFiltered = events.filter(e => {
     if (e.type === "health"    && !isActive("sante"))     return false
     if (e.type === "interview" && !isActive("entretien")) return false
+    if (e.type === "expense"   && !isActive("depenses"))  return false
     return true
   })
 

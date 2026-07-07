@@ -12,6 +12,7 @@ export type ModuleId =
   | "sante"
   | "entretien"
   | "impots"
+  | "depenses"
 
 export type ModuleCategory = "core" | "recommended" | "bonus"
 
@@ -74,6 +75,10 @@ export const MODULE_DEFS: ModuleDef[] = [
   {
     id: "entretien", label: "Entretiens", icon: "💼", category: "bonus", defaultActive: false,
     description: "Suivi des candidatures, processus de recrutement et démarchage",
+  },
+  {
+    id: "depenses", label: "Dépenses", icon: "💸", category: "bonus", defaultActive: false,
+    description: "Suivi des dépenses récurrentes et ponctuelles, pro et perso, par catégorie",
   },
 ]
 

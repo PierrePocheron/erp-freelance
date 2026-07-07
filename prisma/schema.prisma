@@ -43,6 +43,9 @@ model User {
   revenues           Revenue[]
   recurringRevenues  RecurringRevenue[]
   fiscalSources      FiscalSource[]
+  expenses           Expense[]
+  recurringExpenses  RecurringExpense[]
+  expenseCategories  ExpenseCategory[]
   healthEvents        HealthEvent[]
   healthConsultations HealthConsultation[]
   healthReimbursements HealthReimbursement[]
@@ -1083,6 +1086,79 @@ model RecurringRevenue {
   @@index([companyId])
   @@index([clientId])
   @@index([projectId])
+}
+
+// ─── Dépenses ─────────────────────────────────────────────────────────────────
+// Suivi de visibilité personnelle (pro/perso, catégories) — n'alimente PAS les
+// déclarations URSSAF : en micro-entreprise, l'abattement forfaitaire remplace
+// la déduction des charges réelles.
+
+enum ExpenseScope {
+  PRO
+  PERSO
+}
+
+model ExpenseCategory {
+  id        String   @id @default(cuid())
+  userId    String
+  name      String
+  color     String   @default("#6366f1")
+  createdAt DateTime @default(now())
+
+  user              User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expenses          Expense[]
+  recurringExpenses RecurringExpense[]
+
+  @@unique([userId, name])
+  @@index([userId])
+}
+
+model Expense {
+  id                 String       @id @default(cuid())
+  userId             String
+  categoryId         String?
+  scope              ExpenseScope @default(PERSO)
+  label              String
+  amount             Float
+  currency           String       @default("EUR")
+  date               DateTime     // date de la dépense / du prélèvement
+  notes              String?
+  recurringExpenseId String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user             User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  category         ExpenseCategory?  @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  recurringExpense RecurringExpense? @relation(fields: [recurringExpenseId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([categoryId])
+  @@index([recurringExpenseId])
+}
+
+model RecurringExpense {
+  id                 String             @id @default(cuid())
+  userId             String
+  categoryId         String?
+  scope              ExpenseScope       @default(PERSO)
+  label              String
+  amount             Float
+  currency           String             @default("EUR")
+  frequency          RecurringFrequency @default(MONTHLY)
+  nextGenerationDate DateTime
+  isActive           Boolean            @default(true)
+  notes              String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user     User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  category ExpenseCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  expenses Expense[]
+
+  @@index([userId])
+  @@index([categoryId])
 }
 
 // ─── Santé ────────────────────────────────────────────────────────────────────

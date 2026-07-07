@@ -13,7 +13,11 @@ export default async function ProjetsPage() {
       orderBy: { createdAt: "desc" },
       include: {
         company: { select: { id: true, name: true } },
-        contact: { select: { id: true, name: true, company: true } },
+        contactLinks: {
+          select: { role: true, client: { select: { id: true, name: true, company: true } } },
+          orderBy: { createdAt: "asc" },
+          take: 1,
+        },
         members: { select: { userId: true } },
         _count: { select: { tasks: true } },
         tasks: { select: { status: true }, where: { parentTaskId: null } },
@@ -37,6 +41,7 @@ export default async function ProjetsPage() {
       where: { userId, projectId: { not: null }, status: { not: "DRAFT" } },
       select: {
         projectId: true,
+        status: true,
         totalHT: true,
         depositDeducted: true,
         payments: { select: { amount: true } },
@@ -53,7 +58,10 @@ export default async function ProjetsPage() {
   for (const inv of projectInvoices) {
     if (!inv.projectId) continue
     const net = inv.totalHT - inv.depositDeducted
-    const paid = inv.payments.reduce((s, p) => s + p.amount, 0)
+    // Si la facture est PAID mais sans enregistrements Payment, on considère le net comme encaissé
+    const paid = inv.status === "PAID"
+      ? net
+      : inv.payments.reduce((s, p) => s + p.amount, 0)
     const entry = billingByProject[inv.projectId] ?? { totalFacture: 0, totalEncaisse: 0 }
     entry.totalFacture += net
     entry.totalEncaisse += paid

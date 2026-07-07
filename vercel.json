@@ -3,5 +3,11 @@
     "deploymentEnabled": {
       "dev": false
     }
-  }
+  },
+  "crons": [
+    {
+      "path": "/api/cron/renewals",
+      "schedule": "0 7 * * *"
+    }
+  ]
 }

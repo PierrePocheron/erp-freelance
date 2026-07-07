@@ -42,7 +42,7 @@ export function ClientProjectsCard({
         </div>
         <div className="flex items-center gap-3">
           {projects.length > 0 && (
-            <Link href={`/client/${clientId}/projets`} className="text-xs text-primary hover:underline">
+            <Link href={`/contacts/${clientId}/projets`} className="text-xs text-primary hover:underline">
               Voir tout
             </Link>
           )}

@@ -1,6 +1,6 @@
 # ERP Freelance
 
-ERP personnel pour freelances — devis, facturation, CRM, projets, tâches, time tracking et suivi post-livraison dans une seule application.
+ERP personnel pour freelances — devis, facturation, CRM, projets, tâches, time tracking, suivi post-livraison, déclarations URSSAF, recherche d'emploi et suivi santé dans une seule application.
 
 > **Production** — déployé sur Vercel + Neon PostgreSQL
 
@@ -18,33 +18,42 @@ ERP personnel pour freelances — devis, facturation, CRM, projets, tâches, tim
 | **Graphe** | `react-force-graph-2d` — simulation D3 force-directed canvas 2D |
 | **Hébergement** | Vercel (Hobby) |
 | **Database** | Neon (PostgreSQL serverless) |
-| **PDF** | @react-pdf/renderer — couleur accent configurable |
+| **PDF** | @react-pdf/renderer — couleur accent configurable par émetteur |
 | **Email** | Resend |
 | **Uploads** | Vercel Blob |
+| **Tests** | Vitest — unitaires (logique pure) + intégration (Postgres `erp_test`) |
+| **CI** | GitHub Actions — tsc, eslint, unit, intégration |
+| **Sécurité** | CSP par nonce (middleware edge), isolation multi-tenant (anti-IDOR), rate-limit distribué Upstash Redis (fallback in-memory) |
 | **Langage** | TypeScript strict |
 
 ---
 
 ## Modules
 
+Le système de modules permet d'activer ou désactiver chaque section depuis **Paramètres → Modules actifs**. Les modules désactivés disparaissent de la navigation ; les données restent intactes.
+
 | Module | Fonctionnalités |
 |---|---|
 | **Dashboard** | Widgets temps réel — tâches du jour, échéances, impayés, alertes renouvellement |
-| **Sociétés** | Fiche société (SIRET, TVA, adresse, notes), contacts liés, projets liés, tâches en cours, bilan financier (CA encaissé / en attente / en retard), historique factures & devis |
-| **CRM — Contacts** | Fiche contact (view/edit animé), rattachement société, type & température, interactions, rappels, tâches associées |
-| **Tâches** | Vue globale groupée Contact → Projet → Tâches, édition inline du titre, sheet d'édition complète (priorité, importance, échéance, description, heures), sous-tâches |
-| **Projets** | Kanban tâches, jalons, livrables, time tracking intégré, journal, liens utiles, membres — rattachement société + contact |
-| **Post-dev** | URLs prod/admin/hébergement, renouvellements domaine/hosting, monitoring disponibilité |
-| **Facturation / Devis** | Pipeline DRAFT→SIGNED, acomptes, workflow dépôt, envoi email, signature PDF |
-| **Facturation / Factures** | Génération depuis devis, types (acompte/solde/récurrent/standalone), suivi paiement, relance, **import d'historique** (montant + date + paiement reçu, sans regénérer de PDF) |
-| **Facturation / Récurrentes** | Modèles avec fréquence, activation/désactivation, génération manuelle |
+| **Sociétés** | Fiche société (SIRET, TVA, adresse, notes), badge "À compléter", contacts liés, projets liés, tâches en cours, bilan financier (CA encaissé / en attente / en retard), historique factures & devis |
+| **CRM — Contacts** | Fiche contact (view/edit animé), rattachement société, type (prospect/client/partenaire…) & température, interactions, rappels, tâches associées, bilan financier, mise en avant des infos manquantes (complétion rapide) |
+| **CRM — Prospects** | Pipeline dédié par étapes (`ProspectStage`), widget dashboard, import en lot, recherche & tri, log rapide + rappel depuis le panneau |
+| **Tâches** | Vue globale groupée Contact → Projet → Tâches, édition inline, sheet d'édition complète (priorité, importance, échéance, description, heures estimées), sous-tâches |
+| **Projets** | Tâches, jalons typés (échéance/réunion/appel/rendez-vous/sur place) avec plage horaire optionnelle, livrables, time tracking intégré (ajout manuel d'entrées), journal, liens utiles, tags par défaut, membres internes, **contacts externes M2M avec rôles** (client / collègue / partenaire / fournisseur + label libre), rattachement société, onglets Dev/Post-Dev conditionnels (tag "dev"), dialogs créer/modifier pour jalons & liens accessibles depuis l'Aperçu |
+| **Post-dev** | URLs prod/admin/hébergement, renouvellements domaine/hosting avec génération de facture, monitoring disponibilité |
+| **Facturation / Devis** | Pipeline DRAFT→SIGNED, acomptes, workflow dépôt, envoi email, signature PDF, conditions générales par modèle |
+| **Facturation / Factures** | Génération depuis devis, types (acompte/solde/récurrent/standalone), verrouillage à l'émission, PDF figé, suivi paiement, relance, **import d'historique**, export ZIP, exclusion URSSAF par facture |
+| **Facturation / Récurrentes** | Modèles avec fréquence, activation/désactivation, génération manuelle, cron auto-génération à l'échéance |
 | **Catalogue produits** | Produits/services réutilisables — unité, prix, TVA, type de facturation |
-| **Revenus** | Suivi multi-source : Salaire, **Freelance/AE**, Étude rémunérée, Investissement, Locatif, Plateforme, Autre — validation en lot, date prévisionnelle, association société/contact/projet |
-| **Calendrier** | Vues mois / semaine / jour (grille 24h), sync Google Agenda bidirectionnelle, drag-drop avec animation d'atterrissage, événements journée entière & multi-jours en barres continues (style Google), sélecteurs date/heure custom, raccourcis clavier (C/N, ↵), vue transversale (tâches, factures, jalons, interactions, renouvellements) |
-| **Graph** | Visualisation relationnelle force-directed 2D — Société → Contacts → Projets → Factures/Devis. Expand/collapse au double-clic, filtres par type, panneau détail latéral, fond dot-grid adaptatif dark/light, liens colorés par profondeur, particules animées |
+| **Revenus** | Suivi multi-source : Salaire, Freelance/AE, Étude rémunérée, Investissement, Locatif, Plateforme, Remboursement, Autre — validation en lot, date prévisionnelle, association société/contact/projet, carte reçu/total sur la fiche projet |
+| **Impôts / URSSAF** | Déclarations trimestrielles avec lignes suggérées (factures + revenus AE de la période), catégorie fiscale (BNC/BIC), estimation des cotisations par taux configurable, tâche/rappel calendrier auto-généré, historique des périodes déclarées |
+| **Entretien** | Suivi des candidatures et du processus de recrutement — étapes, priorité, notes, LinkedIn, compte-rendu, historique automatique, filtre "Prioritaires", intégration calendrier & dashboard |
+| **Santé** | Blessures/maladies, consultations, remboursements sécu/mutuelle (en attente/reçu), intégration calendrier |
+| **Calendrier** | Vues mois / semaine / jour (grille 24h), sync Google Agenda bidirectionnelle avec vérification de connexion (scope, token, ping API) et indicateur d'état persistant, fenêtre de synchro incrémentale (1 mois, extension à la navigation), drag-drop, événements journée entière & multi-jours en barres continues, raccourcis clavier (C/N, ↵), vue transversale (tâches, factures, jalons, interactions, renouvellements, entretiens, santé) |
+| **Graph** | Visualisation relationnelle force-directed 2D — Source fiscale → Société → Contacts → Projets → Factures/Devis/Revenus. Expand/collapse, filtres par type, recherche, badges de statut, panneau détail, liens colorés par profondeur, particules animées |
 | **Notifications** | Cloche temps réel, dropdown, marquage lu individuel/global |
-| **Recherche globale** | `⌘K` — navigation + recherche DB (sociétés, contacts, projets, devis, factures) avec debounce 200ms |
-| **Paramètres** | Profil entreprise, émetteurs multi-société, SIRET, IBAN, logo, couleur PDF, conditions générales, export/import, déconnexion |
+| **Recherche globale** | `⌘K` — navigation + recherche DB (sociétés, contacts, projets, devis, factures, tâches, entretiens, santé) avec debounce 200ms |
+| **Paramètres** | Profil utilisateur, **émetteurs multi-société** (SIRET, IBAN, logo, couleur PDF, conditions), **sources fiscales** (catégorisation AE/non-imposable/autre), panneau **Imposition** (statut, fréquence, taux, VL), **toggle modules** (écran d'onboarding à la première connexion), Google Agenda, export/import complet, déconnexion |
 
 ---
 
@@ -119,8 +128,8 @@ git push origin main
 
 Accessible depuis **Paramètres → Export & Import**.
 
-- **Export** — télécharge `erp-export-YYYY-MM-DD.json` (29 modèles, données métier complètes)
-- **Import** — upload d'un fichier JSON via l'UI, import FK-safe en 29 étapes
+- **Export** — télécharge `erp-export-YYYY-MM-DD.json` (données métier complètes)
+- **Import** — upload d'un fichier JSON via l'UI, import FK-safe
 
 Pour les migrations d'hébergeur ou les sauvegardes, voir [`docs/EXPORT_IMPORT.md`](docs/EXPORT_IMPORT.md).
 
@@ -128,6 +137,20 @@ Pour les migrations d'hébergeur ou les sauvegardes, voir [`docs/EXPORT_IMPORT.m
 # Import CLI (alternative au UI, pour les cas avancés)
 npm run import ./erp-export-2026-05-22.json
 ```
+
+---
+
+## Tests
+
+```bash
+npm run test              # Tous les tests (unit + intégration)
+npm run test:unit         # Tests unitaires uniquement (rapide, pas de DB)
+npm run test:integration  # Tests d'intégration (requiert Postgres erp_test)
+npm run test:coverage     # Coverage complète
+```
+
+Les tests unitaires couvrent la logique pure (montants, états factures, dépôts, dates).
+Les tests d'intégration utilisent une base `erp_test` réinitialisée entre chaque suite.
 
 ---
 
@@ -139,11 +162,14 @@ src/
 │   ├── (app)/              # Pages protégées (sidebar + topbar)
 │   │   ├── page.tsx        # Dashboard
 │   │   ├── societes/       # Sociétés (liste + fiche détail)
-│   │   ├── client/         # CRM — contacts
+│   │   ├── contacts/       # CRM — contacts
 │   │   ├── taches/         # Vue globale des tâches
-│   │   ├── projets/        # Projets, kanban, post-dev, time tracking
+│   │   ├── projets/        # Projets, tâches, post-dev, time tracking
 │   │   ├── facturation/    # Devis, factures, récurrentes, produits
-│   │   ├── revenus/        # Suivi revenus multi-source
+│   │   ├── revenus/        # Suivi revenus multi-source + récap fiscal
+│   │   ├── impots/         # Déclarations URSSAF
+│   │   ├── entretiens/     # Suivi candidatures / recrutement
+│   │   ├── sante/          # Blessures, consultations, remboursements
 │   │   ├── graph/          # Graphe relationnel force-directed
 │   │   ├── calendrier/
 │   │   └── settings/
@@ -153,9 +179,13 @@ src/
 │   ├── export.ts           # Export JSON complet
 │   ├── import-data.ts      # Import JSON (server action)
 │   ├── facturation.ts      # Devis, factures, paiements, produits
+│   ├── fiscal-source.ts    # Sources fiscales
+│   ├── urssaf.ts           # Déclarations URSSAF (suggestion, CRUD)
+│   ├── entretien.ts        # Candidatures, événements de processus
+│   ├── sante.ts            # Événements santé, consultations, remboursements
 │   ├── notifications.ts
 │   ├── postdev.ts          # Post-dev, renouvellements, monitoring
-│   ├── projet.ts           # Projets, tâches, jalons, livrables
+│   ├── projet.ts           # Projets, tâches, jalons, livrables, contacts M2M
 │   ├── search.ts           # Recherche globale
 │   ├── settings.ts         # Profil, suppression compte
 │   ├── tags.ts
@@ -164,10 +194,15 @@ src/
 ├── components/
 │   ├── layout/             # Sidebar, CommandPalette (⌘K), TimerBanner
 │   ├── modules/            # Composants métier par module
-│   │   └── graph/          # ForceGraphCanvas, GraphView, graph-types
+│   │   ├── graph/          # ForceGraphCanvas, GraphView, graph-types
+│   │   ├── entretien/
+│   │   ├── sante/
+│   │   └── impots/
 │   └── ui/                 # Button, Input, Dialog…
 ├── generated/prisma/       # Client Prisma généré (ne pas éditer)
-├── lib/                    # auth, prisma, utils
+├── hooks/
+│   └── use-modules.ts      # Toggle modules (localStorage)
+├── lib/                    # auth, prisma, utils, google-calendar
 └── scripts/
     └── import.ts           # Script CLI d'import
 ```
@@ -179,12 +214,21 @@ src/
 | Domaine | Modèles |
 |---|---|
 | Auth | `User`, `Account`, `Session`, `UserProfile` |
-| CRM | `Company`, `Client`, `Interaction`, `Reminder`, `ClientFile` |
-| Projets | `Project`, `Task`, `TimeEntry`, `Milestone`, `Deliverable`, `JournalEntry`, `UsefulLink`, `ProjectMember`, `Tag`, `TaskTag` |
+| CRM | `Company`, `Client` (dont pipeline `prospectStage`), `Interaction`, `Reminder`, `ClientFile` |
+| Projets | `Project`, `ProjectContact`, `Task`, `TimeEntry`, `Milestone` (`MilestoneType`, plage horaire), `Deliverable`, `JournalEntry`, `UsefulLink`, `ProjectMember`, `Tag`, `TaskTag` |
 | Post-dev | `PostDev`, `Renewal`, `MonitoringCheck` |
-| Facturation | `Quote`, `QuoteLine`, `Invoice`, `InvoiceLine`, `Payment`, `Product`, `RecurringInvoice`, `EmailLog` |
-| Revenus | `Revenue`, `RecurringRevenue` |
-| Transversal | `CalendarEvent`, `Notification`, `ConditionsTemplate`, `ProjectIdea` |
+| Facturation | `Quote`, `QuoteLine`, `Invoice`, `InvoiceLine`, `Payment`, `Product`, `RecurringInvoice`, `EmailLog`, `ConditionsTemplate`, `EmitterProfile` |
+| Revenus | `Revenue`, `RecurringRevenue`, `FiscalSource` |
+| Fiscal / URSSAF | `UrssafDeclaration`, `UrssafDeclarationLine` |
+| Entretien | `JobApplication`, `JobApplicationEvent` |
+| Santé | `HealthEvent`, `HealthConsultation`, `HealthReimbursement` |
+| Transversal | `CalendarEvent`, `Notification`, `ProjectIdea` |
+
+### Relations clés
+
+- `ProjectContact` — M2M entre `Project` et `Client` (contact externe), avec `role` enum (CLIENT / COLLEAGUE / PARTNER / SUPPLIER / OTHER) et `label` libre
+- `EmitterProfile` — profil émetteur par société (SIRET, IBAN, logo, PDF), lié à une `FiscalSource`
+- `FiscalSource` — bucket fiscal (`AE_URSSAF`, `NON_IMPOSABLE`, `OTHER`) pour le récapitulatif déclaration
 
 ---
 
@@ -196,7 +240,8 @@ npm run build        # Build production (migrate + build)
 npm run import       # Import de données : npm run import ./backup.json
 npm run seed         # Seed de la base (données de test)
 npx prisma studio    # Interface visuelle de la DB
-npx prisma migrate dev --name <nom>   # Nouvelle migration
+npx prisma migrate dev --name <nom>   # Nouvelle migration (dev uniquement)
+npx prisma migrate deploy             # Appliquer migrations en prod
 ```
 
 ---

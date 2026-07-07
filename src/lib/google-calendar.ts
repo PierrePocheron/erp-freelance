@@ -51,6 +51,11 @@ export type SyncResult = {
   needsPermission?: boolean
 }
 
+export type GoogleConnectionStatus = {
+  status: "connected" | "disconnected" | "error"
+  detail?: string
+}
+
 // ── Fonctions ─────────────────────────────────────────────────────────────────
 
 /**
@@ -120,6 +125,35 @@ export async function getGoogleAccessToken(userId: string): Promise<string | nul
     return data.access_token
   } catch {
     return null
+  }
+}
+
+/**
+ * Vérifie l'état réel de la connexion Google Calendar : scope accordé, token
+ * valide (rafraîchi si besoin), et joignabilité effective de l'API (un appel
+ * léger, pour détecter une révocation côté Google qui n'aurait pas encore
+ * expiré le token d'accès localement).
+ */
+export async function checkGoogleCalendarStatus(userId: string): Promise<GoogleConnectionStatus> {
+  const hasScope = await hasCalendarScope(userId)
+  if (!hasScope) return { status: "disconnected" }
+
+  const accessToken = await getGoogleAccessToken(userId)
+  if (!accessToken) {
+    return { status: "error", detail: "Le jeton d'accès a expiré ou a été révoqué. Réautorisez l'accès." }
+  }
+
+  try {
+    const res = await fetch(`${GOOGLE_CALENDAR_API}/users/me/calendarList?maxResults=1`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    })
+    if (res.ok) return { status: "connected" }
+    if (res.status === 401 || res.status === 403) {
+      return { status: "error", detail: "Accès Google refusé. Réautorisez l'accès à votre agenda." }
+    }
+    return { status: "error", detail: `Google Calendar API ${res.status}` }
+  } catch {
+    return { status: "error", detail: "Impossible de contacter Google Calendar." }
   }
 }
 

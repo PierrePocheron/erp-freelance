@@ -5,11 +5,12 @@ import Link from "next/link"
 import { ChevronLeft, Users } from "lucide-react"
 import { ProjectTabs } from "@/components/modules/projet/ProjectTabs"
 import { ProjectDateBadge } from "@/components/modules/projet/ProjectDateBadge"
-import { ProjectNameEdit, ProjectDescriptionEdit, ProjectHoursEdit, ProjectStatusEdit } from "@/components/modules/projet/ProjectInlineEdit"
+import { ProjectNameEdit, ProjectDescriptionEdit, ProjectHoursEdit, ProjectStatusEdit, ProjectPriorityEdit } from "@/components/modules/projet/ProjectInlineEdit"
 import { TagSelector } from "@/components/modules/projet/TagSelector"
 import { ProjectSettingsDialog } from "@/components/modules/projet/ProjectSettingsDialog"
-import { ProjectContactSelect } from "@/components/modules/projet/ProjectContactSelect"
-import { updateProjectContact, updateProjectCompany } from "@/actions/projet"
+import { ProjectContactsManager } from "@/components/modules/projet/ProjectContactsManager"
+import { addProjectContact, removeProjectContact, updateProjectCompany } from "@/actions/projet"
+import { getOrCreateDefaultTags } from "@/actions/tags"
 import { UserAvatar } from "@/components/ui/user-avatar"
 
 export default async function ProjectLayout({
@@ -31,7 +32,10 @@ export default async function ProjectLayout({
       },
       include: {
         company: { select: { id: true, name: true } },
-        contact: { select: { id: true, name: true, company: true } },
+        contactLinks: {
+          select: { clientId: true, role: true, label: true, client: { select: { id: true, name: true, company: true } } },
+          orderBy: { createdAt: "asc" },
+        },
         members: {
           include: { user: { select: { name: true, email: true, image: true } } },
           orderBy: { createdAt: "asc" },
@@ -39,14 +43,10 @@ export default async function ProjectLayout({
         user: { select: { name: true, email: true, image: true } },
       },
     }),
-    prisma.tag.findMany({
-      where: { userId },
-      orderBy: { name: "asc" },
-      select: { id: true, name: true, color: true },
-    }).catch(() => [] as { id: string; name: string; color: string }[]),
+    getOrCreateDefaultTags().catch(() => [] as { id: string; name: string; color: string }[]),
     prisma.project.findFirst({
       where: { id, OR: [{ userId }, { members: { some: { userId } } }] },
-      select: { tags: { select: { id: true } } },
+      select: { tags: { select: { id: true, name: true } } },
     }).catch(() => null),
     prisma.client.findMany({
       where: { userId },
@@ -59,6 +59,7 @@ export default async function ProjectLayout({
 
   const isOwner = project.userId === userId
   const selectedTagIds = projectTagIds?.tags?.map((t) => t.id) ?? []
+  const hasDevTag = (projectTagIds?.tags ?? []).some((t) => t.name.toLowerCase() === "dev")
 
   return (
     <div className="space-y-5">
@@ -84,12 +85,17 @@ export default async function ProjectLayout({
             )}
             <ProjectNameEdit projectId={id} value={project.name} />
             <ProjectDescriptionEdit projectId={id} value={project.description} />
-            <ProjectContactSelect
-              contacts={contacts}
-              currentId={project.contact?.id ?? null}
-              action={async (contactId) => {
+            <ProjectContactsManager
+              projectId={id}
+              allContacts={contacts}
+              projectContacts={project.contactLinks}
+              onAdd={async (clientId, role, label) => {
                 "use server"
-                await updateProjectContact(id, contactId)
+                await addProjectContact(id, clientId, role, label)
+              }}
+              onRemove={async (clientId) => {
+                "use server"
+                await removeProjectContact(id, clientId)
               }}
             />
 
@@ -140,6 +146,7 @@ export default async function ProjectLayout({
               </div>
             )}
 
+            <ProjectPriorityEdit projectId={id} value={project.priority as "LOW" | "MEDIUM" | "HIGH" | "URGENT"} />
             <ProjectStatusEdit projectId={id} value={project.status} />
             {isOwner && (
               <ProjectSettingsDialog
@@ -156,7 +163,7 @@ export default async function ProjectLayout({
         </div>
       </div>
 
-      <ProjectTabs projectId={id} />
+      <ProjectTabs projectId={id} hasDevTag={hasDevTag} />
 
       {children}
     </div>

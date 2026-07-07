@@ -3,8 +3,10 @@ import { put } from "@vercel/blob"
 import { NextRequest, NextResponse } from "next/server"
 import { checkRateLimit } from "@/lib/rate-limit"
 
+// SVG volontairement exclu : un SVG peut embarquer du JavaScript (XSS si ouvert
+// directement). On se limite aux formats raster + PDF.
 const ALLOWED_MIME_TYPES = [
-  "image/jpeg", "image/png", "image/webp", "image/gif", "image/svg+xml",
+  "image/jpeg", "image/png", "image/webp", "image/gif",
   "application/pdf",
 ]
 const ALLOWED_FOLDERS = ["logos", "signatures", "uploads"]
@@ -15,7 +17,7 @@ export async function POST(req: NextRequest) {
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
   // Rate limit : 20 uploads/min par utilisateur
-  if (!checkRateLimit(`upload:${session.user.id}`, 20, 60_000)) {
+  if (!(await checkRateLimit(`upload:${session.user.id}`, 20, 60_000))) {
     return NextResponse.json({ error: "Trop de requêtes" }, { status: 429 })
   }
 

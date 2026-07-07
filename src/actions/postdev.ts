@@ -3,6 +3,7 @@
 import { prisma } from "@/lib/prisma"
 import { revalidatePath } from "next/cache"
 import { auth } from "@/lib/auth"
+import type { RenewalType } from "@/generated/prisma/enums"
 
 async function requireAuth(): Promise<string> {
   const session = await auth()
@@ -50,7 +51,7 @@ export async function addRenewal(
   await prisma.renewal.create({
     data: {
       postDevId,
-      type: data.type as any,
+      type: data.type as RenewalType,
       name: data.name,
       amount: data.amount ?? null,
       purchasedAt: data.purchasedAt ? new Date(data.purchasedAt) : null,

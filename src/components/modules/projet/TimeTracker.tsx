@@ -38,6 +38,7 @@ export function TimeTracker({ taskId, userId, projectId, timeEntries }: Props) {
     .reduce((s, e) => s + (e.duration ?? 0), 0)
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (!runningEntry) { setElapsed(0); return }
     const update = () => {
       setElapsed(Math.floor((Date.now() - new Date(runningEntry.startedAt).getTime()) / 1000))

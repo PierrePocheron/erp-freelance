@@ -29,3 +29,20 @@ export function computeContactName({ label, firstName, lastName, companyName }: 
 
   return "Sans nom"
 }
+
+export type IncompleteContactFields = {
+  firstName?: string | null
+  lastName?:  string | null
+  email?:     string | null
+  phone?:     string | null
+}
+
+/**
+ * Un contact est « à compléter » si son identité de référence (prénom + nom —
+ * `Client.name` n'est qu'un cache d'affichage) ou ses coordonnées (email et
+ * téléphone tous deux absents) manquent. Règle partagée par le graphe, la
+ * fiche contact et la liste des contacts.
+ */
+export function isContactIncomplete(c: IncompleteContactFields): boolean {
+  return !c.firstName || !c.lastName || (!c.email && !c.phone)
+}

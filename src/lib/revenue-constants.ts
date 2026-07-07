@@ -1,11 +1,12 @@
 export const REVENUE_TYPE_LABELS: Record<string, string> = {
-  SALARY:     "Salaire",
-  FREELANCE:  "Freelance / AE",
-  STUDY:      "Étude rémunérée",
-  INVESTMENT: "Investissement",
-  RENTAL:     "Locatif",
-  PLATFORM:   "Plateforme",
-  OTHER:      "Autre",
+  SALARY:        "Salaire",
+  FREELANCE:     "Freelance / AE",
+  STUDY:         "Étude rémunérée",
+  INVESTMENT:    "Investissement",
+  RENTAL:        "Locatif",
+  PLATFORM:      "Plateforme",
+  REIMBURSEMENT: "Remboursement",
+  OTHER:         "Autre",
 }
 
 export const PAYMENT_METHOD_LABELS: Record<string, string> = {

@@ -19,6 +19,7 @@ interface Props {
     invoices: number
     interactions: number
     timeEntries: number
+    revenues: number
   }
 }
 
@@ -117,11 +118,12 @@ export function ExportSection({ stats }: Props) {
   }
 
   const statItems = [
-    { label: "Clients", value: stats.clients },
+    { label: "Contacts", value: stats.clients },
     { label: "Projets", value: stats.projects },
     { label: "Tâches", value: stats.tasks },
     { label: "Devis", value: stats.quotes },
     { label: "Factures", value: stats.invoices },
+    { label: "Revenus", value: stats.revenues },
     { label: "Interactions", value: stats.interactions },
     { label: "Temps", value: stats.timeEntries },
   ]
@@ -131,8 +133,7 @@ export function ExportSection({ stats }: Props) {
       <div>
         <h2 className="text-lg font-semibold">Export & Import des données</h2>
         <p className="text-sm text-muted-foreground mt-1">
-          Sauvegarde ou restaure l'intégralité de tes données — utile pour changer
-          d'hébergeur, migrer vers un nouveau compte, ou garder une copie de sécurité.
+          {"Sauvegarde ou restaure l'intégralité de tes données — utile pour changer d'hébergeur, migrer vers un nouveau compte, ou garder une copie de sécurité."}
         </p>
       </div>
 
@@ -144,7 +145,7 @@ export function ExportSection({ stats }: Props) {
         </div>
 
         {/* Stats actuelles */}
-        <div className="grid grid-cols-4 gap-2 sm:grid-cols-7">
+        <div className="grid grid-cols-4 gap-2 sm:grid-cols-8">
           {statItems.map(({ label, value }) => (
             <div key={label} className="rounded-lg bg-muted/40 p-2.5 text-center">
               <p className="text-lg font-bold">{value}</p>

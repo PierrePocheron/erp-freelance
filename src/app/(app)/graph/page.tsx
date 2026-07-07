@@ -3,34 +3,67 @@ import { redirect } from "next/navigation"
 import { prisma }   from "@/lib/prisma"
 import { GraphView } from "@/components/modules/graph/GraphView"
 import type { RawNode, RawLink } from "@/components/modules/graph/graph-types"
+import { isContactIncomplete } from "@/lib/contact"
 
 export default async function GraphPage() {
   const session = await auth()
   if (!session) redirect("/login")
   const userId = session.user.id
 
-  const [companies, clients, projects, invoices, quotes] = await Promise.all([
+  const [companies, clients, projects, projectContactLinks, invoices, quotes, fiscalSources, revenues, applications] = await Promise.all([
     prisma.company.findMany({
       where: { userId },
       select: { id: true, name: true, city: true, website: true },
     }),
     prisma.client.findMany({
       where: { userId },
-      select: { id: true, name: true, type: true, companyId: true, email: true, city: true, phone: true },
+      select: { id: true, name: true, type: true, companyId: true, email: true, city: true, phone: true, firstName: true, lastName: true },
     }),
     prisma.project.findMany({
       where: { userId },
       select: { id: true, name: true, status: true, clientId: true, companyId: true, startDate: true, endDate: true },
       orderBy: { createdAt: "asc" },
     }),
+    prisma.projectContact.findMany({
+      where: { project: { userId } },
+      select: { projectId: true, clientId: true, role: true },
+    }),
     prisma.invoice.findMany({
       where: { userId },
-      select: { id: true, number: true, status: true, totalHT: true, clientId: true, projectId: true, paidAt: true, issuedAt: true },
+      select: { id: true, number: true, status: true, totalHT: true, clientId: true, projectId: true, paidAt: true, issuedAt: true, emitterProfileId: true },
       orderBy: { createdAt: "asc" },
     }),
     prisma.quote.findMany({
       where: { userId },
       select: { id: true, number: true, status: true, totalHT: true, clientId: true, projectId: true, createdAt: true },
+      orderBy: { createdAt: "asc" },
+    }),
+    prisma.fiscalSource.findMany({
+      where: { userId, isActive: true },
+      select: {
+        id: true,
+        name: true,
+        bucket: true,
+        color: true,
+        emitterProfiles: { select: { id: true } },
+      },
+      orderBy: { createdAt: "asc" },
+    }),
+    prisma.revenue.findMany({
+      where: { userId },
+      select: {
+        id: true, label: true, amount: true, status: true,
+        fiscalSourceId: true, projectId: true, companyId: true, clientId: true,
+        receivedAt: true, expectedAt: true,
+      },
+      orderBy: { receivedAt: "asc" },
+    }),
+    prisma.jobApplication.findMany({
+      where: { userId },
+      select: {
+        id: true, companyName: true, position: true, status: true,
+        companyId: true, contactId: true, salaryMin: true, salaryMax: true,
+      },
       orderBy: { createdAt: "asc" },
     }),
   ])
@@ -43,17 +76,18 @@ export default async function GraphPage() {
     const contactCount  = clients.filter(cl => cl.companyId === c.id && cl.type !== "SELF").length
     const projectCount  = projects.filter(p => p.companyId === c.id).length
     nodes.push({
-      id:       `company-${c.id}`,
-      type:     "COMPANY",
-      label:    c.name,
-      parentId: null,
+      id:         `company-${c.id}`,
+      type:       "COMPANY",
+      label:      c.name,
+      parentId:   null,
+      incomplete: !c.website,
       meta: {
         href:     `/societes/${c.id}`,
         subtitle: [c.city, c.website].filter(Boolean).join(" · "),
         details: [
           { label: "Contacts",  value: String(contactCount)  },
           { label: "Projets",   value: String(projectCount)  },
-          ...(c.website ? [{ label: "Site", value: c.website }] : []),
+          ...(c.website ? [{ label: "Site", value: c.website }] : [{ label: "Site", value: "— manquant" }]),
         ],
       },
     })
@@ -66,16 +100,18 @@ export default async function GraphPage() {
     const parentId = c.companyId ? `company-${c.companyId}` : null
     const projCount = projects.filter(p => p.clientId === c.id).length
     nodes.push({
-      id:       nodeId,
-      type:     "CLIENT",
-      label:    c.name,
+      id:         nodeId,
+      type:       "CLIENT",
+      label:      c.name,
       parentId,
+      incomplete: isContactIncomplete(c),
       meta: {
-        href:     `/client/${c.id}`,
+        href:     `/contacts/${c.id}`,
         subtitle: c.email ?? c.city ?? undefined,
         details: [
           { label: "Projets", value: String(projCount) },
-          ...(c.email ? [{ label: "Email", value: c.email }] : []),
+          { label: "Prénom / Nom", value: (c.firstName && c.lastName) ? `${c.firstName} ${c.lastName}` : "— à compléter" },
+          ...(c.email ? [{ label: "Email", value: c.email }] : [{ label: "Email", value: "— manquant" }]),
           ...(c.phone ? [{ label: "Tél",   value: c.phone }] : []),
         ],
       },
@@ -83,10 +119,13 @@ export default async function GraphPage() {
     if (parentId) links.push({ source: parentId, target: nodeId })
   }
 
+  // IDs des clients de type SELF — leurs projets remontent à la société parente
+  const selfClientIds = new Set(clients.filter(c => c.type === "SELF").map(c => c.id))
+
   // ── Projects ──────────────────────────────────────────────────────────────
   for (const p of projects) {
     const nodeId   = `project-${p.id}`
-    const parentId = p.clientId
+    const parentId = (p.clientId && !selfClientIds.has(p.clientId))
       ? `client-${p.clientId}`
       : p.companyId
       ? `company-${p.companyId}`
@@ -111,6 +150,20 @@ export default async function GraphPage() {
       },
     })
     if (parentId) links.push({ source: parentId, target: nodeId })
+  }
+
+  // ── ProjectContact — arêtes supplémentaires contact → projet (M2M) ────────
+  // On ajoute un lien pour chaque contact associé au projet, SAUF si c'est déjà
+  // le parentId (évite les doublons avec le lien principal clientId → project).
+  const nodeIds = new Set(nodes.map(n => n.id))
+  for (const pc of projectContactLinks) {
+    const source = `client-${pc.clientId}`
+    const target = `project-${pc.projectId}`
+    if (!nodeIds.has(source) || !nodeIds.has(target)) continue
+    // Éviter le doublon si ce contact est déjà le parent principal du projet
+    const project = projects.find(p => p.id === pc.projectId)
+    if (project?.clientId === pc.clientId) continue
+    links.push({ source, target })
   }
 
   // ── Invoices ──────────────────────────────────────────────────────────────
@@ -164,8 +217,196 @@ export default async function GraphPage() {
     links.push({ source: parentId, target: nodeId })
   }
 
+  // ── Revenues ──────────────────────────────────────────────────────────────
+  // Recompute nodeIds pour inclure les nœuds ajoutés depuis la dernière mise à jour
+  const revenueNodeIds = new Set(nodes.map(n => n.id))
+
+  for (const rev of revenues) {
+    const revNodeId = `revenue-${rev.id}`
+
+    // Cherche le premier ancêtre valide : project → company → client
+    const rawParent = rev.projectId
+      ? `project-${rev.projectId}`
+      : rev.companyId
+      ? `company-${rev.companyId}`
+      : rev.clientId && !selfClientIds.has(rev.clientId)
+      ? `client-${rev.clientId}`
+      : null
+
+    const parentId = rawParent && revenueNodeIds.has(rawParent) ? rawParent : null
+
+    const date    = rev.receivedAt ?? rev.expectedAt
+    const dateStr = date ? new Date(date).toLocaleDateString("fr-FR") : "—"
+
+    nodes.push({
+      id:         revNodeId,
+      type:       "REVENUE",
+      label:      rev.label,
+      parentId,
+      incomplete: parentId === null,
+      status:     rev.status ?? undefined,
+      amount:     rev.amount,
+      meta: {
+        href:     `/revenus`,
+        subtitle: `${rev.amount.toLocaleString("fr-FR")} €`,
+        details: [
+          { label: "Montant", value: `${rev.amount.toLocaleString("fr-FR", { minimumFractionDigits: 2 })} €` },
+          { label: "Statut",  value: rev.status === "RECEIVED" ? "Reçu" : "En attente" },
+          { label: "Date",    value: dateStr },
+        ],
+      },
+    })
+    if (parentId) links.push({ source: parentId, target: revNodeId })
+  }
+
+  // ── Job Applications (Entretiens) ─────────────────────────────────────────
+  // Parenté : contactId (recruteur) → client-{id} en priorité, sinon companyId.
+  const appNodeIds = new Set(nodes.map(n => n.id))
+  for (const app of applications) {
+    const appNodeId = `application-${app.id}`
+    const parentByContact = app.contactId && appNodeIds.has(`client-${app.contactId}`)
+      ? `client-${app.contactId}`
+      : null
+    const parentByCompany = !parentByContact && app.companyId && appNodeIds.has(`company-${app.companyId}`)
+      ? `company-${app.companyId}`
+      : null
+    const parentId = parentByContact ?? parentByCompany ?? null
+
+    const salaryStr = app.salaryMin && app.salaryMax
+      ? `${app.salaryMin / 1000}–${app.salaryMax / 1000} k€`
+      : app.salaryMin ? `dès ${app.salaryMin / 1000} k€` : null
+
+    nodes.push({
+      id:       appNodeId,
+      type:     "APPLICATION",
+      label:    app.position,
+      parentId,
+      status:   app.status,
+      meta: {
+        href:     `/entretiens/${app.id}`,
+        subtitle: app.companyName,
+        details: [
+          { label: "Entreprise", value: app.companyName },
+          { label: "Poste",      value: app.position    },
+          ...(salaryStr ? [{ label: "Salaire", value: salaryStr }] : []),
+        ],
+      },
+    })
+    appNodeIds.add(appNodeId)
+    if (parentId) links.push({ source: parentId, target: appNodeId })
+  }
+
+  // ── Hub Entretiens — regroupe toutes les sociétés de recrutement ──────────
+  // On construit ce nœud après les applications pour connaître les sociétés
+  // impliquées, puis on modifie leur parentId en place pour les relier.
+  if (applications.length > 0) {
+    const recruiterCompanyNodeIds = new Set<string>()
+    for (const app of applications) {
+      if (app.contactId) {
+        const contact = clients.find(c => c.id === app.contactId)
+        if (contact?.companyId) recruiterCompanyNodeIds.add(`company-${contact.companyId}`)
+      }
+      if (app.companyId && appNodeIds.has(`company-${app.companyId}`)) {
+        recruiterCompanyNodeIds.add(`company-${app.companyId}`)
+      }
+    }
+    if (recruiterCompanyNodeIds.size > 0) {
+      const hubId = "hub-entretiens"
+      nodes.push({
+        id:       hubId,
+        type:     "SOURCE",
+        label:    "Entretiens",
+        parentId: null,
+        meta: {
+          href:     "/entretiens",
+          color:    "#818cf8",  // indigo — identique aux nœuds APPLICATION
+          subtitle: `${applications.length} candidature${applications.length > 1 ? "s" : ""}`,
+          details: [
+            { label: "Candidatures", value: String(applications.length) },
+          ],
+        },
+      })
+      for (const node of nodes) {
+        if (recruiterCompanyNodeIds.has(node.id)) {
+          node.parentId = hubId
+          links.push({ source: hubId, target: node.id })
+        }
+      }
+    }
+  }
+
+  // ── Fiscal Sources ─────────────────────────────────────────────────────────
+  // Un nœud SOURCE par source fiscale active ; lié aux sociétés / contacts
+  // dont les factures ont été émises avec un profil émetteur rattaché à cette source.
+  for (const src of fiscalSources) {
+    const srcNodeId  = `source-${src.id}`
+    const emitterIds = new Set(src.emitterProfiles.map(e => e.id))
+
+    // Clients dont au moins une facture provient de cette source
+    const linkedClientIds = new Set(
+      invoices
+        .filter(inv => inv.emitterProfileId && emitterIds.has(inv.emitterProfileId))
+        .map(inv => inv.clientId)
+        .filter((id): id is string => id !== null)
+    )
+
+    // Depuis ces clients : sociétés (lien SOURCE→COMPANY) ou contacts seuls (SOURCE→CLIENT)
+    const linkedCompanyIds   = new Set<string>()
+    const standaloneClientIds = new Set<string>()
+
+    for (const clientId of linkedClientIds) {
+      const client = clients.find(c => c.id === clientId)
+      if (!client || client.type === "SELF") continue
+      if (client.companyId) {
+        linkedCompanyIds.add(client.companyId)
+      } else {
+        standaloneClientIds.add(clientId)
+      }
+    }
+
+    // Liens depuis les Revenue entries (études, baby-sitting, CAF…)
+    for (const rev of revenues) {
+      if (rev.fiscalSourceId !== src.id) continue
+      if (rev.companyId) {
+        linkedCompanyIds.add(rev.companyId)
+      } else if (rev.clientId) {
+        const client = clients.find(c => c.id === rev.clientId)
+        if (client?.companyId) {
+          linkedCompanyIds.add(client.companyId)
+        } else if (client && client.type !== "SELF") {
+          standaloneClientIds.add(rev.clientId)
+        }
+      }
+    }
+
+    const totalLinked = linkedCompanyIds.size + standaloneClientIds.size
+
+    nodes.push({
+      id:       srcNodeId,
+      type:     "SOURCE",
+      label:    src.name,
+      parentId: null,
+      meta: {
+        href:     "/revenus/sources",
+        color:    src.color,
+        subtitle: SOURCE_BUCKET_LABELS[src.bucket] ?? src.bucket,
+        details: [
+          { label: "Catégorie",        value: SOURCE_BUCKET_LABELS[src.bucket] ?? src.bucket },
+          { label: "Sociétés/Contacts", value: String(totalLinked) },
+        ],
+      },
+    })
+
+    for (const companyId of linkedCompanyIds) {
+      links.push({ source: srcNodeId, target: `company-${companyId}` })
+    }
+    for (const clientId of standaloneClientIds) {
+      links.push({ source: srcNodeId, target: `client-${clientId}` })
+    }
+  }
+
   return (
-    <div className="h-[calc(100vh-3rem)] -m-6 overflow-hidden">
+    <div className="h-screen -m-6 overflow-hidden">
       <GraphView rawNodes={nodes} rawLinks={links} />
     </div>
   )
@@ -180,4 +421,9 @@ const INVOICE_STATUS_LABELS: Record<string, string> = {
 const QUOTE_STATUS_LABELS: Record<string, string> = {
   DRAFT: "Brouillon", VALIDATED: "Validé", SENT: "Envoyé", ACCEPTED: "Accepté",
   IN_PROGRESS: "En cours", SIGNED: "Signé", REJECTED: "Refusé",
+}
+const SOURCE_BUCKET_LABELS: Record<string, string> = {
+  AE_URSSAF:     "AE — Déclaré URSSAF",
+  NON_IMPOSABLE: "Non imposable",
+  OTHER:         "Autre",
 }

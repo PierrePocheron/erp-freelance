@@ -4,7 +4,7 @@ import { useTransition } from "react"
 import { updateClientTemperature } from "@/actions/crm"
 
 const temps = [
-  { value: "COLD", label: "Froid", color: "text-blue-500", dot: "bg-blue-500" },
+  { value: "COLD", label: "Neutre", color: "text-blue-500", dot: "bg-blue-500" },
   { value: "WARM", label: "Tiède", color: "text-amber-500", dot: "bg-amber-500" },
   { value: "HOT", label: "Chaud", color: "text-red-500", dot: "bg-red-500" },
 ]

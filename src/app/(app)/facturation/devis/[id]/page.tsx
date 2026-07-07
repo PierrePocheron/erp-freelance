@@ -147,7 +147,7 @@ export default async function DevisDetailPage({
             </span>
           </div>
           <p className="text-muted-foreground text-sm">
-            <Link href={`/client/${quote.client.id}`} className="hover:text-primary transition-colors">
+            <Link href={`/contacts/${quote.client.id}`} className="hover:text-primary transition-colors">
               {quote.client.company ?? quote.client.name}
             </Link>
             {quote.project && (
@@ -414,7 +414,7 @@ export default async function DevisDetailPage({
               Devis signé par le client
             </h2>
             <p className="text-xs text-muted-foreground mt-0.5">
-              Uploadez le bon pour accord signé — le devis passera au statut "Signé"
+              {"Uploadez le bon pour accord signé — le devis passera au statut \"Signé\""}
             </p>
           </div>
           <SignedUploadButton

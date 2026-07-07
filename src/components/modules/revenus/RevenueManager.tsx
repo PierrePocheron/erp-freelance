@@ -1,10 +1,11 @@
 "use client"
 
-import { useState, useTransition } from "react"
+import { useState, useTransition, useMemo } from "react"
 import { useRouter } from "next/navigation"
 import {
   Plus, Repeat, ChevronDown, ChevronUp, CheckCircle2, Clock,
   Pencil, Trash2, RefreshCw, AlertTriangle, X, Check,
+  ArrowUpDown, ExternalLink, ChevronsUpDown,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -20,6 +21,7 @@ import { PAYMENT_METHODS, REVENUE_TYPES } from "@/lib/revenue-constants"
 type Company = { id: string; name: string; city: string | null }
 type Client  = { id: string; name: string; company: string | null; companyId: string | null }
 type Project = { id: string; name: string; clientId: string | null; companyId: string | null }
+export type FiscalSource = { id: string; name: string; bucket: string; color: string; isActive?: boolean }
 
 type Revenue = {
   id: string
@@ -34,15 +36,20 @@ type Revenue = {
   notes: string | null
   period: string | null
   recurringRevenueId: string | null
+  fiscalSourceId: string | null
   companyId: string | null
   clientId: string | null
   projectId: string | null
   createdAt: string
   updatedAt: string
   recurringRevenue: { id: string; label: string } | null
+  fiscalSource: FiscalSource | null
   company: { name: string } | null
   client:  { name: string; company: string | null } | null
   project: { name: string } | null
+  // Entrées synthétiques depuis les factures payées (AE)
+  isFromInvoice?: boolean
+  invoiceHref?: string
 }
 
 type RecurringRevenue = {
@@ -92,6 +99,7 @@ function RevenueForm({
   companies = [],
   clients = [],
   projects = [],
+  fiscalSources = [],
   initial,
   onClose,
   onSave,
@@ -101,6 +109,7 @@ function RevenueForm({
   companies?: Company[]
   clients?: Client[]
   projects?: Project[]
+  fiscalSources?: FiscalSource[]
   initial?: Partial<Revenue>
   onClose: () => void
   onSave: () => void
@@ -108,20 +117,21 @@ function RevenueForm({
   const now = new Date()
   const defaultPeriod = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`
 
-  const [type,          setType]          = useState(initial?.type ?? "SALARY")
-  const [label,         setLabel]         = useState(initial?.label ?? "")
-  const [amount,        setAmount]        = useState(initial?.amount?.toString() ?? "")
-  const [status,        setStatus]        = useState(initial?.status ?? "PENDING")
-  const [receivedAt,    setReceivedAt]    = useState(initial?.receivedAt ? initial.receivedAt.slice(0, 10) : "")
-  const [expectedAt,    setExpectedAt]    = useState(initial?.expectedAt ? initial.expectedAt.slice(0, 10) : "")
-  const [paymentMethod, setPaymentMethod] = useState(initial?.paymentMethod ?? "")
-  const [notes,         setNotes]         = useState(initial?.notes ?? "")
-  const [period,        setPeriod]        = useState(initial?.period ?? defaultPeriod)
-  const [companyId,     setCompanyId]     = useState(initial?.companyId ?? "")
-  const [clientId,      setClientId]      = useState(initial?.clientId ?? "")
-  const [projectId,     setProjectId]     = useState(initial?.projectId ?? "")
-  const [error,         setError]         = useState("")
-  const [isPending,     start]            = useTransition()
+  const [type,           setType]          = useState(initial?.type ?? "SALARY")
+  const [label,          setLabel]         = useState(initial?.label ?? "")
+  const [amount,         setAmount]        = useState(initial?.amount?.toString() ?? "")
+  const [status,         setStatus]        = useState(initial?.status ?? "PENDING")
+  const [receivedAt,     setReceivedAt]    = useState(initial?.receivedAt ? initial.receivedAt.slice(0, 10) : "")
+  const [expectedAt,     setExpectedAt]    = useState(initial?.expectedAt ? initial.expectedAt.slice(0, 10) : "")
+  const [paymentMethod,  setPaymentMethod] = useState(initial?.paymentMethod ?? "")
+  const [notes,          setNotes]         = useState(initial?.notes ?? "")
+  const [period,         setPeriod]        = useState(initial?.period ?? defaultPeriod)
+  const [fiscalSourceId, setFiscalSource]  = useState(initial?.fiscalSourceId ?? "")
+  const [companyId,      setCompanyId]     = useState(initial?.companyId ?? "")
+  const [clientId,       setClientId]      = useState(initial?.clientId ?? "")
+  const [projectId,      setProjectId]     = useState(initial?.projectId ?? "")
+  const [error,          setError]         = useState("")
+  const [isPending,      start]            = useTransition()
 
   const filteredClients = companyId ? clients.filter(c => c.companyId === companyId) : clients
   const filteredProjects = projects.filter(p =>
@@ -147,6 +157,7 @@ function RevenueForm({
         paymentMethod: paymentMethod || null,
         notes: notes || null,
         period: period || null,
+        fiscalSourceId: fiscalSourceId || null,
         companyId: companyId || null,
         clientId: clientId || null,
         projectId: projectId || null,
@@ -199,6 +210,22 @@ function RevenueForm({
             className="h-9"
           />
         </div>
+
+        {fiscalSources.length > 0 && (
+          <div className="space-y-1 sm:col-span-2">
+            <label className="text-xs font-medium text-muted-foreground">Source fiscale</label>
+            <select
+              value={fiscalSourceId}
+              onChange={e => setFiscalSource(e.target.value)}
+              className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+            >
+              <option value="">— Aucune —</option>
+              {fiscalSources.map(fs => (
+                <option key={fs.id} value={fs.id}>{fs.name}</option>
+              ))}
+            </select>
+          </div>
+        )}
 
         <div className="space-y-1 sm:col-span-2">
           <label className="text-xs font-medium text-muted-foreground">Libellé</label>
@@ -616,6 +643,7 @@ export function RevenueManager({
   companies = [],
   clients = [],
   projects = [],
+  fiscalSources = [],
 }: {
   initialRevenues:     Revenue[]
   initialRecurring:    RecurringRevenue[]
@@ -624,6 +652,7 @@ export function RevenueManager({
   companies?: Company[]
   clients?: Client[]
   projects?: Project[]
+  fiscalSources?: FiscalSource[]
 }) {
   const router = useRouter()
   const [tab,               setTab]               = useState<"list" | "recurring">("list")
@@ -640,6 +669,9 @@ export function RevenueManager({
   const [isPendingGen,      startGen]              = useTransition()
   const [isPendingDel,      startDel]              = useTransition()
   const [genMessage,        setGenMessage]         = useState("")
+  // ── Filtres ────────────────────────────────────────────────────────────────
+  const [filterSourceId,   setFilterSourceId]     = useState("")           // "" = toutes
+  const [sortOrder,        setSortOrder]           = useState<"desc"|"asc">("desc") // desc = plus récent en premier
 
   function refresh() { router.refresh() }
 
@@ -648,14 +680,40 @@ export function RevenueManager({
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`
   }
 
-  // Groupement par période
+  // Sources disponibles dans les données (pour le sélecteur de filtre)
+  const availableSources = useMemo(() => {
+    const map = new Map<string, FiscalSource>()
+    for (const r of initialRevenues) {
+      if (r.fiscalSource) map.set(r.fiscalSource.id, r.fiscalSource)
+    }
+    return [...map.values()]
+  }, [initialRevenues])
+
+  // Revenus filtrés par source
+  const filteredRevenues = filterSourceId
+    ? initialRevenues.filter(r => r.fiscalSourceId === filterSourceId)
+    : initialRevenues
+
+  // Groupement par période (sur la liste filtrée)
   const byPeriod: Record<string, Revenue[]> = {}
-  for (const r of initialRevenues) {
+  for (const r of filteredRevenues) {
     const key = r.period ?? "Sans période"
     if (!byPeriod[key]) byPeriod[key] = []
     byPeriod[key].push(r)
   }
-  const sortedPeriods = Object.keys(byPeriod).sort((a, b) => b.localeCompare(a))
+  const sortedPeriods = Object.keys(byPeriod).sort((a, b) =>
+    sortOrder === "desc" ? b.localeCompare(a) : a.localeCompare(b)
+  )
+
+  const allExpanded = sortedPeriods.length > 0 && sortedPeriods.every(p => expandedPeriods.has(p))
+
+  function toggleExpandAll() {
+    if (allExpanded) {
+      setExpandedPeriods(new Set())
+    } else {
+      setExpandedPeriods(new Set(sortedPeriods))
+    }
+  }
 
   function togglePeriod(p: string) {
     setExpandedPeriods(prev => {
@@ -701,7 +759,7 @@ export function RevenueManager({
   }
 
   function selectAllPendingInPeriod(period: string) {
-    const pendingIds = (byPeriod[period] ?? []).filter(r => r.status === "PENDING").map(r => r.id)
+    const pendingIds = (byPeriod[period] ?? []).filter(r => r.status === "PENDING" && !r.isFromInvoice).map(r => r.id)
     const allSelected = pendingIds.length > 0 && pendingIds.every(id => selectedIds.has(id))
     setSelectedIds(prev => {
       const next = new Set(prev)
@@ -735,12 +793,14 @@ export function RevenueManager({
     : 0
 
   const typeColor: Record<string, string> = {
-    SALARY:     "text-blue-600 bg-blue-500/10",
-    STUDY:      "text-indigo-600 bg-indigo-500/10",
-    INVESTMENT: "text-emerald-600 bg-emerald-500/10",
-    RENTAL:     "text-teal-600 bg-teal-500/10",
-    PLATFORM:   "text-purple-600 bg-purple-500/10",
-    OTHER:      "text-muted-foreground bg-muted",
+    SALARY:        "text-blue-600 bg-blue-500/10",
+    STUDY:         "text-indigo-600 bg-indigo-500/10",
+    INVESTMENT:    "text-emerald-600 bg-emerald-500/10",
+    RENTAL:        "text-teal-600 bg-teal-500/10",
+    FREELANCE:     "text-orange-600 bg-orange-500/10",
+    PLATFORM:      "text-purple-600 bg-purple-500/10",
+    REIMBURSEMENT: "text-pink-600 bg-pink-500/10",
+    OTHER:         "text-muted-foreground bg-muted",
   }
 
   return (
@@ -764,12 +824,65 @@ export function RevenueManager({
       {/* ── Onglet Revenus ───────────────────────────────────────────────── */}
       {tab === "list" && (
         <div className="space-y-4">
+          {/* Barre supérieure : compteur + bouton */}
           <div className="flex items-center justify-between">
-            <p className="text-sm text-muted-foreground">{initialRevenues.length} entrée{initialRevenues.length !== 1 ? "s" : ""}</p>
+            <p className="text-sm text-muted-foreground">
+              {filteredRevenues.length} entrée{filteredRevenues.length !== 1 ? "s" : ""}
+              {filterSourceId && <span className="ml-1 text-xs">(filtrées)</span>}
+            </p>
             <Button type="button" size="sm" onClick={() => { setEditRevenue(null); setShowForm(true) }}>
               <Plus className="h-3.5 w-3.5" />
               Ajouter
             </Button>
+          </div>
+
+          {/* Barre de filtres */}
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Filtre source fiscale */}
+            {availableSources.length > 0 && (
+              <div className="relative">
+                <select
+                  value={filterSourceId}
+                  onChange={e => setFilterSourceId(e.target.value)}
+                  className="h-8 rounded-md border border-border bg-card pl-2.5 pr-7 text-xs focus:outline-none focus:ring-1 focus:ring-ring appearance-none cursor-pointer text-foreground"
+                >
+                  <option value="">Toutes les sources</option>
+                  {availableSources.map(s => (
+                    <option key={s.id} value={s.id}>{s.name}</option>
+                  ))}
+                </select>
+                {filterSourceId && (
+                  <button
+                    type="button"
+                    onClick={() => setFilterSourceId("")}
+                    className="absolute right-1.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                )}
+              </div>
+            )}
+            {/* Ordre chronologique */}
+            <button
+              type="button"
+              onClick={() => setSortOrder(o => o === "desc" ? "asc" : "desc")}
+              title={sortOrder === "desc" ? "Plus récent en premier" : "Plus ancien en premier"}
+              className="h-8 px-2.5 text-xs rounded-md border border-border bg-card hover:bg-accent transition-colors flex items-center gap-1.5 text-muted-foreground hover:text-foreground"
+            >
+              <ArrowUpDown className="h-3 w-3" />
+              {sortOrder === "desc" ? "Plus récent" : "Plus ancien"}
+            </button>
+            {/* Tout déplier / replier */}
+            {sortedPeriods.length > 0 && (
+              <button
+                type="button"
+                onClick={toggleExpandAll}
+                className="h-8 px-2.5 text-xs rounded-md border border-border bg-card hover:bg-accent transition-colors flex items-center gap-1.5 text-muted-foreground hover:text-foreground"
+              >
+                <ChevronsUpDown className="h-3 w-3" />
+                {allExpanded ? "Tout replier" : "Tout déplier"}
+              </button>
+            )}
           </div>
 
           {showForm && !editRevenue && (
@@ -779,6 +892,7 @@ export function RevenueManager({
               companies={companies}
               clients={clients}
               projects={projects}
+              fiscalSources={fiscalSources}
               onClose={() => setShowForm(false)}
               onSave={() => { setShowForm(false); refresh() }}
             />
@@ -791,18 +905,23 @@ export function RevenueManager({
               companies={companies}
               clients={clients}
               projects={projects}
+              fiscalSources={fiscalSources}
               initial={editRevenue}
               onClose={() => setEditRevenue(null)}
               onSave={() => { setEditRevenue(null); refresh() }}
             />
           )}
 
-          {initialRevenues.length === 0 ? (
+          {filteredRevenues.length === 0 ? (
             <div className="rounded-xl border border-border/50 bg-card p-12 text-center">
-              <p className="text-sm text-muted-foreground">Aucun revenu enregistré</p>
-              <p className="text-xs text-muted-foreground mt-1">
-                Ajoutez vos revenus hors auto-entreprise pour les suivre ici.
+              <p className="text-sm text-muted-foreground">
+                {filterSourceId ? "Aucun revenu pour cette source fiscale" : "Aucun revenu enregistré"}
               </p>
+              {!filterSourceId && (
+                <p className="text-xs text-muted-foreground mt-1">
+                  Ajoutez vos revenus ou liez des factures AE à une source fiscale.
+                </p>
+              )}
             </div>
           ) : (
             <div className="space-y-3">
@@ -828,13 +947,13 @@ export function RevenueManager({
                         <span className="text-xs text-muted-foreground">{items.length} entrée{items.length > 1 ? "s" : ""}</span>
                       </div>
                       <div className="flex items-center gap-3" onClick={e => e.stopPropagation()}>
-                        {expanded && items.some(r => r.status === "PENDING") && (
+                        {expanded && items.some(r => r.status === "PENDING" && !r.isFromInvoice) && (
                           <button
                             type="button"
                             onClick={() => selectAllPendingInPeriod(period)}
                             className="text-xs text-muted-foreground hover:text-foreground px-2 py-0.5 rounded border border-border/50 hover:border-border transition-colors"
                           >
-                            {items.filter(r => r.status === "PENDING").every(r => selectedIds.has(r.id))
+                            {items.filter(r => r.status === "PENDING" && !r.isFromInvoice).every(r => selectedIds.has(r.id))
                               ? "Désélectionner"
                               : "Tout sélectionner"}
                           </button>
@@ -852,8 +971,9 @@ export function RevenueManager({
                           <tbody>
                             {items.map(r => (
                               <tr key={r.id} className={`border-b border-border/50 last:border-0 hover:bg-muted/30 transition-colors ${selectedIds.has(r.id) ? "bg-emerald-500/5" : ""}`}>
+                                {/* Checkbox — masqué pour les entrées issues de factures */}
                                 <td className="pl-4 pr-1 py-3 w-8">
-                                  {r.status === "PENDING" && (
+                                  {!r.isFromInvoice && r.status === "PENDING" && (
                                     <input
                                       type="checkbox"
                                       checked={selectedIds.has(r.id)}
@@ -862,12 +982,28 @@ export function RevenueManager({
                                     />
                                   )}
                                 </td>
+
+                                {/* Libellé + infos */}
                                 <td className="px-5 py-3 pl-2">
-                                  <div className="flex items-center gap-2">
-                                    <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${typeColor[r.type] ?? "text-muted-foreground bg-muted"}`}>
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <span className={`text-xs px-2 py-0.5 rounded-full font-medium shrink-0 ${typeColor[r.type] ?? "text-muted-foreground bg-muted"}`}>
                                       {revenueTypeLabels[r.type] ?? r.type}
                                     </span>
-                                    <span className="font-medium">{r.label}</span>
+                                    {r.isFromInvoice && r.invoiceHref ? (
+                                      <a
+                                        href={r.invoiceHref}
+                                        className="font-medium font-mono text-xs text-primary hover:underline"
+                                      >
+                                        {r.label}
+                                      </a>
+                                    ) : (
+                                      <span className="font-medium">{r.label}</span>
+                                    )}
+                                    {r.isFromInvoice && (
+                                      <span className="text-[10px] text-muted-foreground bg-muted border border-border px-1.5 py-0.5 rounded font-mono shrink-0">
+                                        FAC
+                                      </span>
+                                    )}
                                     {r.recurringRevenue && (
                                       <span title="Récurrent" className="inline-flex shrink-0">
                                         <Repeat className="h-3 w-3 text-muted-foreground" />
@@ -875,26 +1011,36 @@ export function RevenueManager({
                                     )}
                                   </div>
                                   <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                                    {r.fiscalSource && (
+                                      <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+                                        <span className="h-1.5 w-1.5 rounded-full shrink-0" style={{ backgroundColor: r.fiscalSource.color }} />
+                                        {r.fiscalSource.name}
+                                      </span>
+                                    )}
                                     {r.company && (
-                                      <span className="text-xs text-muted-foreground">{r.company.name}</span>
+                                      <span className="text-xs text-muted-foreground">{r.fiscalSource ? `· ${r.company.name}` : r.company.name}</span>
                                     )}
                                     {r.client && (
-                                      <span className="text-xs text-muted-foreground">{r.company ? `· ${r.client.name}` : r.client.name}</span>
+                                      <span className="text-xs text-muted-foreground">{(r.fiscalSource || r.company) ? `· ${r.client.name}` : r.client.name}</span>
                                     )}
                                     {r.project && (
-                                      <span className="text-xs text-muted-foreground">{(r.company || r.client) ? `· ${r.project.name}` : r.project.name}</span>
+                                      <span className="text-xs text-muted-foreground">{(r.fiscalSource || r.company || r.client) ? `· ${r.project.name}` : r.project.name}</span>
                                     )}
-                                    {r.notes && !r.company && !r.client && !r.project && (
+                                    {r.notes && !r.isFromInvoice && !r.fiscalSource && !r.company && !r.client && !r.project && (
                                       <span className="text-xs text-muted-foreground truncate max-w-xs">{r.notes}</span>
                                     )}
                                   </div>
-                                  {r.notes && (r.company || r.client || r.project) && (
+                                  {r.notes && !r.isFromInvoice && (r.company || r.client || r.project) && (
                                     <p className="text-xs text-muted-foreground mt-0.5 truncate max-w-xs">{r.notes}</p>
                                   )}
                                 </td>
+
+                                {/* Montant */}
                                 <td className="px-5 py-3 text-right font-semibold tabular-nums">
                                   {fmt(r.amount)} €
                                 </td>
+
+                                {/* Statut / date */}
                                 <td className="px-5 py-3 hidden sm:table-cell">
                                   {r.status === "RECEIVED" ? (
                                     <div className="flex items-center gap-1 text-xs text-emerald-600">
@@ -920,51 +1066,67 @@ export function RevenueManager({
                                     </div>
                                   )}
                                 </td>
+
+                                {/* Actions */}
                                 <td className="px-5 py-3 text-right">
-                                  <div className="flex items-center justify-end gap-1.5">
-                                    {r.status === "PENDING" && (
-                                      <button
-                                        type="button"
-                                        onClick={() => handleQuickMark(r.id)}
-                                        disabled={isBulking}
-                                        title="Marquer reçu aujourd'hui"
-                                        className="inline-flex items-center justify-center h-7 w-7 rounded-full bg-emerald-500/10 hover:bg-emerald-500/25 text-emerald-600 transition-colors disabled:opacity-40"
+                                  {r.isFromInvoice ? (
+                                    /* Entrée issue d'une facture — lien uniquement */
+                                    r.invoiceHref ? (
+                                      <a
+                                        href={r.invoiceHref}
+                                        title="Voir la facture"
+                                        className="inline-flex items-center justify-center h-7 w-7 rounded text-muted-foreground hover:text-primary transition-colors"
                                       >
-                                        {quickMarkingId === r.id
-                                          ? <RefreshCw className="h-3.5 w-3.5 animate-spin" />
-                                          : <Check className="h-3.5 w-3.5" />
-                                        }
-                                      </button>
-                                    )}
-                                    <button
-                                      type="button"
-                                      onClick={() => { setEditRevenue(r); setShowForm(false) }}
-                                      className="text-muted-foreground hover:text-foreground p-1 rounded"
-                                    >
-                                      <Pencil className="h-3.5 w-3.5" />
-                                    </button>
-                                    {confirmDelete === r.id ? (
-                                      <div className="flex items-center gap-1">
+                                        <ExternalLink className="h-3.5 w-3.5" />
+                                      </a>
+                                    ) : null
+                                  ) : (
+                                    /* Entrée manuelle — actions habituelles */
+                                    <div className="flex items-center justify-end gap-1.5">
+                                      {r.status === "PENDING" && (
                                         <button
                                           type="button"
-                                          onClick={() => handleDelete(r.id)}
-                                          disabled={isPendingDel}
-                                          className="text-xs text-red-500 hover:text-red-600 font-medium"
+                                          onClick={() => handleQuickMark(r.id)}
+                                          disabled={isBulking}
+                                          title="Marquer reçu aujourd'hui"
+                                          className="inline-flex items-center justify-center h-7 w-7 rounded-full bg-emerald-500/10 hover:bg-emerald-500/25 text-emerald-600 transition-colors disabled:opacity-40"
                                         >
-                                          Supprimer
+                                          {quickMarkingId === r.id
+                                            ? <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                                            : <Check className="h-3.5 w-3.5" />
+                                          }
                                         </button>
-                                        <button type="button" onClick={() => setConfirmDelete(null)} className="text-xs text-muted-foreground">Annuler</button>
-                                      </div>
-                                    ) : (
+                                      )}
                                       <button
                                         type="button"
-                                        onClick={() => setConfirmDelete(r.id)}
-                                        className="text-muted-foreground hover:text-destructive p-1 rounded"
+                                        onClick={() => { setEditRevenue(r); setShowForm(false) }}
+                                        className="text-muted-foreground hover:text-foreground p-1 rounded"
                                       >
-                                        <Trash2 className="h-3.5 w-3.5" />
+                                        <Pencil className="h-3.5 w-3.5" />
                                       </button>
-                                    )}
-                                  </div>
+                                      {confirmDelete === r.id ? (
+                                        <div className="flex items-center gap-1">
+                                          <button
+                                            type="button"
+                                            onClick={() => handleDelete(r.id)}
+                                            disabled={isPendingDel}
+                                            className="text-xs text-red-500 hover:text-red-600 font-medium"
+                                          >
+                                            Supprimer
+                                          </button>
+                                          <button type="button" onClick={() => setConfirmDelete(null)} className="text-xs text-muted-foreground">Annuler</button>
+                                        </div>
+                                      ) : (
+                                        <button
+                                          type="button"
+                                          onClick={() => setConfirmDelete(r.id)}
+                                          className="text-muted-foreground hover:text-destructive p-1 rounded"
+                                        >
+                                          <Trash2 className="h-3.5 w-3.5" />
+                                        </button>
+                                      )}
+                                    </div>
+                                  )}
                                 </td>
                               </tr>
                             ))}

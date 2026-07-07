@@ -10,7 +10,9 @@ import {
   pushGoogleEvent,
   deleteGoogleEvent,
   getOrCreateErpCalendar,
+  checkGoogleCalendarStatus,
   type SyncResult,
+  type GoogleConnectionStatus,
 } from "@/lib/google-calendar"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -890,6 +892,18 @@ export async function deleteCalendarItem(type: CalItemType, id: string): Promise
  * termine jamais côté client. Le client (CalendarView) élargit `monthsBack` à
  * la demande quand l'utilisateur navigue au-delà de la fenêtre déjà synchro.
  */
+/**
+ * Vérifie l'état de la connexion Google Calendar sans déclencher de sync
+ * complète — utilisé pour refléter l'état réel (connecté / erreur / non
+ * connecté) sur le bouton dès l'ouverture de la page, avant toute action
+ * de l'utilisateur.
+ */
+export async function getGoogleCalendarConnectionStatus(): Promise<GoogleConnectionStatus> {
+  const session = await auth()
+  const userId = session!.user.id
+  return checkGoogleCalendarStatus(userId)
+}
+
 export async function syncGoogleEvents(monthsBack: number = 1): Promise<SyncResult> {
   const session = await auth()
   const userId = session!.user.id

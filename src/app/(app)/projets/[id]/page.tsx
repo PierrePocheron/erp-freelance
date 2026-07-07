@@ -10,6 +10,7 @@ import { JournalEntryItem } from "@/components/modules/projet/JournalEntryItem"
 import { LINK_CATEGORY_CONFIG, normalizeUrl } from "@/lib/link-categories"
 import { MilestoneDialog, MILESTONE_TYPE_LABELS, MILESTONE_TYPE_COLORS } from "@/components/modules/projet/MilestoneDialog"
 import { UsefulLinkDialog } from "@/components/modules/projet/UsefulLinkDialog"
+import { REVENUE_TYPE_LABELS } from "@/lib/revenue-constants"
 
 function fmtTime(d: Date | string) {
   return new Date(d).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })
@@ -47,6 +48,11 @@ const invoiceStatusCls: Record<string, string> = {
 const invoiceTypeLabel: Record<string, string> = {
   DEPOSIT: "Acompte", FINAL: "Solde", RECURRING: "Récurrent", STANDALONE: "Standard",
 }
+const revenueStatusLabel: Record<string, string> = { PENDING: "En attente", RECEIVED: "Reçu" }
+const revenueStatusCls: Record<string, string> = {
+  PENDING: "bg-amber-500/15 text-amber-600",
+  RECEIVED: "bg-emerald-500/15 text-emerald-600",
+}
 
 export default async function ProjectOverviewPage({
   params,
@@ -82,6 +88,10 @@ export default async function ProjectOverviewPage({
       },
       invoices: {
         select: { id: true, number: true, status: true, type: true, totalHT: true, depositDeducted: true, dueDate: true },
+        orderBy: { createdAt: "desc" },
+      },
+      revenues: {
+        select: { id: true, type: true, label: true, amount: true, currency: true, status: true, receivedAt: true, expectedAt: true },
         orderBy: { createdAt: "desc" },
       },
       members: {
@@ -122,6 +132,16 @@ export default async function ProjectOverviewPage({
     .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())[0]
 
   const hasBilling = project.quotes.length > 0 || project.invoices.length > 0
+  const invoicedTotal = project.invoices.reduce((s, inv) => s + (inv.totalHT - inv.depositDeducted), 0)
+  const invoicedReceived = project.invoices
+    .filter((inv) => inv.status === "PAID")
+    .reduce((s, inv) => s + (inv.totalHT - inv.depositDeducted), 0)
+
+  const hasRevenue = project.revenues.length > 0
+  const totalRevenue = project.revenues.reduce((s, r) => s + r.amount, 0)
+  const receivedRevenue = project.revenues
+    .filter((r) => r.status === "RECEIVED")
+    .reduce((s, r) => s + r.amount, 0)
 
   return (
     <div className="space-y-6">
@@ -326,6 +346,22 @@ export default async function ProjectOverviewPage({
                 Facturation →
               </Link>
 
+              {invoicedTotal > 0 && (
+                <div className="space-y-1">
+                  <div className="flex items-baseline justify-between">
+                    <p className="text-lg font-bold">
+                      {invoicedReceived.toLocaleString("fr-FR")} <span className="text-xs font-normal text-muted-foreground">/ {invoicedTotal.toLocaleString("fr-FR")} € reçus</span>
+                    </p>
+                  </div>
+                  <div className="h-1 rounded-full bg-muted overflow-hidden">
+                    <div
+                      className="h-full rounded-full bg-emerald-500 transition-all"
+                      style={{ width: `${Math.min(100, Math.round((invoicedReceived / invoicedTotal) * 100))}%` }}
+                    />
+                  </div>
+                </div>
+              )}
+
               {project.quotes.length > 0 && (
                 <div className="space-y-1.5">
                   <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide flex items-center gap-1">
@@ -374,6 +410,38 @@ export default async function ProjectOverviewPage({
                   })}
                 </div>
               )}
+            </div>
+          ) : hasRevenue ? (
+            <div className="rounded-xl border border-border/50 bg-card p-5 space-y-4">
+              <Link href="/revenus" className="flex items-center gap-2 font-semibold text-sm hover:text-primary transition-colors">
+                <Receipt className="h-4 w-4 text-muted-foreground" />
+                Revenus →
+              </Link>
+
+              <div className="space-y-1">
+                <p className="text-lg font-bold">
+                  {receivedRevenue.toLocaleString("fr-FR")} <span className="text-xs font-normal text-muted-foreground">/ {totalRevenue.toLocaleString("fr-FR")} € reçus</span>
+                </p>
+                <div className="h-1 rounded-full bg-muted overflow-hidden">
+                  <div
+                    className="h-full rounded-full bg-emerald-500 transition-all"
+                    style={{ width: `${totalRevenue > 0 ? Math.min(100, Math.round((receivedRevenue / totalRevenue) * 100)) : 0}%` }}
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                {project.revenues.map((r) => (
+                  <div key={r.id} className="flex items-center gap-2 text-sm py-0.5">
+                    <span className="text-xs text-muted-foreground shrink-0">{REVENUE_TYPE_LABELS[r.type] ?? r.type}</span>
+                    <span className="flex-1 truncate">{r.label}</span>
+                    <span className={`shrink-0 rounded-full px-1.5 py-0.5 text-xs font-medium ${revenueStatusCls[r.status] ?? ""}`}>
+                      {revenueStatusLabel[r.status] ?? r.status}
+                    </span>
+                    <span className="ml-auto shrink-0 text-xs font-medium tabular-nums">{r.amount.toLocaleString("fr-FR")} €</span>
+                  </div>
+                ))}
+              </div>
             </div>
           ) : (
             <div className="rounded-xl border border-dashed border-border/50 p-5 text-center space-y-1">

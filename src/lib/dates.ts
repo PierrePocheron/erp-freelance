@@ -24,13 +24,14 @@ export function daysLate(dueDate: Date | null | undefined, now: Date = new Date(
   return Math.ceil((now.getTime() - new Date(dueDate).getTime()) / DAY_MS)
 }
 
-export type RecurringFrequency = "MONTHLY" | "QUARTERLY" | "YEARLY"
+export type RecurringFrequency = "WEEKLY" | "MONTHLY" | "QUARTERLY" | "YEARLY"
 
 // Avance une date selon la fréquence d'une facture récurrente. Une fréquence
 // inconnue laisse la date inchangée (comportement historique).
 export function advanceByFrequency(date: Date, frequency: string): Date {
   const next = new Date(date)
-  if (frequency === "MONTHLY") next.setMonth(next.getMonth() + 1)
+  if (frequency === "WEEKLY") next.setDate(next.getDate() + 7)
+  else if (frequency === "MONTHLY") next.setMonth(next.getMonth() + 1)
   else if (frequency === "QUARTERLY") next.setMonth(next.getMonth() + 3)
   else if (frequency === "YEARLY") next.setFullYear(next.getFullYear() + 1)
   return next

@@ -726,6 +726,7 @@ enum InvoiceStatus {
 }
 
 enum RecurringFrequency {
+  WEEKLY
   MONTHLY
   QUARTERLY
   YEARLY

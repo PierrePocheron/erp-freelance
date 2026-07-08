@@ -55,6 +55,10 @@ describe("daysLate", () => {
 
 describe("advanceByFrequency", () => {
   const base = new Date("2026-01-31T00:00:00Z")
+  it("WEEKLY → +7 jours", () => {
+    const out = advanceByFrequency(new Date("2026-01-15T00:00:00Z"), "WEEKLY")
+    expect(out.toISOString()).toBe("2026-01-22T00:00:00.000Z")
+  })
   it("MONTHLY → +1 mois", () => {
     expect(advanceByFrequency(base, "MONTHLY").getMonth()).toBe(2) // mars (31 jan + 1 mois normalisé)
   })
@@ -68,7 +72,7 @@ describe("advanceByFrequency", () => {
   })
   it("fréquence inconnue → date inchangée", () => {
     const src = new Date("2026-01-15T00:00:00Z")
-    expect(advanceByFrequency(src, "WEEKLY").getTime()).toBe(src.getTime())
+    expect(advanceByFrequency(src, "DAILY").getTime()).toBe(src.getTime())
   })
   it("ne mute pas l'argument", () => {
     const src = new Date("2026-01-15T00:00:00Z")
@@ -126,12 +130,20 @@ describe("getOccurrencesInRange", () => {
   })
 
   it("fréquence inconnue avec start déjà dans la fenêtre → cette seule occurrence (pas de projection)", () => {
-    const out = getOccurrencesInRange(new Date("2026-01-01T00:00:00Z"), "WEEKLY", new Date("2026-01-01T00:00:00Z"), new Date("2026-03-01T00:00:00Z"))
+    const out = getOccurrencesInRange(new Date("2026-01-01T00:00:00Z"), "DAILY", new Date("2026-01-01T00:00:00Z"), new Date("2026-03-01T00:00:00Z"))
     expect(out.map(d => d.toISOString().slice(0, 10))).toEqual(["2026-01-01"])
   })
 
   it("fréquence inconnue avec start hors fenêtre → aucune occurrence (pas de boucle infinie)", () => {
-    const out = getOccurrencesInRange(new Date("2025-01-01T00:00:00Z"), "WEEKLY", new Date("2026-01-01T00:00:00Z"), new Date("2026-03-01T00:00:00Z"))
+    const out = getOccurrencesInRange(new Date("2025-01-01T00:00:00Z"), "DAILY", new Date("2026-01-01T00:00:00Z"), new Date("2026-03-01T00:00:00Z"))
     expect(out).toEqual([])
+  })
+
+  it("WEEKLY sur une fenêtre d'un mois → plusieurs occurrences hebdomadaires", () => {
+    const start = new Date("2026-01-05T00:00:00Z")
+    const from  = new Date("2026-01-01T00:00:00Z")
+    const to    = new Date("2026-01-31T00:00:00Z")
+    const out = getOccurrencesInRange(start, "WEEKLY", from, to)
+    expect(out.map(d => d.toISOString().slice(0, 10))).toEqual(["2026-01-05", "2026-01-12", "2026-01-19", "2026-01-26"])
   })
 })

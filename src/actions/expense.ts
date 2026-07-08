@@ -125,7 +125,7 @@ export type RecurringExpenseInput = {
   label: string
   amount: number
   scope: "PRO" | "PERSO"
-  frequency: "MONTHLY" | "QUARTERLY" | "YEARLY" | "CUSTOM"
+  frequency: "WEEKLY" | "MONTHLY" | "QUARTERLY" | "YEARLY" | "CUSTOM"
   nextGenerationDate: Date
   categoryId?: string | null
   notes?: string | null

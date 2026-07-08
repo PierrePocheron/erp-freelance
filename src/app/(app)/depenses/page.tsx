@@ -10,10 +10,19 @@ import { ExpenseCategoryManager } from "@/components/modules/depenses/ExpenseCat
 const fmt = (n: number) => n.toLocaleString("fr-FR", { maximumFractionDigits: 0 })
 
 function monthlyEquivalent(amount: number, frequency: string): number {
+  if (frequency === "WEEKLY") return (amount * 52) / 12
   if (frequency === "MONTHLY") return amount
   if (frequency === "QUARTERLY") return amount / 3
   if (frequency === "YEARLY") return amount / 12
-  return 0 // CUSTOM : cadence inconnue, exclue de l'estimation mensuelle
+  return 0 // CUSTOM : cadence inconnue, exclue des estimations
+}
+
+function yearlyEquivalent(amount: number, frequency: string): number {
+  if (frequency === "WEEKLY") return amount * 52
+  if (frequency === "MONTHLY") return amount * 12
+  if (frequency === "QUARTERLY") return amount * 4
+  if (frequency === "YEARLY") return amount
+  return 0 // CUSTOM : cadence inconnue, exclue des estimations
 }
 
 export default async function DepensesPage({
@@ -51,6 +60,7 @@ export default async function DepensesPage({
   const persoTotal = monthExpenses.filter((e) => e.scope === "PERSO").reduce((s, e) => s + e.amount, 0)
 
   const monthlyRecurringTotal = recurringExpenses.reduce((s, r) => s + monthlyEquivalent(r.amount, r.frequency), 0)
+  const yearlyRecurringTotal = recurringExpenses.reduce((s, r) => s + yearlyEquivalent(r.amount, r.frequency), 0)
 
   // Répartition par catégorie (donut) — mois courant, filtrée par portée si sélectionnée
   const byCategory = new Map<string, DonutSegment>()
@@ -100,13 +110,25 @@ export default async function DepensesPage({
         </div>
       </div>
 
-      {monthlyRecurringTotal > 0 && (
-        <div className="rounded-xl border border-border/50 bg-card p-4 flex items-center gap-3">
-          <Repeat className="h-4 w-4 text-muted-foreground shrink-0" />
-          <p className="text-sm">
-            <span className="font-semibold tabular-nums">{fmt(monthlyRecurringTotal)} €</span>
-            <span className="text-muted-foreground"> minimum par mois via vos dépenses récurrentes actives</span>
-          </p>
+      {/* Estimations récurrentes — normalisées par mois/an quelle que soit la fréquence */}
+      {recurringExpenses.length > 0 && (
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div className="rounded-xl border border-border/50 bg-card p-4 space-y-1">
+            <div className="flex items-center gap-2 text-muted-foreground text-xs">
+              <Repeat className="h-3.5 w-3.5" />
+              Estimation par mois
+            </div>
+            <p className="text-2xl font-bold tabular-nums">{fmt(monthlyRecurringTotal)} €</p>
+            <p className="text-xs text-muted-foreground">via les dépenses récurrentes actives</p>
+          </div>
+          <div className="rounded-xl border border-border/50 bg-card p-4 space-y-1">
+            <div className="flex items-center gap-2 text-muted-foreground text-xs">
+              <Repeat className="h-3.5 w-3.5" />
+              Estimation par an
+            </div>
+            <p className="text-2xl font-bold tabular-nums">{fmt(yearlyRecurringTotal)} €</p>
+            <p className="text-xs text-muted-foreground">via les dépenses récurrentes actives</p>
+          </div>
         </div>
       )}
 

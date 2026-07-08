@@ -1,11 +1,12 @@
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import Link from "next/link"
-import { TrendingDown, Repeat, ArrowRight } from "lucide-react"
-import { getOrCreateDefaultExpenseCategories } from "@/actions/expense"
+import { TrendingDown, Repeat, Play, Pause } from "lucide-react"
+import { getOrCreateDefaultExpenseCategories, toggleRecurringExpenseActive, generatePendingRecurringExpenses } from "@/actions/expense"
 import { ExpenseDonutChart, type DonutSegment } from "@/components/modules/depenses/ExpenseDonutChart"
 import { ExpenseDialog } from "@/components/modules/depenses/ExpenseDialog"
 import { ExpenseCategoryManager } from "@/components/modules/depenses/ExpenseCategoryManager"
+import { RecurringExpenseDialog, FREQUENCY_LABELS } from "@/components/modules/depenses/RecurringExpenseDialog"
 
 const fmt = (n: number) => n.toLocaleString("fr-FR", { maximumFractionDigits: 0 })
 
@@ -48,9 +49,16 @@ export default async function DepensesPage({
       include: { category: { select: { id: true, name: true, color: true } } },
     }),
     prisma.recurringExpense.findMany({
-      where: { userId, isActive: true },
+      where: { userId },
+      orderBy: { createdAt: "asc" },
+      include: {
+        category: { select: { id: true, name: true, color: true } },
+        _count: { select: { expenses: true } },
+      },
     }),
   ])
+
+  const activeRecurring = recurringExpenses.filter((r) => r.isActive)
 
   const monthExpenses = expenses.filter((e) => e.date >= monthStart && e.date <= monthEnd)
   const filteredMonthExpenses = scopeFilter ? monthExpenses.filter((e) => e.scope === scopeFilter) : monthExpenses
@@ -59,8 +67,8 @@ export default async function DepensesPage({
   const proTotal = monthExpenses.filter((e) => e.scope === "PRO").reduce((s, e) => s + e.amount, 0)
   const persoTotal = monthExpenses.filter((e) => e.scope === "PERSO").reduce((s, e) => s + e.amount, 0)
 
-  const monthlyRecurringTotal = recurringExpenses.reduce((s, r) => s + monthlyEquivalent(r.amount, r.frequency), 0)
-  const yearlyRecurringTotal = recurringExpenses.reduce((s, r) => s + yearlyEquivalent(r.amount, r.frequency), 0)
+  const monthlyRecurringTotal = activeRecurring.reduce((s, r) => s + monthlyEquivalent(r.amount, r.frequency), 0)
+  const yearlyRecurringTotal = activeRecurring.reduce((s, r) => s + yearlyEquivalent(r.amount, r.frequency), 0)
 
   // Répartition par catégorie (donut) — mois courant, filtrée par portée si sélectionnée
   const byCategory = new Map<string, DonutSegment>()
@@ -81,14 +89,7 @@ export default async function DepensesPage({
             Suivi des dépenses pro et perso, par catégorie
           </p>
         </div>
-        <div className="flex items-center gap-3">
-          <Link href="/depenses/recurrentes" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors">
-            <Repeat className="h-4 w-4" />
-            Récurrentes
-            <ArrowRight className="h-3.5 w-3.5" />
-          </Link>
-          <ExpenseDialog categories={categories} />
-        </div>
+        <ExpenseDialog categories={categories} />
       </div>
 
       {/* Stats du mois */}
@@ -111,7 +112,7 @@ export default async function DepensesPage({
       </div>
 
       {/* Estimations récurrentes — normalisées par mois/an quelle que soit la fréquence */}
-      {recurringExpenses.length > 0 && (
+      {activeRecurring.length > 0 && (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div className="rounded-xl border border-border/50 bg-card p-4 space-y-1">
             <div className="flex items-center gap-2 text-muted-foreground text-xs">
@@ -183,6 +184,59 @@ export default async function DepensesPage({
             </div>
           )}
         </div>
+      </div>
+
+      {/* Dépenses récurrentes */}
+      <div className="rounded-xl border border-border/50 bg-card p-5 space-y-4">
+        <div className="flex items-center justify-between flex-wrap gap-3">
+          <h2 className="font-semibold text-sm">Dépenses récurrentes</h2>
+          <div className="flex items-center gap-2">
+            <form action={async () => { "use server"; await generatePendingRecurringExpenses() }}>
+              <button type="submit" className="inline-flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-xs font-medium hover:bg-muted transition-colors">
+                <Repeat className="h-3.5 w-3.5" />
+                Générer les dépenses en attente
+              </button>
+            </form>
+            <RecurringExpenseDialog categories={categories} />
+          </div>
+        </div>
+
+        {recurringExpenses.length === 0 ? (
+          <p className="text-xs text-muted-foreground italic">Aucune dépense récurrente pour l&apos;instant</p>
+        ) : (
+          <div className="divide-y divide-border/50">
+            {recurringExpenses.map((r) => (
+              <div key={r.id} className={`flex items-center gap-3 py-3 group ${!r.isActive ? "opacity-50" : ""}`}>
+                <span className="h-2.5 w-2.5 rounded-full shrink-0" style={{ backgroundColor: r.category?.color ?? "#94a3b8" }} />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium truncate">{r.label}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {r.category?.name ?? "Sans catégorie"} · {FREQUENCY_LABELS[r.frequency]} · {r._count.expenses} générée{r._count.expenses > 1 ? "s" : ""}
+                  </p>
+                </div>
+                <span className={`shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-medium ${r.scope === "PRO" ? "bg-indigo-500/15 text-indigo-600" : "bg-slate-500/15 text-slate-600"}`}>
+                  {r.scope === "PRO" ? "Pro" : "Perso"}
+                </span>
+                <span className="shrink-0 text-xs text-muted-foreground whitespace-nowrap">
+                  Prochaine : {new Date(r.nextGenerationDate).toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" })}
+                </span>
+                <span className="shrink-0 text-sm font-medium tabular-nums w-16 text-right">{fmt(r.amount)} €</span>
+                <form action={async () => { "use server"; await toggleRecurringExpenseActive(r.id, !r.isActive) }}>
+                  <button type="submit" className="text-muted-foreground hover:text-foreground transition-colors" title={r.isActive ? "Mettre en pause" : "Réactiver"}>
+                    {r.isActive ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}
+                  </button>
+                </form>
+                <RecurringExpenseDialog
+                  categories={categories}
+                  recurringExpense={{
+                    id: r.id, label: r.label, amount: r.amount, scope: r.scope, frequency: r.frequency,
+                    nextGenerationDate: r.nextGenerationDate, categoryId: r.categoryId, notes: r.notes,
+                  }}
+                />
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       <div className="rounded-xl border border-border/50 bg-card p-5 space-y-3">

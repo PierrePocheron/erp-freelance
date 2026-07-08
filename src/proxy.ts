@@ -18,14 +18,7 @@ export default auth((req) => {
   const nonce = btoa(crypto.randomUUID())
   const csp = [
     "default-src 'self'",
-    // Le hash correspond au script inline theme-init de src/app/layout.tsx (contenu
-    // statique, jamais interpolé) — un hash plutôt qu'un nonce pour ce script précis
-    // évite le mismatch d'hydratation React sur l'attribut `nonce` (le navigateur le
-    // vide côté client une fois le <script> inséré). Si src/lib/theme-init-script.ts
-    // change, copier le nouveau texte (celui exporté par THEME_INIT_SCRIPT) dans la
-    // commande ci-dessous à la place de <script> puis régénérer :
-    //   node -e "console.log('sha256-'+require('crypto').createHash('sha256').update(\`<script>\`,'utf8').digest('base64'))"
-    `script-src 'self' 'nonce-${nonce}' 'sha256-4ZL0/Isl0Re3iZNnJPyj2WzyqZq4cdGJruf6dTAdxRo=' 'strict-dynamic' 'unsafe-eval'`,
+    `script-src 'self' 'nonce-${nonce}' 'strict-dynamic' 'unsafe-eval'`,
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' blob: data: https:",
     "font-src 'self'",

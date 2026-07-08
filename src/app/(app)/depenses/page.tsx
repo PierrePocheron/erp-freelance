@@ -5,7 +5,6 @@ import { TrendingDown, Repeat, Play, Pause } from "lucide-react"
 import { getOrCreateDefaultExpenseCategories, toggleRecurringExpenseActive, generatePendingRecurringExpenses } from "@/actions/expense"
 import { ExpenseDonutChart, type DonutSegment } from "@/components/modules/depenses/ExpenseDonutChart"
 import { ExpenseDialog } from "@/components/modules/depenses/ExpenseDialog"
-import { ExpenseCategoryManager } from "@/components/modules/depenses/ExpenseCategoryManager"
 import { RecurringExpenseDialog, FREQUENCY_LABELS } from "@/components/modules/depenses/RecurringExpenseDialog"
 
 const fmt = (n: number) => n.toLocaleString("fr-FR", { maximumFractionDigits: 0 })
@@ -190,15 +189,12 @@ export default async function DepensesPage({
       <div className="rounded-xl border border-border/50 bg-card p-5 space-y-4">
         <div className="flex items-center justify-between flex-wrap gap-3">
           <h2 className="font-semibold text-sm">Dépenses récurrentes</h2>
-          <div className="flex items-center gap-2">
-            <form action={async () => { "use server"; await generatePendingRecurringExpenses() }}>
-              <button type="submit" className="inline-flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-xs font-medium hover:bg-muted transition-colors">
-                <Repeat className="h-3.5 w-3.5" />
-                Générer les dépenses en attente
-              </button>
-            </form>
-            <RecurringExpenseDialog categories={categories} />
-          </div>
+          <form action={async () => { "use server"; await generatePendingRecurringExpenses() }}>
+            <button type="submit" className="inline-flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-xs font-medium hover:bg-muted transition-colors">
+              <Repeat className="h-3.5 w-3.5" />
+              Générer les dépenses en attente
+            </button>
+          </form>
         </div>
 
         {recurringExpenses.length === 0 ? (
@@ -237,11 +233,6 @@ export default async function DepensesPage({
             ))}
           </div>
         )}
-      </div>
-
-      <div className="rounded-xl border border-border/50 bg-card p-5 space-y-3">
-        <h2 className="font-semibold text-sm">Catégories</h2>
-        <ExpenseCategoryManager initialCategories={categories} />
       </div>
     </div>
   )

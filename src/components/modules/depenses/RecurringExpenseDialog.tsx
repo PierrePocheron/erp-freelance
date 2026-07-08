@@ -9,7 +9,7 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger,
 } from "@/components/ui/dialog"
 import { createRecurringExpense, updateRecurringExpense, deleteRecurringExpense } from "@/actions/expense"
-import type { ExpenseCategory } from "./ExpenseCategoryManager"
+import { ExpenseCategoryCombobox, type ExpenseCategory } from "./ExpenseCategoryCombobox"
 
 export const FREQUENCY_LABELS: Record<string, string> = {
   WEEKLY: "Hebdomadaire",
@@ -144,14 +144,7 @@ export function RecurringExpenseDialog({
           </div>
           <div className="space-y-1">
             <label className="text-xs text-muted-foreground">Catégorie</label>
-            <select
-              value={categoryId}
-              onChange={e => setCategoryId(e.target.value)}
-              className="flex h-9 w-full rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
-            >
-              <option value="">Sans catégorie</option>
-              {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-            </select>
+            <ExpenseCategoryCombobox categories={categories} value={categoryId} onChange={setCategoryId} />
           </div>
           <div className="space-y-1">
             <label className="text-xs text-muted-foreground">Notes (optionnel)</label>

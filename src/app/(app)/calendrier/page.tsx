@@ -367,7 +367,7 @@ export default async function CalendrierPage() {
         title: r.label,
         subtitle: `${r.category?.name ?? "Sans catégorie"} · ${r.amount.toLocaleString("fr-FR")} €`,
         type: "expense" as const,
-        href: "/depenses/recurrentes",
+        href: "/depenses",
         categoryColor: r.category?.color ?? null,
       }))
     ),

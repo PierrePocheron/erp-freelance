@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Poppins } from "next/font/google";
 import { Toaster } from "sonner";
+import Script from "next/script";
 import { THEME_INIT_SCRIPT } from "@/lib/theme-init-script";
 import "./globals.css";
 
@@ -28,14 +29,16 @@ export default function RootLayout({
     >
       <body className="h-full overflow-hidden bg-background text-foreground" suppressHydrationWarning>
         {/* Script de thème inliné — doit s'exécuter avant tout rendu pour éviter le flash.
-            <script> brut (pas next/script) : c'est le premier enfant de <body>, donc il
-            s'exécute dès son parsing, avant le reste du contenu — pas besoin de la file
-            d'attente beforeInteractive de next/script pour ça. Pas de nonce non plus :
-            contenu statique autorisé en CSP via un hash (src/proxy.ts) plutôt qu'un nonce,
-            ce qui évite le mismatch d'hydratation React sur l'attribut `nonce` (vidé côté
-            client par le navigateur une fois le script inséré — cf. THEME_INIT_SCRIPT). */}
-        <script
-          suppressHydrationWarning
+            Un <script> JSX brut ici déclenche "Encountered a script tag while rendering" côté
+            React 19/Turbopack dev (le nœud n'est pas hydraté, il est recréé côté client) — donc
+            next/script (beforeInteractive) reste nécessaire malgré le mismatch nonce résiduel
+            ci-dessous (cosmétique : next/script source son propre nonce depuis le contexte
+            HeadManagerContext de Next, disponible seulement en SSR — suppressHydrationWarning
+            ne peut pas l'atteindre, next/script ne le transmet pas à l'élément réellement rendu
+            pour un script beforeInteractive inline). Sans conséquence fonctionnelle. */}
+        <Script
+          id="theme-init"
+          strategy="beforeInteractive"
           dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }}
         />
         {children}

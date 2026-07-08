@@ -8,8 +8,9 @@ import { Input } from "@/components/ui/input"
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger,
 } from "@/components/ui/dialog"
-import { createExpense, updateExpense, deleteExpense } from "@/actions/expense"
-import type { ExpenseCategory } from "./ExpenseCategoryManager"
+import { createExpense, updateExpense, deleteExpense, createRecurringExpense } from "@/actions/expense"
+import { ExpenseCategoryCombobox, type ExpenseCategory } from "./ExpenseCategoryCombobox"
+import { FREQUENCY_LABELS } from "./RecurringExpenseDialog"
 
 export type ExpenseForEdit = {
   id: string
@@ -40,16 +41,17 @@ export function ExpenseDialog({
   const [scope, setScope]           = useState<"PRO" | "PERSO">(expense?.scope ?? "PERSO")
   const [categoryId, setCategoryId] = useState(expense?.categoryId ?? "")
   const [notes, setNotes]           = useState(expense?.notes ?? "")
+  const [isRecurring, setIsRecurring] = useState(false)
+  const [frequency, setFrequency]   = useState<"WEEKLY" | "MONTHLY" | "QUARTERLY" | "YEARLY">("MONTHLY")
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     const amountNum = parseFloat(amount.replace(",", "."))
     if (!label.trim() || !date || !amountNum || amountNum <= 0) return
 
-    const payload = {
+    const shared = {
       label: label.trim(),
       amount: amountNum,
-      date: new Date(`${date}T00:00:00`),
       scope,
       categoryId: categoryId || null,
       notes: notes.trim() || null,
@@ -57,9 +59,11 @@ export function ExpenseDialog({
 
     startTransition(async () => {
       if (isEdit) {
-        await updateExpense(expense.id, payload)
+        await updateExpense(expense.id, { ...shared, date: new Date(`${date}T00:00:00`) })
+      } else if (isRecurring) {
+        await createRecurringExpense({ ...shared, frequency, nextGenerationDate: new Date(`${date}T00:00:00`) })
       } else {
-        await createExpense(payload)
+        await createExpense({ ...shared, date: new Date(`${date}T00:00:00`) })
       }
       setOpen(false)
       router.refresh()
@@ -104,10 +108,36 @@ export function ExpenseDialog({
               <Input type="text" inputMode="decimal" value={amount} onChange={e => setAmount(e.target.value)} placeholder="0.00" required />
             </div>
             <div className="space-y-1">
-              <label className="text-xs text-muted-foreground">Date</label>
+              <label className="text-xs text-muted-foreground">{isRecurring ? "Prochaine échéance" : "Date"}</label>
               <Input type="date" value={date} onChange={e => setDate(e.target.value)} required />
             </div>
           </div>
+
+          {!isEdit && (
+            <label className="flex items-center gap-2 text-sm cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={isRecurring}
+                onChange={e => setIsRecurring(e.target.checked)}
+                className="h-4 w-4 rounded border-input accent-primary"
+              />
+              Dépense récurrente
+            </label>
+          )}
+
+          {isRecurring && !isEdit && (
+            <div className="space-y-1">
+              <label className="text-xs text-muted-foreground">Fréquence</label>
+              <select
+                value={frequency}
+                onChange={e => setFrequency(e.target.value as typeof frequency)}
+                className="flex h-9 w-full rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+              >
+                {Object.entries(FREQUENCY_LABELS).filter(([v]) => v !== "CUSTOM").map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+              </select>
+            </div>
+          )}
+
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
               <label className="text-xs text-muted-foreground">Portée</label>
@@ -122,14 +152,7 @@ export function ExpenseDialog({
             </div>
             <div className="space-y-1">
               <label className="text-xs text-muted-foreground">Catégorie</label>
-              <select
-                value={categoryId}
-                onChange={e => setCategoryId(e.target.value)}
-                className="flex h-9 w-full rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
-              >
-                <option value="">Sans catégorie</option>
-                {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-              </select>
+              <ExpenseCategoryCombobox categories={categories} value={categoryId} onChange={setCategoryId} />
             </div>
           </div>
           <div className="space-y-1">

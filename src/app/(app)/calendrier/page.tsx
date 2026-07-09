@@ -156,8 +156,9 @@ export default async function CalendrierPage() {
       },
     }),
     // Dépenses récurrentes actives : projetées à la volée (pas de lignes en base)
+    // dateToConfirm exclue : pas de date réelle à partir de laquelle projeter des occurrences
     prisma.recurringExpense.findMany({
-      where: { userId, isActive: true },
+      where: { userId, isActive: true, dateToConfirm: false },
       include: { category: { select: { name: true, color: true } } },
     }),
   ])

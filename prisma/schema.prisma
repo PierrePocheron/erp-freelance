@@ -1158,6 +1158,7 @@ model RecurringExpense {
   currency           String             @default("EUR")
   frequency          RecurringFrequency @default(MONTHLY)
   nextGenerationDate DateTime
+  dateToConfirm      Boolean            @default(false) // date de prélèvement pas encore connue — exclue de la génération auto et de la projection calendrier
   isActive           Boolean            @default(true)
   notes              String?
 

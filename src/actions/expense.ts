@@ -127,6 +127,7 @@ export type RecurringExpenseInput = {
   scope: "PRO" | "PERSO"
   frequency: "WEEKLY" | "MONTHLY" | "QUARTERLY" | "YEARLY" | "CUSTOM"
   nextGenerationDate: Date
+  dateToConfirm?: boolean
   categoryId?: string | null
   notes?: string | null
 }
@@ -141,6 +142,7 @@ export async function createRecurringExpense(data: RecurringExpenseInput) {
       scope: data.scope,
       frequency: data.frequency,
       nextGenerationDate: data.nextGenerationDate,
+      dateToConfirm: data.dateToConfirm ?? false,
       categoryId: data.categoryId ?? null,
       notes: data.notes?.trim() || null,
     },
@@ -163,6 +165,7 @@ export async function updateRecurringExpense(recurringExpenseId: string, data: R
       scope: data.scope,
       frequency: data.frequency,
       nextGenerationDate: data.nextGenerationDate,
+      dateToConfirm: data.dateToConfirm ?? false,
       categoryId: data.categoryId ?? null,
       notes: data.notes?.trim() || null,
     },
@@ -197,6 +200,7 @@ export async function generateExpenseFromRecurring(recurringExpenseId: string): 
   const userId = await requireAuth()
   const recurring = await prisma.recurringExpense.findFirst({ where: { id: recurringExpenseId, userId } })
   if (!recurring) throw new Error("Dépense récurrente introuvable")
+  if (recurring.dateToConfirm) throw new Error("Date de prélèvement à confirmer avant de générer")
 
   const expense = await prisma.expense.create({
     data: {
@@ -229,7 +233,7 @@ export async function generateExpenseFromRecurring(recurringExpenseId: string): 
  */
 export async function generatePendingRecurringExpenses(): Promise<{ generated: number }> {
   const userId = await requireAuth()
-  const recs = await prisma.recurringExpense.findMany({ where: { userId, isActive: true } })
+  const recs = await prisma.recurringExpense.findMany({ where: { userId, isActive: true, dateToConfirm: false } })
 
   const now = new Date()
   let generated = 0

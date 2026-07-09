@@ -27,8 +27,9 @@ const milestoneColors = {
   UPCOMING: "bg-muted text-muted-foreground border-border",
   IN_PROGRESS: "bg-amber-500/15 text-amber-600 border-amber-500/20",
   DONE: "bg-emerald-500/15 text-emerald-600 border-emerald-500/20",
+  CANCELLED: "bg-red-500/15 text-red-600 border-red-500/20",
 }
-const milestoneLabels = { UPCOMING: "À venir", IN_PROGRESS: "En cours", DONE: "Terminé" }
+const milestoneLabels = { UPCOMING: "À venir", IN_PROGRESS: "En cours", DONE: "Terminé", CANCELLED: "Annulé" }
 
 function fmtTime(d: Date | string) {
   return new Date(d).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })

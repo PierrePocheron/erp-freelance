@@ -264,6 +264,24 @@ export async function getOrCreateErpCalendar(accessToken: string): Promise<strin
   return created.id
 }
 
+/**
+ * Retourne l'id de l'agenda Google dédié "ERP Freelance", en le créant au besoin,
+ * et le mémorise sur l'utilisateur. Retourne null si indisponible.
+ */
+export async function getErpCalendarId(userId: string, accessToken: string): Promise<string | null> {
+  const rows = await prisma.$queryRaw<{ googleErpCalendarId: string | null }[]>`
+    SELECT "googleErpCalendarId" FROM "User" WHERE id = ${userId} LIMIT 1
+  `
+  const stored = rows[0]?.googleErpCalendarId
+  if (stored) return stored
+
+  const calendarId = await getOrCreateErpCalendar(accessToken)
+  await prisma.$executeRaw`
+    UPDATE "User" SET "googleErpCalendarId" = ${calendarId} WHERE id = ${userId}
+  `
+  return calendarId
+}
+
 // ── Écriture (ERP → Google) ────────────────────────────────────────────────────
 
 /**

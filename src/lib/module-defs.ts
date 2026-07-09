@@ -2,6 +2,7 @@
 
 export type ModuleId =
   | "contacts"
+  | "prospection"
   | "societes"
   | "facturation"
   | "revenus"
@@ -47,6 +48,10 @@ export const MODULE_DEFS: ModuleDef[] = [
   {
     id: "taches", label: "Tâches", icon: "✅", category: "core", defaultActive: true,
     description: "Gestion des tâches et kanban global",
+  },
+  {
+    id: "prospection", label: "Prospection", icon: "🎯", category: "recommended", defaultActive: true,
+    description: "Pipeline de démarchage : import CSV, suivi des contacts et emailing",
   },
   {
     id: "societes", label: "Sociétés", icon: "🏢", category: "recommended", defaultActive: true,

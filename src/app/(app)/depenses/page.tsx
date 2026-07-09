@@ -59,6 +59,15 @@ export default async function DepensesPage({
 
   const activeRecurring = recurringExpenses.filter((r) => r.isActive)
 
+  type ExpenseRow =
+    | { kind: "ONE"; sortDate: Date; e: (typeof expenses)[number] }
+    | { kind: "RECURRING"; sortDate: Date; r: (typeof recurringExpenses)[number] }
+
+  const expenseRows: ExpenseRow[] = [
+    ...expenses.map((e) => ({ kind: "ONE" as const, sortDate: e.date, e })),
+    ...recurringExpenses.map((r) => ({ kind: "RECURRING" as const, sortDate: r.nextGenerationDate, r })),
+  ].sort((a, b) => b.sortDate.getTime() - a.sortDate.getTime())
+
   const monthExpenses = expenses.filter((e) => e.date >= monthStart && e.date <= monthEnd)
   const filteredMonthExpenses = scopeFilter ? monthExpenses.filter((e) => e.scope === scopeFilter) : monthExpenses
 
@@ -158,81 +167,69 @@ export default async function DepensesPage({
         </div>
 
         <div className="rounded-xl border border-border/50 bg-card p-5 space-y-4 lg:col-span-2">
-          <h2 className="font-semibold text-sm">Dépenses récentes</h2>
-          {expenses.length === 0 ? (
+          <div className="flex items-center justify-between flex-wrap gap-3">
+            <h2 className="font-semibold text-sm">Dépenses</h2>
+            <form action={async () => { "use server"; await generatePendingRecurringExpenses() }}>
+              <button type="submit" className="inline-flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-xs font-medium hover:bg-muted transition-colors">
+                <Repeat className="h-3.5 w-3.5" />
+                Générer les dépenses en attente
+              </button>
+            </form>
+          </div>
+          {expenseRows.length === 0 ? (
             <p className="text-xs text-muted-foreground italic">Aucune dépense enregistrée</p>
           ) : (
-            <div className="space-y-1.5 max-h-[420px] overflow-y-auto pr-1">
-              {expenses.map((e) => (
-                <div key={e.id} className="flex items-center gap-3 py-1.5 group">
-                  <span className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: e.category?.color ?? "#94a3b8" }} />
-                  <span className="flex-1 text-sm truncate min-w-0">{e.label}</span>
-                  <span className={`shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-medium ${e.scope === "PRO" ? "bg-indigo-500/15 text-indigo-600" : "bg-slate-500/15 text-slate-600"}`}>
-                    {e.scope === "PRO" ? "Pro" : "Perso"}
+            <div className="space-y-1.5 max-h-[520px] overflow-y-auto pr-1">
+              {expenseRows.map((row) => row.kind === "ONE" ? (
+                <div key={`e-${row.e.id}`} className="flex items-center gap-3 py-1.5 group">
+                  <span className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: row.e.category?.color ?? "#94a3b8" }} />
+                  <span className="flex-1 text-sm truncate min-w-0">{row.e.label}</span>
+                  <span className={`shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-medium ${row.e.scope === "PRO" ? "bg-indigo-500/15 text-indigo-600" : "bg-slate-500/15 text-slate-600"}`}>
+                    {row.e.scope === "PRO" ? "Pro" : "Perso"}
+                  </span>
+                  <span className="shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-medium bg-muted text-muted-foreground">
+                    Ponctuelle
                   </span>
                   <span className="shrink-0 text-xs text-muted-foreground whitespace-nowrap">
-                    {new Date(e.date).toLocaleDateString("fr-FR", { day: "numeric", month: "short" })}
+                    {new Date(row.e.date).toLocaleDateString("fr-FR", { day: "numeric", month: "short" })}
                   </span>
-                  <span className="shrink-0 text-sm font-medium tabular-nums w-16 text-right">{fmt(e.amount)} €</span>
+                  <span className="shrink-0 text-sm font-medium tabular-nums w-16 text-right">{fmt(row.e.amount)} €</span>
                   <ExpenseDialog
                     categories={categories}
-                    expense={{ id: e.id, label: e.label, amount: e.amount, date: e.date, scope: e.scope, categoryId: e.categoryId, notes: e.notes }}
+                    expense={{ id: row.e.id, label: row.e.label, amount: row.e.amount, date: row.e.date, scope: row.e.scope, categoryId: row.e.categoryId, notes: row.e.notes }}
+                  />
+                </div>
+              ) : (
+                <div key={`r-${row.r.id}`} className={`flex items-center gap-3 py-1.5 group ${!row.r.isActive ? "opacity-50" : ""}`}>
+                  <span className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: row.r.category?.color ?? "#94a3b8" }} />
+                  <span className="flex-1 text-sm truncate min-w-0">{row.r.label}</span>
+                  <span className={`shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-medium ${row.r.scope === "PRO" ? "bg-indigo-500/15 text-indigo-600" : "bg-slate-500/15 text-slate-600"}`}>
+                    {row.r.scope === "PRO" ? "Pro" : "Perso"}
+                  </span>
+                  <span className="shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-medium bg-primary/10 text-primary">
+                    {FREQUENCY_LABELS[row.r.frequency]}
+                  </span>
+                  <span className="shrink-0 text-xs text-muted-foreground whitespace-nowrap">
+                    {new Date(row.r.nextGenerationDate).toLocaleDateString("fr-FR", { day: "numeric", month: "short" })}
+                  </span>
+                  <span className="shrink-0 text-sm font-medium tabular-nums w-16 text-right">{fmt(row.r.amount)} €</span>
+                  <form action={async () => { "use server"; await toggleRecurringExpenseActive(row.r.id, !row.r.isActive) }}>
+                    <button type="submit" className="text-muted-foreground hover:text-foreground transition-colors" title={row.r.isActive ? "Mettre en pause" : "Réactiver"}>
+                      {row.r.isActive ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}
+                    </button>
+                  </form>
+                  <RecurringExpenseDialog
+                    categories={categories}
+                    recurringExpense={{
+                      id: row.r.id, label: row.r.label, amount: row.r.amount, scope: row.r.scope, frequency: row.r.frequency,
+                      nextGenerationDate: row.r.nextGenerationDate, categoryId: row.r.categoryId, notes: row.r.notes,
+                    }}
                   />
                 </div>
               ))}
             </div>
           )}
         </div>
-      </div>
-
-      {/* Dépenses récurrentes */}
-      <div className="rounded-xl border border-border/50 bg-card p-5 space-y-4">
-        <div className="flex items-center justify-between flex-wrap gap-3">
-          <h2 className="font-semibold text-sm">Dépenses récurrentes</h2>
-          <form action={async () => { "use server"; await generatePendingRecurringExpenses() }}>
-            <button type="submit" className="inline-flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-xs font-medium hover:bg-muted transition-colors">
-              <Repeat className="h-3.5 w-3.5" />
-              Générer les dépenses en attente
-            </button>
-          </form>
-        </div>
-
-        {recurringExpenses.length === 0 ? (
-          <p className="text-xs text-muted-foreground italic">Aucune dépense récurrente pour l&apos;instant</p>
-        ) : (
-          <div className="divide-y divide-border/50">
-            {recurringExpenses.map((r) => (
-              <div key={r.id} className={`flex items-center gap-3 py-3 group ${!r.isActive ? "opacity-50" : ""}`}>
-                <span className="h-2.5 w-2.5 rounded-full shrink-0" style={{ backgroundColor: r.category?.color ?? "#94a3b8" }} />
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium truncate">{r.label}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {r.category?.name ?? "Sans catégorie"} · {FREQUENCY_LABELS[r.frequency]} · {r._count.expenses} générée{r._count.expenses > 1 ? "s" : ""}
-                  </p>
-                </div>
-                <span className={`shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-medium ${r.scope === "PRO" ? "bg-indigo-500/15 text-indigo-600" : "bg-slate-500/15 text-slate-600"}`}>
-                  {r.scope === "PRO" ? "Pro" : "Perso"}
-                </span>
-                <span className="shrink-0 text-xs text-muted-foreground whitespace-nowrap">
-                  Prochaine : {new Date(r.nextGenerationDate).toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" })}
-                </span>
-                <span className="shrink-0 text-sm font-medium tabular-nums w-16 text-right">{fmt(r.amount)} €</span>
-                <form action={async () => { "use server"; await toggleRecurringExpenseActive(r.id, !r.isActive) }}>
-                  <button type="submit" className="text-muted-foreground hover:text-foreground transition-colors" title={r.isActive ? "Mettre en pause" : "Réactiver"}>
-                    {r.isActive ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}
-                  </button>
-                </form>
-                <RecurringExpenseDialog
-                  categories={categories}
-                  recurringExpense={{
-                    id: r.id, label: r.label, amount: r.amount, scope: r.scope, frequency: r.frequency,
-                    nextGenerationDate: r.nextGenerationDate, categoryId: r.categoryId, notes: r.notes,
-                  }}
-                />
-              </div>
-            ))}
-          </div>
-        )}
       </div>
     </div>
   )

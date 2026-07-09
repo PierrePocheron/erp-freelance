@@ -47,6 +47,8 @@ const TYPE_ICON: Record<string, string> = {
   job_application:      "💼",
   health_event:         "🩸",
   health_consultation:  "🥼",
+  expense:              "💸",
+  recurring_expense:    "🔁",
 }
 
 const TYPE_LABEL: Record<string, string> = {
@@ -60,6 +62,8 @@ const TYPE_LABEL: Record<string, string> = {
   job_application:      "Entretien",
   health_event:         "Santé",
   health_consultation:  "Consultation",
+  expense:              "Dépense",
+  recurring_expense:    "Dépense récurrente",
 }
 
 function normalize(s: string) {

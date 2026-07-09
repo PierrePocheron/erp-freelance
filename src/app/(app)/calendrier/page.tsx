@@ -52,7 +52,7 @@ export default async function CalendrierPage() {
       where: {
         OR: [{ project: { userId } }, { client: { userId } }, { userId }],
         dueDate: { gte: from, lte: to },
-        status: { not: "DONE" },
+        status: { notIn: ["DONE", "CANCELLED"] },
         parentTaskId: null,
       },
       include: {
@@ -70,7 +70,7 @@ export default async function CalendrierPage() {
       where: {
         project: { userId },
         date: { gte: from, lte: to },
-        status: { not: "DONE" },
+        status: { notIn: ["DONE", "CANCELLED"] },
       },
       include: {
         project: {

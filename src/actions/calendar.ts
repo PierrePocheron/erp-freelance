@@ -9,7 +9,7 @@ import {
   fetchGoogleEvents,
   pushGoogleEvent,
   deleteGoogleEvent,
-  getOrCreateErpCalendar,
+  getErpCalendarId,
   checkGoogleCalendarStatus,
   type SyncResult,
   type GoogleConnectionStatus,
@@ -325,29 +325,71 @@ export async function deleteCalendarEvent(eventId: string): Promise<void> {
   revalidatePath("/calendrier")
 }
 
+/**
+ * Marque un événement comme annulé (avec raison optionnelle en note libre).
+ */
+export async function cancelCalendarEvent(eventId: string, reason?: string): Promise<void> {
+  const session = await auth()
+  const userId = session!.user.id
+
+  const rows = await prisma.$queryRaw<{ id: string }[]>`
+    SELECT id FROM "CalendarEvent" WHERE id = ${eventId} AND "userId" = ${userId} LIMIT 1
+  `
+  if (!rows[0]) throw new Error("Non autorisé")
+
+  await prisma.$executeRaw`
+    UPDATE "CalendarEvent"
+    SET "cancelledAt" = NOW(), outcome = ${reason?.trim() || null}, "updatedAt" = NOW()
+    WHERE id = ${eventId} AND "userId" = ${userId}
+  `
+  revalidatePath("/calendrier")
+}
+
+/**
+ * Annule l'annulation d'un événement.
+ */
+export async function uncancelCalendarEvent(eventId: string): Promise<void> {
+  const session = await auth()
+  const userId = session!.user.id
+
+  const rows = await prisma.$queryRaw<{ id: string }[]>`
+    SELECT id FROM "CalendarEvent" WHERE id = ${eventId} AND "userId" = ${userId} LIMIT 1
+  `
+  if (!rows[0]) throw new Error("Non autorisé")
+
+  await prisma.$executeRaw`
+    UPDATE "CalendarEvent"
+    SET "cancelledAt" = NULL, "updatedAt" = NOW()
+    WHERE id = ${eventId} AND "userId" = ${userId}
+  `
+  revalidatePath("/calendrier")
+}
+
+/**
+ * Enregistre un compte-rendu post-événement (lève une éventuelle annulation).
+ */
+export async function setCalendarEventOutcome(eventId: string, outcome: string): Promise<void> {
+  const session = await auth()
+  const userId = session!.user.id
+
+  const rows = await prisma.$queryRaw<{ id: string }[]>`
+    SELECT id FROM "CalendarEvent" WHERE id = ${eventId} AND "userId" = ${userId} LIMIT 1
+  `
+  if (!rows[0]) throw new Error("Non autorisé")
+
+  await prisma.$executeRaw`
+    UPDATE "CalendarEvent"
+    SET outcome = ${outcome.trim() || null}, "cancelledAt" = NULL, "updatedAt" = NOW()
+    WHERE id = ${eventId} AND "userId" = ${userId}
+  `
+  revalidatePath("/calendrier")
+}
+
 // ─── Push ERP → Google (événements manuels uniquement) ─────────────────────────
 // Modèle asymétrique décidé : les CalendarEvent MANUAL sont bidirectionnels
 // (last-write-wins + suppression des deux côtés). Les tâches/jalons/factures/
 // renouvellements restent des projections (miroir unidirectionnel — phases B/C).
 // Tout est best-effort : un échec Google ne doit jamais casser l'action ERP.
-
-/**
- * Retourne l'id de l'agenda Google dédié "ERP Freelance", en le créant au besoin,
- * et le mémorise sur l'utilisateur. Retourne null si indisponible.
- */
-async function getErpCalendarId(userId: string, accessToken: string): Promise<string | null> {
-  const rows = await prisma.$queryRaw<{ googleErpCalendarId: string | null }[]>`
-    SELECT "googleErpCalendarId" FROM "User" WHERE id = ${userId} LIMIT 1
-  `
-  const stored = rows[0]?.googleErpCalendarId
-  if (stored) return stored
-
-  const calendarId = await getOrCreateErpCalendar(accessToken)
-  await prisma.$executeRaw`
-    UPDATE "User" SET "googleErpCalendarId" = ${calendarId} WHERE id = ${userId}
-  `
-  return calendarId
-}
 
 /**
  * Pousse un CalendarEvent vers Google (best-effort, silencieux si pas de scope/token).

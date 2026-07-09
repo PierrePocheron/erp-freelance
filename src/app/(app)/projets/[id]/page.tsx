@@ -297,14 +297,16 @@ export default async function ProjectOverviewPage({
             ) : (
               <div className="space-y-1.5">
                 {project.milestones.map((m) => {
-                  const isPast = m.status !== "DONE" && new Date(m.date) < new Date()
+                  const isPast = m.status !== "DONE" && m.status !== "CANCELLED" && new Date(m.date) < new Date()
                   const statusCls =
                     m.status === "DONE" ? "bg-emerald-500/15 text-emerald-600" :
+                    m.status === "CANCELLED" ? "bg-red-500/15 text-red-600" :
                     m.status === "IN_PROGRESS" ? "bg-blue-500/15 text-blue-600" :
                     isPast ? "bg-red-500/15 text-red-600" :
                     "bg-muted text-muted-foreground"
                   const statusLabel =
                     m.status === "DONE" ? "Terminé" :
+                    m.status === "CANCELLED" ? "Annulé" :
                     m.status === "IN_PROGRESS" ? "En cours" :
                     isPast ? "En retard" : "À venir"
                   return (

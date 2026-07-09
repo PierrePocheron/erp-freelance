@@ -34,7 +34,7 @@ export type MilestoneForEdit = {
   date: Date | string
   endDate: Date | string | null
   type: string
-  status: "UPCOMING" | "IN_PROGRESS" | "DONE"
+  status: "UPCOMING" | "IN_PROGRESS" | "DONE" | "CANCELLED"
 }
 
 // Décompose une Date en { date: "YYYY-MM-DD", time: "HH:MM" } pour préremplir les inputs.

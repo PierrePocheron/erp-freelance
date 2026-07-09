@@ -12,20 +12,28 @@ ERP personnel de Pierre (Next.js 16 App Router, Prisma 7 + PostgreSQL/Neon). Pou
 - **Ne jamais lancer `prisma migrate dev`.** Il n'y a pas de base de dev séparée : `DATABASE_URL` dans `.env.local` pointe directement sur **Neon en production**. Voir workflow migrations ci-dessous.
 - **Ne pas lancer de serveur de preview** (`preview_start`/`preview_*`) pour vérifier une modif UI. Pierre teste toujours lui-même en local dans son navigateur — faire `tsc --noEmit` + décrire ce qui est à vérifier visuellement, puis s'arrêter là.
 
+## Node système incompatible — préfixe `PATH=` obligatoire
+
+Le node système par défaut (`/usr/local/bin/node`, v16) est **trop ancien pour Prisma 7 et pour eslint 9** (`structuredClone` indéfini, etc.) — sans le préfixe ci-dessous, `prisma migrate diff/generate/deploy`, `npx tsx prisma/seed.real.ts` et `npx eslint` échouent avec une sortie illisible (dump du bundle minifié plutôt qu'une vraie erreur — piège classique, facile de perdre du temps à croire que c'est le schéma/code qui est en cause). Préfixer **toutes** ces commandes :
+```bash
+PATH="/opt/homebrew/opt/node@22/bin:$PATH" <commande>
+```
+`npx tsc --noEmit` et `npx vitest run`, eux, fonctionnent avec le node système par défaut (pas besoin du préfixe, mais l'ajouter ne casse rien non plus).
+
 ## Migrations Prisma (contre Neon, jamais de `migrate dev`)
 
 ```bash
 # 1. Éditer prisma/schema.prisma
 # 2. Générer le SQL du diff (additive only — jamais de colonne/table supprimée sans avoir demandé)
-npx prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma --script
+PATH="/opt/homebrew/opt/node@22/bin:$PATH" npx prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma --script
 
 # 3. Créer le dossier + fichier manuellement
 mkdir -p prisma/migrations/<YYYYMMDDHHMMSS>_<nom>
 # coller le SQL généré dans prisma/migrations/<...>/migration.sql
 
 # 4. Générer le client + appliquer
-npx prisma generate
-npx prisma migrate deploy
+PATH="/opt/homebrew/opt/node@22/bin:$PATH" npx prisma generate
+PATH="/opt/homebrew/opt/node@22/bin:$PATH" npx prisma migrate deploy
 ```
 
 Ces fichiers de migration sont **versionnés normalement** (contrairement à `seed.real.ts`, voir ci-dessous).
@@ -38,7 +46,6 @@ Ces fichiers de migration sont **versionnés normalement** (contrairement à `se
   ```bash
   PATH="/opt/homebrew/opt/node@22/bin:$PATH" npx tsx prisma/seed.real.ts
   ```
-  (le préfixe `PATH=` est nécessaire — le node système par défaut n'est pas compatible)
 - `TimeEntry.duration` est stocké en **secondes**, pas en minutes (bug déjà rencontré une fois).
 
 ## Système de modules (activation optionnelle)
@@ -70,7 +77,7 @@ Pour les événements **récurrents projetés sans ligne en base** (ex. dépense
 
 ```bash
 npx tsc --noEmit
-npx eslint <fichiers touchés>
+PATH="/opt/homebrew/opt/node@22/bin:$PATH" npx eslint <fichiers touchés>
 npx vitest run              # unit + intégration (Postgres local erp_test, auto-créée)
 ```
 CI (`.github/workflows/ci.yml`) relance exactement ces 3 étapes sur push vers `dev`/`main`. Les tests d'intégration utilisent `prisma db push` (pas `migrate`) sur une base `erp_test` locale, séparée de Neon.

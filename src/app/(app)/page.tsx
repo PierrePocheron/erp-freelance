@@ -11,6 +11,7 @@ import { QuickActionsBar } from "@/components/modules/dashboard/QuickActionsBar"
 import { ProdMonitorCard } from "@/components/modules/dashboard/ProdMonitorCard"
 import { PendingIncomeCard } from "@/components/modules/dashboard/PendingIncomeCard"
 import { JobHuntCard } from "@/components/modules/dashboard/JobHuntCard"
+import { ConfirmEventsCard } from "@/components/modules/dashboard/ConfirmEventsCard"
 import { getActiveModules } from "@/lib/modules-server"
 import { isContactIncomplete } from "@/lib/contact"
 
@@ -25,7 +26,6 @@ export default async function DashboardPage() {
   /* eslint-disable react-hooks/purity */
   const today = new Date()
   const todayStart = new Date(today.setHours(0, 0, 0, 0))
-  const todayEnd = new Date(today.setHours(23, 59, 59, 999))
   const weekStart = new Date(todayStart)
   const _dow = weekStart.getDay()
   weekStart.setDate(weekStart.getDate() + (_dow === 0 ? -6 : 1 - _dow))
@@ -38,6 +38,10 @@ export default async function DashboardPage() {
   tomorrowEnd.setHours(23, 59, 59, 999)
   const in30Days = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
   const followUpCutoff = new Date(Date.now() - 45 * 24 * 60 * 60 * 1000)
+  // Fenêtre glissante de la carte "À confirmer" : items datés dans les 7 derniers jours.
+  const confirmWindowStart = new Date(todayStart)
+  confirmWindowStart.setDate(confirmWindowStart.getDate() - 7)
+  const now = new Date()
   /* eslint-enable react-hooks/purity */
   const currentYear = new Date().getFullYear()
   const yearStart = new Date(currentYear, 0, 1)
@@ -45,7 +49,7 @@ export default async function DashboardPage() {
   const yearPrefix = `${currentYear}-`
 
   const [
-    tasksDueToday,
+    tasksDueTomorrow,
     tasksInProgress,
     upcomingReminders,
     unpaidInvoices,
@@ -60,7 +64,7 @@ export default async function DashboardPage() {
     quickQuotes,
     userProfile,
     prodSites,
-    overdueTasks,
+    unconfirmedTasks,
     upcomingRenewals,
     followUpCandidates,
     quickCompanies,
@@ -76,12 +80,14 @@ export default async function DashboardPage() {
     incompleteContactsRaw,
     incompleteCompaniesRaw,
     incompleteRevenuesRaw,
+    unconfirmedMilestones,
+    unconfirmedEvents,
   ] = await Promise.all([
     prisma.task.findMany({
       where: {
         OR: [{ project: { userId } }, { userId }],
-        dueDate: { gte: todayStart, lte: todayEnd },
-        status: { not: "DONE" },
+        dueDate: { gte: tomorrowStart, lte: tomorrowEnd },
+        status: { notIn: ["DONE", "CANCELLED"] },
         parentTaskId: null,
       },
       include: {
@@ -133,7 +139,7 @@ export default async function DashboardPage() {
     prisma.milestone.findMany({
       where: {
         project: { userId },
-        status: { not: "DONE" },
+        status: { notIn: ["DONE", "CANCELLED"] },
         date: { gte: new Date() },
       },
       include: { project: { select: { id: true, name: true } } },
@@ -179,11 +185,12 @@ export default async function DashboardPage() {
       },
       orderBy: { updatedAt: "desc" },
     }),
+    // Tâches en retard non confirmées (ni terminées ni annulées), fenêtre 7 jours — carte "À confirmer"
     prisma.task.findMany({
       where: {
         OR: [{ project: { userId } }, { userId }],
-        dueDate: { lt: todayStart },
-        status: { not: "DONE" },
+        dueDate: { gte: confirmWindowStart, lt: todayStart },
+        status: { notIn: ["DONE", "CANCELLED"] },
         parentTaskId: null,
       },
       include: {
@@ -191,7 +198,7 @@ export default async function DashboardPage() {
         client:  { select: { id: true, name: true, company: true } },
       },
       orderBy: { dueDate: "asc" },
-      take: 6,
+      take: 10,
     }),
     prisma.renewal.findMany({
       where: { postDev: { project: { userId } }, expiresAt: { lte: in30Days } },
@@ -271,7 +278,7 @@ export default async function DashboardPage() {
       where: {
         AND: [
           { OR: [{ project: { userId } }, { userId }] },
-          { status: { not: "DONE" } },
+          { status: { notIn: ["DONE", "CANCELLED"] } },
           { parentTaskId: null },
           { OR: [
             { dueDate: { lte: weekEnd } },
@@ -304,6 +311,29 @@ export default async function DashboardPage() {
     prisma.revenue.findMany({
       where: { userId },
       select: { id: true, label: true, companyId: true, clientId: true, projectId: true },
+    }),
+    // Jalons passés non confirmés (ni terminés ni annulés), fenêtre 7 jours — carte "À confirmer"
+    prisma.milestone.findMany({
+      where: {
+        project: { userId },
+        date: { gte: confirmWindowStart, lt: now },
+        status: { notIn: ["DONE", "CANCELLED"] },
+      },
+      include: { project: { select: { id: true, name: true } } },
+      orderBy: { date: "asc" },
+      take: 10,
+    }),
+    // Événements calendrier passés sans compte-rendu ni annulation, fenêtre 7 jours — carte "À confirmer"
+    prisma.calendarEvent.findMany({
+      where: {
+        userId,
+        startDate: { gte: confirmWindowStart, lt: now },
+        cancelledAt: null,
+        outcome: null,
+      },
+      include: { category: { select: { name: true, color: true } } },
+      orderBy: { startDate: "asc" },
+      take: 10,
     }),
   ])
 
@@ -390,6 +420,29 @@ export default async function DashboardPage() {
   const agendaOverdue      = agendaTasks.filter((t) => t.dueDate && new Date(t.dueDate) < todayStart)
   const agendaWeek         = agendaTasks.filter((t) => t.dueDate && new Date(t.dueDate) >= todayStart && new Date(t.dueDate) <= weekEnd)
   const agendaStartedOnly  = agendaTasks.filter((t) => t.status === "IN_PROGRESS" && (!t.dueDate || new Date(t.dueDate) > weekEnd))
+  // Tâches du jour, dérivées d'agendaTasks (évite le doublon avec "Cette semaine") — carte "Aujourd'hui & demain"
+  const agendaToday = agendaTasks.filter((t) => t.dueDate && new Date(t.dueDate).toDateString() === todayStart.toDateString())
+
+  // ── Carte "À confirmer" — items du passé récent sans confirmation ────────────
+  const confirmTaskItems = unconfirmedTasks.map((t) => ({
+    id: t.id,
+    title: t.title,
+    dueDate: t.dueDate!.toISOString(),
+    projectId: t.projectId,
+  }))
+  const confirmMilestoneItems = unconfirmedMilestones.map((m) => ({
+    id: m.id,
+    name: m.name,
+    date: m.date.toISOString(),
+    projectId: m.projectId,
+  }))
+  const confirmEventItems = unconfirmedEvents.map((e) => ({
+    id: e.id,
+    title: e.title,
+    startDate: e.startDate.toISOString(),
+    categoryColor: e.category?.color ?? null,
+  }))
+  const totalUnconfirmed = confirmTaskItems.length + confirmMilestoneItems.length + confirmEventItems.length
 
   // ── Données à compléter — agrégé tous modules ─────────────────────────────
   const incompleteContacts  = incompleteContactsRaw.filter(isContactIncomplete)
@@ -489,27 +542,89 @@ export default async function DashboardPage() {
         {/* Colonne principale */}
         <div className="lg:col-span-2 space-y-6">
 
-          {/* Demain — événements calendrier du jour suivant */}
-          {has("calendrier") && tomorrowEvents.length > 0 && (
-            <Section title="Demain" icon={<ClipboardList className="h-4 w-4" />} href="/calendrier">
-              <div className="space-y-1.5">
-                {tomorrowEvents.map((ev) => (
-                  <Link key={ev.id} href="/calendrier" className="flex items-center gap-3 rounded-lg px-3 py-2 hover:bg-muted/50 transition-colors">
-                    <span
-                      className="h-2 w-2 rounded-full shrink-0"
-                      style={{ backgroundColor: ev.category?.color ?? "#94a3b8" }}
-                    />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium truncate">{ev.title}</p>
-                      {ev.category?.name && <p className="text-xs text-muted-foreground">{ev.category.name}</p>}
+          {/* Aujourd'hui & demain — tâches du jour/lendemain + événements calendrier de demain */}
+          {(has("taches") || has("projets") || has("calendrier")) &&
+           (agendaToday.length > 0 || tasksDueTomorrow.length > 0 || tomorrowEvents.length > 0) && (
+            <Section title="Aujourd'hui & demain" icon={<ClipboardList className="h-4 w-4" />} href="/calendrier">
+              <div>
+                {agendaToday.length > 0 && (
+                  <div>
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-primary px-3 pt-2 pb-1">
+                      Aujourd&apos;hui · {agendaToday.length}
+                    </p>
+                    <div className="space-y-0.5">
+                      {agendaToday.map((task) => {
+                        const href = task.project ? `/projets/${task.project.id}/dev` : "/taches"
+                        const sub  = task.project?.name ?? task.client?.company ?? task.client?.name ?? null
+                        return (
+                          <div key={task.id} className="flex items-center gap-2 rounded-lg px-3 py-2 hover:bg-muted/50 transition-colors">
+                            <form action={async () => {
+                              "use server"
+                              const { completeTaskGlobal } = await import("@/actions/projet")
+                              await completeTaskGlobal(task.id)
+                            }}>
+                              <button type="submit" title="Marquer terminée" className="shrink-0 transition-colors">
+                                {task.status === "IN_PROGRESS"
+                                  ? <PlayCircle className="h-3.5 w-3.5 text-amber-500 hover:text-emerald-500" />
+                                  : <Circle className="h-3.5 w-3.5 text-muted-foreground hover:text-emerald-500" />}
+                              </button>
+                            </form>
+                            <Link href={href} className="flex-1 min-w-0 flex items-center gap-3">
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-medium truncate">{task.title}</p>
+                                {sub && <p className="text-xs text-muted-foreground">{sub}</p>}
+                              </div>
+                            </Link>
+                          </div>
+                        )
+                      })}
                     </div>
-                    <span className="text-xs text-muted-foreground shrink-0">
-                      {ev.allDay ? "Toute la journée" : new Date(ev.startDate).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}
-                    </span>
-                  </Link>
-                ))}
+                  </div>
+                )}
+                {(tasksDueTomorrow.length > 0 || tomorrowEvents.length > 0) && (
+                  <div>
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground px-3 pt-2 pb-1">
+                      Demain · {tasksDueTomorrow.length + tomorrowEvents.length}
+                    </p>
+                    <div className="space-y-0.5">
+                      {tasksDueTomorrow.map((task) => {
+                        const href = task.project ? `/projets/${task.project.id}/dev` : "/taches"
+                        const sub  = task.project?.name ?? task.client?.company ?? task.client?.name ?? null
+                        return (
+                          <Link key={task.id} href={href} className="flex items-center gap-3 rounded-lg px-3 py-2 hover:bg-muted/50 transition-colors">
+                            <CheckSquare className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium truncate">{task.title}</p>
+                              {sub && <p className="text-xs text-muted-foreground">{sub}</p>}
+                            </div>
+                          </Link>
+                        )
+                      })}
+                      {tomorrowEvents.map((ev) => (
+                        <Link key={ev.id} href="/calendrier" className="flex items-center gap-3 rounded-lg px-3 py-2 hover:bg-muted/50 transition-colors">
+                          <span
+                            className="h-2 w-2 rounded-full shrink-0"
+                            style={{ backgroundColor: ev.category?.color ?? "#94a3b8" }}
+                          />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium truncate">{ev.title}</p>
+                            {ev.category?.name && <p className="text-xs text-muted-foreground">{ev.category.name}</p>}
+                          </div>
+                          <span className="text-xs text-muted-foreground shrink-0">
+                            {ev.allDay ? "Toute la journée" : new Date(ev.startDate).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}
+                          </span>
+                        </Link>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             </Section>
+          )}
+
+          {/* À confirmer — tâches/jalons/événements passés sans confirmation */}
+          {totalUnconfirmed > 0 && (
+            <ConfirmEventsCard tasks={confirmTaskItems} milestones={confirmMilestoneItems} events={confirmEventItems} />
           )}
 
           {/* Agenda semaine — en retard + cette semaine + en cours */}
@@ -890,6 +1005,8 @@ export default async function DashboardPage() {
            (!has("projets") || (prods.length === 0 && upcomingMilestones.length === 0 && upcomingRenewals.length === 0)) &&
            (!has("entretien") || jobAppItems.length === 0) &&
            (!has("calendrier") || tomorrowEvents.length === 0) &&
+           tasksDueTomorrow.length === 0 &&
+           totalUnconfirmed === 0 &&
            totalIncomplete === 0 && (
             <div className="rounded-xl border border-dashed border-border p-8 text-center text-muted-foreground text-sm">
               Tout est à jour ✓

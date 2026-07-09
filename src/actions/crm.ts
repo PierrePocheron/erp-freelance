@@ -428,7 +428,7 @@ export async function deleteClient(clientId: string, _userId: string) {
 
 export async function addInteraction(
   clientId: string,
-  data: { date: string; channel: string; summary: string; response?: string }
+  data: { date: string; channel: string; summary: string; response?: string; emailUrl?: string | null }
 ) {
   const userId = await requireAuth()
   const client = await prisma.client.findFirst({ where: { id: clientId, userId }, select: { id: true } })
@@ -440,6 +440,7 @@ export async function addInteraction(
       channel: data.channel as InteractionChannel,
       summary: data.summary,
       response: data.response || null,
+      emailUrl: data.emailUrl?.trim() || null,
     },
   })
   revalidatePath(`/contacts/${clientId}`)
@@ -450,7 +451,7 @@ export async function addInteraction(
 export async function updateInteraction(
   interactionId: string,
   clientId: string,
-  data: { date: string; channel: string; summary: string; response?: string | null }
+  data: { date: string; channel: string; summary: string; response?: string | null; emailUrl?: string | null }
 ) {
   const userId = await requireAuth()
   // Scope par l'interaction elle-même (via le client propriétaire), pas par le
@@ -462,6 +463,7 @@ export async function updateInteraction(
       channel: data.channel as InteractionChannel,
       summary: data.summary,
       response: data.response || null,
+      emailUrl: data.emailUrl?.trim() || null,
     },
   })
   if (updated.count === 0) throw new Error("Non autorisé")

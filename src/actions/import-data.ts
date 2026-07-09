@@ -166,7 +166,7 @@ export async function importData(jsonString: string): Promise<ImportResult> {
         })),
         skipDuplicates: true,
       })
-      track("Clients", data.clients.length)
+      track("Contacts", data.clients.length)
     }
 
     // ── 5. Interactions ───────────────────────────────────────────────────────
@@ -206,7 +206,7 @@ export async function importData(jsonString: string): Promise<ImportResult> {
         })),
         skipDuplicates: true,
       })
-      track("Fichiers clients", data.clientFiles.length)
+      track("Fichiers contacts", data.clientFiles.length)
     }
 
     // ── 8. Produits ───────────────────────────────────────────────────────────

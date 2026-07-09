@@ -57,7 +57,8 @@ export function GoogleCalendarSection({ hasScope }: { hasScope: boolean }) {
           <p className="text-sm text-muted-foreground">
             Autorisez l&apos;accès à votre Google Agenda pour synchroniser vos événements dans l&apos;ERP.
             Votre compte Google est déjà connecté — il s&apos;agit seulement d&apos;accorder l&apos;accès au calendrier.
-            La synchronisation est <strong>manuelle</strong> — aucune donnée n&apos;est modifiée automatiquement.
+            Aucune donnée n&apos;est modifiée automatiquement — seule la <strong>lecture</strong> se déclenche
+            toute seule à l&apos;ouverture du calendrier (fenêtre limitée à 1 mois passé, extensible en navigant).
           </p>
           <ul className="text-xs text-muted-foreground space-y-1">
             <li className="flex items-center gap-2">
@@ -70,7 +71,7 @@ export function GoogleCalendarSection({ hasScope }: { hasScope: boolean }) {
             </li>
             <li className="flex items-center gap-2">
               <span className="h-1 w-1 rounded-full bg-muted-foreground shrink-0" />
-              Synchronisation déclenchée manuellement uniquement
+              Lecture auto à l&apos;ouverture du calendrier, sync manuelle aussi disponible
             </li>
           </ul>
           <button

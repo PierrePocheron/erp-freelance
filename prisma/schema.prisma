@@ -399,6 +399,7 @@ enum MilestoneStatus {
   UPCOMING
   IN_PROGRESS
   DONE
+  CANCELLED
 }
 
 enum MilestoneType {
@@ -414,6 +415,7 @@ enum TaskStatus {
   TODO
   IN_PROGRESS
   DONE
+  CANCELLED
 }
 
 enum TaskPriority {
@@ -520,14 +522,17 @@ model ProjectContact {
 }
 
 model Milestone {
-  id        String          @id @default(cuid())
-  projectId String
-  name      String
-  date      DateTime        // date + heure de début (heure optionnelle côté UI, minuit par défaut)
-  endDate   DateTime?       // heure de fin optionnelle
-  type      MilestoneType   @default(OTHER)
-  status    MilestoneStatus @default(UPCOMING)
-  createdAt DateTime        @default(now())
+  id             String          @id @default(cuid())
+  projectId      String
+  name           String
+  date           DateTime        // date + heure de début (heure optionnelle côté UI, minuit par défaut)
+  endDate        DateTime?       // heure de fin optionnelle
+  type           MilestoneType   @default(OTHER)
+  status         MilestoneStatus @default(UPCOMING)
+  outcome        String?         // note libre (compte-rendu ou raison d'annulation)
+  googleEventId  String?         // id de l'événement poussé dans l'agenda Google "ERP Freelance"
+  googleSyncedAt DateTime?       // dernière synchro confirmée vers Google
+  createdAt      DateTime        @default(now())
 
   project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
   tasks   Task[]
@@ -552,6 +557,9 @@ model Task {
   startedAt      DateTime?
   dueDate        DateTime?
   completedAt    DateTime?
+  outcome        String?      // note libre (compte-rendu ou raison d'annulation)
+  googleEventId  String?      // id de l'événement poussé dans l'agenda Google "ERP Freelance"
+  googleSyncedAt DateTime?    // dernière synchro confirmée vers Google
   // Rappel de déclaration URSSAF auto-généré : "2026-T2". Marquée DONE
   // automatiquement quand la déclaration correspondante est déclarée/payée.
   urssafPeriod   String?
@@ -922,6 +930,8 @@ model CalendarEvent {
   clientId       String?            // lien optionnel vers un contact
   googleEventId  String?            // id de l'événement côté Google (pour les MANUAL poussés)
   googleSyncedAt DateTime?          // dernière synchro confirmée vers Google
+  outcome        String?            // compte-rendu post-événement
+  cancelledAt    DateTime?          // annulation de l'événement
   createdAt      DateTime           @default(now())
   updatedAt      DateTime           @updatedAt
 

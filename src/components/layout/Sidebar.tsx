@@ -23,6 +23,7 @@ import {
   Briefcase,
   Landmark,
   TrendingDown,
+  Target,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { ThemeToggle } from "./ThemeToggle"
@@ -38,6 +39,7 @@ type NavItem = {
 const navItems: NavItem[] = [
   { href: "/",           icon: LayoutDashboard, label: "Dashboard" },
   { href: "/contacts",   icon: Users,           label: "Contacts",   moduleId: "contacts"    },
+  { href: "/prospection",icon: Target,          label: "Prospection",moduleId: "prospection" },
   { href: "/societes",   icon: Building2,       label: "Sociétés",   moduleId: "societes"    },
   { href: "/facturation",icon: FileText,         label: "Facturation",moduleId: "facturation" },
   { href: "/revenus",    icon: Wallet,           label: "Revenus",    moduleId: "revenus"     },

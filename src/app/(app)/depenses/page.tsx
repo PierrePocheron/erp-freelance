@@ -209,9 +209,15 @@ export default async function DepensesPage({
                   <span className="shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-medium bg-primary/10 text-primary">
                     {FREQUENCY_LABELS[row.r.frequency]}
                   </span>
-                  <span className="shrink-0 text-xs text-muted-foreground whitespace-nowrap">
-                    {new Date(row.r.nextGenerationDate).toLocaleDateString("fr-FR", { day: "numeric", month: "short" })}
-                  </span>
+                  {row.r.dateToConfirm ? (
+                    <span className="shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-medium bg-amber-500/10 text-amber-700 whitespace-nowrap">
+                      À compléter
+                    </span>
+                  ) : (
+                    <span className="shrink-0 text-xs text-muted-foreground whitespace-nowrap">
+                      {new Date(row.r.nextGenerationDate).toLocaleDateString("fr-FR", { day: "numeric", month: "short" })}
+                    </span>
+                  )}
                   <span className="shrink-0 text-sm font-medium tabular-nums w-16 text-right">{fmt(row.r.amount)} €</span>
                   <form action={async () => { "use server"; await toggleRecurringExpenseActive(row.r.id, !row.r.isActive) }}>
                     <button type="submit" className="text-muted-foreground hover:text-foreground transition-colors" title={row.r.isActive ? "Mettre en pause" : "Réactiver"}>
@@ -222,7 +228,7 @@ export default async function DepensesPage({
                     categories={categories}
                     recurringExpense={{
                       id: row.r.id, label: row.r.label, amount: row.r.amount, scope: row.r.scope, frequency: row.r.frequency,
-                      nextGenerationDate: row.r.nextGenerationDate, categoryId: row.r.categoryId, notes: row.r.notes,
+                      nextGenerationDate: row.r.nextGenerationDate, dateToConfirm: row.r.dateToConfirm, categoryId: row.r.categoryId, notes: row.r.notes,
                     }}
                   />
                 </div>

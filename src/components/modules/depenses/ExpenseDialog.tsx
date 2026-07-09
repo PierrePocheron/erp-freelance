@@ -43,6 +43,7 @@ export function ExpenseDialog({
   const [notes, setNotes]           = useState(expense?.notes ?? "")
   const [frequency, setFrequency]   = useState<"ONETIME" | "WEEKLY" | "MONTHLY" | "QUARTERLY" | "YEARLY">("MONTHLY")
   const isRecurring = frequency !== "ONETIME"
+  const [dateToConfirm, setDateToConfirm] = useState(false)
 
   function resetForm() {
     setLabel("")
@@ -52,12 +53,14 @@ export function ExpenseDialog({
     setCategoryId("")
     setNotes("")
     setFrequency("MONTHLY")
+    setDateToConfirm(false)
   }
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     const amountNum = parseFloat(amount.replace(",", "."))
-    if (!label.trim() || !date || !amountNum || amountNum <= 0) return
+    const dateOptional = isRecurring && dateToConfirm
+    if (!label.trim() || (!dateOptional && !date) || !amountNum || amountNum <= 0) return
 
     const shared = {
       label: label.trim(),
@@ -71,7 +74,10 @@ export function ExpenseDialog({
       if (isEdit) {
         await updateExpense(expense.id, { ...shared, date: new Date(`${date}T00:00:00`) })
       } else if (isRecurring) {
-        await createRecurringExpense({ ...shared, frequency, nextGenerationDate: new Date(`${date}T00:00:00`) })
+        await createRecurringExpense({
+          ...shared, frequency, dateToConfirm,
+          nextGenerationDate: new Date(`${date || new Date().toISOString().slice(0, 10)}T00:00:00`),
+        })
       } else {
         await createExpense({ ...shared, date: new Date(`${date}T00:00:00`) })
       }
@@ -120,7 +126,13 @@ export function ExpenseDialog({
             </div>
             <div className="space-y-1">
               <label className="text-xs text-muted-foreground">{!isEdit && isRecurring ? "Prochaine échéance" : "Date"}</label>
-              <Input type="date" value={date} onChange={e => setDate(e.target.value)} required />
+              {!isEdit && isRecurring && dateToConfirm ? (
+                <div className="flex h-9 items-center rounded-md border border-dashed border-amber-500/40 bg-amber-500/5 px-3 text-sm text-amber-700">
+                  À compléter
+                </div>
+              ) : (
+                <Input type="date" value={date} onChange={e => setDate(e.target.value)} required />
+              )}
             </div>
           </div>
 
@@ -135,6 +147,17 @@ export function ExpenseDialog({
                 <option value="ONETIME">Ponctuelle</option>
                 {Object.entries(FREQUENCY_LABELS).filter(([v]) => v !== "CUSTOM").map(([v, l]) => <option key={v} value={v}>{l}</option>)}
               </select>
+              {isRecurring && (
+                <label className="flex items-center gap-1.5 pt-1 text-[11px] text-muted-foreground cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={dateToConfirm}
+                    onChange={e => setDateToConfirm(e.target.checked)}
+                    className="h-3 w-3 rounded border-input accent-primary"
+                  />
+                  Date de prélèvement pas encore connue
+                </label>
+              )}
             </div>
           )}
 

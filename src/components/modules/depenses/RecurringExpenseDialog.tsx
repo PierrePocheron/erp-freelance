@@ -26,6 +26,7 @@ export type RecurringExpenseForEdit = {
   scope: "PRO" | "PERSO"
   frequency: "WEEKLY" | "MONTHLY" | "QUARTERLY" | "YEARLY" | "CUSTOM"
   nextGenerationDate: Date | string
+  dateToConfirm: boolean
   categoryId: string | null
   notes: string | null
 }
@@ -50,18 +51,20 @@ export function RecurringExpenseDialog({
   const [frequency, setFrequency] = useState(recurringExpense?.frequency ?? "MONTHLY")
   const [categoryId, setCategoryId] = useState(recurringExpense?.categoryId ?? "")
   const [notes, setNotes]         = useState(recurringExpense?.notes ?? "")
+  const [dateToConfirm, setDateToConfirm] = useState(recurringExpense?.dateToConfirm ?? false)
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     const amountNum = parseFloat(amount.replace(",", "."))
-    if (!label.trim() || !nextDate || !amountNum || amountNum <= 0) return
+    if (!label.trim() || (!dateToConfirm && !nextDate) || !amountNum || amountNum <= 0) return
 
     const payload = {
       label: label.trim(),
       amount: amountNum,
       scope,
       frequency,
-      nextGenerationDate: new Date(`${nextDate}T00:00:00`),
+      nextGenerationDate: new Date(`${nextDate || new Date().toISOString().slice(0, 10)}T00:00:00`),
+      dateToConfirm,
       categoryId: categoryId || null,
       notes: notes.trim() || null,
     }
@@ -128,7 +131,22 @@ export function RecurringExpenseDialog({
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
               <label className="text-xs text-muted-foreground">Prochaine échéance</label>
-              <Input type="date" value={nextDate} onChange={e => setNextDate(e.target.value)} required />
+              {dateToConfirm ? (
+                <div className="flex h-9 items-center rounded-md border border-dashed border-amber-500/40 bg-amber-500/5 px-3 text-sm text-amber-700">
+                  À compléter
+                </div>
+              ) : (
+                <Input type="date" value={nextDate} onChange={e => setNextDate(e.target.value)} required />
+              )}
+              <label className="flex items-center gap-1.5 pt-1 text-[11px] text-muted-foreground cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={dateToConfirm}
+                  onChange={e => setDateToConfirm(e.target.checked)}
+                  className="h-3 w-3 rounded border-input accent-primary"
+                />
+                Date de prélèvement pas encore connue
+              </label>
             </div>
             <div className="space-y-1">
               <label className="text-xs text-muted-foreground">Portée</label>

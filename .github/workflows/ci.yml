@@ -37,6 +37,9 @@ jobs:
       # Lu en priorité par le harnais et la config Vitest (jamais la prod Neon).
       TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/erp_test
       DATABASE_URL: postgresql://postgres:postgres@localhost:5432/erp_test
+      # Clé de test pour le chiffrement au repos (IBAN/BIC, tokens) — base CI
+      # jetable, aucun rapport avec la clé de prod sur Vercel.
+      ENCRYPTION_KEY: "cWzbKloKJh7rEyXDeDF3pz+qCRzmM8ok8nnuN1V7Ia0="
 
     steps:
       - uses: actions/checkout@v5

@@ -1128,17 +1128,25 @@ export function CalendarView({
 
   // Vérifie l'état réel de la connexion dès l'ouverture de la page (sans
   // attendre un clic sur "Sync") — répond à "comment savoir si la synchro
-  // est toujours active en rouvrant l'app le lendemain".
+  // est toujours active en rouvrant l'app le lendemain". Si la connexion est
+  // saine, déclenche aussi une synchro (même fenêtre bornée à 1 mois que
+  // d'habitude) : sans ça, "connecté" en vert donnait l'impression à tort que
+  // les événements Google étaient à jour, alors qu'aucune donnée n'est
+  // réellement retirée tant qu'on n'a pas cliqué sur Sync ou navigué dans le
+  // passé — d'où des agendas vides en rouvrant l'app après une absence.
   useEffect(() => {
     if (!hasGoogleCalendar) return
     let cancelled = false
     getGoogleCalendarConnectionStatus()
       .then((res) => {
         if (cancelled) return
-        setConnectionStatus(res.status === "connected" ? "connected" : "error")
+        const ok = res.status === "connected"
+        setConnectionStatus(ok ? "connected" : "error")
+        if (ok) handleSync()
       })
       .catch(() => { if (!cancelled) setConnectionStatus("error") })
     return () => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hasGoogleCalendar])
 
   // Fenêtre Google déjà synchronisée en arrière (mois). 1 par défaut, comme le

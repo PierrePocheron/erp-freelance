@@ -28,6 +28,7 @@ model User {
   invoices          Invoice[]
   recurringInvoices RecurringInvoice[]
   emailLogs         EmailLog[]
+  emailTemplates    EmailTemplate[]
   calendarEvents      CalendarEvent[]
   calendarCategories  CalendarCategory[]
   timeEntries         TimeEntry[]
@@ -232,6 +233,9 @@ enum Temperature {
   HOT
 }
 
+// Ancien pipeline à 10 étapes — remplacé par ProspectStatus (6 valeurs).
+// Conservé dans le schéma pour ne pas générer de DROP au prochain migrate diff ;
+// plus aucun code ne le lit/écrit (données historiques intactes en base).
 enum ProspectStage {
   IDENTIFIED
   CONTACTED
@@ -243,6 +247,26 @@ enum ProspectStage {
   WON
   LOST
   ON_HOLD
+}
+
+// Statut de prospection simplifié, aligné sur le process réel :
+// mail en masse → relance téléphonique → réponse → discussion → issue.
+enum ProspectStatus {
+  TO_CONTACT
+  CONTACTED
+  REPLIED
+  IN_DISCUSSION
+  WON
+  LOST
+}
+
+// Type de site web d'un prospect (rempli via scraping ou à la main).
+enum WebsiteType {
+  SHOWCASE     // Site vitrine
+  ECOMMERCE    // Boutique en ligne
+  BLOG_CONTENT // Site éditorial / contenu
+  OUTDATED     // Site obsolète ou cassé — cible principale
+  OTHER
 }
 
 enum InteractionChannel {
@@ -317,10 +341,17 @@ model Client {
   email         String?
   phone         String?
   source         ClientSource  @default(OTHER)
-  temperature    Temperature   @default(COLD)
-  prospectStage  ProspectStage @default(IDENTIFIED)
+  temperature    Temperature   @default(COLD) // legacy — plus utilisé par le code (cf. ProspectStage)
+  prospectStage  ProspectStage @default(IDENTIFIED) // legacy — remplacé par prospectStatus
+  prospectStatus ProspectStatus @default(TO_CONTACT)
   priorityScore  Int           @default(1)
   notes         String?
+  // Fiche site web du prospect (alimentée par scraping ou saisie manuelle)
+  websiteUrl          String?
+  websiteType         WebsiteType?
+  websitePagesApprox  Int?
+  businessDescription String?      // ce que fait le business / à quoi sert le site
+  region              String?
   // Adresse du CONTACT (optionnelle — distincte de l'adresse société)
   address       String?
   postalCode    String?
@@ -346,6 +377,7 @@ model Client {
   revenues          Revenue[]          @relation("RevenueClient")
   recurringRevenues RecurringRevenue[] @relation("RecurringRevenueClient")
   jobApplications   JobApplication[]   @relation("RecruiterApplications")
+  emailLogs         EmailLog[]
 
   @@index([companyId])
 }
@@ -893,6 +925,7 @@ model EmailLog {
   id              String         @id @default(cuid())
   userId          String
   invoiceId       String?
+  clientId        String?        // mail de prospection : contact destinataire
   to              String
   subject         String
   resendMessageId String?
@@ -901,6 +934,25 @@ model EmailLog {
 
   user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   invoice Invoice? @relation(fields: [invoiceId], references: [id])
+  client  Client?  @relation(fields: [clientId], references: [id], onDelete: SetNull)
+
+  @@index([clientId])
+}
+
+// Modèle de mail de démarchage — texte brut avec variables {{prenom}},
+// {{societe}}, {{site}}... substituées par prospect à l'envoi (cf. lib/email-template).
+model EmailTemplate {
+  id        String   @id @default(cuid())
+  userId    String
+  name      String
+  subject   String
+  body      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
 // ─── Calendar ─────────────────────────────────────────────────────────────────

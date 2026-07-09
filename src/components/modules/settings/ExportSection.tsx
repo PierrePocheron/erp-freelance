@@ -183,7 +183,7 @@ export function ExportSection({ stats }: Props) {
 
         <p className="text-xs text-muted-foreground">
           Le JSON sert à la restauration (import). L&apos;archive ZIP ajoute les documents :
-          PDF des factures émises (figés), devis signés et fichiers clients téléversés.
+          PDF des factures émises (figés), devis signés et fichiers contacts téléversés.
         </p>
       </div>
 

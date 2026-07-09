@@ -357,6 +357,7 @@ model Interaction {
   channel   InteractionChannel
   summary   String
   response  String?
+  emailUrl  String?            // lien profond vers le mail (Gmail...) pour y accéder en 1 clic
   createdAt DateTime           @default(now())
 
   client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)

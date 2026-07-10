@@ -3,6 +3,10 @@
 import { prisma } from "@/lib/prisma"
 import { revalidatePath } from "next/cache"
 import { auth } from "@/lib/auth"
+import { getResend } from "@/lib/resend"
+import { enforceRateLimit } from "@/lib/rate-limit"
+import { renderTemplate, bodyToHtml } from "@/lib/email-template"
+import { prospectionFromAddress } from "@/lib/prospection-email"
 import type { ClientSource, InteractionChannel, ProspectStatus } from "@/generated/prisma/enums"
 
 async function requireAuth(): Promise<string> {
@@ -199,4 +203,123 @@ export async function deleteProspects(clientIds: string[]) {
   })
   revalidatePath("/prospection")
   return { deleted: deleted.count }
+}
+
+// ── Modèles de mails ─────────────────────────────────────────────────────────
+
+export async function createEmailTemplate(data: { name: string; subject: string; body: string }) {
+  const userId = await requireAuth()
+  const name = data.name.trim()
+  if (!name) throw new Error("Le nom du modèle est requis")
+  const template = await prisma.emailTemplate.create({
+    data: { userId, name, subject: data.subject.trim(), body: data.body },
+  })
+  revalidatePath("/prospection/modeles")
+  return template
+}
+
+export async function updateEmailTemplate(templateId: string, data: { name: string; subject: string; body: string }) {
+  const userId = await requireAuth()
+  const updated = await prisma.emailTemplate.updateMany({
+    where: { id: templateId, userId },
+    data: { name: data.name.trim(), subject: data.subject.trim(), body: data.body },
+  })
+  if (updated.count === 0) throw new Error("Non autorisé")
+  revalidatePath("/prospection/modeles")
+}
+
+export async function deleteEmailTemplate(templateId: string) {
+  const userId = await requireAuth()
+  await prisma.emailTemplate.deleteMany({ where: { id: templateId, userId } })
+  revalidatePath("/prospection/modeles")
+}
+
+// ── Envoi en masse (Resend) ──────────────────────────────────────────────────
+
+const RESEND_BATCH_SIZE = 100 // limite de l'API batch Resend
+const BATCH_INTERVAL_MS = 600 // limite Resend par défaut : 2 req/s
+
+/**
+ * Envoie un modèle rendu par prospect via l'API batch Resend.
+ * Par envoi réussi : EmailLog (traçabilité) + Interaction (canal EMAIL) +
+ * bump TO_CONTACT → CONTACTED. Best-effort par chunk : un chunk en échec
+ * n'empêche pas les suivants.
+ */
+export async function sendProspectionEmails(templateId: string, clientIds: string[]) {
+  const userId = await requireAuth()
+  const from = prospectionFromAddress()
+  if (!from) {
+    throw new Error("Adresse d'envoi non configurée — vérifiez un domaine chez Resend puis renseignez RESEND_FROM_EMAIL (hors sandbox resend.dev).")
+  }
+  await enforceRateLimit(`prospection-email:${userId}`, 300, 3_600_000)
+
+  const template = await prisma.emailTemplate.findFirst({ where: { id: templateId, userId } })
+  if (!template) throw new Error("Modèle introuvable")
+
+  const prospects = await prisma.client.findMany({
+    where: { id: { in: clientIds }, userId, email: { not: null } },
+    select: {
+      id: true, name: true, firstName: true, lastName: true, company: true,
+      email: true, websiteUrl: true, city: true, region: true, businessDescription: true,
+    },
+  })
+  if (prospects.length === 0) return { sent: 0, failed: 0, skippedNoEmail: clientIds.length }
+
+  let sent = 0
+  let failed = 0
+
+  for (let i = 0; i < prospects.length; i += RESEND_BATCH_SIZE) {
+    const chunk = prospects.slice(i, i + RESEND_BATCH_SIZE)
+    const emails = chunk.map((p) => {
+      const rendered = renderTemplate(template, p)
+      return {
+        from,
+        to: p.email!,
+        subject: rendered.subject,
+        html: bodyToHtml(rendered.body),
+        text: rendered.body,
+      }
+    })
+
+    try {
+      const { data, error } = await getResend().batch.send(emails)
+      if (error || !data) {
+        failed += chunk.length
+      } else {
+        // La réponse batch préserve l'ordre d'envoi.
+        const now = new Date()
+        await prisma.emailLog.createMany({
+          data: chunk.map((p, j) => ({
+            userId,
+            clientId: p.id,
+            to: p.email!,
+            subject: emails[j].subject,
+            resendMessageId: data.data[j]?.id ?? null,
+          })),
+        })
+        await prisma.interaction.createMany({
+          data: chunk.map((p) => ({
+            clientId: p.id,
+            date: now,
+            channel: "EMAIL" as InteractionChannel,
+            summary: `Email "${template.name}" envoyé via l'ERP`,
+          })),
+        })
+        await prisma.client.updateMany({
+          where: { id: { in: chunk.map((p) => p.id) }, userId, prospectStatus: "TO_CONTACT" },
+          data: { prospectStatus: "CONTACTED" },
+        })
+        sent += chunk.length
+      }
+    } catch {
+      failed += chunk.length
+    }
+
+    if (i + RESEND_BATCH_SIZE < prospects.length) {
+      await new Promise((r) => setTimeout(r, BATCH_INTERVAL_MS))
+    }
+  }
+
+  revalidatePath("/prospection")
+  return { sent, failed, skippedNoEmail: clientIds.length - prospects.length }
 }

@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useRef, useState, useTransition } from "react"
-import { Search, X, Mail, Phone, Trash2, ChevronLeft, ChevronRight } from "lucide-react"
+import { Search, X, Mail, Phone, Trash2, ChevronLeft, ChevronRight, Send, ExternalLink } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { toast } from "sonner"
 import { useSortState, cmp } from "@/hooks/use-sortable"
@@ -12,11 +12,15 @@ import { getClientPanel } from "@/actions/crm"
 import { markProspectsContacted, updateProspectsStatusBulk, deleteProspects } from "@/actions/prospection"
 import { STATUS_CONFIG, ALL_STATUSES, WEBSITE_TYPE_CONFIG, SOURCE_LABELS } from "./status-config"
 import { ProspectStatusSelect } from "./ProspectStatusSelect"
+import { SendEmailDialog, type EmailTemplateOption } from "./SendEmailDialog"
+import { GmailPrepDialog } from "./GmailPrepDialog"
 import type { ProspectStatus, WebsiteType, InteractionChannel } from "@/generated/prisma/enums"
 
 type Prospect = {
   id: string
   name: string
+  firstName: string | null
+  lastName: string | null
   company: string | null
   email: string | null
   phone: string | null
@@ -24,7 +28,9 @@ type Prospect = {
   prospectStatus: string
   websiteUrl: string | null
   websiteType: string | null
+  city: string | null
   region: string | null
+  businessDescription: string | null
   createdAt: Date | string
   _count: { interactions: number }
   interactions: { date: Date | string; channel: string }[]
@@ -42,10 +48,14 @@ export function ProspectionTable({
   prospects,
   userId,
   initialStatus,
+  templates,
+  emailFromConfigured,
 }: {
   prospects: Prospect[]
   userId: string
   initialStatus?: ProspectStatus
+  templates: EmailTemplateOption[]
+  emailFromConfigured: boolean
 }) {
   const [statusFilter, setStatusFilter] = useState<ProspectStatus | "ALL">(initialStatus ?? "ALL")
   const [search, setSearch] = useState("")
@@ -74,6 +84,8 @@ export function ProspectionTable({
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [contactMenuOpen, setContactMenuOpen] = useState(false)
   const [statusMenuOpen, setStatusMenuOpen] = useState(false)
+  const [sendEmailOpen, setSendEmailOpen] = useState(false)
+  const [gmailPrepOpen, setGmailPrepOpen] = useState(false)
 
   // Panel contact
   const [panelOpen, setPanelOpen] = useState(false)
@@ -165,6 +177,7 @@ export function ProspectionTable({
   }
 
   const selectedIds = [...selected]
+  const selectedProspects = prospects.filter((p) => selected.has(p.id))
 
   function bulkContact(channel: InteractionChannel) {
     setContactMenuOpen(false)
@@ -327,6 +340,21 @@ export function ProspectionTable({
             )}
           </div>
 
+          <button
+            onClick={() => setSendEmailOpen(true)}
+            disabled={isBulkPending}
+            className="flex items-center gap-1.5 h-7 px-2.5 rounded-lg border border-input bg-background text-xs font-medium hover:bg-muted transition-colors disabled:opacity-50"
+          >
+            <Send className="h-3 w-3" /> Envoyer email
+          </button>
+          <button
+            onClick={() => setGmailPrepOpen(true)}
+            disabled={isBulkPending}
+            className="flex items-center gap-1.5 h-7 px-2.5 rounded-lg border border-input bg-background text-xs font-medium hover:bg-muted transition-colors disabled:opacity-50"
+          >
+            <ExternalLink className="h-3 w-3" /> Préparer Gmail
+          </button>
+
           <div className="ml-auto flex items-center gap-2">
             {confirmDelete ? (
               <>
@@ -468,6 +496,23 @@ export function ProspectionTable({
           <ClientPanel client={panelData as any} loading={isPanelPending || (panelOpen && panelData === null)} userId={userId} />
         </SheetContent>
       </Sheet>
+
+      {/* ── Emailing ── */}
+      <SendEmailDialog
+        open={sendEmailOpen}
+        onOpenChange={setSendEmailOpen}
+        templates={templates}
+        targets={selectedProspects}
+        emailFromConfigured={emailFromConfigured}
+        onSent={() => setSelected(new Set())}
+      />
+      <GmailPrepDialog
+        open={gmailPrepOpen}
+        onOpenChange={setGmailPrepOpen}
+        templates={templates}
+        targets={selectedProspects}
+        onDone={() => setSelected(new Set())}
+      />
     </div>
   )
 }

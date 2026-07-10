@@ -19,6 +19,7 @@ const ALL_NAV_ITEMS: NavItem[] = [
   { label: "Dashboard",            href: "/",                       icon: "⚡", keywords: ["accueil", "home", "tableau de bord", "dashboard"] },
   { label: "Contacts",             href: "/contacts",               icon: "👥", keywords: ["client", "crm", "contact"],                                                                      moduleId: "contacts"    },
   { label: "Prospection",          href: "/prospection",            icon: "🎯", keywords: ["prospect", "prospection", "lead", "demarchage", "démarchage", "pipeline", "emailing"],          moduleId: "prospection" },
+  { label: "Modèles de mails",     href: "/prospection/modeles",    icon: "✉️", keywords: ["modele", "modèle", "template", "email", "mail", "demarchage", "démarchage"],                    moduleId: "prospection" },
   { label: "Sociétés",             href: "/societes",               icon: "🏢", keywords: ["societe", "société", "entreprise", "company", "crm"],                                           moduleId: "societes"    },
   { label: "Projets",              href: "/projets",                icon: "💻", keywords: ["projet", "tache", "task", "milestone", "livrable"],                                              moduleId: "projets"     },
   { label: "Tâches",               href: "/taches",                 icon: "✅", keywords: ["taches", "task", "todo", "kanban", "to do"],                                                    moduleId: "taches"      },

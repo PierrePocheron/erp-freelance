@@ -1,11 +1,13 @@
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
+import Link from "next/link"
 import { ProspectionTable } from "@/components/modules/prospection/ProspectionTable"
 import { ProspectQuickAdd } from "@/components/modules/prospection/ProspectQuickAdd"
 import { ImportCsvDialog } from "@/components/modules/prospection/ImportCsvDialog"
 import { ALL_STATUSES } from "@/components/modules/prospection/status-config"
+import { prospectionFromAddress } from "@/lib/prospection-email"
 import type { ProspectStatus } from "@/generated/prisma/enums"
-import { TrendingUp, Send, CheckCircle2, XCircle } from "lucide-react"
+import { TrendingUp, Send, CheckCircle2, XCircle, Mail } from "lucide-react"
 
 export default async function ProspectionPage({
   searchParams,
@@ -16,14 +18,21 @@ export default async function ProspectionPage({
   const session = await auth()
   const userId = session!.user.id
 
-  const prospects = await prisma.client.findMany({
-    where: { userId, type: "PROSPECT" },
-    orderBy: { createdAt: "desc" },
-    include: {
-      _count: { select: { interactions: true } },
-      interactions: { orderBy: { date: "desc" }, take: 1, select: { date: true, channel: true } },
-    },
-  })
+  const [prospects, templates] = await Promise.all([
+    prisma.client.findMany({
+      where: { userId, type: "PROSPECT" },
+      orderBy: { createdAt: "desc" },
+      include: {
+        _count: { select: { interactions: true } },
+        interactions: { orderBy: { date: "desc" }, take: 1, select: { date: true, channel: true } },
+      },
+    }),
+    prisma.emailTemplate.findMany({
+      where: { userId },
+      orderBy: { updatedAt: "desc" },
+      select: { id: true, name: true, subject: true, body: true },
+    }),
+  ])
 
   const active    = prospects.filter((p) => !["WON", "LOST"].includes(p.prospectStatus))
   const toContact = prospects.filter((p) => p.prospectStatus === "TO_CONTACT")
@@ -43,7 +52,16 @@ export default async function ProspectionPage({
             {prospects.length} prospect{prospects.length !== 1 ? "s" : ""} · démarchage, suivi et relances
           </p>
         </div>
-        <ImportCsvDialog />
+        <div className="flex items-center gap-2">
+          <Link
+            href="/prospection/modeles"
+            className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border border-input text-sm text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
+          >
+            <Mail className="h-3.5 w-3.5" />
+            Modèles de mails
+          </Link>
+          <ImportCsvDialog />
+        </div>
       </div>
 
       {/* Stats */}
@@ -56,7 +74,13 @@ export default async function ProspectionPage({
 
       <ProspectQuickAdd />
 
-      <ProspectionTable prospects={prospects} userId={userId} initialStatus={validStatus} />
+      <ProspectionTable
+        prospects={prospects}
+        userId={userId}
+        initialStatus={validStatus}
+        templates={templates}
+        emailFromConfigured={prospectionFromAddress() !== null}
+      />
     </div>
   )
 }

@@ -308,6 +308,12 @@ export async function updateClientAll(
     country?: string | null
     siret?: string | null
     linkedinUrl?: string | null
+    // Fiche site web (prospection)
+    websiteUrl?: string | null
+    websiteType?: string | null
+    websitePagesApprox?: number | null
+    businessDescription?: string | null
+    region?: string | null
   }
 ) {
   const userId = await requireAuth()
@@ -355,6 +361,11 @@ export async function updateClientAll(
   if ("country" in data) clean.country = data.country?.trim() || null
   if ("siret" in data) clean.siret = data.siret?.trim() || null
   if ("linkedinUrl" in data) clean.linkedinUrl = data.linkedinUrl?.trim() || null
+  if ("websiteUrl" in data) clean.websiteUrl = data.websiteUrl?.trim() || null
+  if ("websiteType" in data) clean.websiteType = data.websiteType || null
+  if ("websitePagesApprox" in data) clean.websitePagesApprox = data.websitePagesApprox ?? null
+  if ("businessDescription" in data) clean.businessDescription = data.businessDescription?.trim() || null
+  if ("region" in data) clean.region = data.region?.trim() || null
 
   await prisma.client.update({ where: { id: clientId, userId }, data: clean as never })
   revalidatePath(`/contacts/${clientId}`)

@@ -3,7 +3,7 @@
 import { useState, useTransition, useEffect } from "react"
 import {
   Pencil, Check, X, Mail, Phone, Building2, Tag,
-  MessageSquare, Loader2, MapPin, Hash, AlertCircle,
+  MessageSquare, Loader2, MapPin, Hash, AlertCircle, Globe,
 } from "lucide-react"
 import { LinkedinIcon } from "@/components/ui/linkedin-icon"
 import { updateClientAll } from "@/actions/crm"
@@ -11,8 +11,8 @@ import { updateProspectStatus } from "@/actions/prospection"
 import { cn } from "@/lib/utils"
 import { isContactIncomplete } from "@/lib/contact"
 import { CompanyCombobox } from "./CompanyCombobox"
-import { STATUS_CONFIG, PIPELINE_STATUSES, OUTCOME_STATUSES } from "@/components/modules/prospection/status-config"
-import type { ProspectStatus } from "@/generated/prisma/enums"
+import { STATUS_CONFIG, PIPELINE_STATUSES, OUTCOME_STATUSES, WEBSITE_TYPE_CONFIG } from "@/components/modules/prospection/status-config"
+import type { ProspectStatus, WebsiteType } from "@/generated/prisma/enums"
 
 const SOURCE_LABELS: Record<string, string> = {
   WORD_OF_MOUTH: "Bouche à oreille",
@@ -59,6 +59,11 @@ type ClientData = {
   city: string | null
   country: string | null
   siret: string | null
+  websiteUrl: string | null
+  websiteType: string | null
+  websitePagesApprox: number | null
+  businessDescription: string | null
+  region: string | null
 }
 
 export function ClientInfoCard({ client, isOwner = true }: { client: ClientData; isOwner?: boolean }) {
@@ -84,6 +89,11 @@ export function ClientInfoCard({ client, isOwner = true }: { client: ClientData;
   const [country, setCountry] = useState(client.country ?? "")
   const [siret, setSiret] = useState(client.siret ?? "")
   const [prospectStatus, setProspectStatus] = useState(client.prospectStatus ?? "TO_CONTACT")
+  const [websiteUrl, setWebsiteUrl] = useState(client.websiteUrl ?? "")
+  const [websiteType, setWebsiteType] = useState(client.websiteType ?? "")
+  const [websitePagesApprox, setWebsitePagesApprox] = useState(client.websitePagesApprox?.toString() ?? "")
+  const [businessDescription, setBusinessDescription] = useState(client.businessDescription ?? "")
+  const [region, setRegion] = useState(client.region ?? "")
 
   useEffect(() => {
     if (!editing) return
@@ -104,6 +114,11 @@ export function ClientInfoCard({ client, isOwner = true }: { client: ClientData;
     setCity(client.city ?? "")
     setCountry(client.country ?? "")
     setSiret(client.siret ?? "")
+    setWebsiteUrl(client.websiteUrl ?? "")
+    setWebsiteType(client.websiteType ?? "")
+    setWebsitePagesApprox(client.websitePagesApprox?.toString() ?? "")
+    setBusinessDescription(client.businessDescription ?? "")
+    setRegion(client.region ?? "")
     /* eslint-enable react-hooks/set-state-in-effect */
   }, [editing]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -127,6 +142,11 @@ export function ClientInfoCard({ client, isOwner = true }: { client: ClientData;
           city: city.trim() || null,
           country: country.trim() || null,
           siret: siret.trim() || null,
+          websiteUrl: websiteUrl.trim() || null,
+          websiteType: websiteType || null,
+          websitePagesApprox: websitePagesApprox ? parseInt(websitePagesApprox, 10) || null : null,
+          businessDescription: businessDescription.trim() || null,
+          region: region.trim() || null,
         }),
       ]
       if (type === "PROSPECT" && prospectStatus !== client.prospectStatus) {
@@ -286,6 +306,35 @@ export function ClientInfoCard({ client, isOwner = true }: { client: ClientData;
             <input value={siret} onChange={(e) => setSiret(e.target.value)} placeholder="123 456 789 00012" className="flex h-8 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-ring" />
           </div>
 
+          <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground/70 pt-1">Site web du prospect <span className="font-normal normal-case">(optionnel)</span></p>
+          <div className="space-y-1">
+            <label className="text-xs text-muted-foreground">URL du site</label>
+            <input value={websiteUrl} onChange={(e) => setWebsiteUrl(e.target.value)} placeholder="https://exemple.fr" className="flex h-8 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-ring" />
+          </div>
+          <div className="grid grid-cols-3 gap-3">
+            <div className="space-y-1">
+              <label className="text-xs text-muted-foreground">Type de site</label>
+              <select value={websiteType} onChange={(e) => setWebsiteType(e.target.value)} className="flex h-8 w-full rounded-md border border-input bg-background px-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring">
+                <option value="">—</option>
+                {(Object.keys(WEBSITE_TYPE_CONFIG) as WebsiteType[]).map((t) => (
+                  <option key={t} value={t}>{WEBSITE_TYPE_CONFIG[t].label}</option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs text-muted-foreground">Pages (approx.)</label>
+              <input value={websitePagesApprox} onChange={(e) => setWebsitePagesApprox(e.target.value)} inputMode="numeric" placeholder="5" className="flex h-8 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-ring" />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs text-muted-foreground">Région</label>
+              <input value={region} onChange={(e) => setRegion(e.target.value)} placeholder="Auvergne-Rhône-Alpes" className="flex h-8 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-ring" />
+            </div>
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs text-muted-foreground">Description du business</label>
+            <textarea value={businessDescription} onChange={(e) => setBusinessDescription(e.target.value)} rows={2} placeholder="Ce que fait l'entreprise, à quoi sert le site…" className="flex w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-ring resize-none" />
+          </div>
+
           <div className="space-y-1">
             <label className="text-xs text-muted-foreground">Notes internes</label>
             <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} placeholder="Notes privées..." className="flex w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-ring resize-none" />
@@ -373,6 +422,35 @@ export function ClientInfoCard({ client, isOwner = true }: { client: ClientData;
               </div>
             )}
           </div>
+
+          {/* Fiche site web (prospection) */}
+          {(client.websiteUrl || client.websiteType || client.businessDescription || client.region) && (
+            <div className="space-y-2 pt-1 border-t border-border/30">
+              <div className="flex items-center gap-2 flex-wrap text-sm">
+                <Globe className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                {client.websiteUrl ? (
+                  <a href={client.websiteUrl} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline truncate max-w-[220px]">
+                    {client.websiteUrl.replace(/^https?:\/\//, "")}
+                  </a>
+                ) : (
+                  <span className="text-muted-foreground text-xs italic">Pas d&apos;URL renseignée</span>
+                )}
+                {client.websiteType && (() => {
+                  const cfg = WEBSITE_TYPE_CONFIG[client.websiteType as WebsiteType]
+                  return cfg ? <span className={cn("rounded-full px-1.5 py-0.5 text-[10px] font-medium", cfg.cls)}>{cfg.label}</span> : null
+                })()}
+                {client.websitePagesApprox != null && (
+                  <span className="text-xs text-muted-foreground">~{client.websitePagesApprox} page{client.websitePagesApprox > 1 ? "s" : ""}</span>
+                )}
+                {client.region && (
+                  <span className="text-xs text-muted-foreground">· {client.region}</span>
+                )}
+              </div>
+              {client.businessDescription && (
+                <p className="text-sm text-muted-foreground leading-relaxed pl-6">{client.businessDescription}</p>
+              )}
+            </div>
+          )}
 
           {/* Notes */}
           {client.notes && (

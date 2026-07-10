@@ -14,11 +14,16 @@ const SOURCE_OPTIONS = [
   { value: "OTHER",         label: "Autre" },
 ]
 
-/** Ajout rapide d'un prospect (simple ou en lot texte) — repris de l'ancien ProspectsView. */
+/**
+ * Ajout rapide d'un prospect. Le point d'entrée du démarchage est le SITE
+ * (nom + URL trouvés en scrapant) — le contact humain vient plus tard, donc
+ * les deux champs principaux sont Nom du site et URL.
+ */
 export function ProspectQuickAdd() {
   const [quickName, setQuickName] = useState("")
+  const [quickUrl, setQuickUrl] = useState("")
   const [quickEmail, setQuickEmail] = useState("")
-  const [quickSource, setQuickSource] = useState("OTHER")
+  const [quickSource, setQuickSource] = useState("WEBSITE")
   const [showExtended, setShowExtended] = useState(false)
   const [batchMode, setBatchMode] = useState(false)
   const [batchText, setBatchText] = useState("")
@@ -29,26 +34,41 @@ export function ProspectQuickAdd() {
     const name = quickName.trim()
     if (!name) return
     startAdding(async () => {
-      await createProspect({ name, email: quickEmail.trim() || undefined, source: quickSource })
+      await createProspect({
+        name,
+        websiteUrl: quickUrl.trim() || undefined,
+        email: quickEmail.trim() || undefined,
+        source: quickSource,
+      })
       setQuickName("")
+      setQuickUrl("")
       setQuickEmail("")
-      setQuickSource("OTHER")
+      setQuickSource("WEBSITE")
       setShowExtended(false)
       toast.success(`Prospect "${name}" ajouté`)
     })
   }
 
-  /** Parse le batch: une ligne = `Nom | Email? | Source?` */
+  /**
+   * Parse le batch : une ligne = `Nom du site | URL? | Email? | Source?`.
+   * Les champs après le nom sont reconnus à leur forme (@ = email,
+   * domaine = URL, mot-clé = source) — l'ordre n'a pas d'importance.
+   */
   function parseBatchLines() {
+    const SOURCES = ["WORD_OF_MOUTH", "LINKEDIN", "WEBSITE", "INBOUND", "OTHER"]
     return batchText
       .split("\n")
       .map((line) => {
-        const parts = line.split("|").map((s) => s.trim())
-        const name = parts[0] ?? ""
-        const email = parts[1] && parts[1].includes("@") ? parts[1] : undefined
-        const src   = parts[2]?.toUpperCase() ?? "OTHER"
-        const source = ["WORD_OF_MOUTH", "LINKEDIN", "WEBSITE", "INBOUND", "OTHER"].includes(src) ? src : "OTHER"
-        return { name, email, source }
+        const [name, ...rest] = line.split("|").map((s) => s.trim())
+        let websiteUrl: string | undefined
+        let email: string | undefined
+        let source = "WEBSITE"
+        for (const part of rest.filter(Boolean)) {
+          if (part.includes("@")) email = part
+          else if (SOURCES.includes(part.toUpperCase())) source = part.toUpperCase()
+          else if (part.includes(".")) websiteUrl = part
+        }
+        return { name: name ?? "", websiteUrl, email, source }
       })
       .filter((p) => p.name.length > 0)
   }
@@ -58,8 +78,8 @@ export function ProspectQuickAdd() {
     const lines = parseBatchLines()
     if (lines.length === 0) return
     startAdding(async () => {
-      for (const { name, email, source } of lines) {
-        await createProspect({ name, email, source })
+      for (const { name, websiteUrl, email, source } of lines) {
+        await createProspect({ name, websiteUrl, email, source })
       }
       setBatchText("")
       setBatchMode(false)
@@ -73,7 +93,7 @@ export function ProspectQuickAdd() {
         <textarea
           value={batchText}
           onChange={(e) => setBatchText(e.target.value)}
-          placeholder={"Jean Dupont\nMarie Martin | marie@martin.fr | LINKEDIN\nSociété XYZ | contact@xyz.fr"}
+          placeholder={"Boulangerie Dupont | boulangerie-dupont.fr\nGarage Martin | garage-martin.fr | contact@garage-martin.fr\nPlomberie XYZ"}
           disabled={isAdding}
           rows={4}
           autoFocus
@@ -100,7 +120,7 @@ export function ProspectQuickAdd() {
             <Plus className="h-3.5 w-3.5" />
             {isAdding ? "Import…" : `Importer ${parseBatchLines().length > 0 ? parseBatchLines().length : ""}`.trim()}
           </button>
-          <p className="text-[10px] text-muted-foreground/60 ml-auto">Format : Nom | Email | Source</p>
+          <p className="text-[10px] text-muted-foreground/60 ml-auto">Format : Nom du site | URL | Email | Source</p>
         </div>
       </form>
     )
@@ -112,7 +132,14 @@ export function ProspectQuickAdd() {
         <input
           value={quickName}
           onChange={(e) => setQuickName(e.target.value)}
-          placeholder="Nom du prospect…"
+          placeholder="Nom du site / de l'entreprise…"
+          disabled={isAdding}
+          className="flex-1 h-8 rounded-lg border border-input bg-transparent px-3 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring disabled:opacity-50"
+        />
+        <input
+          value={quickUrl}
+          onChange={(e) => setQuickUrl(e.target.value)}
+          placeholder="URL du site…"
           disabled={isAdding}
           className="flex-1 h-8 rounded-lg border border-input bg-transparent px-3 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring disabled:opacity-50"
         />

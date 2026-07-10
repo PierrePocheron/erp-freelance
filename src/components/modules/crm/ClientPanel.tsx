@@ -4,7 +4,7 @@ import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useState, useEffect, useTransition } from "react"
 import {
-  Mail, Phone, ExternalLink, Building2,
+  Mail, Phone, ExternalLink, Building2, Globe,
   MessageSquare, Bell, FolderKanban, FileText, Receipt,
   Phone as PhoneIcon, Mail as MailIcon, Video, Users,
   UserCheck, Archive, AlertCircle,
@@ -12,9 +12,9 @@ import {
 import { cn } from "@/lib/utils"
 import { updateClientType, addInteraction, addReminder, updateClientAll } from "@/actions/crm"
 import { updateProspectStatus } from "@/actions/prospection"
-import { STATUS_CONFIG, PIPELINE_STATUSES, OUTCOME_STATUSES } from "@/components/modules/prospection/status-config"
+import { STATUS_CONFIG, PIPELINE_STATUSES, OUTCOME_STATUSES, WEBSITE_TYPE_CONFIG } from "@/components/modules/prospection/status-config"
 import { isContactIncomplete } from "@/lib/contact"
-import type { ProspectStatus } from "@/generated/prisma/enums"
+import type { ProspectStatus, WebsiteType } from "@/generated/prisma/enums"
 import { toast } from "sonner"
 
 const typeConfig = {
@@ -76,6 +76,8 @@ type ClientPanelData = {
   source: string
   notes: string | null
   prospectStatus: ProspectStatus
+  websiteUrl: string | null
+  websiteType: string | null
   interactions: Interaction[]
   reminders: Reminder[]
   projects: Project[]
@@ -298,6 +300,16 @@ export function ClientPanel({
             <a href={`tel:${client.phone}`} className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors">
               <Phone className="h-3.5 w-3.5 shrink-0" />
               {client.phone}
+            </a>
+          )}
+          {client.websiteUrl && (
+            <a href={client.websiteUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors">
+              <Globe className="h-3.5 w-3.5 shrink-0" />
+              <span className="truncate">{client.websiteUrl.replace(/^https?:\/\//, "")}</span>
+              {client.websiteType && (() => {
+                const cfg = WEBSITE_TYPE_CONFIG[client.websiteType as WebsiteType]
+                return cfg ? <span className={cn("rounded-full px-1.5 py-0.5 text-[10px] font-medium shrink-0", cfg.cls)}>{cfg.label}</span> : null
+              })()}
             </a>
           )}
         </div>

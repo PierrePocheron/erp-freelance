@@ -180,6 +180,11 @@ export default async function ClientOverviewPage({
           city: client.city ?? null,
           country: client.country ?? null,
           siret: client.siret ?? null,
+          websiteUrl: client.websiteUrl ?? null,
+          websiteType: client.websiteType ?? null,
+          websitePagesApprox: client.websitePagesApprox ?? null,
+          businessDescription: client.businessDescription ?? null,
+          region: client.region ?? null,
         }} />
 
         {/* Tâches */}

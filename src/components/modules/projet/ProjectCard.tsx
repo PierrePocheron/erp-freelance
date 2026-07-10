@@ -3,6 +3,8 @@ import { Badge } from "@/components/ui/badge"
 import { Calendar, Clock, CheckSquare } from "lucide-react"
 import { TagBadge } from "./TagBadge"
 import { PRIORITY_CONFIG, type ProjectPriority } from "./ProjectInlineEdit"
+import { CATEGORY_CONFIG } from "./category-config"
+import type { ProjectCategory } from "@/generated/prisma/enums"
 
 function fmtEur(n: number) {
   return n.toLocaleString("fr-FR", { maximumFractionDigits: 0 }) + " €"
@@ -21,6 +23,7 @@ type Props = {
     name: string
     description: string | null
     status: keyof typeof statusConfig
+    category?: ProjectCategory
     priority?: ProjectPriority
     endDate: Date | null
     estimatedHours: number | null
@@ -40,10 +43,24 @@ export function ProjectCard({ project, showBilling = false }: Props) {
   const clientLabel = project.company?.name ?? firstContact?.name ?? "—"
   const priority = project.priority ?? "MEDIUM"
   const priorityCfg = PRIORITY_CONFIG[priority]
+  const category = CATEGORY_CONFIG[project.category ?? "AUTRE"]
 
   return (
     <Link href={`/projets/${project.id}`}>
-      <div className="group rounded-xl border border-border/50 bg-card p-5 hover:border-border hover:shadow-md transition-all cursor-pointer space-y-4">
+      <div className="group rounded-xl border border-border/50 bg-card overflow-hidden hover:border-border hover:shadow-md transition-all cursor-pointer">
+        {/* Mini-bannière thème : couleur + motif distinct par catégorie
+            (colorblind-friendly, la forme suffit sans la couleur) */}
+        <div
+          className={`flex h-6 items-center px-5 ${category.bannerCls}`}
+          style={category.pattern}
+          title={category.label}
+        >
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-white/90 drop-shadow-sm">
+            {category.label}
+          </span>
+        </div>
+
+        <div className="p-5 space-y-4">
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
             <p className="text-xs text-muted-foreground mb-1">{clientLabel}</p>
@@ -118,6 +135,7 @@ export function ProjectCard({ project, showBilling = false }: Props) {
             </div>
           </div>
         )}
+        </div>
       </div>
     </Link>
   )

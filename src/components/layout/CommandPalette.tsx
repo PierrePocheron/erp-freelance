@@ -52,6 +52,7 @@ const TYPE_ICON: Record<string, string> = {
   expense:              "💸",
   recurring_expense:    "🔁",
   prospect:             "🎯",
+  revenue:              "💰",
 }
 
 const TYPE_LABEL: Record<string, string> = {
@@ -68,6 +69,7 @@ const TYPE_LABEL: Record<string, string> = {
   expense:              "Dépense",
   recurring_expense:    "Dépense récurrente",
   prospect:             "Prospect",
+  revenue:              "Revenu",
 }
 
 function normalize(s: string) {

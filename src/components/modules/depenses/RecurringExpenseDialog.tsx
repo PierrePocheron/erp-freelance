@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input"
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger,
 } from "@/components/ui/dialog"
-import { createRecurringExpense, updateRecurringExpense, deleteRecurringExpense } from "@/actions/expense"
+import { createRecurringExpense, updateRecurringExpense, deleteRecurringExpense, createExpense, convertRecurringToExpense } from "@/actions/expense"
 import { ExpenseCategoryCombobox, type ExpenseCategory } from "./ExpenseCategoryCombobox"
 
 export const FREQUENCY_LABELS: Record<string, string> = {
@@ -48,7 +48,8 @@ export function RecurringExpenseDialog({
   const [amount, setAmount]       = useState(recurringExpense ? String(recurringExpense.amount) : "")
   const [nextDate, setNextDate]   = useState(() => new Date(recurringExpense?.nextGenerationDate ?? new Date()).toISOString().slice(0, 10))
   const [scope, setScope]         = useState<"PRO" | "PERSO">(recurringExpense?.scope ?? "PERSO")
-  const [frequency, setFrequency] = useState(recurringExpense?.frequency ?? "MONTHLY")
+  const [frequency, setFrequency] = useState<string>(recurringExpense?.frequency ?? "MONTHLY")
+  const isOneTime = frequency === "ONETIME"
   const [categoryId, setCategoryId] = useState(recurringExpense?.categoryId ?? "")
   const [notes, setNotes]         = useState(recurringExpense?.notes ?? "")
   const [dateToConfirm, setDateToConfirm] = useState(recurringExpense?.dateToConfirm ?? false)
@@ -56,24 +57,29 @@ export function RecurringExpenseDialog({
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     const amountNum = parseFloat(amount.replace(",", "."))
-    if (!label.trim() || (!dateToConfirm && !nextDate) || !amountNum || amountNum <= 0) return
+    // Une dépense ponctuelle exige une date ; une récurrente peut être « à compléter ».
+    if (!label.trim() || !amountNum || amountNum <= 0) return
+    if (isOneTime && !nextDate) return
+    if (!isOneTime && !dateToConfirm && !nextDate) return
 
-    const payload = {
+    const shared = {
       label: label.trim(),
       amount: amountNum,
       scope,
-      frequency,
-      nextGenerationDate: new Date(`${nextDate || new Date().toISOString().slice(0, 10)}T00:00:00`),
-      dateToConfirm,
       categoryId: categoryId || null,
       notes: notes.trim() || null,
     }
+    const dateObj = new Date(`${nextDate || new Date().toISOString().slice(0, 10)}T00:00:00`)
 
     startTransition(async () => {
-      if (isEdit) {
-        await updateRecurringExpense(recurringExpense.id, payload)
+      if (isOneTime) {
+        // Conversion / création d'une dépense ponctuelle
+        if (isEdit) await convertRecurringToExpense(recurringExpense.id, { ...shared, date: dateObj })
+        else await createExpense({ ...shared, date: dateObj })
       } else {
-        await createRecurringExpense(payload)
+        const payload = { ...shared, frequency: frequency as RecurringExpenseForEdit["frequency"], nextGenerationDate: dateObj, dateToConfirm }
+        if (isEdit) await updateRecurringExpense(recurringExpense.id, payload)
+        else await createRecurringExpense(payload)
       }
       setOpen(false)
       router.refresh()
@@ -105,7 +111,7 @@ export function RecurringExpenseDialog({
       )}
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>{isEdit ? "Modifier la dépense récurrente" : "Nouvelle dépense récurrente"}</DialogTitle>
+          <DialogTitle>{isEdit ? "Modifier la dépense" : "Nouvelle dépense récurrente"}</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-3">
           <div className="space-y-1">
@@ -121,32 +127,35 @@ export function RecurringExpenseDialog({
               <label className="text-xs text-muted-foreground">Fréquence</label>
               <select
                 value={frequency}
-                onChange={e => setFrequency(e.target.value as typeof frequency)}
+                onChange={e => setFrequency(e.target.value)}
                 className="flex h-9 w-full rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
               >
-                {Object.entries(FREQUENCY_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+                <option value="ONETIME">Ponctuelle</option>
+                {Object.entries(FREQUENCY_LABELS).filter(([v]) => v !== "CUSTOM").map(([v, l]) => <option key={v} value={v}>{l}</option>)}
               </select>
             </div>
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
-              <label className="text-xs text-muted-foreground">Prochaine échéance</label>
-              {dateToConfirm ? (
+              <label className="text-xs text-muted-foreground">{isOneTime ? "Date" : "Prochaine échéance"}</label>
+              {!isOneTime && dateToConfirm ? (
                 <div className="flex h-9 items-center rounded-md border border-dashed border-amber-500/40 bg-amber-500/5 px-3 text-sm text-amber-700">
                   À compléter
                 </div>
               ) : (
                 <Input type="date" value={nextDate} onChange={e => setNextDate(e.target.value)} required />
               )}
-              <label className="flex items-center gap-1.5 pt-1 text-[11px] text-muted-foreground cursor-pointer select-none">
-                <input
-                  type="checkbox"
-                  checked={dateToConfirm}
-                  onChange={e => setDateToConfirm(e.target.checked)}
-                  className="h-3 w-3 rounded border-input accent-primary"
-                />
-                Date de prélèvement pas encore connue
-              </label>
+              {!isOneTime && (
+                <label className="flex items-center gap-1.5 pt-1 text-[11px] text-muted-foreground cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={dateToConfirm}
+                    onChange={e => setDateToConfirm(e.target.checked)}
+                    className="h-3 w-3 rounded border-input accent-primary"
+                  />
+                  Date de prélèvement pas encore connue
+                </label>
+              )}
             </div>
             <div className="space-y-1">
               <label className="text-xs text-muted-foreground">Portée</label>

@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma"
 import { revalidatePath } from "next/cache"
 import { auth } from "@/lib/auth"
 import { computeContactName } from "@/lib/contact"
-import type { ClientType, ClientSource, Temperature, ProspectStage, InteractionChannel } from "@/generated/prisma/enums"
+import type { ClientType, ClientSource, InteractionChannel } from "@/generated/prisma/enums"
 
 async function requireAuth(): Promise<string> {
   const session = await auth()
@@ -174,7 +174,6 @@ export async function createQuickClient(
       email: data.email?.trim() || null,
       type: "TO_COMPLETE",
       source: "OTHER",
-      temperature: "COLD",
       priorityScore: 1,
     },
   })
@@ -195,7 +194,6 @@ export async function createClient(
     phone?: string
     type?: string
     source?: string
-    temperature?: string
     notes?: string
     address?: string
     postalCode?: string
@@ -225,7 +223,6 @@ export async function createClient(
       phone: data.phone?.trim() || null,
       type: (data.type as ClientType) || "TO_COMPLETE",
       source: (data.source as ClientSource) || "OTHER",
-      temperature: (data.temperature as Temperature) || "COLD",
       priorityScore: 1,
       notes: data.notes?.trim() || null,
       address: data.address?.trim() || null,
@@ -281,57 +278,6 @@ export async function updateClientType(clientId: string, _userId: string, type: 
   revalidatePath("/contacts")
 }
 
-export async function updateClientTemperature(clientId: string, _userId: string, temperature: string) {
-  const userId = await requireAuth()
-  await prisma.client.update({
-    where: { id: clientId, userId },
-    data: { temperature: temperature as Temperature },
-  })
-  revalidatePath(`/contacts/${clientId}`)
-  revalidatePath("/contacts")
-}
-
-export async function updateProspectStage(clientId: string, stage: ProspectStage) {
-  const userId = await requireAuth()
-  const data: Record<string, unknown> = { prospectStage: stage }
-  // Gagné → convertit automatiquement en client
-  if (stage === "WON") data.type = "CLIENT"
-  await prisma.client.update({ where: { id: clientId, userId }, data: data as never })
-  revalidatePath(`/contacts/${clientId}`)
-  revalidatePath("/contacts")
-}
-
-export async function createProspect(data: {
-  name: string
-  email?: string
-  source?: string
-  companyId?: string
-  companyName?: string
-}) {
-  const userId = await requireAuth()
-  const { companyId, companyName } = await resolveCompany(userId, {
-    companyId: data.companyId,
-    companyName: data.companyName,
-  })
-  const name = data.name.trim()
-  if (!name) throw new Error("Le nom est requis")
-  const client = await prisma.client.create({
-    data: {
-      userId,
-      name,
-      email: data.email?.trim() || null,
-      companyId,
-      company: companyName,
-      type: "PROSPECT",
-      source: (data.source as ClientSource) || "OTHER",
-      temperature: "COLD",
-      prospectStage: "IDENTIFIED",
-      priorityScore: 1,
-    },
-  })
-  revalidatePath("/contacts")
-  return client
-}
 
 export async function updateClientPriority(clientId: string, _userId: string, priorityScore: number) {
   const userId = await requireAuth()
@@ -356,7 +302,6 @@ export async function updateClientAll(
     source?: string
     notes?: string | null
     type?: string
-    temperature?: string
     address?: string | null
     postalCode?: string | null
     city?: string | null
@@ -404,7 +349,6 @@ export async function updateClientAll(
   if ("source" in data && data.source) clean.source = data.source
   if ("notes" in data) clean.notes = data.notes?.trim() || null
   if ("type" in data && data.type) clean.type = data.type
-  if ("temperature" in data && data.temperature) clean.temperature = data.temperature
   if ("address" in data) clean.address = data.address?.trim() || null
   if ("postalCode" in data) clean.postalCode = data.postalCode?.trim() || null
   if ("city" in data) clean.city = data.city?.trim() || null
@@ -445,7 +389,7 @@ export async function addInteraction(
   })
   revalidatePath(`/contacts/${clientId}`)
   revalidatePath("/contacts")
-  revalidatePath("/contacts/prospects")
+  revalidatePath("/prospection")
 }
 
 export async function updateInteraction(

@@ -43,6 +43,9 @@ jobs:
 
     steps:
       - uses: actions/checkout@v5
+        with:
+          # Historique complet requis par SonarCloud (détection du "new code" + blame)
+          fetch-depth: 0
 
       - name: Setup Node.js 22
         uses: actions/setup-node@v5
@@ -79,3 +82,11 @@ jobs:
           name: coverage-lcov
           path: coverage/lcov.info
           if-no-files-found: warn
+
+      # Analyse SonarCloud (config dans sonar-project.properties) — consomme le
+      # lcov produit juste au-dessus. Analyse CI uniquement : l'Automatic
+      # Analysis est désactivée côté SonarCloud (conflit sinon).
+      - name: SonarCloud Scan
+        uses: SonarSource/sonarqube-scan-action@v5
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}

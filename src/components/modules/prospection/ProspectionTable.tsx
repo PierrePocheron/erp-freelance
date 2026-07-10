@@ -117,7 +117,12 @@ export function ProspectionTable({
         (p.websiteUrl ?? "").toLowerCase().includes(needle)
       )
     const statusOrder = Object.fromEntries(ALL_STATUSES.map((s, i) => [s, i]))
+    // Les issues closes sont parquées en bas quel que soit le tri de colonne :
+    // « Perdu » tout en bas, « Gagné » juste au-dessus (demande de Pierre).
+    const outcomeRank = (status: string) => (status === "LOST" ? 2 : status === "WON" ? 1 : 0)
     return [...rows].sort((a, b) => {
+      const byOutcome = outcomeRank(a.prospectStatus) - outcomeRank(b.prospectStatus)
+      if (byOutcome !== 0) return byOutcome
       switch (sortCol) {
         case "name":        return cmp(a.name, b.name, sortDir)
         case "company":     return cmp(a.company, b.company, sortDir)

@@ -49,13 +49,16 @@ export function SendEmailDialog({
   }, [template, withEmail])
 
   const withMissing = rendered.filter((r) => r.missing.length > 0)
+  // Vérification stricte : un prospect avec une variable non renseignée est
+  // exclu de l'envoi (pas de mail à trous), listé explicitement dans le dialog.
+  const readyToSend = rendered.filter((r) => r.missing.length === 0)
   const current = rendered[Math.min(previewIndex, rendered.length - 1)]
 
   function send() {
-    if (!template) return
+    if (!template || readyToSend.length === 0) return
     startTransition(async () => {
       try {
-        const res = await sendProspectionEmails(template.id, withEmail.map((p) => p.id))
+        const res = await sendProspectionEmails(template.id, readyToSend.map((r) => r.prospect.id))
         toast.success(`${res.sent} mail${res.sent > 1 ? "s" : ""} envoyé${res.sent > 1 ? "s" : ""}${res.failed > 0 ? ` · ${res.failed} en échec` : ""}`)
         onOpenChange(false)
         onSent()
@@ -111,11 +114,21 @@ export function SendEmailDialog({
               </p>
             )}
             {template && withMissing.length > 0 && (
-              <p className="text-xs text-amber-600">
-                {withMissing.length} prospect{withMissing.length > 1 ? "s ont" : " a"} des variables vides
-                ({[...new Set(withMissing.flatMap((r) => r.missing))].map((m) => `{{${m}}}`).join(", ")}) —
-                elles seront remplacées par du vide.
-              </p>
+              <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 space-y-1">
+                <p className="text-xs font-medium text-amber-700 dark:text-amber-400">
+                  {withMissing.length} prospect{withMissing.length > 1 ? "s" : ""} exclu{withMissing.length > 1 ? "s" : ""} de l&apos;envoi — variables non renseignées :
+                </p>
+                <ul className="text-xs text-amber-700/80 dark:text-amber-400/80 max-h-24 overflow-y-auto">
+                  {withMissing.map((r) => (
+                    <li key={r.prospect.id} className="truncate">
+                      {r.prospect.name} — manque {r.missing.map((m) => `{{${m}}}`).join(", ")}
+                    </li>
+                  ))}
+                </ul>
+                <p className="text-[11px] text-amber-700/70 dark:text-amber-400/70">
+                  Complétez la fiche du prospect (ou changez de modèle) pour les inclure.
+                </p>
+              </div>
             )}
 
             {/* Préview navigable */}
@@ -150,11 +163,11 @@ export function SendEmailDialog({
               <Button
                 size="sm"
                 onClick={send}
-                disabled={isPending || !template || withEmail.length === 0 || !emailFromConfigured}
+                disabled={isPending || !template || readyToSend.length === 0 || !emailFromConfigured}
                 className="gap-1.5"
               >
                 <Send className="h-3.5 w-3.5" />
-                {isPending ? "Envoi…" : `Envoyer à ${withEmail.length}`}
+                {isPending ? "Envoi…" : `Envoyer à ${readyToSend.length}`}
               </Button>
             </div>
           </div>

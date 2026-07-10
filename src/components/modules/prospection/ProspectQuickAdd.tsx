@@ -146,6 +146,9 @@ const BATCH_FIELDS: { key: string; label: string; required?: boolean }[] = [
 type PendingProspect = { name: string; websiteUrl?: string; email?: string; source: string }
 
 const SOURCES = ["WORD_OF_MOUTH", "LINKEDIN", "WEBSITE", "INBOUND", "OTHER"]
+const SOURCE_LABEL_MAP: Record<string, string> = Object.fromEntries(
+  SOURCE_OPTIONS.map((o) => [o.value, o.label])
+)
 
 /** Transforme une ligne `Nom, URL, Email, Source` (champs skippables) en prospect. */
 function parseLine(line: string): PendingProspect | null {
@@ -157,6 +160,18 @@ function parseLine(line: string): PendingProspect | null {
     email: email || undefined,
     source: SOURCES.includes((source ?? "").toUpperCase()) ? source!.toUpperCase() : "WEBSITE",
   }
+}
+
+/**
+ * Reconstruit la ligne `Nom, URL, Email, Source` d'un prospect en attente pour
+ * réinjection dans le champ de saisie (clic sur une bulle → ré-édition). Les
+ * champs vides de fin sont retirés pour une ligne plus propre ; la source est
+ * toujours présente donc jamais élaguée.
+ */
+function serializeProspect(p: PendingProspect): string {
+  const parts = [p.name, p.websiteUrl ?? "", p.email ?? "", p.source]
+  while (parts.length > 1 && parts[parts.length - 1] === "") parts.pop()
+  return parts.join(", ")
 }
 
 /**
@@ -177,6 +192,22 @@ function BatchAdd({ onClose, onDone }: { onClose: () => void; onDone: (count: nu
     if (!parsed) return
     setPending((prev) => [...prev, parsed])
     setInput("")
+  }
+
+  /**
+   * Clic sur une bulle → on la « décroche » pour la ré-éditer : sa ligne repart
+   * dans le champ de saisie. La saisie en cours (si valide) n'est pas perdue,
+   * elle est d'abord validée en badge.
+   */
+  function editProspect(i: number) {
+    const target = pending[i]
+    if (!target) return
+    const current = parseLine(input)
+    setPending((prev) => {
+      const without = prev.filter((_, j) => j !== i)
+      return current ? [...without, current] : without
+    })
+    setInput(serializeProspect(target))
   }
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
@@ -228,7 +259,7 @@ function BatchAdd({ onClose, onDone }: { onClose: () => void; onDone: (count: nu
             </span>
           </span>
         ))}
-        <span className="ml-auto text-muted-foreground/60">Entrée = prospect suivant · virgule vide = champ sauté</span>
+        <span className="ml-auto text-muted-foreground/60">Entrée = prospect suivant · virgule vide = champ sauté · clic sur une bulle = modifier</span>
       </div>
 
       {/* Badges des prospects en attente + input */}
@@ -236,11 +267,19 @@ function BatchAdd({ onClose, onDone }: { onClose: () => void; onDone: (count: nu
         {pending.map((p, i) => (
           <span
             key={`${p.name}-${i}`}
-            title={[p.websiteUrl, p.email].filter(Boolean).join(" · ") || undefined}
-            className="inline-flex items-center gap-1 rounded-full border border-primary/30 bg-primary/10 text-primary px-2 py-0.5 text-xs font-medium"
+            className="inline-flex items-center gap-1 rounded-full border border-primary/30 bg-primary/10 text-primary pl-2 pr-1.5 py-0.5 text-xs font-medium"
           >
-            {p.name}
-            {p.websiteUrl && <span className="text-primary/60 max-w-[120px] truncate">· {p.websiteUrl.replace(/^https?:\/\//, "")}</span>}
+            <button
+              type="button"
+              onClick={() => editProspect(i)}
+              title="Cliquer pour modifier"
+              className="inline-flex items-center gap-1 hover:underline decoration-primary/40 underline-offset-2"
+            >
+              <span className="max-w-[140px] truncate">{p.name}</span>
+              {p.websiteUrl && <span className="text-primary/60 max-w-[120px] truncate">· {p.websiteUrl.replace(/^https?:\/\//, "")}</span>}
+              {p.email && <span className="text-primary/60 max-w-[140px] truncate">· {p.email}</span>}
+              <span className="text-primary/50">· {SOURCE_LABEL_MAP[p.source] ?? p.source}</span>
+            </button>
             <button
               type="button"
               onClick={() => setPending((prev) => prev.filter((_, j) => j !== i))}

@@ -157,10 +157,11 @@ export default async function ProjectOverviewPage({
     <div className="space-y-6">
 
       {/* Grille uniforme : cartes 1/3 de largeur, 3 par rangée sur desktop */}
+      {/* Ordre visuel via order-* : Tâches → Jalons → Facturation/Revenus → Liens → Suivi → Notes */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3 items-start">
 
         {/* Jalons */}
-        <div className="rounded-xl border border-border/50 bg-card p-5 space-y-3">
+        <div className="order-2 rounded-xl border border-border/50 bg-card p-5 space-y-3">
           <div className="flex items-center gap-2 font-semibold text-sm">
             <Flag className="h-4 w-4 text-muted-foreground" />
             Jalons
@@ -207,18 +208,22 @@ export default async function ProjectOverviewPage({
         </div>
 
         {/* Tâches — liste cochable */}
-        <ProjectTasksCard
-          projectId={id}
-          tasks={sortedTasks.map((t) => ({
-            id: t.id, title: t.title, status: t.status, priority: t.priority, dueDate: t.dueDate,
-          }))}
-        />
+        <div className="order-1">
+          <ProjectTasksCard
+            projectId={id}
+            tasks={sortedTasks.map((t) => ({
+              id: t.id, title: t.title, status: t.status, priority: t.priority, dueDate: t.dueDate,
+            }))}
+          />
+        </div>
 
         {/* Liens — liste avec health check + ajout inline */}
-        <ProjectLinksCard projectId={id} links={project.usefulLinks} />
+        <div className="order-4">
+          <ProjectLinksCard projectId={id} links={project.usefulLinks} />
+        </div>
 
         {/* Suivi — temps, budget, livrables, période */}
-        <div className={`rounded-xl border p-5 space-y-3 ${isOver ? "border-red-500/30 bg-red-500/5" : budgetPct && budgetPct > 80 ? "border-amber-500/30 bg-amber-500/5" : "border-border/50 bg-card"}`}>
+        <div className={`order-5 rounded-xl border p-5 space-y-3 ${isOver ? "border-red-500/30 bg-red-500/5" : budgetPct && budgetPct > 80 ? "border-amber-500/30 bg-amber-500/5" : "border-border/50 bg-card"}`}>
           <div className="flex items-center gap-2 font-semibold text-sm">
             <Clock className="h-4 w-4 text-muted-foreground" />
             Suivi
@@ -273,7 +278,7 @@ export default async function ProjectOverviewPage({
         </div>
 
         {/* Notes rapides */}
-        <div className="rounded-xl border border-border/50 bg-card p-5 space-y-3">
+        <div className="order-6 rounded-xl border border-border/50 bg-card p-5 space-y-3">
           <div className="flex items-center gap-2 font-semibold text-sm">
             <BookOpen className="h-4 w-4 text-muted-foreground" />
             Notes rapides
@@ -295,6 +300,8 @@ export default async function ProjectOverviewPage({
           )}
         </div>
 
+        {/* Facturation / Revenus */}
+        <div className="order-3">
         {hasBilling ? (
             <div className="rounded-xl border border-border/50 bg-card p-5 space-y-4">
               <Link href="/facturation" className="flex items-center gap-2 font-semibold text-sm hover:text-primary transition-colors">
@@ -405,6 +412,7 @@ export default async function ProjectOverviewPage({
               <p className="text-xs text-muted-foreground">Aucune facturation liée à ce projet</p>
             </div>
           )}
+        </div>
       </div>
     </div>
   )

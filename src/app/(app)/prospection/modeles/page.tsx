@@ -1,17 +1,11 @@
-import { auth } from "@/lib/auth"
-import { prisma } from "@/lib/prisma"
 import Link from "next/link"
 import { ChevronLeft } from "lucide-react"
+import { getOrCreateDefaultEmailTemplates } from "@/actions/prospection"
 import { EmailTemplatesView } from "@/components/modules/prospection/EmailTemplatesView"
 
 export default async function EmailTemplatesPage() {
-  const session = await auth()
-  const userId = session!.user.id
-
-  const templates = await prisma.emailTemplate.findMany({
-    where: { userId },
-    orderBy: { updatedAt: "desc" },
-  })
+  // Provisionne 3 modèles de départ au premier passage
+  const templates = await getOrCreateDefaultEmailTemplates()
 
   return (
     <div className="space-y-6">

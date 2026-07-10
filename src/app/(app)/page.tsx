@@ -783,37 +783,6 @@ export default async function DashboardPage() {
             />
           )}
 
-          {/* Factures impayées */}
-          {has("facturation") && unpaidInvoices.length > 0 && (
-            <Section title="Factures en attente" icon={<TrendingUp className="h-4 w-4" />} href="/facturation/factures">
-              <div className="space-y-1.5">
-                {unpaidInvoices.map((inv) => {
-                  const isLate = inv.dueDate && new Date(inv.dueDate) < new Date()
-                  return (
-                    <Link key={inv.id} href={`/facturation/factures/${inv.id}`} className="flex items-center gap-3 rounded-lg px-3 py-2 hover:bg-muted/50 transition-colors">
-                      <span className={`h-2 w-2 rounded-full shrink-0 ${isLate ? "bg-red-500" : "bg-blue-500"}`} />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium font-mono">{inv.number}</p>
-                        <p className="text-xs text-muted-foreground">{inv.client.company ?? inv.client.name}</p>
-                      </div>
-                      <div className="text-right shrink-0">
-                        <p className={`text-sm font-bold ${isLate ? "text-red-500" : ""}`}>
-                          {(inv.totalHT - inv.depositDeducted).toLocaleString("fr-FR")} €
-                        </p>
-                        {inv.dueDate && (
-                          <p className={`text-xs ${isLate ? "text-red-500" : "text-muted-foreground"}`}>
-                            {isLate ? "En retard · " : ""}
-                            {new Date(inv.dueDate).toLocaleDateString("fr-FR", { day: "numeric", month: "short" })}
-                          </p>
-                        )}
-                      </div>
-                    </Link>
-                  )
-                })}
-              </div>
-            </Section>
-          )}
-
           {/* Jalons à venir */}
           {has("projets") && upcomingMilestones.length > 0 && (
             <Section title="Jalons à venir" icon={<Calendar className="h-4 w-4" />} href="/projets">

@@ -6,11 +6,13 @@ import {
   MessageSquare, Loader2, MapPin, Hash, AlertCircle,
 } from "lucide-react"
 import { LinkedinIcon } from "@/components/ui/linkedin-icon"
-import { updateClientAll, updateProspectStage } from "@/actions/crm"
+import { updateClientAll } from "@/actions/crm"
+import { updateProspectStatus } from "@/actions/prospection"
 import { cn } from "@/lib/utils"
 import { isContactIncomplete } from "@/lib/contact"
 import { CompanyCombobox } from "./CompanyCombobox"
-import { STAGE_CONFIG, type ProspectStage } from "./ProspectsView"
+import { STATUS_CONFIG, PIPELINE_STATUSES, OUTCOME_STATUSES } from "@/components/modules/prospection/status-config"
+import type { ProspectStatus } from "@/generated/prisma/enums"
 
 const SOURCE_LABELS: Record<string, string> = {
   WORD_OF_MOUTH: "Bouche à oreille",
@@ -37,12 +39,6 @@ const TYPE_CLS: Record<string, string> = {
   TO_COMPLETE: "bg-rose-500/15 text-rose-600 border-rose-500/20",
 }
 
-const TEMP_CONFIG: Record<string, { label: string; emoji: string; cls: string }> = {
-  COLD: { label: "Neutre", emoji: "○", cls: "bg-blue-500/10 text-blue-600 border-blue-500/20" },
-  WARM: { label: "Tiède",  emoji: "🌤", cls: "bg-amber-500/10 text-amber-600 border-amber-500/20" },
-  HOT:  { label: "Chaud",  emoji: "🔥", cls: "bg-red-500/10 text-red-600 border-red-500/20" },
-}
-
 type ClientData = {
   id: string
   name: string
@@ -57,8 +53,7 @@ type ClientData = {
   source: string
   notes: string | null
   type: string
-  temperature: string
-  prospectStage: string
+  prospectStatus: string
   address: string | null
   postalCode: string | null
   city: string | null
@@ -83,13 +78,12 @@ export function ClientInfoCard({ client, isOwner = true }: { client: ClientData;
   const [source, setSource] = useState(client.source)
   const [notes, setNotes] = useState(client.notes ?? "")
   const [type, setType] = useState(client.type)
-  const [temperature, setTemperature] = useState(client.temperature)
   const [address, setAddress] = useState(client.address ?? "")
   const [postalCode, setPostalCode] = useState(client.postalCode ?? "")
   const [city, setCity] = useState(client.city ?? "")
   const [country, setCountry] = useState(client.country ?? "")
   const [siret, setSiret] = useState(client.siret ?? "")
-  const [prospectStage, setProspectStage] = useState(client.prospectStage ?? "IDENTIFIED")
+  const [prospectStatus, setProspectStatus] = useState(client.prospectStatus ?? "TO_CONTACT")
 
   useEffect(() => {
     if (!editing) return
@@ -104,8 +98,7 @@ export function ClientInfoCard({ client, isOwner = true }: { client: ClientData;
     setSource(client.source)
     setNotes(client.notes ?? "")
     setType(client.type)
-    setTemperature(client.temperature)
-    setProspectStage(client.prospectStage ?? "IDENTIFIED")
+    setProspectStatus(client.prospectStatus ?? "TO_CONTACT")
     setAddress(client.address ?? "")
     setPostalCode(client.postalCode ?? "")
     setCity(client.city ?? "")
@@ -129,7 +122,6 @@ export function ClientInfoCard({ client, isOwner = true }: { client: ClientData;
           source,
           notes: notes.trim() || null,
           type,
-          temperature,
           address: address.trim() || null,
           postalCode: postalCode.trim() || null,
           city: city.trim() || null,
@@ -137,15 +129,14 @@ export function ClientInfoCard({ client, isOwner = true }: { client: ClientData;
           siret: siret.trim() || null,
         }),
       ]
-      if (type === "PROSPECT" && prospectStage !== client.prospectStage) {
-        saves.push(updateProspectStage(client.id, prospectStage as ProspectStage))
+      if (type === "PROSPECT" && prospectStatus !== client.prospectStatus) {
+        saves.push(updateProspectStatus(client.id, prospectStatus as ProspectStatus))
       }
       await Promise.all(saves)
       setEditing(false)
     })
   }
 
-  const temp = TEMP_CONFIG[client.temperature] ?? TEMP_CONFIG.COLD
   const typeLabel = TYPE_OPTIONS.find((t) => t.value === client.type)?.label ?? client.type
 
   const missingParts: string[] = []
@@ -235,19 +226,11 @@ export function ClientInfoCard({ client, isOwner = true }: { client: ClientData;
             />
           </div>
 
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
               <label className="text-xs text-muted-foreground">Type</label>
               <select value={type} onChange={(e) => setType(e.target.value)} className="flex h-8 w-full rounded-md border border-input bg-background px-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring">
                 {TYPE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-              </select>
-            </div>
-            <div className="space-y-1">
-              <label className="text-xs text-muted-foreground">Température</label>
-              <select value={temperature} onChange={(e) => setTemperature(e.target.value)} className="flex h-8 w-full rounded-md border border-input bg-background px-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring">
-                <option value="COLD">○ Neutre</option>
-                <option value="WARM">🌤 Tiède</option>
-                <option value="HOT">🔥 Chaud</option>
               </select>
             </div>
             <div className="space-y-1">
@@ -258,19 +241,19 @@ export function ClientInfoCard({ client, isOwner = true }: { client: ClientData;
             </div>
           </div>
 
-          {/* Étape prospect — visible uniquement si le type actuel est PROSPECT */}
+          {/* Statut prospect — visible uniquement si le type actuel est PROSPECT */}
           {type === "PROSPECT" && (
             <div className="space-y-1">
-              <label className="text-xs text-muted-foreground">Étape prospect</label>
-              <select value={prospectStage} onChange={(e) => setProspectStage(e.target.value)} className="flex h-8 w-full rounded-md border border-input bg-background px-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring">
+              <label className="text-xs text-muted-foreground">Statut prospect</label>
+              <select value={prospectStatus} onChange={(e) => setProspectStatus(e.target.value)} className="flex h-8 w-full rounded-md border border-input bg-background px-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring">
                 <optgroup label="Pipeline">
-                  {(["IDENTIFIED","CONTACTED","NO_RESPONSE","REPLIED","MEETING","PROPOSAL_SENT","NEGOTIATION"] as ProspectStage[]).map((s) => (
-                    <option key={s} value={s}>{STAGE_CONFIG[s].label}</option>
+                  {PIPELINE_STATUSES.map((s) => (
+                    <option key={s} value={s}>{STATUS_CONFIG[s].label}</option>
                   ))}
                 </optgroup>
                 <optgroup label="Résultat">
-                  {(["WON","LOST","ON_HOLD"] as ProspectStage[]).map((s) => (
-                    <option key={s} value={s}>{STAGE_CONFIG[s].label}</option>
+                  {OUTCOME_STATUSES.map((s) => (
+                    <option key={s} value={s}>{STATUS_CONFIG[s].label}</option>
                   ))}
                 </optgroup>
               </select>
@@ -327,22 +310,19 @@ export function ClientInfoCard({ client, isOwner = true }: { client: ClientData;
             </button>
           )}
 
-          {/* Type + Température + Étape prospect */}
+          {/* Type + Statut prospect */}
           <div className="flex items-center gap-2 flex-wrap">
             <span className={cn("rounded-full border px-2.5 py-0.5 text-xs font-medium", TYPE_CLS[client.type] ?? TYPE_CLS.INACTIVE)}>
               {typeLabel}
             </span>
             {client.type === "PROSPECT" && (() => {
-              const stageCfg = STAGE_CONFIG[client.prospectStage as ProspectStage]
-              return stageCfg ? (
-                <span className={cn("rounded-full border px-2.5 py-0.5 text-xs font-medium", stageCfg.cls)}>
-                  {stageCfg.label}
+              const statusCfg = STATUS_CONFIG[client.prospectStatus as ProspectStatus]
+              return statusCfg ? (
+                <span className={cn("rounded-full border px-2.5 py-0.5 text-xs font-medium", statusCfg.cls)}>
+                  {statusCfg.label}
                 </span>
               ) : null
             })()}
-            <span className={cn("rounded-full border px-2.5 py-0.5 text-xs font-medium", temp.cls)}>
-              {temp.emoji} {temp.label}
-            </span>
           </div>
 
           {/* Coordonnées */}

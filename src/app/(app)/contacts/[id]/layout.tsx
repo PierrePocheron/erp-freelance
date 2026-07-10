@@ -5,8 +5,7 @@ import Link from "next/link"
 import { ChevronLeft } from "lucide-react"
 import { ClientTabs } from "@/components/modules/crm/ClientTabs"
 import { ClientTypeSelect } from "@/components/modules/crm/ClientTypeSelect"
-import { TemperatureSelect } from "@/components/modules/crm/TemperatureSelect"
-import { ProspectStageInline } from "@/components/modules/crm/ProspectStageInline"
+import { ProspectStatusSelect } from "@/components/modules/prospection/ProspectStatusSelect"
 import type { Metadata } from "next"
 
 export async function generateMetadata({
@@ -45,7 +44,7 @@ export default async function ClientLayout({
     },
     select: {
       id: true, userId: true, name: true, company: true, companyId: true,
-      type: true, temperature: true, prospectStage: true,
+      type: true, prospectStatus: true,
     },
   })
 
@@ -81,9 +80,8 @@ export default async function ClientLayout({
             <div className="flex items-center gap-3 pt-1 flex-wrap">
               <ClientTypeSelect clientId={id} userId={userId} value={client.type} />
               {client.type === "PROSPECT" && (
-                <ProspectStageInline clientId={id} value={client.prospectStage} />
+                <ProspectStatusSelect clientId={id} value={client.prospectStatus} />
               )}
-              <TemperatureSelect clientId={id} userId={userId} value={client.temperature} />
             </div>
           </div>
         </div>

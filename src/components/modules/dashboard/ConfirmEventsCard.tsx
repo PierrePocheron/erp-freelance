@@ -9,11 +9,17 @@ import { cn } from "@/lib/utils"
 import { completeTaskGlobal, cancelTask, updateMilestoneStatus } from "@/actions/projet"
 import { setCalendarEventOutcome, cancelCalendarEvent } from "@/actions/calendar"
 
-export type ConfirmTaskItem = { id: string; title: string; dueDate: string; projectId: string | null }
-export type ConfirmMilestoneItem = { id: string; name: string; date: string; projectId: string }
-export type ConfirmEventItem = { id: string; title: string; startDate: string; categoryColor: string | null }
+export type ConfirmTaskItem = { id: string; title: string; dueDate: string; projectId: string | null; context: string | null }
+export type ConfirmMilestoneItem = { id: string; name: string; date: string; projectId: string; projectName: string }
+export type ConfirmEventItem = { id: string; title: string; startDate: string; allDay: boolean; categoryColor: string | null; categoryName: string | null }
 
-const fmtDate = (d: string) => new Date(d).toLocaleDateString("fr-FR", { day: "numeric", month: "short" })
+// Date courte + heure si elle est renseignée (minuit pile = date seule).
+function fmtDateTime(d: string, allDay = false): string {
+  const dt = new Date(d)
+  const date = dt.toLocaleDateString("fr-FR", { day: "numeric", month: "short" })
+  if (allDay || (dt.getHours() === 0 && dt.getMinutes() === 0)) return date
+  return `${date} · ${dt.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}`
+}
 
 /**
  * Items du passé récent (tâches en retard, jalons passés, événements calendrier)
@@ -147,7 +153,9 @@ function TaskRow({ item }: { item: ConfirmTaskItem }) {
     <div className="flex items-center gap-2 rounded-lg px-3 py-1.5">
       <Link href={href} className="flex-1 min-w-0">
         <p className="text-sm truncate">{item.title}</p>
-        <p className="text-xs text-muted-foreground">{fmtDate(item.dueDate)}</p>
+        <p className="text-xs text-muted-foreground truncate">
+          {[item.context, fmtDateTime(item.dueDate)].filter(Boolean).join(" · ")}
+        </p>
       </Link>
       <button onClick={confirm} disabled={isPending} title="Marquer terminée" className="rounded-md p-1 text-muted-foreground hover:text-emerald-600 hover:bg-emerald-500/10 transition-colors shrink-0 disabled:opacity-50">
         <Check className="h-3.5 w-3.5" />
@@ -180,7 +188,9 @@ function MilestoneRow({ item }: { item: ConfirmMilestoneItem }) {
     <div className="flex items-center gap-2 rounded-lg px-3 py-1.5">
       <Link href={`/projets/${item.projectId}/dev`} className="flex-1 min-w-0">
         <p className="text-sm truncate">{item.name}</p>
-        <p className="text-xs text-muted-foreground">{fmtDate(item.date)}</p>
+        <p className="text-xs text-muted-foreground truncate">
+          {item.projectName} · {fmtDateTime(item.date)}
+        </p>
       </Link>
       <button onClick={confirm} disabled={isPending} title="Marquer terminé" className="rounded-md p-1 text-muted-foreground hover:text-emerald-600 hover:bg-emerald-500/10 transition-colors shrink-0 disabled:opacity-50">
         <Check className="h-3.5 w-3.5" />
@@ -214,7 +224,9 @@ function EventRow({ item }: { item: ConfirmEventItem }) {
       <span className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: item.categoryColor ?? "#94a3b8" }} />
       <Link href="/calendrier" className="flex-1 min-w-0">
         <p className="text-sm truncate">{item.title}</p>
-        <p className="text-xs text-muted-foreground">{fmtDate(item.startDate)}</p>
+        <p className="text-xs text-muted-foreground truncate">
+          {[item.categoryName, fmtDateTime(item.startDate, item.allDay)].filter(Boolean).join(" · ")}
+        </p>
       </Link>
       <button onClick={confirm} disabled={isPending} title="Bien passé" className="rounded-md p-1 text-muted-foreground hover:text-emerald-600 hover:bg-emerald-500/10 transition-colors shrink-0 disabled:opacity-50">
         <Check className="h-3.5 w-3.5" />

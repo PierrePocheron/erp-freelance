@@ -5,13 +5,13 @@ import { TaskShortcut } from "@/components/modules/projet/TaskShortcut"
 import { DevTaskBoard } from "@/components/modules/projet/DevTaskBoard"
 import { TagManager } from "@/components/modules/projet/TagManager"
 import {
-  updateMilestoneStatus,
   createJournalEntry,
   createDeliverable,
   updateDeliverableStatus,
   migrateGroupsToTags,
 } from "@/actions/projet"
 import { MilestoneDialog, MILESTONE_TYPE_LABELS, MILESTONE_TYPE_COLORS } from "@/components/modules/projet/MilestoneDialog"
+import { MilestoneToggle } from "@/components/modules/projet/MilestoneToggle"
 import { UsefulLinkDialog } from "@/components/modules/projet/UsefulLinkDialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -136,15 +136,7 @@ export default async function ProjectDevPage({
             <div className="space-y-2">
               {project.milestones.map((m) => (
                 <div key={m.id} className="flex items-center gap-3 py-1.5 group">
-                  <form action={async () => {
-                    "use server"
-                    const next = m.status === "UPCOMING" ? "IN_PROGRESS" : m.status === "IN_PROGRESS" ? "DONE" : "UPCOMING"
-                    await updateMilestoneStatus(m.id, id, next)
-                  }}>
-                    <button type="submit" className="text-muted-foreground hover:text-primary transition-colors">
-                      {m.status === "DONE" ? <CheckCircle2 className="h-4 w-4 text-emerald-500" /> : <Circle className="h-4 w-4" />}
-                    </button>
-                  </form>
+                  <MilestoneToggle milestoneId={m.id} projectId={id} status={m.status} />
                   <span className="flex-1 text-sm min-w-0 truncate">{m.name}</span>
                   <Badge variant="outline" className={`text-xs shrink-0 ${MILESTONE_TYPE_COLORS[m.type] ?? MILESTONE_TYPE_COLORS.OTHER}`}>
                     {MILESTONE_TYPE_LABELS[m.type] ?? m.type}

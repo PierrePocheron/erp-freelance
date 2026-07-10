@@ -1,12 +1,13 @@
 "use client"
 
-import { useState, useTransition } from "react"
+import { useEffect, useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
-import { Plus, Pencil, Trash2, Mail, X, Check } from "lucide-react"
+import { Plus, Pencil, Trash2, Mail, X, Check, GripVertical } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { createEmailTemplate, updateEmailTemplate, deleteEmailTemplate } from "@/actions/prospection"
+import { createEmailTemplate, updateEmailTemplate, deleteEmailTemplate, reorderEmailTemplates } from "@/actions/prospection"
 import { TEMPLATE_VARIABLES } from "@/lib/email-template"
+import { cn } from "@/lib/utils"
 import { toast } from "sonner"
 
 type EmailTemplate = {
@@ -25,6 +26,38 @@ export function EmailTemplatesView({ templates }: { templates: EmailTemplate[] }
   const [body, setBody] = useState("")
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
+
+  // Ordre local pour le drag & drop — resynchronisé quand la liste serveur
+  // change (création / édition / suppression rafraîchies via router.refresh).
+  const [items, setItems] = useState(templates)
+  const [dragId, setDragId] = useState<string | null>(null)
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setItems(templates)
+  }, [templates])
+
+  function handleDragOver(e: React.DragEvent, overId: string) {
+    e.preventDefault()
+    if (dragId === null || dragId === overId) return
+    setItems((prev) => {
+      const from = prev.findIndex((t) => t.id === dragId)
+      const to = prev.findIndex((t) => t.id === overId)
+      if (from === -1 || to === -1 || from === to) return prev
+      const next = [...prev]
+      const [moved] = next.splice(from, 1)
+      next.splice(to, 0, moved)
+      return next
+    })
+  }
+
+  function handleDrop() {
+    if (dragId === null) return
+    setDragId(null)
+    const orderedIds = items.map((t) => t.id)
+    startTransition(async () => {
+      await reorderEmailTemplates(orderedIds)
+    })
+  }
 
   function startCreate() {
     setEditingId("new")
@@ -124,19 +157,38 @@ export function EmailTemplatesView({ templates }: { templates: EmailTemplate[] }
         </Button>
       )}
 
-      {/* Liste */}
-      {templates.length === 0 && !editorOpen ? (
+      {/* Liste — grille responsive, réordonnable par glisser-déposer */}
+      {items.length === 0 && !editorOpen ? (
         <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border py-10 text-center">
           <Mail className="h-8 w-8 text-muted-foreground mb-2" />
           <p className="text-sm text-muted-foreground">Aucun modèle pour le moment</p>
           <p className="text-xs text-muted-foreground/60 mt-1">Créez votre premier modèle de démarchage</p>
         </div>
       ) : (
-        <div className="space-y-2">
-          {templates.map((t) => (
-            <div key={t.id} className="group rounded-xl border border-border/50 bg-card p-4 space-y-1">
-              <div className="flex items-center justify-between gap-2">
-                <p className="text-sm font-semibold truncate">{t.name}</p>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          {items.map((t) => (
+            <div
+              key={t.id}
+              onDragOver={(e) => handleDragOver(e, t.id)}
+              onDrop={handleDrop}
+              className={cn(
+                "group flex flex-col gap-1 rounded-xl border border-border/50 bg-card p-4 transition-colors",
+                dragId === t.id && "opacity-50 ring-1 ring-primary/40"
+              )}
+            >
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  draggable
+                  onDragStart={() => setDragId(t.id)}
+                  onDragEnd={() => setDragId(null)}
+                  className="cursor-grab active:cursor-grabbing text-muted-foreground/30 hover:text-muted-foreground transition-colors shrink-0 touch-none"
+                  title="Glisser pour réordonner"
+                  aria-label="Réordonner le modèle"
+                >
+                  <GripVertical className="h-4 w-4" />
+                </button>
+                <p className="text-sm font-semibold truncate flex-1">{t.name}</p>
                 <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
                   <button
                     onClick={() => startEdit(t)}
@@ -166,7 +218,7 @@ export function EmailTemplatesView({ templates }: { templates: EmailTemplate[] }
                 </div>
               </div>
               <p className="text-xs text-muted-foreground truncate">Objet : {t.subject}</p>
-              <p className="text-xs text-muted-foreground/70 line-clamp-2 whitespace-pre-line">{t.body}</p>
+              <p className="text-xs text-muted-foreground/70 line-clamp-3 whitespace-pre-line">{t.body}</p>
             </div>
           ))}
         </div>

@@ -37,7 +37,7 @@ export default async function ProspectionPage({
     }),
     prisma.emailTemplate.findMany({
       where: { userId },
-      orderBy: { updatedAt: "desc" },
+      orderBy: [{ sortOrder: "asc" }, { updatedAt: "desc" }],
       select: { id: true, name: true, subject: true, body: true },
     }),
   ])

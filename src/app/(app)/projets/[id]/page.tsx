@@ -2,14 +2,14 @@ import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { notFound } from "next/navigation"
 import Link from "next/link"
-import { Calendar, Clock, CheckSquare, BookOpen, Link2, ExternalLink, FileText, Receipt, Flag, CheckCircle2, Circle } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { createJournalEntry, updateMilestoneStatus } from "@/actions/projet"
+import { Calendar, Clock, CheckSquare, BookOpen, FileText, Receipt, Flag } from "lucide-react"
+import { createJournalEntry } from "@/actions/projet"
 import { QuickNoteForm } from "@/components/modules/projet/QuickNoteForm"
 import { JournalEntryItem } from "@/components/modules/projet/JournalEntryItem"
-import { LINK_CATEGORY_CONFIG, normalizeUrl } from "@/lib/link-categories"
 import { MilestoneDialog, MILESTONE_TYPE_LABELS, MILESTONE_TYPE_COLORS } from "@/components/modules/projet/MilestoneDialog"
-import { UsefulLinkDialog } from "@/components/modules/projet/UsefulLinkDialog"
+import { MilestoneToggle } from "@/components/modules/projet/MilestoneToggle"
+import { ProjectTasksCard } from "@/components/modules/projet/ProjectTasksCard"
+import { ProjectLinksCard } from "@/components/modules/projet/ProjectLinksCard"
 import { REVENUE_TYPE_LABELS } from "@/lib/revenue-constants"
 
 function fmtTime(d: Date | string) {
@@ -69,7 +69,11 @@ export default async function ProjectOverviewPage({
       tasks: {
         where: { parentTaskId: null },
         select: {
+          id: true,
+          title: true,
           status: true,
+          priority: true,
+          dueDate: true,
           timeEntries: { where: { userId, endedAt: { not: null } }, select: { duration: true } },
           subTasks: {
             select: {
@@ -127,9 +131,15 @@ export default async function ProjectOverviewPage({
     return `${min}m`
   }
 
-  const nextMilestone = project.milestones
-    .filter((m) => m.status !== "DONE")
-    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())[0]
+  // Tâches ouvertes d'abord (échéance croissante, sans échéance à la fin), terminées ensuite
+  const sortedTasks = [...project.tasks].sort((a, b) => {
+    const aDone = a.status === "DONE" ? 1 : 0
+    const bDone = b.status === "DONE" ? 1 : 0
+    if (aDone !== bDone) return aDone - bDone
+    const aTime = a.dueDate ? new Date(a.dueDate).getTime() : Infinity
+    const bTime = b.dueDate ? new Date(b.dueDate).getTime() : Infinity
+    return aTime - bTime
+  })
 
   const hasBilling = project.quotes.length > 0 || project.invoices.length > 0
   const invoicedTotal = project.invoices.reduce((s, inv) => s + (inv.totalHT - inv.depositDeducted), 0)
@@ -146,202 +156,146 @@ export default async function ProjectOverviewPage({
   return (
     <div className="space-y-6">
 
-      {/* Liens rapides — raccourcis */}
-      <div className="rounded-xl border border-border/50 bg-card p-4 space-y-3">
-        <div className="flex items-center gap-2">
-          <Link2 className="h-3.5 w-3.5 text-muted-foreground" />
-          <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Liens rapides</span>
+      {/* Grille uniforme : cartes 1/3 de largeur, 3 par rangée sur desktop */}
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3 items-start">
+
+        {/* Jalons */}
+        <div className="rounded-xl border border-border/50 bg-card p-5 space-y-3">
+          <div className="flex items-center gap-2 font-semibold text-sm">
+            <Flag className="h-4 w-4 text-muted-foreground" />
+            Jalons
+          </div>
+          {project.milestones.length === 0 ? (
+            <p className="text-xs text-muted-foreground italic">Aucun jalon défini</p>
+          ) : (
+            <div className="space-y-1.5">
+              {project.milestones.map((m) => {
+                const isPast = m.status !== "DONE" && m.status !== "CANCELLED" && new Date(m.date) < new Date()
+                const statusCls =
+                  m.status === "DONE" ? "bg-emerald-500/15 text-emerald-600" :
+                  m.status === "CANCELLED" ? "bg-red-500/15 text-red-600" :
+                  m.status === "IN_PROGRESS" ? "bg-blue-500/15 text-blue-600" :
+                  isPast ? "bg-red-500/15 text-red-600" :
+                  "bg-muted text-muted-foreground"
+                const statusLabel =
+                  m.status === "DONE" ? "Terminé" :
+                  m.status === "CANCELLED" ? "Annulé" :
+                  m.status === "IN_PROGRESS" ? "En cours" :
+                  isPast ? "En retard" : "À venir"
+                return (
+                  <div key={m.id} className="flex items-center gap-2 py-1 group">
+                    <MilestoneToggle milestoneId={m.id} projectId={id} status={m.status} />
+                    <span className="flex-1 text-sm truncate min-w-0">{m.name}</span>
+                    <span className={`shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-medium ${MILESTONE_TYPE_COLORS[m.type] ?? MILESTONE_TYPE_COLORS.OTHER}`}>
+                      {MILESTONE_TYPE_LABELS[m.type] ?? m.type}
+                    </span>
+                    <span className="shrink-0 text-xs text-muted-foreground whitespace-nowrap">
+                      {new Date(m.date).toLocaleDateString("fr-FR", { day: "numeric", month: "short" })}
+                      {hasTime(m.date) && ` · ${fmtTime(m.date)}`}
+                      {m.endDate && ` – ${fmtTime(m.endDate)}`}
+                    </span>
+                    <span className={`shrink-0 rounded-full px-1.5 py-0.5 text-xs font-medium ${statusCls}`}>
+                      {statusLabel}
+                    </span>
+                    <MilestoneDialog projectId={id} milestone={m} />
+                  </div>
+                )
+              })}
+            </div>
+          )}
+          <MilestoneDialog projectId={id} />
         </div>
-        {project.usefulLinks.length > 0 && (
-          <div className="flex flex-wrap gap-2">
-            {project.usefulLinks.map((l) => {
-              const cat = LINK_CATEGORY_CONFIG[l.category] ?? LINK_CATEGORY_CONFIG.OTHER
-              return (
-                <div key={l.id} className="group inline-flex items-center gap-1 rounded-full border pl-1 pr-2 py-1">
-                  <a
-                    href={normalizeUrl(l.url)}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className={`inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-xs font-medium transition-opacity hover:opacity-80 ${cat.cls}`}
-                  >
-                    <span className={`h-1.5 w-1.5 rounded-full shrink-0 ${cat.dot}`} />
-                    {l.label}
-                    <ExternalLink className="h-2.5 w-2.5 opacity-60" />
-                  </a>
-                  <UsefulLinkDialog projectId={id} link={l} />
+
+        {/* Tâches — liste cochable */}
+        <ProjectTasksCard
+          projectId={id}
+          tasks={sortedTasks.map((t) => ({
+            id: t.id, title: t.title, status: t.status, priority: t.priority, dueDate: t.dueDate,
+          }))}
+        />
+
+        {/* Liens — liste avec health check + ajout inline */}
+        <ProjectLinksCard projectId={id} links={project.usefulLinks} />
+
+        {/* Suivi — temps, budget, livrables, période */}
+        <div className={`rounded-xl border p-5 space-y-3 ${isOver ? "border-red-500/30 bg-red-500/5" : budgetPct && budgetPct > 80 ? "border-amber-500/30 bg-amber-500/5" : "border-border/50 bg-card"}`}>
+          <div className="flex items-center gap-2 font-semibold text-sm">
+            <Clock className="h-4 w-4 text-muted-foreground" />
+            Suivi
+          </div>
+
+          <div className="space-y-1">
+            <div className="flex items-baseline justify-between">
+              <p className={`text-2xl font-bold ${isOver ? "text-red-500" : ""}`}>
+                {totalTrackedSeconds > 0 ? fmtH(totalTrackedHours) : "0h"}
+              </p>
+              <p className="text-xs text-muted-foreground">temps suivi</p>
+            </div>
+            {project.estimatedHours ? (
+              <>
+                <div className="h-1 rounded-full bg-muted overflow-hidden">
+                  <div
+                    className={`h-full rounded-full transition-all ${isOver ? "bg-red-500" : budgetPct && budgetPct > 80 ? "bg-amber-500" : "bg-blue-500"}`}
+                    style={{ width: `${budgetPct ?? 0}%` }}
+                  />
                 </div>
-              )
-            })}
-          </div>
-        )}
-        <UsefulLinkDialog projectId={id} />
-      </div>
-
-      {/* Bento stats */}
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <div className="rounded-xl border border-border/50 bg-card p-4 space-y-1.5">
-          <div className="flex items-center gap-2 text-muted-foreground text-xs">
-            <CheckSquare className="h-3.5 w-3.5" />
-            Tâches
-          </div>
-          <p className="text-2xl font-bold">{doneTasks}<span className="text-sm font-normal text-muted-foreground">/{totalTasks}</span></p>
-          {totalTasks > 0 && (
-            <div className="space-y-1">
-              <div className="h-1 rounded-full bg-muted overflow-hidden">
-                <div
-                  className="h-full rounded-full bg-emerald-500 transition-all"
-                  style={{ width: `${Math.round((doneTasks / totalTasks) * 100)}%` }}
-                />
-              </div>
-              <p className="text-xs text-muted-foreground">{inProgressTasks} en cours</p>
-            </div>
-          )}
-        </div>
-
-        <div className={`rounded-xl border p-4 space-y-1.5 ${isOver ? "border-red-500/30 bg-red-500/5" : budgetPct && budgetPct > 80 ? "border-amber-500/30 bg-amber-500/5" : "border-border/50 bg-card"}`}>
-          <div className="flex items-center gap-2 text-muted-foreground text-xs">
-            <Clock className="h-3.5 w-3.5" />
-            Temps suivi
-          </div>
-          <p className={`text-2xl font-bold ${isOver ? "text-red-500" : ""}`}>
-            {totalTrackedSeconds > 0 ? fmtH(totalTrackedHours) : "—"}
-          </p>
-          {project.estimatedHours ? (
-            <div className="space-y-1">
-              <div className="h-1 rounded-full bg-muted overflow-hidden">
-                <div
-                  className={`h-full rounded-full transition-all ${isOver ? "bg-red-500" : budgetPct && budgetPct > 80 ? "bg-amber-500" : "bg-blue-500"}`}
-                  style={{ width: `${budgetPct ?? 0}%` }}
-                />
-              </div>
-              <p className={`text-xs ${isOver ? "text-red-500 font-medium" : "text-muted-foreground"}`}>
-                {isOver ? `+${fmtH(totalTrackedHours - project.estimatedHours)} dépassement` : `${fmtH(project.estimatedHours)} estimé`}
-              </p>
-            </div>
-          ) : (
-            <p className="text-xs text-muted-foreground">pas d&apos;estimé</p>
-          )}
-        </div>
-
-        <div className="rounded-xl border border-border/50 bg-card p-4 space-y-1">
-          <div className="flex items-center gap-2 text-muted-foreground text-xs">
-            <Calendar className="h-3.5 w-3.5" />
-            Prochain jalon
-          </div>
-          {nextMilestone ? (
-            <>
-              <p className="text-sm font-semibold leading-tight">{nextMilestone.name}</p>
-              <p className="text-xs text-muted-foreground">
-                {new Date(nextMilestone.date).toLocaleDateString("fr-FR", { day: "numeric", month: "short" })}
-              </p>
-            </>
-          ) : (
-            <p className="text-sm text-muted-foreground">Aucun jalon</p>
-          )}
-        </div>
-
-        <div className="rounded-xl border border-border/50 bg-card p-4 space-y-1">
-          <div className="flex items-center gap-2 text-muted-foreground text-xs">
-            <BookOpen className="h-3.5 w-3.5" />
-            Livrables
-          </div>
-          <p className="text-2xl font-bold">
-            {project.deliverables.filter((d) => d.status === "VALIDATED").length}
-            <span className="text-sm font-normal text-muted-foreground">/{project.deliverables.length}</span>
-          </p>
-          <p className="text-xs text-muted-foreground">validés</p>
-        </div>
-      </div>
-
-      {/* Contenu principal : 2 colonnes */}
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-
-        {/* Colonne gauche : Notes rapides */}
-        <div className="lg:col-span-2 space-y-6">
-
-          {/* Notes rapides */}
-          <div className="rounded-xl border border-border/50 bg-card p-5 space-y-4">
-            <div className="flex items-center gap-2">
-              <BookOpen className="h-4 w-4 text-muted-foreground" />
-              <h2 className="font-semibold">Notes rapides</h2>
-            </div>
-
-            <QuickNoteForm action={async (fd: FormData) => {
-              "use server"
-              await createJournalEntry(id, fd)
-            }} />
-
-            {project.journalEntries.length === 0 ? (
-              <p className="text-xs text-muted-foreground italic">Aucune note pour l&apos;instant</p>
+                <p className={`text-xs ${isOver ? "text-red-500 font-medium" : "text-muted-foreground"}`}>
+                  {isOver ? `+${fmtH(totalTrackedHours - project.estimatedHours)} de dépassement` : `${fmtH(project.estimatedHours)} estimé`}
+                </p>
+              </>
             ) : (
-              <div className="space-y-2.5 max-h-72 overflow-y-auto pr-1">
-                {project.journalEntries.map((entry) => (
-                  <JournalEntryItem key={entry.id} entry={entry} projectId={id} />
-                ))}
+              <p className="text-xs text-muted-foreground">pas d&apos;estimé défini</p>
+            )}
+          </div>
+
+          <div className="border-t border-border/40 pt-2.5 space-y-1.5 text-sm">
+            <div className="flex items-center justify-between">
+              <span className="text-muted-foreground flex items-center gap-1.5"><CheckSquare className="h-3.5 w-3.5" /> Tâches</span>
+              <span className="font-medium tabular-nums">{doneTasks}/{totalTasks}{inProgressTasks > 0 && <span className="text-xs text-muted-foreground font-normal"> · {inProgressTasks} en cours</span>}</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-muted-foreground flex items-center gap-1.5"><BookOpen className="h-3.5 w-3.5" /> Livrables validés</span>
+              <span className="font-medium tabular-nums">
+                {project.deliverables.filter((d) => d.status === "VALIDATED").length}/{project.deliverables.length}
+              </span>
+            </div>
+            {(project.startDate || project.endDate) && (
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground flex items-center gap-1.5"><Calendar className="h-3.5 w-3.5" /> Période</span>
+                <span className="font-medium text-xs">
+                  {project.startDate ? new Date(project.startDate).toLocaleDateString("fr-FR", { day: "numeric", month: "short" }) : "?"}
+                  {" → "}
+                  {project.endDate ? new Date(project.endDate).toLocaleDateString("fr-FR", { day: "numeric", month: "short" }) : "?"}
+                </span>
               </div>
             )}
           </div>
         </div>
 
-        {/* Colonne droite : Jalons + Facturation */}
-        <div className="space-y-6">
-
-          {/* Jalons */}
-          <div className="rounded-xl border border-border/50 bg-card p-5 space-y-3">
-            <div className="flex items-center gap-2 font-semibold text-sm">
-              <Flag className="h-4 w-4 text-muted-foreground" />
-              Jalons
-            </div>
-            {project.milestones.length === 0 ? (
-              <p className="text-xs text-muted-foreground italic">Aucun jalon défini</p>
-            ) : (
-              <div className="space-y-1.5">
-                {project.milestones.map((m) => {
-                  const isPast = m.status !== "DONE" && m.status !== "CANCELLED" && new Date(m.date) < new Date()
-                  const statusCls =
-                    m.status === "DONE" ? "bg-emerald-500/15 text-emerald-600" :
-                    m.status === "CANCELLED" ? "bg-red-500/15 text-red-600" :
-                    m.status === "IN_PROGRESS" ? "bg-blue-500/15 text-blue-600" :
-                    isPast ? "bg-red-500/15 text-red-600" :
-                    "bg-muted text-muted-foreground"
-                  const statusLabel =
-                    m.status === "DONE" ? "Terminé" :
-                    m.status === "CANCELLED" ? "Annulé" :
-                    m.status === "IN_PROGRESS" ? "En cours" :
-                    isPast ? "En retard" : "À venir"
-                  return (
-                    <div key={m.id} className="flex items-center gap-2 py-1 group">
-                      <form action={async () => {
-                        "use server"
-                        const next = m.status === "UPCOMING" ? "IN_PROGRESS" : m.status === "IN_PROGRESS" ? "DONE" : "UPCOMING"
-                        await updateMilestoneStatus(m.id, id, next)
-                      }}>
-                        <button type="submit" className="text-muted-foreground hover:text-primary transition-colors">
-                          {m.status === "DONE" ? <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" /> : <Circle className="h-3.5 w-3.5" />}
-                        </button>
-                      </form>
-                      <span className="flex-1 text-sm truncate min-w-0">{m.name}</span>
-                      <span className={`shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-medium ${MILESTONE_TYPE_COLORS[m.type] ?? MILESTONE_TYPE_COLORS.OTHER}`}>
-                        {MILESTONE_TYPE_LABELS[m.type] ?? m.type}
-                      </span>
-                      <span className="shrink-0 text-xs text-muted-foreground whitespace-nowrap">
-                        {new Date(m.date).toLocaleDateString("fr-FR", { day: "numeric", month: "short" })}
-                        {hasTime(m.date) && ` · ${fmtTime(m.date)}`}
-                        {m.endDate && ` – ${fmtTime(m.endDate)}`}
-                      </span>
-                      <span className={`shrink-0 rounded-full px-1.5 py-0.5 text-xs font-medium ${statusCls}`}>
-                        {statusLabel}
-                      </span>
-                      <MilestoneDialog projectId={id} milestone={m} />
-                    </div>
-                  )
-                })}
-              </div>
-            )}
-            <MilestoneDialog projectId={id} />
+        {/* Notes rapides */}
+        <div className="rounded-xl border border-border/50 bg-card p-5 space-y-3">
+          <div className="flex items-center gap-2 font-semibold text-sm">
+            <BookOpen className="h-4 w-4 text-muted-foreground" />
+            Notes rapides
           </div>
 
-          {hasBilling ? (
+          <QuickNoteForm action={async (fd: FormData) => {
+            "use server"
+            await createJournalEntry(id, fd)
+          }} />
+
+          {project.journalEntries.length === 0 ? (
+            <p className="text-xs text-muted-foreground italic">Aucune note pour l&apos;instant</p>
+          ) : (
+            <div className="space-y-2.5 max-h-64 overflow-y-auto pr-1">
+              {project.journalEntries.map((entry) => (
+                <JournalEntryItem key={entry.id} entry={entry} projectId={id} />
+              ))}
+            </div>
+          )}
+        </div>
+
+        {hasBilling ? (
             <div className="rounded-xl border border-border/50 bg-card p-5 space-y-4">
               <Link href="/facturation" className="flex items-center gap-2 font-semibold text-sm hover:text-primary transition-colors">
                 <Receipt className="h-4 w-4 text-muted-foreground" />
@@ -451,7 +405,6 @@ export default async function ProjectOverviewPage({
               <p className="text-xs text-muted-foreground">Aucune facturation liée à ce projet</p>
             </div>
           )}
-        </div>
       </div>
     </div>
   )

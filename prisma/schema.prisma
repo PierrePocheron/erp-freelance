@@ -470,6 +470,7 @@ enum LinkCategory {
   PROD
   STAGING
   DOCS
+  SITE
   OTHER
 }
 

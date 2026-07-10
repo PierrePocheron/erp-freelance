@@ -3,6 +3,7 @@
 import { prisma } from "@/lib/prisma"
 import { revalidatePath } from "next/cache"
 import { auth } from "@/lib/auth"
+import { normalizeUrl } from "@/lib/link-categories"
 import type { RenewalType } from "@/generated/prisma/enums"
 
 async function requireAuth(): Promise<string> {
@@ -98,6 +99,32 @@ async function probeUrl(url: string): Promise<ProbeResult> {
   } catch {
     return { isUp: false, statusCode: null, responseTimeMs: null }
   }
+}
+
+/**
+ * Health check éphémère des liens utiles d'un projet (carte Liens) : sonde
+ * chaque URL en parallèle, sans persistance — contrairement aux prods
+ * (MonitoringCheck), un lien Docs/GitHub n'a pas besoin d'historique.
+ * Les URLs locales (SSRF-guard) sont renvoyées sans statut.
+ */
+export async function checkProjectLinksHealth(
+  projectId: string
+): Promise<{ linkId: string; isUp: boolean | null; statusCode: number | null }[]> {
+  const userId = await requireAuth()
+  const links = await prisma.usefulLink.findMany({
+    where: { projectId, project: { OR: [{ userId }, { members: { some: { userId } } }] } },
+    select: { id: true, url: true },
+  })
+
+  return Promise.all(links.map(async (l) => {
+    try {
+      const result = await probeUrl(normalizeUrl(l.url))
+      return { linkId: l.id, isUp: result.isUp, statusCode: result.statusCode }
+    } catch {
+      // URL invalide ou bloquée par le garde SSRF (localhost...) → pas de statut
+      return { linkId: l.id, isUp: null, statusCode: null }
+    }
+  }))
 }
 
 export async function checkSiteStatus(postDevId: string, projectId: string, url: string) {

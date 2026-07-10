@@ -7,10 +7,25 @@ export type SearchResult = {
   id: string
   type: "client" | "project" | "quote" | "invoice" | "company" | "fiscal_source"
       | "task" | "job_application" | "health_event" | "health_consultation"
-      | "expense" | "recurring_expense" | "prospect"
+      | "expense" | "recurring_expense" | "prospect" | "revenue"
   label: string
   sublabel?: string
   href: string
+}
+
+const eur = (n: number) => `${n.toLocaleString("fr-FR", { maximumFractionDigits: 2 })} €`
+
+/**
+ * Si la requête est un nombre (« 60 », « 60,5 », « 1 200.50 »), retourne la
+ * plage de montants à matcher. Un entier N matche [N, N+1) pour retrouver aussi
+ * bien 60 que 60,50 ; un décimal matche exactement.
+ */
+function parseAmountQuery(query: string): { gte: number; lt: number } | null {
+  const cleaned = query.trim().replace(/\s/g, "").replace(",", ".")
+  if (!/^\d+(\.\d+)?$/.test(cleaned)) return null
+  const n = parseFloat(cleaned)
+  if (!Number.isFinite(n)) return null
+  return cleaned.includes(".") ? { gte: n, lt: n } : { gte: n, lt: n + 1 }
 }
 
 export async function searchGlobal(query: string, activeModuleIds?: string[]): Promise<SearchResult[]> {
@@ -22,10 +37,14 @@ export async function searchGlobal(query: string, activeModuleIds?: string[]): P
   const has = (id: string) => !activeModuleIds || activeModuleIds.includes(id)
   const empty = <T>() => Promise.resolve([] as T[])
 
+  // Recherche par montant : condition Prisma réutilisable (null si non numérique).
+  const amt = parseAmountQuery(query)
+  const amountFilter = amt ? (amt.gte === amt.lt ? amt.gte : { gte: amt.gte, lt: amt.lt }) : null
+
   const [
     companies, clients, projects, quotes, invoices, fiscalSources,
     tasks, jobApplications, healthEvents, healthConsultations,
-    expenses, recurringExpenses, prospects,
+    expenses, recurringExpenses, revenues, prospects,
   ] = await Promise.all([
     has("societes") ? prisma.company.findMany({
       where: { userId, OR: [
@@ -63,19 +82,21 @@ export async function searchGlobal(query: string, activeModuleIds?: string[]): P
       where: { userId, OR: [
         { number: { contains: query, mode: "insensitive" } },
         { client: { name: { contains: query, mode: "insensitive" } } },
+        ...(amountFilter !== null ? [{ totalHT: amountFilter }] : []),
       ]},
       take: 3,
-      select: { id: true, number: true, client: { select: { name: true, company: true } } },
-    }) : empty<{ id: string; number: string; client: { name: string; company: string | null } }>(),
+      select: { id: true, number: true, totalHT: true, client: { select: { name: true, company: true } } },
+    }) : empty<{ id: string; number: string; totalHT: number; client: { name: string; company: string | null } }>(),
 
     has("facturation") ? prisma.invoice.findMany({
       where: { userId, OR: [
         { number: { contains: query, mode: "insensitive" } },
         { client: { name: { contains: query, mode: "insensitive" } } },
+        ...(amountFilter !== null ? [{ totalHT: amountFilter }] : []),
       ]},
       take: 3,
-      select: { id: true, number: true, client: { select: { name: true, company: true } } },
-    }) : empty<{ id: string; number: string; client: { name: string; company: string | null } }>(),
+      select: { id: true, number: true, totalHT: true, client: { select: { name: true, company: true } } },
+    }) : empty<{ id: string; number: string; totalHT: number; client: { name: string; company: string | null } }>(),
 
     has("revenus") ? prisma.fiscalSource.findMany({
       where: { userId, name: { contains: query, mode: "insensitive" } },
@@ -122,17 +143,34 @@ export async function searchGlobal(query: string, activeModuleIds?: string[]): P
     }) : empty<{ id: string; title: string; practitionerName: string }>(),
 
     has("depenses") ? prisma.expense.findMany({
-      where: { userId, label: { contains: query, mode: "insensitive" } },
+      where: { userId, OR: [
+        { label: { contains: query, mode: "insensitive" } },
+        ...(amountFilter !== null ? [{ amount: amountFilter }] : []),
+      ]},
       take: 3,
       orderBy: { date: "desc" },
       select: { id: true, label: true, amount: true, category: { select: { name: true } } },
     }) : empty<{ id: string; label: string; amount: number; category: { name: string } | null }>(),
 
     has("depenses") ? prisma.recurringExpense.findMany({
-      where: { userId, label: { contains: query, mode: "insensitive" } },
+      where: { userId, OR: [
+        { label: { contains: query, mode: "insensitive" } },
+        ...(amountFilter !== null ? [{ amount: amountFilter }] : []),
+      ]},
       take: 3,
       select: { id: true, label: true, amount: true, category: { select: { name: true } } },
     }) : empty<{ id: string; label: string; amount: number; category: { name: string } | null }>(),
+
+    // Revenus : par libellé ET par montant (retrouver un encaissement attendu/reçu)
+    has("revenus") ? prisma.revenue.findMany({
+      where: { userId, OR: [
+        { label: { contains: query, mode: "insensitive" } },
+        ...(amountFilter !== null ? [{ amount: amountFilter }] : []),
+      ]},
+      take: 4,
+      orderBy: { createdAt: "desc" },
+      select: { id: true, label: true, amount: true, status: true },
+    }) : empty<{ id: string; label: string; amount: number; status: string }>(),
 
     has("prospection") ? prisma.client.findMany({
       where: { userId, type: "PROSPECT", OR: [
@@ -168,12 +206,12 @@ export async function searchGlobal(query: string, activeModuleIds?: string[]): P
     })),
     ...quotes.map((q) => ({
       id: q.id, type: "quote" as const,
-      label: q.number, sublabel: q.client.company ?? q.client.name,
+      label: q.number, sublabel: `${eur(q.totalHT)} · ${q.client.company ?? q.client.name}`,
       href: `/facturation/devis/${q.id}`,
     })),
     ...invoices.map((i) => ({
       id: i.id, type: "invoice" as const,
-      label: i.number, sublabel: i.client.company ?? i.client.name,
+      label: i.number, sublabel: `${eur(i.totalHT)} · ${i.client.company ?? i.client.name}`,
       href: `/facturation/factures/${i.id}`,
     })),
     ...fiscalSources.map((s) => ({
@@ -212,6 +250,12 @@ export async function searchGlobal(query: string, activeModuleIds?: string[]): P
       label: r.label,
       sublabel: `${r.amount.toLocaleString("fr-FR")} €${r.category ? ` · ${r.category.name}` : ""}`,
       href: `/depenses`,
+    })),
+    ...revenues.map((r) => ({
+      id: r.id, type: "revenue" as const,
+      label: r.label,
+      sublabel: `${eur(r.amount)} · ${r.status === "RECEIVED" ? "reçu" : "en attente"}`,
+      href: `/revenus`,
     })),
     ...prospects.map((p) => ({
       id: p.id, type: "prospect" as const,

@@ -434,18 +434,22 @@ export default async function DashboardPage() {
     title: t.title,
     dueDate: t.dueDate!.toISOString(),
     projectId: t.projectId,
+    context: t.project?.name ?? t.client?.company ?? t.client?.name ?? null,
   }))
   const confirmMilestoneItems = unconfirmedMilestones.map((m) => ({
     id: m.id,
     name: m.name,
     date: m.date.toISOString(),
     projectId: m.projectId,
+    projectName: m.project.name,
   }))
   const confirmEventItems = unconfirmedEvents.map((e) => ({
     id: e.id,
     title: e.title,
     startDate: e.startDate.toISOString(),
+    allDay: e.allDay,
     categoryColor: e.category?.color ?? null,
+    categoryName: e.category?.name ?? null,
   }))
   const totalUnconfirmed = confirmTaskItems.length + confirmMilestoneItems.length + confirmEventItems.length
 

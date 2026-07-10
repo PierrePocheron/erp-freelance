@@ -12,31 +12,11 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  build-test:
+  # Gate rapide sur chaque push (dev inclus) : typecheck + lint, sans base de
+  # données ni tests. Feedback en quelques secondes.
+  check:
+    name: Typecheck & Lint
     runs-on: ubuntu-latest
-
-    # Base Postgres jetable pour les tests d'intégration. Le harnais crée la base
-    # « erp_test » à partir de la base de maintenance « postgres » puis y pousse
-    # le schéma Prisma (cf. tests/integration/globalSetup.ts).
-    services:
-      postgres:
-        image: postgres:16-alpine
-        env:
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: postgres
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U postgres"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-
-    env:
-      # Lu en priorité par le harnais et la config Vitest (jamais la prod Neon).
-      TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/erp_test
-      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/erp_test
 
     steps:
       - uses: actions/checkout@v5
@@ -65,7 +45,59 @@ jobs:
         run: npm run lint
         continue-on-error: true
 
-      # Lance unit + intégration avec couverture (lcov pour SonarCloud plus tard).
+  # Tests d'intégration + couverture + SonarCloud : uniquement pour les
+  # changements destinés à main (release). Se déclenche sur un push direct sur
+  # main OU une pull request ciblant main — pas sur les push dev du quotidien.
+  test:
+    name: Tests & SonarCloud
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' || github.base_ref == 'main'
+
+    # Base Postgres jetable pour les tests d'intégration. Le harnais crée la base
+    # « erp_test » à partir de la base de maintenance « postgres » puis y pousse
+    # le schéma Prisma (cf. tests/integration/globalSetup.ts).
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      # Lu en priorité par le harnais et la config Vitest (jamais la prod Neon).
+      TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/erp_test
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/erp_test
+      # Clé de test pour le chiffrement au repos (IBAN/BIC, tokens) — base CI
+      # jetable, aucun rapport avec la clé de prod sur Vercel.
+      ENCRYPTION_KEY: "cWzbKloKJh7rEyXDeDF3pz+qCRzmM8ok8nnuN1V7Ia0="
+
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          # Historique complet requis par SonarCloud (détection du "new code" + blame)
+          fetch-depth: 0
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma Client
+        run: npx prisma generate
+
+      # Lance unit + intégration avec couverture (lcov pour SonarCloud).
       - name: Tests (unit + integration) + coverage
         run: npm run test:coverage
 
@@ -76,3 +108,11 @@ jobs:
           name: coverage-lcov
           path: coverage/lcov.info
           if-no-files-found: warn
+
+      # Analyse SonarCloud (config dans sonar-project.properties) — consomme le
+      # lcov produit juste au-dessus. Analyse CI uniquement : l'Automatic
+      # Analysis est désactivée côté SonarCloud (conflit sinon).
+      - name: SonarCloud Scan
+        uses: SonarSource/sonarqube-scan-action@v5
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}

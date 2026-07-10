@@ -7,6 +7,7 @@ export type SearchResult = {
   id: string
   type: "client" | "project" | "quote" | "invoice" | "company" | "fiscal_source"
       | "task" | "job_application" | "health_event" | "health_consultation"
+      | "expense" | "recurring_expense" | "prospect"
   label: string
   sublabel?: string
   href: string
@@ -24,6 +25,7 @@ export async function searchGlobal(query: string, activeModuleIds?: string[]): P
   const [
     companies, clients, projects, quotes, invoices, fiscalSources,
     tasks, jobApplications, healthEvents, healthConsultations,
+    expenses, recurringExpenses, prospects,
   ] = await Promise.all([
     has("societes") ? prisma.company.findMany({
       where: { userId, OR: [
@@ -35,11 +37,18 @@ export async function searchGlobal(query: string, activeModuleIds?: string[]): P
       select: { id: true, name: true, city: true },
     }) : empty<{ id: string; name: string; city: string | null }>(),
 
+    // Contacts hors prospects si le module prospection est actif (les prospects
+    // ont alors leur propre requête ci-dessous) — sinon on garde tout pour ne
+    // pas rendre les prospects introuvables quand prospection est désactivé.
     has("contacts") ? prisma.client.findMany({
-      where: { userId, type: { not: "SELF" }, OR: [
-        { name: { contains: query, mode: "insensitive" } },
-        { company: { contains: query, mode: "insensitive" } },
-      ]},
+      where: {
+        userId,
+        type: has("prospection") ? { notIn: ["SELF", "PROSPECT"] } : { not: "SELF" },
+        OR: [
+          { name: { contains: query, mode: "insensitive" } },
+          { company: { contains: query, mode: "insensitive" } },
+        ],
+      },
       take: 4,
       select: { id: true, name: true, company: true },
     }) : empty<{ id: string; name: string; company: string | null }>(),
@@ -111,6 +120,30 @@ export async function searchGlobal(query: string, activeModuleIds?: string[]): P
       take: 3,
       select: { id: true, title: true, practitionerName: true },
     }) : empty<{ id: string; title: string; practitionerName: string }>(),
+
+    has("depenses") ? prisma.expense.findMany({
+      where: { userId, label: { contains: query, mode: "insensitive" } },
+      take: 3,
+      orderBy: { date: "desc" },
+      select: { id: true, label: true, amount: true, category: { select: { name: true } } },
+    }) : empty<{ id: string; label: string; amount: number; category: { name: string } | null }>(),
+
+    has("depenses") ? prisma.recurringExpense.findMany({
+      where: { userId, label: { contains: query, mode: "insensitive" } },
+      take: 3,
+      select: { id: true, label: true, amount: true, category: { select: { name: true } } },
+    }) : empty<{ id: string; label: string; amount: number; category: { name: string } | null }>(),
+
+    has("prospection") ? prisma.client.findMany({
+      where: { userId, type: "PROSPECT", OR: [
+        { name: { contains: query, mode: "insensitive" } },
+        { company: { contains: query, mode: "insensitive" } },
+        { websiteUrl: { contains: query, mode: "insensitive" } },
+        { region: { contains: query, mode: "insensitive" } },
+      ]},
+      take: 4,
+      select: { id: true, name: true, company: true, region: true },
+    }) : empty<{ id: string; name: string; company: string | null; region: string | null }>(),
   ])
 
   const BUCKET_LABELS: Record<string, string> = {
@@ -167,6 +200,24 @@ export async function searchGlobal(query: string, activeModuleIds?: string[]): P
       id: c.id, type: "health_consultation" as const,
       label: c.practitionerName, sublabel: c.title,
       href: `/sante`,
+    })),
+    ...expenses.map((e) => ({
+      id: e.id, type: "expense" as const,
+      label: e.label,
+      sublabel: `${e.amount.toLocaleString("fr-FR")} €${e.category ? ` · ${e.category.name}` : ""}`,
+      href: `/depenses`,
+    })),
+    ...recurringExpenses.map((r) => ({
+      id: r.id, type: "recurring_expense" as const,
+      label: r.label,
+      sublabel: `${r.amount.toLocaleString("fr-FR")} €${r.category ? ` · ${r.category.name}` : ""}`,
+      href: `/depenses`,
+    })),
+    ...prospects.map((p) => ({
+      id: p.id, type: "prospect" as const,
+      label: p.company ?? p.name,
+      sublabel: [p.company ? p.name : null, p.region].filter(Boolean).join(" · ") || undefined,
+      href: `/contacts/${p.id}`,
     })),
   ]
 }

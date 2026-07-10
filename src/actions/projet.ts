@@ -4,6 +4,10 @@ import { prisma } from "@/lib/prisma"
 import { revalidatePath } from "next/cache"
 import { z } from "zod"
 import { auth } from "@/lib/auth"
+import {
+  syncTaskGoogleState, removeTaskFromGoogle,
+  syncMilestoneGoogleState, removeMilestoneFromGoogle,
+} from "@/lib/google-task-sync"
 
 async function requireAuth(): Promise<string> {
   const session = await auth()
@@ -243,6 +247,7 @@ export async function createTask(projectId: string, formData: FormData) {
       dueDate: parsed.dueDate ? new Date(parsed.dueDate) : undefined,
     },
   })
+  await syncTaskGoogleState(userId, task.id)
   revalidatePath(`/projets/${projectId}`)
   revalidatePath("/taches")
   return task
@@ -267,6 +272,7 @@ export async function createClientTask(
       dueDate: dueDate ? new Date(dueDate) : null,
     },
   })
+  await syncTaskGoogleState(userId, task.id)
   revalidatePath("/taches")
   if (clientId) revalidatePath(`/contacts/${clientId}`)
   return task
@@ -326,6 +332,32 @@ export async function reopenTask(taskId: string, projectId: string) {
   revalidatePath(`/projets/${projectId}`)
 }
 
+/** Marque une tâche comme annulée, avec une raison optionnelle en note libre. */
+export async function cancelTask(taskId: string, projectId?: string, reason?: string) {
+  const userId = await requireAuth()
+  await requireTaskOwnership(taskId, userId)
+  await prisma.task.update({
+    where: { id: taskId },
+    data: { status: "CANCELLED", outcome: reason?.trim() || null },
+  })
+  if (projectId) revalidatePath(`/projets/${projectId}`)
+  revalidatePath("/")
+  revalidatePath("/taches")
+}
+
+/** Annule l'annulation d'une tâche : la repasse à faire. */
+export async function uncancelTask(taskId: string, projectId?: string) {
+  const userId = await requireAuth()
+  await requireTaskOwnership(taskId, userId)
+  await prisma.task.update({
+    where: { id: taskId },
+    data: { status: "TODO", outcome: null },
+  })
+  if (projectId) revalidatePath(`/projets/${projectId}`)
+  revalidatePath("/")
+  revalidatePath("/taches")
+}
+
 export async function updateTaskTitle(taskId: string, projectId: string, title: string) {
   const userId = await requireAuth()
   await requireTaskOwnership(taskId, userId)
@@ -355,6 +387,7 @@ export async function updateTaskDueDate(taskId: string, projectId: string, dueDa
     where: { id: taskId },
     data: { dueDate: dueDate ? new Date(dueDate) : null },
   })
+  await syncTaskGoogleState(userId, taskId)
   revalidatePath(`/projets/${projectId}`)
 }
 
@@ -543,12 +576,14 @@ export async function updateTaskFields(
   if (fields.importance !== undefined) data.importance = Math.max(1, Math.min(4, fields.importance))
   if ("estimatedHours" in fields) data.estimatedHours = fields.estimatedHours ?? null
   await prisma.task.update({ where: { id: taskId }, data })
+  if ("dueDate" in fields) await syncTaskGoogleState(userId, taskId)
   revalidatePath("/taches")
 }
 
 export async function deleteTask(taskId: string, projectId?: string) {
   const userId = await requireAuth()
   await requireTaskOwnership(taskId, userId)
+  await removeTaskFromGoogle(userId, taskId)
   await prisma.task.delete({ where: { id: taskId } })
   if (projectId) revalidatePath(`/projets/${projectId}`)
   revalidatePath("/taches")
@@ -561,7 +596,7 @@ export type MilestoneInput = {
   date: Date
   endDate?: Date | null
   type?: string
-  status?: "UPCOMING" | "IN_PROGRESS" | "DONE"
+  status?: "UPCOMING" | "IN_PROGRESS" | "DONE" | "CANCELLED"
 }
 
 export async function createMilestone(projectId: string, data: MilestoneInput) {
@@ -578,6 +613,7 @@ export async function createMilestone(projectId: string, data: MilestoneInput) {
       status: data.status ?? "UPCOMING",
     },
   })
+  await syncMilestoneGoogleState(userId, milestone.id)
   revalidatePath(`/projets/${projectId}`)
   revalidatePath(`/projets/${projectId}/dev`)
   return milestone
@@ -597,6 +633,7 @@ export async function updateMilestone(milestoneId: string, projectId: string, da
       ...(data.status ? { status: data.status } : {}),
     },
   })
+  await syncMilestoneGoogleState(userId, milestoneId)
   revalidatePath(`/projets/${projectId}`)
   revalidatePath(`/projets/${projectId}/dev`)
 }
@@ -605,6 +642,7 @@ export async function deleteMilestone(milestoneId: string, projectId: string) {
   const userId = await requireAuth()
   const proj = await prisma.project.findFirst({ where: { id: projectId, userId }, select: { id: true } })
   if (!proj) throw new Error("Projet introuvable")
+  await removeMilestoneFromGoogle(userId, milestoneId)
   await prisma.milestone.delete({ where: { id: milestoneId } })
   revalidatePath(`/projets/${projectId}`)
   revalidatePath(`/projets/${projectId}/dev`)
@@ -613,12 +651,20 @@ export async function deleteMilestone(milestoneId: string, projectId: string) {
 export async function updateMilestoneStatus(
   milestoneId: string,
   projectId: string,
-  status: "UPCOMING" | "IN_PROGRESS" | "DONE"
+  status: "UPCOMING" | "IN_PROGRESS" | "DONE" | "CANCELLED",
+  reason?: string
 ) {
   const userId = await requireAuth()
   const proj = await prisma.project.findFirst({ where: { id: projectId, userId }, select: { id: true } })
   if (!proj) throw new Error("Projet introuvable")
-  await prisma.milestone.update({ where: { id: milestoneId }, data: { status } })
+  await prisma.milestone.update({
+    where: { id: milestoneId },
+    data: {
+      status,
+      ...(status === "CANCELLED" ? { outcome: reason?.trim() || null } : {}),
+      ...(status !== "CANCELLED" ? { outcome: null } : {}),
+    },
+  })
   revalidatePath(`/projets/${projectId}`)
 }
 

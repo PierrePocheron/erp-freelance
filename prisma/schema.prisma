@@ -28,6 +28,7 @@ model User {
   invoices          Invoice[]
   recurringInvoices RecurringInvoice[]
   emailLogs         EmailLog[]
+  emailTemplates    EmailTemplate[]
   calendarEvents      CalendarEvent[]
   calendarCategories  CalendarCategory[]
   timeEntries         TimeEntry[]
@@ -43,6 +44,9 @@ model User {
   revenues           Revenue[]
   recurringRevenues  RecurringRevenue[]
   fiscalSources      FiscalSource[]
+  expenses           Expense[]
+  recurringExpenses  RecurringExpense[]
+  expenseCategories  ExpenseCategory[]
   healthEvents        HealthEvent[]
   healthConsultations HealthConsultation[]
   healthReimbursements HealthReimbursement[]
@@ -229,6 +233,9 @@ enum Temperature {
   HOT
 }
 
+// Ancien pipeline à 10 étapes — remplacé par ProspectStatus (6 valeurs).
+// Conservé dans le schéma pour ne pas générer de DROP au prochain migrate diff ;
+// plus aucun code ne le lit/écrit (données historiques intactes en base).
 enum ProspectStage {
   IDENTIFIED
   CONTACTED
@@ -240,6 +247,26 @@ enum ProspectStage {
   WON
   LOST
   ON_HOLD
+}
+
+// Statut de prospection simplifié, aligné sur le process réel :
+// mail en masse → relance téléphonique → réponse → discussion → issue.
+enum ProspectStatus {
+  TO_CONTACT
+  CONTACTED
+  REPLIED
+  IN_DISCUSSION
+  WON
+  LOST
+}
+
+// Type de site web d'un prospect (rempli via scraping ou à la main).
+enum WebsiteType {
+  SHOWCASE     // Site vitrine
+  ECOMMERCE    // Boutique en ligne
+  BLOG_CONTENT // Site éditorial / contenu
+  OUTDATED     // Site obsolète ou cassé — cible principale
+  OTHER
 }
 
 enum InteractionChannel {
@@ -314,10 +341,17 @@ model Client {
   email         String?
   phone         String?
   source         ClientSource  @default(OTHER)
-  temperature    Temperature   @default(COLD)
-  prospectStage  ProspectStage @default(IDENTIFIED)
+  temperature    Temperature   @default(COLD) // legacy — plus utilisé par le code (cf. ProspectStage)
+  prospectStage  ProspectStage @default(IDENTIFIED) // legacy — remplacé par prospectStatus
+  prospectStatus ProspectStatus @default(TO_CONTACT)
   priorityScore  Int           @default(1)
   notes         String?
+  // Fiche site web du prospect (alimentée par scraping ou saisie manuelle)
+  websiteUrl          String?
+  websiteType         WebsiteType?
+  websitePagesApprox  Int?
+  businessDescription String?      // ce que fait le business / à quoi sert le site
+  region              String?
   // Adresse du CONTACT (optionnelle — distincte de l'adresse société)
   address       String?
   postalCode    String?
@@ -343,6 +377,7 @@ model Client {
   revenues          Revenue[]          @relation("RevenueClient")
   recurringRevenues RecurringRevenue[] @relation("RecurringRevenueClient")
   jobApplications   JobApplication[]   @relation("RecruiterApplications")
+  emailLogs         EmailLog[]
 
   @@index([companyId])
 }
@@ -354,6 +389,7 @@ model Interaction {
   channel   InteractionChannel
   summary   String
   response  String?
+  emailUrl  String?            // lien profond vers le mail (Gmail...) pour y accéder en 1 clic
   createdAt DateTime           @default(now())
 
   client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
@@ -396,6 +432,7 @@ enum MilestoneStatus {
   UPCOMING
   IN_PROGRESS
   DONE
+  CANCELLED
 }
 
 enum MilestoneType {
@@ -411,6 +448,7 @@ enum TaskStatus {
   TODO
   IN_PROGRESS
   DONE
+  CANCELLED
 }
 
 enum TaskPriority {
@@ -432,6 +470,7 @@ enum LinkCategory {
   PROD
   STAGING
   DOCS
+  SITE
   OTHER
 }
 
@@ -517,14 +556,17 @@ model ProjectContact {
 }
 
 model Milestone {
-  id        String          @id @default(cuid())
-  projectId String
-  name      String
-  date      DateTime        // date + heure de début (heure optionnelle côté UI, minuit par défaut)
-  endDate   DateTime?       // heure de fin optionnelle
-  type      MilestoneType   @default(OTHER)
-  status    MilestoneStatus @default(UPCOMING)
-  createdAt DateTime        @default(now())
+  id             String          @id @default(cuid())
+  projectId      String
+  name           String
+  date           DateTime        // date + heure de début (heure optionnelle côté UI, minuit par défaut)
+  endDate        DateTime?       // heure de fin optionnelle
+  type           MilestoneType   @default(OTHER)
+  status         MilestoneStatus @default(UPCOMING)
+  outcome        String?         // note libre (compte-rendu ou raison d'annulation)
+  googleEventId  String?         // id de l'événement poussé dans l'agenda Google "ERP Freelance"
+  googleSyncedAt DateTime?       // dernière synchro confirmée vers Google
+  createdAt      DateTime        @default(now())
 
   project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
   tasks   Task[]
@@ -549,6 +591,9 @@ model Task {
   startedAt      DateTime?
   dueDate        DateTime?
   completedAt    DateTime?
+  outcome        String?      // note libre (compte-rendu ou raison d'annulation)
+  googleEventId  String?      // id de l'événement poussé dans l'agenda Google "ERP Freelance"
+  googleSyncedAt DateTime?    // dernière synchro confirmée vers Google
   // Rappel de déclaration URSSAF auto-généré : "2026-T2". Marquée DONE
   // automatiquement quand la déclaration correspondante est déclarée/payée.
   urssafPeriod   String?
@@ -723,6 +768,7 @@ enum InvoiceStatus {
 }
 
 enum RecurringFrequency {
+  WEEKLY
   MONTHLY
   QUARTERLY
   YEARLY
@@ -880,6 +926,7 @@ model EmailLog {
   id              String         @id @default(cuid())
   userId          String
   invoiceId       String?
+  clientId        String?        // mail de prospection : contact destinataire
   to              String
   subject         String
   resendMessageId String?
@@ -888,6 +935,25 @@ model EmailLog {
 
   user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   invoice Invoice? @relation(fields: [invoiceId], references: [id])
+  client  Client?  @relation(fields: [clientId], references: [id], onDelete: SetNull)
+
+  @@index([clientId])
+}
+
+// Modèle de mail de démarchage — texte brut avec variables {{prenom}},
+// {{societe}}, {{site}}... substituées par prospect à l'envoi (cf. lib/email-template).
+model EmailTemplate {
+  id        String   @id @default(cuid())
+  userId    String
+  name      String
+  subject   String
+  body      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
 // ─── Calendar ─────────────────────────────────────────────────────────────────
@@ -918,6 +984,8 @@ model CalendarEvent {
   clientId       String?            // lien optionnel vers un contact
   googleEventId  String?            // id de l'événement côté Google (pour les MANUAL poussés)
   googleSyncedAt DateTime?          // dernière synchro confirmée vers Google
+  outcome        String?            // compte-rendu post-événement
+  cancelledAt    DateTime?          // annulation de l'événement
   createdAt      DateTime           @default(now())
   updatedAt      DateTime           @updatedAt
 
@@ -1083,6 +1151,80 @@ model RecurringRevenue {
   @@index([companyId])
   @@index([clientId])
   @@index([projectId])
+}
+
+// ─── Dépenses ─────────────────────────────────────────────────────────────────
+// Suivi de visibilité personnelle (pro/perso, catégories) — n'alimente PAS les
+// déclarations URSSAF : en micro-entreprise, l'abattement forfaitaire remplace
+// la déduction des charges réelles.
+
+enum ExpenseScope {
+  PRO
+  PERSO
+}
+
+model ExpenseCategory {
+  id        String   @id @default(cuid())
+  userId    String
+  name      String
+  color     String   @default("#6366f1")
+  createdAt DateTime @default(now())
+
+  user              User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expenses          Expense[]
+  recurringExpenses RecurringExpense[]
+
+  @@unique([userId, name])
+  @@index([userId])
+}
+
+model Expense {
+  id                 String       @id @default(cuid())
+  userId             String
+  categoryId         String?
+  scope              ExpenseScope @default(PERSO)
+  label              String
+  amount             Float
+  currency           String       @default("EUR")
+  date               DateTime     // date de la dépense / du prélèvement
+  notes              String?
+  recurringExpenseId String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user             User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  category         ExpenseCategory?  @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  recurringExpense RecurringExpense? @relation(fields: [recurringExpenseId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([categoryId])
+  @@index([recurringExpenseId])
+}
+
+model RecurringExpense {
+  id                 String             @id @default(cuid())
+  userId             String
+  categoryId         String?
+  scope              ExpenseScope       @default(PERSO)
+  label              String
+  amount             Float
+  currency           String             @default("EUR")
+  frequency          RecurringFrequency @default(MONTHLY)
+  nextGenerationDate DateTime
+  dateToConfirm      Boolean            @default(false) // date de prélèvement pas encore connue — exclue de la génération auto et de la projection calendrier
+  isActive           Boolean            @default(true)
+  notes              String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user     User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  category ExpenseCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  expenses Expense[]
+
+  @@index([userId])
+  @@index([categoryId])
 }
 
 // ─── Santé ────────────────────────────────────────────────────────────────────

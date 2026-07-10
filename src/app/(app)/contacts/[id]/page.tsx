@@ -174,13 +174,17 @@ export default async function ClientOverviewPage({
           source: client.source,
           notes: client.notes,
           type: client.type,
-          temperature: client.temperature,
-          prospectStage: client.prospectStage,
+          prospectStatus: client.prospectStatus,
           address: client.address ?? null,
           postalCode: client.postalCode ?? null,
           city: client.city ?? null,
           country: client.country ?? null,
           siret: client.siret ?? null,
+          websiteUrl: client.websiteUrl ?? null,
+          websiteType: client.websiteType ?? null,
+          websitePagesApprox: client.websitePagesApprox ?? null,
+          businessDescription: client.businessDescription ?? null,
+          region: client.region ?? null,
         }} />
 
         {/* Tâches */}

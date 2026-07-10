@@ -158,15 +158,20 @@ export async function importData(jsonString: string): Promise<ImportResult> {
           companyId: c.companyId ?? null, company: c.company ?? null,
           email: c.email ?? null, phone: c.phone ?? null,
           source: c.source, temperature: c.temperature, priorityScore: c.priorityScore ?? 1,
+          prospectStatus: c.prospectStatus ?? "TO_CONTACT",
           notes: c.notes ?? null,
           address: c.address ?? null, postalCode: c.postalCode ?? null,
           city: c.city ?? null, country: c.country ?? null, siret: c.siret ?? null,
+          linkedinUrl: c.linkedinUrl ?? null,
+          websiteUrl: c.websiteUrl ?? null, websiteType: c.websiteType ?? null,
+          websitePagesApprox: c.websitePagesApprox ?? null,
+          businessDescription: c.businessDescription ?? null, region: c.region ?? null,
           createdAt: toDate(c.createdAt) ?? new Date(),
           updatedAt: toDate(c.updatedAt) ?? new Date(),
         })),
         skipDuplicates: true,
       })
-      track("Clients", data.clients.length)
+      track("Contacts", data.clients.length)
     }
 
     // ── 5. Interactions ───────────────────────────────────────────────────────
@@ -206,7 +211,7 @@ export async function importData(jsonString: string): Promise<ImportResult> {
         })),
         skipDuplicates: true,
       })
-      track("Fichiers clients", data.clientFiles.length)
+      track("Fichiers contacts", data.clientFiles.length)
     }
 
     // ── 8. Produits ───────────────────────────────────────────────────────────

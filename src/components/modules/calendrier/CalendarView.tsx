@@ -56,7 +56,7 @@ export type CalendarEvent = {
   title: string
   subtitle?: string
   description?: string | null
-  type: "task" | "milestone" | "reminder" | "interaction" | "invoice" | "renewal" | "manual" | "health" | "interview"
+  type: "task" | "milestone" | "reminder" | "interaction" | "invoice" | "renewal" | "manual" | "health" | "interview" | "expense"
   href?: string
   isLate?: boolean
   categoryId?: string | null
@@ -92,6 +92,7 @@ const typeConfig = {
   manual:    { dot: "bg-purple-500",  badge: "bg-purple-500/15 text-purple-700 border-purple-500/20", color: "#8b5cf6", label: "Événement" },
   health:    { dot: "bg-rose-500",    badge: "bg-rose-500/15 text-rose-700 border-rose-500/20",       color: "#f43f5e", label: "Santé" },
   interview: { dot: "bg-sky-500",     badge: "bg-sky-500/15 text-sky-700 border-sky-500/20",          color: "#0ea5e9", label: "Entretien" },
+  expense:   { dot: "bg-fuchsia-500", badge: "bg-fuchsia-500/15 text-fuchsia-700 border-fuchsia-500/20", color: "#d946ef", label: "Dépense" },
 } as const
 
 const VIEW_LABELS: Record<ViewMode, string> = {
@@ -1127,17 +1128,25 @@ export function CalendarView({
 
   // Vérifie l'état réel de la connexion dès l'ouverture de la page (sans
   // attendre un clic sur "Sync") — répond à "comment savoir si la synchro
-  // est toujours active en rouvrant l'app le lendemain".
+  // est toujours active en rouvrant l'app le lendemain". Si la connexion est
+  // saine, déclenche aussi une synchro (même fenêtre bornée à 1 mois que
+  // d'habitude) : sans ça, "connecté" en vert donnait l'impression à tort que
+  // les événements Google étaient à jour, alors qu'aucune donnée n'est
+  // réellement retirée tant qu'on n'a pas cliqué sur Sync ou navigué dans le
+  // passé — d'où des agendas vides en rouvrant l'app après une absence.
   useEffect(() => {
     if (!hasGoogleCalendar) return
     let cancelled = false
     getGoogleCalendarConnectionStatus()
       .then((res) => {
         if (cancelled) return
-        setConnectionStatus(res.status === "connected" ? "connected" : "error")
+        const ok = res.status === "connected"
+        setConnectionStatus(ok ? "connected" : "error")
+        if (ok) handleSync()
       })
       .catch(() => { if (!cancelled) setConnectionStatus("error") })
     return () => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hasGoogleCalendar])
 
   // Fenêtre Google déjà synchronisée en arrière (mois). 1 par défaut, comme le
@@ -1222,6 +1231,7 @@ export function CalendarView({
   const moduleFiltered = events.filter(e => {
     if (e.type === "health"    && !isActive("sante"))     return false
     if (e.type === "interview" && !isActive("entretien")) return false
+    if (e.type === "expense"   && !isActive("depenses"))  return false
     return true
   })
 

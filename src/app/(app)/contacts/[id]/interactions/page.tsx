@@ -49,6 +49,7 @@ export default async function ClientInteractionsPage({
                 channel: fd.get("channel") as string,
                 summary: fd.get("summary") as string,
                 response: (fd.get("response") as string) || undefined,
+                emailUrl: (fd.get("emailUrl") as string) || null,
               })
             }}
             className="space-y-3"
@@ -86,6 +87,18 @@ export default async function ClientInteractionsPage({
                 placeholder="Action prévue, réponse attendue..."
                 className="flex w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring resize-none"
               />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs text-muted-foreground">Lien vers le mail (optionnel)</label>
+              <Input
+                name="emailUrl"
+                type="url"
+                placeholder="https://mail.google.com/mail/u/0/#inbox/..."
+                className="h-8"
+              />
+              <p className="text-[11px] text-muted-foreground/70">
+                Dans Gmail : ouvrir le mail puis copier l&apos;URL de la barre d&apos;adresse.
+              </p>
             </div>
             <Button type="submit" size="sm" className="w-full">Ajouter</Button>
           </form>

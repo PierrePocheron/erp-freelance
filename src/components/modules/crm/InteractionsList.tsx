@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useTransition } from "react"
-import { Mail, Phone, Users, MessageSquare, Coffee, MoreHorizontal, Trash2, Pencil, X, Check } from "lucide-react"
+import { Mail, Phone, Users, MessageSquare, Coffee, MoreHorizontal, Trash2, Pencil, X, Check, ExternalLink } from "lucide-react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -13,6 +13,7 @@ type Interaction = {
   channel: string
   summary: string
   response: string | null
+  emailUrl: string | null
 }
 
 const channels = [
@@ -38,6 +39,7 @@ export function InteractionsList({
   const [editChannel, setEditChannel] = useState("")
   const [editSummary, setEditSummary] = useState("")
   const [editResponse, setEditResponse] = useState("")
+  const [editEmailUrl, setEditEmailUrl] = useState("")
   const [isPending, startTransition] = useTransition()
 
   function startEdit(i: Interaction) {
@@ -46,6 +48,7 @@ export function InteractionsList({
     setEditChannel(i.channel)
     setEditSummary(i.summary)
     setEditResponse(i.response ?? "")
+    setEditEmailUrl(i.emailUrl ?? "")
   }
 
   function cancelEdit() {
@@ -60,6 +63,7 @@ export function InteractionsList({
         channel: editChannel,
         summary: editSummary,
         response: editResponse || null,
+        emailUrl: editEmailUrl || null,
       })
       setEditingId(null)
       toast.success("Interaction mise à jour")
@@ -128,6 +132,16 @@ export function InteractionsList({
                   className="flex w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring resize-none"
                 />
               </div>
+              <div className="space-y-1">
+                <label className="text-xs text-muted-foreground">Lien vers le mail (optionnel)</label>
+                <Input
+                  type="url"
+                  value={editEmailUrl}
+                  onChange={(e) => setEditEmailUrl(e.target.value)}
+                  placeholder="https://mail.google.com/mail/u/0/#inbox/..."
+                  className="h-8"
+                />
+              </div>
               <div className="flex gap-2">
                 <Button type="button" size="sm" onClick={() => saveEdit(interaction.id)} disabled={isPending || !editSummary.trim()}>
                   <Check className="h-3.5 w-3.5" />
@@ -181,6 +195,18 @@ export function InteractionsList({
               <div className="ml-9 pl-2 border-l-2 border-border text-xs text-muted-foreground">
                 <span className="font-medium">Suite : </span>{interaction.response}
               </div>
+            )}
+            {interaction.emailUrl && (
+              <a
+                href={interaction.emailUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="ml-9 inline-flex items-center gap-1.5 rounded-lg border border-blue-500/30 bg-blue-500/5 px-2.5 py-1 text-xs font-medium text-blue-600 hover:bg-blue-500/10 transition-colors"
+              >
+                <Mail className="h-3 w-3" />
+                Ouvrir le mail
+                <ExternalLink className="h-3 w-3" />
+              </a>
             )}
           </div>
         )

@@ -5,8 +5,8 @@ import { config as loadEnv } from "dotenv"
 // Priorité : TEST_DATABASE_URL (CI) > DATABASE_URL local (.env) avec le nom de
 // base remplacé par « erp_test ». On NE charge JAMAIS .env.local ici (= prod Neon).
 function resolveTestDatabaseUrl(): string {
+  loadEnv() // charge .env (local), sans override — aussi utile pour ENCRYPTION_KEY ci-dessous
   if (process.env.TEST_DATABASE_URL) return process.env.TEST_DATABASE_URL
-  loadEnv() // charge .env (local), sans override
   const base = process.env.DATABASE_URL
   if (!base) {
     // Valeur par défaut raisonnable pour un Postgres local de dev.
@@ -50,6 +50,7 @@ export default defineConfig({
             DATABASE_URL: testDatabaseUrl,
             TEST_DATABASE_URL: testDatabaseUrl,
             NODE_ENV: "test",
+            ENCRYPTION_KEY: process.env.ENCRYPTION_KEY,
           },
         },
       },

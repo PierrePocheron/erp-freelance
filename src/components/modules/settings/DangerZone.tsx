@@ -29,7 +29,7 @@ export function DangerZone({ userId }: { userId: string }) {
           <div>
             <p className="text-sm font-medium">Supprimer toutes les données</p>
             <p className="text-xs text-muted-foreground mt-1">
-              Supprime définitivement tous vos clients, projets, factures, devis, tâches et interactions. Cette action est irréversible.
+              Supprime définitivement tous vos contacts, projets, factures, devis, tâches et interactions. Cette action est irréversible.
             </p>
           </div>
           {!open && (

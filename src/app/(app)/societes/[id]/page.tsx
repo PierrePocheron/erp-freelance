@@ -97,7 +97,7 @@ export default async function CompanyDetailPage({
     // Tâches non terminées via projet.companyId OU client.companyId
     prisma.task.findMany({
       where: {
-        status: { not: "DONE" },
+        status: { notIn: ["DONE", "CANCELLED"] },
         isGroup: false,
         OR: [
           { project: { companyId: id, userId } },

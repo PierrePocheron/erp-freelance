@@ -181,6 +181,35 @@ export async function deleteRecurringExpense(recurringExpenseId: string) {
   revalidatePath("/calendrier")
 }
 
+/**
+ * Convertit une dépense récurrente en dépense ponctuelle : supprime le modèle
+ * récurrent et crée une Expense unique à la place (atomique). Utilisé quand on
+ * passe la fréquence à « Ponctuelle » dans le dialog d'édition.
+ */
+export async function convertRecurringToExpense(recurringExpenseId: string, data: ExpenseInput) {
+  const userId = await requireAuth()
+  const existing = await prisma.recurringExpense.findFirst({ where: { id: recurringExpenseId, userId }, select: { id: true } })
+  if (!existing) throw new Error("Dépense récurrente introuvable")
+
+  const expense = await prisma.$transaction(async (tx) => {
+    await tx.recurringExpense.delete({ where: { id: recurringExpenseId } })
+    return tx.expense.create({
+      data: {
+        userId,
+        label: data.label.trim(),
+        amount: data.amount,
+        date: data.date,
+        scope: data.scope,
+        categoryId: data.categoryId ?? null,
+        notes: data.notes?.trim() || null,
+      },
+    })
+  })
+  revalidatePath("/depenses")
+  revalidatePath("/calendrier")
+  return expense
+}
+
 export async function toggleRecurringExpenseActive(recurringExpenseId: string, isActive: boolean) {
   const userId = await requireAuth()
   const existing = await prisma.recurringExpense.findFirst({ where: { id: recurringExpenseId, userId }, select: { id: true } })

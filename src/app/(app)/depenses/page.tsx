@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma"
 import Link from "next/link"
 import { TrendingDown, Repeat, Play, Pause } from "lucide-react"
 import { getOrCreateDefaultExpenseCategories, toggleRecurringExpenseActive, generatePendingRecurringExpenses } from "@/actions/expense"
+import { getOccurrencesInRange } from "@/lib/dates"
 import { ExpenseDonutChart, type DonutSegment } from "@/components/modules/depenses/ExpenseDonutChart"
 import { ExpenseDialog } from "@/components/modules/depenses/ExpenseDialog"
 import { RecurringExpenseDialog, FREQUENCY_LABELS } from "@/components/modules/depenses/RecurringExpenseDialog"
@@ -68,19 +69,33 @@ export default async function DepensesPage({
     ...recurringExpenses.map((r) => ({ kind: "RECURRING" as const, sortDate: r.nextGenerationDate, r })),
   ].sort((a, b) => b.sortDate.getTime() - a.sortDate.getTime())
 
-  const monthExpenses = expenses.filter((e) => e.date >= monthStart && e.date <= monthEnd)
-  const filteredMonthExpenses = scopeFilter ? monthExpenses.filter((e) => e.scope === scopeFilter) : monthExpenses
+  // Éléments du mois : dépenses ponctuelles datées ce mois + occurrences des
+  // dépenses récurrentes actives tombant ce mois-ci (projetées, non encore
+  // matérialisées en Expense — sans elles les stats affichent 0 tant que rien
+  // n'a été « généré »). Pas de double comptage : après génération, le
+  // nextGenerationDate pointe toujours vers une occurrence future.
+  type MonthItem = { amount: number; scope: string; category: { id: string; name: string; color: string } | null }
+  const monthItems: MonthItem[] = [
+    ...expenses
+      .filter((e) => e.date >= monthStart && e.date <= monthEnd)
+      .map((e) => ({ amount: e.amount, scope: e.scope, category: e.category })),
+    ...activeRecurring.flatMap((r) =>
+      getOccurrencesInRange(r.nextGenerationDate, r.frequency, monthStart, monthEnd)
+        .map(() => ({ amount: r.amount, scope: r.scope, category: r.category }))
+    ),
+  ]
+  const filteredMonthItems = scopeFilter ? monthItems.filter((e) => e.scope === scopeFilter) : monthItems
 
-  const monthTotal = monthExpenses.reduce((s, e) => s + e.amount, 0)
-  const proTotal = monthExpenses.filter((e) => e.scope === "PRO").reduce((s, e) => s + e.amount, 0)
-  const persoTotal = monthExpenses.filter((e) => e.scope === "PERSO").reduce((s, e) => s + e.amount, 0)
+  const monthTotal = monthItems.reduce((s, e) => s + e.amount, 0)
+  const proTotal = monthItems.filter((e) => e.scope === "PRO").reduce((s, e) => s + e.amount, 0)
+  const persoTotal = monthItems.filter((e) => e.scope === "PERSO").reduce((s, e) => s + e.amount, 0)
 
   const monthlyRecurringTotal = activeRecurring.reduce((s, r) => s + monthlyEquivalent(r.amount, r.frequency), 0)
   const yearlyRecurringTotal = activeRecurring.reduce((s, r) => s + yearlyEquivalent(r.amount, r.frequency), 0)
 
   // Répartition par catégorie (donut) — mois courant, filtrée par portée si sélectionnée
   const byCategory = new Map<string, DonutSegment>()
-  for (const e of filteredMonthExpenses) {
+  for (const e of filteredMonthItems) {
     const key = e.category?.id ?? "none"
     const existing = byCategory.get(key)
     if (existing) existing.value += e.amount

@@ -84,7 +84,6 @@ export function CreateClientDialog({
         phone: (fd.get("phone") as string) || undefined,
         type: (fd.get("type") as string) || undefined,
         source: (fd.get("source") as string) || undefined,
-        temperature: (fd.get("temperature") as string) || undefined,
         notes: (fd.get("notes") as string) || undefined,
         address: (fd.get("address") as string) || undefined,
         postalCode: (fd.get("postalCode") as string) || undefined,
@@ -235,7 +234,7 @@ export function CreateClientDialog({
               {/* ── Qualification ── */}
               <section className="space-y-3">
                 <h3 className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground/70">Qualification</h3>
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <div className="space-y-1.5">
                     <Label>Type</Label>
                     <select name="type" className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-ring">
@@ -254,14 +253,6 @@ export function CreateClientDialog({
                       <option value="LINKEDIN">LinkedIn</option>
                       <option value="WEBSITE">Site web</option>
                       <option value="INBOUND">Entrant</option>
-                    </select>
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label>Température</Label>
-                    <select name="temperature" className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-ring">
-                      <option value="COLD">Neutre</option>
-                      <option value="WARM">Tiède</option>
-                      <option value="HOT">Chaud</option>
                     </select>
                   </div>
                 </div>

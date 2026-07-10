@@ -11,12 +11,6 @@ function fmtEur(n: number) {
 }
 import { cn } from "@/lib/utils"
 
-const tempConfig = {
-  COLD: { dot: "bg-blue-500", label: "Neutre" },
-  WARM: { dot: "bg-amber-500", label: "Tiède" },
-  HOT: { dot: "bg-red-500", label: "Chaud" },
-}
-
 const typeConfig = {
   TO_COMPLETE: { label: "À compléter", className: "bg-rose-500/15 text-rose-600 border-rose-500/20" },
   PROSPECT:    { label: "Prospect",    className: "bg-amber-500/15 text-amber-600 border-amber-500/20" },
@@ -41,7 +35,6 @@ type Client = {
   company: string | null
   email: string | null
   type: string
-  temperature: string
   source: string
   createdAt: Date | string
   _count: { interactions: number; projects: number }
@@ -201,7 +194,6 @@ export function CrmList({ groups, userId }: { groups: Group[]; userId: string })
 
 function CardItem({ client, showBilling, onClick }: { client: Client; showBilling: boolean; onClick: () => void }) {
   const type = typeConfig[client.type as keyof typeof typeConfig]
-  const temp = tempConfig[client.temperature as keyof typeof tempConfig]
   const lastInteraction = client.interactions[0]
   const nextReminder = client.reminders[0]
   const hasBilling = client.billing.totalFacture > 0
@@ -215,7 +207,6 @@ function CardItem({ client, showBilling, onClick }: { client: Client; showBillin
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
           <div className="flex items-center gap-1.5 mb-0.5">
-            <span className={`h-1.5 w-1.5 rounded-full shrink-0 ${temp.dot}`} title={temp.label} />
             <p className="text-xs text-muted-foreground truncate">
               {client.company ?? sourceLabels[client.source] ?? "—"}
             </p>
@@ -288,7 +279,6 @@ function ListSection({ items, showBilling, onOpen }: { items: Client[]; showBill
     <div className="rounded-xl border border-border/50 bg-card overflow-hidden">
       {items.map((client, i) => {
         const type = typeConfig[client.type as keyof typeof typeConfig]
-        const temp = tempConfig[client.temperature as keyof typeof tempConfig]
         const lastInteraction = client.interactions[0]
         const nextReminder = client.reminders[0]
         const hasBilling = client.billing.totalFacture > 0
@@ -303,8 +293,6 @@ function ListSection({ items, showBilling, onOpen }: { items: Client[]; showBill
               i !== 0 && "border-t border-border/50"
             )}
           >
-            <span className={`h-2 w-2 rounded-full shrink-0 ${temp.dot}`} title={temp.label} />
-
             {/* Nom + société */}
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium flex items-center gap-1">

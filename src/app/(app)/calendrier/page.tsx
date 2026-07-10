@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma"
 import { CalendarView, type CalendarEvent, type CalendarCategory, type ProjectOption, type ClientOption } from "@/components/modules/calendrier/CalendarView"
 import { getOrCreateDefaultCategories } from "@/actions/calendar"
 import { hasCalendarScope } from "@/lib/google-calendar"
+import { getOccurrencesInRange } from "@/lib/dates"
 
 // Shape des événements bruts retournés par $queryRaw
 type RawCalEvent = {
@@ -30,7 +31,7 @@ export default async function CalendrierPage() {
   const to = new Date()
   to.setMonth(to.getMonth() + 2)
 
-  const [categories, googleScope, projects, clients, tasks, milestones, reminders, interactions, invoices, renewals, calEvents, healthConsultations, jobApplications, jobEvents] = await Promise.all([
+  const [categories, googleScope, projects, clients, tasks, milestones, reminders, interactions, invoices, renewals, calEvents, healthConsultations, jobApplications, jobEvents, recurringExpenses] = await Promise.all([
     getOrCreateDefaultCategories(),
     hasCalendarScope(userId),
     prisma.project.findMany({
@@ -51,7 +52,7 @@ export default async function CalendrierPage() {
       where: {
         OR: [{ project: { userId } }, { client: { userId } }, { userId }],
         dueDate: { gte: from, lte: to },
-        status: { not: "DONE" },
+        status: { notIn: ["DONE", "CANCELLED"] },
         parentTaskId: null,
       },
       include: {
@@ -69,7 +70,7 @@ export default async function CalendrierPage() {
       where: {
         project: { userId },
         date: { gte: from, lte: to },
-        status: { not: "DONE" },
+        status: { notIn: ["DONE", "CANCELLED"] },
       },
       include: {
         project: {
@@ -153,6 +154,12 @@ export default async function CalendrierPage() {
         id: true, date: true, title: true, type: true,
         application: { select: { id: true, companyName: true, position: true } },
       },
+    }),
+    // Dépenses récurrentes actives : projetées à la volée (pas de lignes en base)
+    // dateToConfirm exclue : pas de date réelle à partir de laquelle projeter des occurrences
+    prisma.recurringExpense.findMany({
+      where: { userId, isActive: true, dateToConfirm: false },
+      include: { category: { select: { name: true, color: true } } },
     }),
   ])
 
@@ -352,6 +359,19 @@ export default async function CalendrierPage() {
         href: `/entretiens/${ev.application.id}`,
       }
     }),
+    // Dépenses récurrentes : occurrences projetées dans la fenêtre [from, to]
+    ...recurringExpenses.flatMap((r) =>
+      getOccurrencesInRange(r.nextGenerationDate, r.frequency, from, to).map((occurrence) => ({
+        id: `expense-${r.id}-${occurrence.toISOString()}`,
+        date: occurrence,
+        allDay: true,
+        title: r.label,
+        subtitle: `${r.category?.name ?? "Sans catégorie"} · ${r.amount.toLocaleString("fr-FR")} €`,
+        type: "expense" as const,
+        href: "/depenses",
+        categoryColor: r.category?.color ?? null,
+      }))
+    ),
   ]
 
   return (

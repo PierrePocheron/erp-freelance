@@ -17,7 +17,9 @@ type NavItem = {
 
 const ALL_NAV_ITEMS: NavItem[] = [
   { label: "Dashboard",            href: "/",                       icon: "⚡", keywords: ["accueil", "home", "tableau de bord", "dashboard"] },
-  { label: "Contacts",             href: "/contacts",               icon: "👥", keywords: ["client", "crm", "contact", "prospect", "lead"],                                                 moduleId: "contacts"    },
+  { label: "Contacts",             href: "/contacts",               icon: "👥", keywords: ["client", "crm", "contact"],                                                                      moduleId: "contacts"    },
+  { label: "Prospection",          href: "/prospection",            icon: "🎯", keywords: ["prospect", "prospection", "lead", "demarchage", "démarchage", "pipeline", "emailing"],          moduleId: "prospection" },
+  { label: "Modèles de mails",     href: "/prospection/modeles",    icon: "✉️", keywords: ["modele", "modèle", "template", "email", "mail", "demarchage", "démarchage"],                    moduleId: "prospection" },
   { label: "Sociétés",             href: "/societes",               icon: "🏢", keywords: ["societe", "société", "entreprise", "company", "crm"],                                           moduleId: "societes"    },
   { label: "Projets",              href: "/projets",                icon: "💻", keywords: ["projet", "tache", "task", "milestone", "livrable"],                                              moduleId: "projets"     },
   { label: "Tâches",               href: "/taches",                 icon: "✅", keywords: ["taches", "task", "todo", "kanban", "to do"],                                                    moduleId: "taches"      },
@@ -27,6 +29,8 @@ const ALL_NAV_ITEMS: NavItem[] = [
   { label: "Produits & Catalogue", href: "/facturation/produits",   icon: "📦", keywords: ["produit", "product", "catalogue", "tarif", "prix", "service"],                                  moduleId: "facturation" },
   { label: "Revenus",              href: "/revenus",                icon: "💸", keywords: ["revenu", "revenue", "encaissement", "recette", "urssaf", "ae"],                                 moduleId: "revenus"     },
   { label: "Sources fiscales",     href: "/revenus/sources",        icon: "🏦", keywords: ["source", "fiscal", "fiscale", "urssaf", "ae", "impot", "impôt", "declaration", "déclaration"], moduleId: "revenus"     },
+  { label: "Dépenses",             href: "/depenses",               icon: "📉", keywords: ["depense", "dépense", "expense", "budget", "charge", "loyer", "abonnement", "recurrent", "récurrent"], moduleId: "depenses"    },
+  { label: "Impôts / URSSAF",      href: "/impots",                 icon: "🏛️", keywords: ["impot", "impôt", "urssaf", "declaration", "déclaration", "cotisation"],                        moduleId: "impots"      },
   { label: "Calendrier",           href: "/calendrier",             icon: "📅", keywords: ["calendrier", "agenda", "evenement", "rdv", "rendez-vous", "planning"],                          moduleId: "calendrier"  },
   { label: "Graph",                href: "/graph",                  icon: "🕸️", keywords: ["graph", "graphe", "reseau", "réseau", "relation", "network"],                                   moduleId: "graph"       },
   { label: "Santé",                href: "/sante",                  icon: "🏥", keywords: ["sante", "santé", "medecin", "médecin", "consultation", "blessure", "maladie", "remboursement"], moduleId: "sante"       },
@@ -45,6 +49,9 @@ const TYPE_ICON: Record<string, string> = {
   job_application:      "💼",
   health_event:         "🩸",
   health_consultation:  "🥼",
+  expense:              "💸",
+  recurring_expense:    "🔁",
+  prospect:             "🎯",
 }
 
 const TYPE_LABEL: Record<string, string> = {
@@ -58,6 +65,9 @@ const TYPE_LABEL: Record<string, string> = {
   job_application:      "Entretien",
   health_event:         "Santé",
   health_consultation:  "Consultation",
+  expense:              "Dépense",
+  recurring_expense:    "Dépense récurrente",
+  prospect:             "Prospect",
 }
 
 function normalize(s: string) {

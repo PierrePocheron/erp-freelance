@@ -7,7 +7,7 @@ export default async function ProjetsPage() {
   const session = await auth()
   const userId = session!.user.id
 
-  const [projects, companies, contacts, projectTags, projectInvoices, ideas] = await Promise.all([
+  const [projects, companies, contacts, projectTags, projectInvoices, projectRevenues, ideas] = await Promise.all([
     prisma.project.findMany({
       where: { OR: [{ userId }, { members: { some: { userId } } }] },
       orderBy: { createdAt: "desc" },
@@ -47,6 +47,11 @@ export default async function ProjetsPage() {
         payments: { select: { amount: true } },
       },
     }),
+    // Revenus hors facturation liés à un projet (études, remboursements...)
+    prisma.revenue.findMany({
+      where: { userId, projectId: { not: null } },
+      select: { projectId: true, amount: true, status: true },
+    }),
     prisma.projectIdea.findMany({
       where: { userId },
       orderBy: { createdAt: "desc" },
@@ -68,6 +73,15 @@ export default async function ProjetsPage() {
     billingByProject[inv.projectId] = entry
   }
 
+  const revenueByProject: Record<string, { totalRevenu: number; revenuRecu: number }> = {}
+  for (const rev of projectRevenues) {
+    if (!rev.projectId) continue
+    const entry = revenueByProject[rev.projectId] ?? { totalRevenu: 0, revenuRecu: 0 }
+    entry.totalRevenu += rev.amount
+    if (rev.status === "RECEIVED") entry.revenuRecu += rev.amount
+    revenueByProject[rev.projectId] = entry
+  }
+
   const tagsById = Object.fromEntries(projectTags.map((p) => [p.id, p.tags]))
 
   const projectsWithStats = projects.map((p) => ({
@@ -75,6 +89,7 @@ export default async function ProjetsPage() {
     tags: tagsById[p.id] ?? [],
     tasksDone: p.tasks.filter((t) => t.status === "DONE").length,
     billing: billingByProject[p.id] ?? { totalFacture: 0, totalEncaisse: 0 },
+    revenue: revenueByProject[p.id] ?? { totalRevenu: 0, revenuRecu: 0 },
   }))
 
   return (

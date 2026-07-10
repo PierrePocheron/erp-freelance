@@ -22,7 +22,6 @@ export async function ensureSelfClient(_userId: string) {
       type: "SELF",
       name: "Perso",
       source: "OTHER",
-      temperature: "HOT",
       priorityScore: 5,
     },
   })

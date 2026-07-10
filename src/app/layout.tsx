@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 import { Poppins } from "next/font/google";
 import { Toaster } from "sonner";
-import { headers } from "next/headers";
 import Script from "next/script";
+import { THEME_INIT_SCRIPT } from "@/lib/theme-init-script";
 import "./globals.css";
 
 const poppins = Poppins({
@@ -16,13 +16,11 @@ export const metadata: Metadata = {
   description: "Centralisez votre activité freelance",
 };
 
-export default async function RootLayout({
+export default function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  // Nonce CSP injecté par le middleware, appliqué au script de thème inline.
-  const nonce = (await headers()).get("x-nonce") ?? undefined;
   return (
     <html
       lang="fr"
@@ -31,15 +29,17 @@ export default async function RootLayout({
     >
       <body className="h-full overflow-hidden bg-background text-foreground" suppressHydrationWarning>
         {/* Script de thème inliné — doit s'exécuter avant tout rendu pour éviter le flash.
-            next/script (beforeInteractive) plutôt qu'un <script> JSX brut : ce dernier se fait
-            re-réconcilier côté client à chaque router.refresh() (utilisé partout dans l'app),
-            ce que React 19 signale comme "script tag encountered while rendering". */}
+            Un <script> JSX brut ici déclenche "Encountered a script tag while rendering" côté
+            React 19/Turbopack dev (le nœud n'est pas hydraté, il est recréé côté client) — donc
+            next/script (beforeInteractive) reste nécessaire malgré le mismatch nonce résiduel
+            ci-dessous (cosmétique : next/script source son propre nonce depuis le contexte
+            HeadManagerContext de Next, disponible seulement en SSR — suppressHydrationWarning
+            ne peut pas l'atteindre, next/script ne le transmet pas à l'élément réellement rendu
+            pour un script beforeInteractive inline). Sans conséquence fonctionnelle. */}
         <Script
           id="theme-init"
           strategy="beforeInteractive"
-          nonce={nonce}
-          suppressHydrationWarning
-          dangerouslySetInnerHTML={{ __html: `(function(){try{var t=localStorage.getItem('theme');if(t==='dark'||(t===null&&window.matchMedia('(prefers-color-scheme:dark)').matches)){document.documentElement.classList.add('dark')}}catch(e){}})()` }}
+          dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }}
         />
         {children}
         <Toaster position="bottom-right" richColors />

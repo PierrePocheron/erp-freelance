@@ -3,14 +3,16 @@
 import { useState, useTransition, useEffect } from "react"
 import {
   Pencil, Check, X, Mail, Phone, Building2, Tag,
-  MessageSquare, Loader2, MapPin, Hash, AlertCircle,
+  MessageSquare, Loader2, MapPin, Hash, AlertCircle, Globe,
 } from "lucide-react"
 import { LinkedinIcon } from "@/components/ui/linkedin-icon"
-import { updateClientAll, updateProspectStage } from "@/actions/crm"
+import { updateClientAll } from "@/actions/crm"
+import { updateProspectStatus } from "@/actions/prospection"
 import { cn } from "@/lib/utils"
 import { isContactIncomplete } from "@/lib/contact"
 import { CompanyCombobox } from "./CompanyCombobox"
-import { STAGE_CONFIG, type ProspectStage } from "./ProspectsView"
+import { STATUS_CONFIG, PIPELINE_STATUSES, OUTCOME_STATUSES, WEBSITE_TYPE_CONFIG } from "@/components/modules/prospection/status-config"
+import type { ProspectStatus, WebsiteType } from "@/generated/prisma/enums"
 
 const SOURCE_LABELS: Record<string, string> = {
   WORD_OF_MOUTH: "Bouche à oreille",
@@ -37,12 +39,6 @@ const TYPE_CLS: Record<string, string> = {
   TO_COMPLETE: "bg-rose-500/15 text-rose-600 border-rose-500/20",
 }
 
-const TEMP_CONFIG: Record<string, { label: string; emoji: string; cls: string }> = {
-  COLD: { label: "Neutre", emoji: "○", cls: "bg-blue-500/10 text-blue-600 border-blue-500/20" },
-  WARM: { label: "Tiède",  emoji: "🌤", cls: "bg-amber-500/10 text-amber-600 border-amber-500/20" },
-  HOT:  { label: "Chaud",  emoji: "🔥", cls: "bg-red-500/10 text-red-600 border-red-500/20" },
-}
-
 type ClientData = {
   id: string
   name: string
@@ -57,13 +53,17 @@ type ClientData = {
   source: string
   notes: string | null
   type: string
-  temperature: string
-  prospectStage: string
+  prospectStatus: string
   address: string | null
   postalCode: string | null
   city: string | null
   country: string | null
   siret: string | null
+  websiteUrl: string | null
+  websiteType: string | null
+  websitePagesApprox: number | null
+  businessDescription: string | null
+  region: string | null
 }
 
 export function ClientInfoCard({ client, isOwner = true }: { client: ClientData; isOwner?: boolean }) {
@@ -83,13 +83,17 @@ export function ClientInfoCard({ client, isOwner = true }: { client: ClientData;
   const [source, setSource] = useState(client.source)
   const [notes, setNotes] = useState(client.notes ?? "")
   const [type, setType] = useState(client.type)
-  const [temperature, setTemperature] = useState(client.temperature)
   const [address, setAddress] = useState(client.address ?? "")
   const [postalCode, setPostalCode] = useState(client.postalCode ?? "")
   const [city, setCity] = useState(client.city ?? "")
   const [country, setCountry] = useState(client.country ?? "")
   const [siret, setSiret] = useState(client.siret ?? "")
-  const [prospectStage, setProspectStage] = useState(client.prospectStage ?? "IDENTIFIED")
+  const [prospectStatus, setProspectStatus] = useState(client.prospectStatus ?? "TO_CONTACT")
+  const [websiteUrl, setWebsiteUrl] = useState(client.websiteUrl ?? "")
+  const [websiteType, setWebsiteType] = useState(client.websiteType ?? "")
+  const [websitePagesApprox, setWebsitePagesApprox] = useState(client.websitePagesApprox?.toString() ?? "")
+  const [businessDescription, setBusinessDescription] = useState(client.businessDescription ?? "")
+  const [region, setRegion] = useState(client.region ?? "")
 
   useEffect(() => {
     if (!editing) return
@@ -104,13 +108,17 @@ export function ClientInfoCard({ client, isOwner = true }: { client: ClientData;
     setSource(client.source)
     setNotes(client.notes ?? "")
     setType(client.type)
-    setTemperature(client.temperature)
-    setProspectStage(client.prospectStage ?? "IDENTIFIED")
+    setProspectStatus(client.prospectStatus ?? "TO_CONTACT")
     setAddress(client.address ?? "")
     setPostalCode(client.postalCode ?? "")
     setCity(client.city ?? "")
     setCountry(client.country ?? "")
     setSiret(client.siret ?? "")
+    setWebsiteUrl(client.websiteUrl ?? "")
+    setWebsiteType(client.websiteType ?? "")
+    setWebsitePagesApprox(client.websitePagesApprox?.toString() ?? "")
+    setBusinessDescription(client.businessDescription ?? "")
+    setRegion(client.region ?? "")
     /* eslint-enable react-hooks/set-state-in-effect */
   }, [editing]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -129,23 +137,26 @@ export function ClientInfoCard({ client, isOwner = true }: { client: ClientData;
           source,
           notes: notes.trim() || null,
           type,
-          temperature,
           address: address.trim() || null,
           postalCode: postalCode.trim() || null,
           city: city.trim() || null,
           country: country.trim() || null,
           siret: siret.trim() || null,
+          websiteUrl: websiteUrl.trim() || null,
+          websiteType: websiteType || null,
+          websitePagesApprox: websitePagesApprox ? parseInt(websitePagesApprox, 10) || null : null,
+          businessDescription: businessDescription.trim() || null,
+          region: region.trim() || null,
         }),
       ]
-      if (type === "PROSPECT" && prospectStage !== client.prospectStage) {
-        saves.push(updateProspectStage(client.id, prospectStage as ProspectStage))
+      if (type === "PROSPECT" && prospectStatus !== client.prospectStatus) {
+        saves.push(updateProspectStatus(client.id, prospectStatus as ProspectStatus))
       }
       await Promise.all(saves)
       setEditing(false)
     })
   }
 
-  const temp = TEMP_CONFIG[client.temperature] ?? TEMP_CONFIG.COLD
   const typeLabel = TYPE_OPTIONS.find((t) => t.value === client.type)?.label ?? client.type
 
   const missingParts: string[] = []
@@ -235,19 +246,11 @@ export function ClientInfoCard({ client, isOwner = true }: { client: ClientData;
             />
           </div>
 
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
               <label className="text-xs text-muted-foreground">Type</label>
               <select value={type} onChange={(e) => setType(e.target.value)} className="flex h-8 w-full rounded-md border border-input bg-background px-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring">
                 {TYPE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-              </select>
-            </div>
-            <div className="space-y-1">
-              <label className="text-xs text-muted-foreground">Température</label>
-              <select value={temperature} onChange={(e) => setTemperature(e.target.value)} className="flex h-8 w-full rounded-md border border-input bg-background px-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring">
-                <option value="COLD">○ Neutre</option>
-                <option value="WARM">🌤 Tiède</option>
-                <option value="HOT">🔥 Chaud</option>
               </select>
             </div>
             <div className="space-y-1">
@@ -258,19 +261,19 @@ export function ClientInfoCard({ client, isOwner = true }: { client: ClientData;
             </div>
           </div>
 
-          {/* Étape prospect — visible uniquement si le type actuel est PROSPECT */}
+          {/* Statut prospect — visible uniquement si le type actuel est PROSPECT */}
           {type === "PROSPECT" && (
             <div className="space-y-1">
-              <label className="text-xs text-muted-foreground">Étape prospect</label>
-              <select value={prospectStage} onChange={(e) => setProspectStage(e.target.value)} className="flex h-8 w-full rounded-md border border-input bg-background px-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring">
+              <label className="text-xs text-muted-foreground">Statut prospect</label>
+              <select value={prospectStatus} onChange={(e) => setProspectStatus(e.target.value)} className="flex h-8 w-full rounded-md border border-input bg-background px-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring">
                 <optgroup label="Pipeline">
-                  {(["IDENTIFIED","CONTACTED","NO_RESPONSE","REPLIED","MEETING","PROPOSAL_SENT","NEGOTIATION"] as ProspectStage[]).map((s) => (
-                    <option key={s} value={s}>{STAGE_CONFIG[s].label}</option>
+                  {PIPELINE_STATUSES.map((s) => (
+                    <option key={s} value={s}>{STATUS_CONFIG[s].label}</option>
                   ))}
                 </optgroup>
                 <optgroup label="Résultat">
-                  {(["WON","LOST","ON_HOLD"] as ProspectStage[]).map((s) => (
-                    <option key={s} value={s}>{STAGE_CONFIG[s].label}</option>
+                  {OUTCOME_STATUSES.map((s) => (
+                    <option key={s} value={s}>{STATUS_CONFIG[s].label}</option>
                   ))}
                 </optgroup>
               </select>
@@ -303,6 +306,35 @@ export function ClientInfoCard({ client, isOwner = true }: { client: ClientData;
             <input value={siret} onChange={(e) => setSiret(e.target.value)} placeholder="123 456 789 00012" className="flex h-8 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-ring" />
           </div>
 
+          <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground/70 pt-1">Site web du prospect <span className="font-normal normal-case">(optionnel)</span></p>
+          <div className="space-y-1">
+            <label className="text-xs text-muted-foreground">URL du site</label>
+            <input value={websiteUrl} onChange={(e) => setWebsiteUrl(e.target.value)} placeholder="https://exemple.fr" className="flex h-8 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-ring" />
+          </div>
+          <div className="grid grid-cols-3 gap-3">
+            <div className="space-y-1">
+              <label className="text-xs text-muted-foreground">Type de site</label>
+              <select value={websiteType} onChange={(e) => setWebsiteType(e.target.value)} className="flex h-8 w-full rounded-md border border-input bg-background px-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring">
+                <option value="">—</option>
+                {(Object.keys(WEBSITE_TYPE_CONFIG) as WebsiteType[]).map((t) => (
+                  <option key={t} value={t}>{WEBSITE_TYPE_CONFIG[t].label}</option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs text-muted-foreground">Pages (approx.)</label>
+              <input value={websitePagesApprox} onChange={(e) => setWebsitePagesApprox(e.target.value)} inputMode="numeric" placeholder="5" className="flex h-8 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-ring" />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs text-muted-foreground">Région</label>
+              <input value={region} onChange={(e) => setRegion(e.target.value)} placeholder="Auvergne-Rhône-Alpes" className="flex h-8 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-ring" />
+            </div>
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs text-muted-foreground">Description du business</label>
+            <textarea value={businessDescription} onChange={(e) => setBusinessDescription(e.target.value)} rows={2} placeholder="Ce que fait l'entreprise, à quoi sert le site…" className="flex w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-ring resize-none" />
+          </div>
+
           <div className="space-y-1">
             <label className="text-xs text-muted-foreground">Notes internes</label>
             <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} placeholder="Notes privées..." className="flex w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-ring resize-none" />
@@ -327,22 +359,19 @@ export function ClientInfoCard({ client, isOwner = true }: { client: ClientData;
             </button>
           )}
 
-          {/* Type + Température + Étape prospect */}
+          {/* Type + Statut prospect */}
           <div className="flex items-center gap-2 flex-wrap">
             <span className={cn("rounded-full border px-2.5 py-0.5 text-xs font-medium", TYPE_CLS[client.type] ?? TYPE_CLS.INACTIVE)}>
               {typeLabel}
             </span>
             {client.type === "PROSPECT" && (() => {
-              const stageCfg = STAGE_CONFIG[client.prospectStage as ProspectStage]
-              return stageCfg ? (
-                <span className={cn("rounded-full border px-2.5 py-0.5 text-xs font-medium", stageCfg.cls)}>
-                  {stageCfg.label}
+              const statusCfg = STATUS_CONFIG[client.prospectStatus as ProspectStatus]
+              return statusCfg ? (
+                <span className={cn("rounded-full border px-2.5 py-0.5 text-xs font-medium", statusCfg.cls)}>
+                  {statusCfg.label}
                 </span>
               ) : null
             })()}
-            <span className={cn("rounded-full border px-2.5 py-0.5 text-xs font-medium", temp.cls)}>
-              {temp.emoji} {temp.label}
-            </span>
           </div>
 
           {/* Coordonnées */}
@@ -393,6 +422,35 @@ export function ClientInfoCard({ client, isOwner = true }: { client: ClientData;
               </div>
             )}
           </div>
+
+          {/* Fiche site web (prospection) */}
+          {(client.websiteUrl || client.websiteType || client.businessDescription || client.region) && (
+            <div className="space-y-2 pt-1 border-t border-border/30">
+              <div className="flex items-center gap-2 flex-wrap text-sm">
+                <Globe className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                {client.websiteUrl ? (
+                  <a href={client.websiteUrl} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline truncate max-w-[220px]">
+                    {client.websiteUrl.replace(/^https?:\/\//, "")}
+                  </a>
+                ) : (
+                  <span className="text-muted-foreground text-xs italic">Pas d&apos;URL renseignée</span>
+                )}
+                {client.websiteType && (() => {
+                  const cfg = WEBSITE_TYPE_CONFIG[client.websiteType as WebsiteType]
+                  return cfg ? <span className={cn("rounded-full px-1.5 py-0.5 text-[10px] font-medium", cfg.cls)}>{cfg.label}</span> : null
+                })()}
+                {client.websitePagesApprox != null && (
+                  <span className="text-xs text-muted-foreground">~{client.websitePagesApprox} page{client.websitePagesApprox > 1 ? "s" : ""}</span>
+                )}
+                {client.region && (
+                  <span className="text-xs text-muted-foreground">· {client.region}</span>
+                )}
+              </div>
+              {client.businessDescription && (
+                <p className="text-sm text-muted-foreground leading-relaxed pl-6">{client.businessDescription}</p>
+              )}
+            </div>
+          )}
 
           {/* Notes */}
           {client.notes && (

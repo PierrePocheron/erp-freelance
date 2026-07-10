@@ -3,9 +3,7 @@ import { prisma } from "@/lib/prisma"
 import Link from "next/link"
 import { CreateClientDialog } from "@/components/modules/crm/CreateClientDialog"
 import { CrmList } from "@/components/modules/crm/CrmList"
-import { ContactsNav } from "@/components/modules/crm/ContactsNav"
-import { STAGE_CONFIG } from "@/components/modules/crm/ProspectsView"
-import { Users, Flame, Thermometer, TrendingUp, AlertCircle, ChevronRight } from "lucide-react"
+import { Users, Thermometer, TrendingUp, AlertCircle, Target } from "lucide-react"
 import { isContactIncomplete } from "@/lib/contact"
 import { IncompleteContactsSheet } from "@/components/modules/crm/IncompleteContactsSheet"
 
@@ -57,17 +55,10 @@ export default async function CRMPage() {
   const incompleteContacts = clientsWithBilling.filter((c) => c.incomplete)
   const incompleteCount = incompleteContacts.length
   const toComplete     = clientsWithBilling.filter((c) => c.type === "TO_COMPLETE")
-  const prospects      = clientsWithBilling.filter((c) => c.type === "PROSPECT")
+  const prospectCount  = clientsWithBilling.filter((c) => c.type === "PROSPECT").length
   const activeClients  = clientsWithBilling.filter((c) => c.type === "CLIENT")
   const personalClients = clientsWithBilling.filter((c) => c.type === "PERSONAL")
-  const hot            = clients.filter((c) => c.temperature === "HOT")
   const pendingReminders = clients.reduce((acc, c) => acc + c.reminders.length, 0)
-
-  // Comptage par étape pour l'aperçu pipeline
-  const stageKeys = Object.keys(STAGE_CONFIG) as (keyof typeof STAGE_CONFIG)[]
-  const stageCounts = stageKeys
-    .map((s) => ({ stage: s, count: prospects.filter((p) => p.prospectStage === s).length }))
-    .filter((s) => s.count > 0)
 
   const groups = [
     ...(toComplete.length > 0 ? [{ key: "TO_COMPLETE", label: "À compléter", items: toComplete }] : []),
@@ -87,16 +78,12 @@ export default async function CRMPage() {
         <CreateClientDialog userId={userId} />
       </div>
 
-      {/* Onglets */}
-      <ContactsNav />
-
       {/* Stats */}
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-7">
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
         <StatCard icon={<Users className="h-4 w-4" />}               label="Total"      value={clients.length} />
         <StatCard icon={<TrendingUp className="h-4 w-4 text-blue-500" />} label="Clients" value={activeClients.length} />
-        <StatCard icon={<Users className="h-4 w-4 text-amber-500" />} label="Prospects"  value={prospects.length} link="/contacts/prospects" />
+        <StatCard icon={<Target className="h-4 w-4 text-amber-500" />} label="Prospects"  value={prospectCount} link="/prospection" />
         <StatCard icon={<Users className="h-4 w-4 text-violet-500" />} label="Perso"     value={personalClients.length} />
-        <StatCard icon={<Flame className="h-4 w-4 text-red-500" />}   label="Chauds"     value={hot.length} />
         {toComplete.length > 0 && (
           <StatCard icon={<AlertCircle className="h-4 w-4 text-rose-500" />} label="À compléter" value={toComplete.length} highlight="rose" />
         )}
@@ -113,35 +100,6 @@ export default async function CRMPage() {
           <StatCard icon={<Thermometer className="h-4 w-4 text-amber-500" />} label="Rappels" value={pendingReminders} />
         )}
       </div>
-
-      {/* Aperçu prospects — encart compact avec lien vers la page dédiée */}
-      {prospects.length > 0 && (
-        <div className="rounded-xl border border-border/50 bg-card p-4 space-y-3">
-          <div className="flex items-center justify-between">
-            <h2 className="text-sm font-semibold">Aperçu prospection</h2>
-            <Link
-              href="/contacts/prospects"
-              className="flex items-center gap-1 text-xs text-primary hover:underline"
-            >
-              Voir le pipeline complet <ChevronRight className="h-3.5 w-3.5" />
-            </Link>
-          </div>
-          <div className="flex flex-wrap gap-1.5">
-            {stageCounts.map(({ stage, count }) => {
-              const cfg = STAGE_CONFIG[stage]
-              return (
-                <Link
-                  key={stage}
-                  href={`/contacts/prospects?stage=${stage}`}
-                  className={`rounded-full border px-2.5 py-0.5 text-xs font-medium transition-opacity hover:opacity-80 ${cfg.cls}`}
-                >
-                  {cfg.label} ({count})
-                </Link>
-              )
-            })}
-          </div>
-        </div>
-      )}
 
       {/* Liste CRM — clients, perso, inactifs */}
       <CrmList groups={groups} userId={userId} />

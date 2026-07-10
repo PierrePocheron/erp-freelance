@@ -2,6 +2,7 @@
 
 export type ModuleId =
   | "contacts"
+  | "prospection"
   | "societes"
   | "facturation"
   | "revenus"
@@ -12,6 +13,7 @@ export type ModuleId =
   | "sante"
   | "entretien"
   | "impots"
+  | "depenses"
 
 export type ModuleCategory = "core" | "recommended" | "bonus"
 
@@ -48,6 +50,10 @@ export const MODULE_DEFS: ModuleDef[] = [
     description: "Gestion des tâches et kanban global",
   },
   {
+    id: "prospection", label: "Prospection", icon: "🎯", category: "recommended", defaultActive: true,
+    description: "Pipeline de démarchage : import CSV, suivi des contacts et emailing",
+  },
+  {
     id: "societes", label: "Sociétés", icon: "🏢", category: "recommended", defaultActive: true,
     description: "Répertoire des entreprises clientes avec leurs projets et contacts",
   },
@@ -74,6 +80,10 @@ export const MODULE_DEFS: ModuleDef[] = [
   {
     id: "entretien", label: "Entretiens", icon: "💼", category: "bonus", defaultActive: false,
     description: "Suivi des candidatures, processus de recrutement et démarchage",
+  },
+  {
+    id: "depenses", label: "Dépenses", icon: "💸", category: "bonus", defaultActive: false,
+    description: "Suivi des dépenses récurrentes et ponctuelles, pro et perso, par catégorie",
   },
 ]
 

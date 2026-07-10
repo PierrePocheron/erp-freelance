@@ -2,6 +2,7 @@ import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { ProspectionTable } from "@/components/modules/prospection/ProspectionTable"
 import { ProspectQuickAdd } from "@/components/modules/prospection/ProspectQuickAdd"
+import { ImportCsvDialog } from "@/components/modules/prospection/ImportCsvDialog"
 import { ALL_STATUSES } from "@/components/modules/prospection/status-config"
 import type { ProspectStatus } from "@/generated/prisma/enums"
 import { TrendingUp, Send, CheckCircle2, XCircle } from "lucide-react"
@@ -35,11 +36,14 @@ export default async function ProspectionPage({
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">Prospection</h1>
-        <p className="text-sm text-muted-foreground">
-          {prospects.length} prospect{prospects.length !== 1 ? "s" : ""} · démarchage, suivi et relances
-        </p>
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">Prospection</h1>
+          <p className="text-sm text-muted-foreground">
+            {prospects.length} prospect{prospects.length !== 1 ? "s" : ""} · démarchage, suivi et relances
+          </p>
+        </div>
+        <ImportCsvDialog />
       </div>
 
       {/* Stats */}

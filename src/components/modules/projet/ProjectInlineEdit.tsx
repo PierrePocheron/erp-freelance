@@ -2,9 +2,11 @@
 
 import { useState, useTransition, useRef } from "react"
 import { Pencil, Check, X } from "lucide-react"
-import { updateProjectInfo, updateProjectStatus, updateProjectPriority } from "@/actions/projet"
+import { updateProjectInfo, updateProjectStatus, updateProjectPriority, updateProjectCategory } from "@/actions/projet"
 import { cn } from "@/lib/utils"
 import { toast } from "sonner"
+import { CATEGORY_CONFIG, ALL_CATEGORIES } from "./category-config"
+import type { ProjectCategory } from "@/generated/prisma/enums"
 
 // ── Statut du projet ──────────────────────────────────────────────────────────
 
@@ -65,6 +67,75 @@ export function ProjectStatusEdit({
               >
                 <span className={cn("inline-block rounded-full px-2 py-0.5 border text-xs", opt.cls)}>
                   {opt.label}
+                </span>
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
+// ── Catégorie (thème) du projet ───────────────────────────────────────────────
+
+export function ProjectCategoryEdit({
+  projectId,
+  value,
+}: {
+  projectId: string
+  value: ProjectCategory
+}) {
+  const [open, setOpen] = useState(false)
+  const [isPending, startTransition] = useTransition()
+
+  const current = CATEGORY_CONFIG[value] ?? CATEGORY_CONFIG.AUTRE
+
+  function pick(next: ProjectCategory) {
+    if (next === value) { setOpen(false); return }
+    startTransition(async () => {
+      await updateProjectCategory(projectId, next)
+      toast.success("Catégorie mise à jour")
+      setOpen(false)
+    })
+  }
+
+  return (
+    <div className="relative">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        disabled={isPending}
+        className={cn(
+          "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-medium transition-opacity hover:opacity-75",
+          current.chipCls
+        )}
+      >
+        {current.label}
+        <Pencil className="h-2.5 w-2.5 opacity-60" />
+      </button>
+
+      {open && (
+        <>
+          <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
+          <div className="absolute left-0 top-full mt-1 z-20 rounded-lg border border-border bg-popover shadow-md p-1 min-w-40">
+            {ALL_CATEGORIES.map((c) => (
+              <button
+                key={c}
+                onClick={() => pick(c)}
+                className={cn(
+                  "w-full text-left px-3 py-1.5 text-xs rounded-md hover:bg-muted transition-colors",
+                  c === value && "font-medium"
+                )}
+              >
+                <span className="flex items-center gap-2">
+                  {/* Échantillon couleur + motif de la bannière */}
+                  <span
+                    className={cn("inline-block h-3.5 w-6 rounded-sm shrink-0", CATEGORY_CONFIG[c].bannerCls)}
+                    style={CATEGORY_CONFIG[c].pattern}
+                  />
+                  <span className={cn("inline-block rounded-full px-2 py-0.5 border text-xs", CATEGORY_CONFIG[c].chipCls)}>
+                    {CATEGORY_CONFIG[c].label}
+                  </span>
                 </span>
               </button>
             ))}

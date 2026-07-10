@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from "react"
 import Link from "next/link"
-import { LayoutGrid, List, Layers, Calendar, CheckSquare, Search, TrendingUp } from "lucide-react"
+import { LayoutGrid, List, Layers, Calendar, CheckSquare, Search, TrendingUp, ChevronDown } from "lucide-react"
 import { useSortState, cmp } from "@/hooks/use-sortable"
 import { Th } from "@/components/ui/sortable-header"
 import { Badge } from "@/components/ui/badge"
@@ -10,6 +10,8 @@ import { BillingBar } from "@/components/modules/billing/BillingBar"
 import { ProjectCard } from "./ProjectCard"
 import { CreateProjectDialog } from "./CreateProjectDialog"
 import { PRIORITY_CONFIG, type ProjectPriority } from "./ProjectInlineEdit"
+import { CATEGORY_CONFIG, ALL_CATEGORIES } from "./category-config"
+import type { ProjectCategory } from "@/generated/prisma/enums"
 import { cn } from "@/lib/utils"
 
 const PRIORITY_ORDER: Record<ProjectPriority, number> = {
@@ -28,6 +30,7 @@ type Project = {
   name: string
   description: string | null
   status: keyof typeof statusConfig
+  category?: ProjectCategory
   priority?: ProjectPriority
   endDate: Date | null
   estimatedHours: number | null
@@ -64,7 +67,18 @@ export function ProjetsListView({
   const [search, setSearch] = useState("")
   const [statusFilter, setStatusFilter] = useState("ALL")
   const [showBilling, setShowBilling] = useState(false)
+  // Groupes de projets terminés dépliés (par catégorie) — repliés par défaut
+  const [openCompleted, setOpenCompleted] = useState<Set<ProjectCategory>>(new Set())
   const { sortCol, sortDir, toggle } = useSortState()
+
+  function toggleCompletedGroup(c: ProjectCategory) {
+    setOpenCompleted((prev) => {
+      const next = new Set(prev)
+      if (next.has(c)) next.delete(c)
+      else next.add(c)
+      return next
+    })
+  }
 
   const STATUS_FILTERS = [
     { value: "ALL",       label: "Tous"      },
@@ -207,9 +221,45 @@ export function ProjetsListView({
           )}
           {completed.length > 0 && (
             <section className="space-y-3">
-              <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">Terminé</h2>
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                {completed.map((p) => <ProjectCard key={p.id} project={p} showBilling={showBilling} />)}
+              <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">
+                Terminé <span className="normal-case tracking-normal">({completed.length})</span>
+              </h2>
+              {/* Sous-menus dépliants par catégorie (repliés par défaut) */}
+              <div className="space-y-2">
+                {ALL_CATEGORIES.map((c) => {
+                  const group = completed.filter((p) => (p.category ?? "AUTRE") === c)
+                  if (group.length === 0) return null
+                  const cfg = CATEGORY_CONFIG[c]
+                  const isOpen = openCompleted.has(c)
+                  return (
+                    <div key={c} className="rounded-xl border border-border/50 overflow-hidden">
+                      <button
+                        type="button"
+                        onClick={() => toggleCompletedGroup(c)}
+                        className="flex w-full items-center gap-2.5 px-4 py-2.5 bg-card hover:bg-muted/40 transition-colors text-left"
+                      >
+                        {/* Échantillon couleur + motif de la catégorie */}
+                        <span
+                          className={cn("inline-block h-3.5 w-6 rounded-sm shrink-0", cfg.bannerCls)}
+                          style={cfg.pattern}
+                        />
+                        <span className="text-sm font-medium">{cfg.label}</span>
+                        <span className="text-xs text-muted-foreground">({group.length})</span>
+                        <ChevronDown
+                          className={cn(
+                            "ml-auto h-4 w-4 text-muted-foreground transition-transform",
+                            isOpen && "rotate-180"
+                          )}
+                        />
+                      </button>
+                      {isOpen && (
+                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 p-4 border-t border-border/50 bg-muted/10">
+                          {group.map((p) => <ProjectCard key={p.id} project={p} showBilling={showBilling} />)}
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
               </div>
             </section>
           )}

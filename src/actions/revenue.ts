@@ -149,6 +149,25 @@ export async function markRevenueReceived(
   return {}
 }
 
+/**
+ * Repasse un revenu validé en attente (erreur de saisie) : status PENDING,
+ * date de réception et moyen de paiement effacés. Inverse de markRevenueReceived.
+ */
+export async function markRevenuePending(id: string): Promise<{ error?: string }> {
+  const session = await auth()
+  const userId = session!.user.id
+
+  const existing = await prisma.revenue.findFirst({ where: { id, userId } })
+  if (!existing) return { error: "Revenu introuvable" }
+
+  await prisma.revenue.update({
+    where: { id },
+    data: { status: "PENDING", receivedAt: null, paymentMethod: null },
+  })
+  revalidatePath("/revenus")
+  return {}
+}
+
 export async function bulkMarkReceived(
   ids: string[],
   receivedAt: Date

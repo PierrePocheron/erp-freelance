@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useRef, useState, useTransition } from "react"
-import { Search, X, Mail, Phone, Trash2, ChevronLeft, ChevronRight, Send, ExternalLink } from "lucide-react"
+import { Search, X, Mail, MailPlus, Phone, Trash2, ChevronLeft, ChevronRight, Send, ExternalLink } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { toast } from "sonner"
 import { useSortState, cmp } from "@/hooks/use-sortable"
@@ -10,6 +10,7 @@ import { Sheet, SheetContent } from "@/components/ui/sheet"
 import { ClientPanel } from "@/components/modules/crm/ClientPanel"
 import { getClientPanel } from "@/actions/crm"
 import { markProspectsContacted, updateProspectsStatusBulk, deleteProspects } from "@/actions/prospection"
+import { renderTemplate } from "@/lib/email-template"
 import { STATUS_CONFIG, ALL_STATUSES, WEBSITE_TYPE_CONFIG, SOURCE_LABELS } from "./status-config"
 import { ProspectStatusSelect } from "./ProspectStatusSelect"
 import { SendEmailDialog, type EmailTemplateOption } from "./SendEmailDialog"
@@ -61,6 +62,7 @@ export function ProspectionTable({
   const [search, setSearch] = useState("")
   const [siteTypeFilter, setSiteTypeFilter] = useState<string>("ALL")
   const [sourceFilter, setSourceFilter] = useState<string>("ALL")
+  const [mailTemplateId, setMailTemplateId] = useState("")
   const { sortCol, sortDir, toggle } = useSortState("createdAt", "desc")
 
   // Pagination
@@ -184,6 +186,34 @@ export function ProspectionTable({
   const selectedIds = [...selected]
   const selectedProspects = prospects.filter((p) => selected.has(p.id))
 
+  /**
+   * Génère le mail personnalisé d'un prospect en un clic à partir du modèle
+   * choisi en barre d'outils : ouvre le compose Gmail pré-rempli. Ne marque pas
+   * « contacté » (ouvrir ≠ envoyer) — le suivi reste explicite via la barre en lot.
+   */
+  function generateMailForRow(p: Prospect) {
+    const template = templates.find((t) => t.id === mailTemplateId)
+    if (!template) {
+      toast.error("Choisissez d'abord un modèle de mail (menu « Générer un mail » en haut)")
+      return
+    }
+    if (!p.email?.trim()) {
+      toast.error(`${p.name} n'a pas d'email`)
+      return
+    }
+    const rendered = renderTemplate(template, p)
+    const params = new URLSearchParams({
+      view: "cm",
+      fs: "1",
+      to: p.email,
+      su: rendered.subject,
+      body: rendered.body,
+    })
+    window.open(`https://mail.google.com/mail/?${params.toString()}`, "_blank", "noopener,noreferrer")
+    if (rendered.missing.length > 0) toast.warning(`Mail généré pour ${p.name} — variables vides : ${rendered.missing.join(", ")}`)
+    else toast.success(`Mail généré pour ${p.name}`)
+  }
+
   function bulkContact(channel: InteractionChannel) {
     setContactMenuOpen(false)
     startBulk(async () => {
@@ -289,6 +319,25 @@ export function ProspectionTable({
             <option key={v} value={v}>{l}</option>
           ))}
         </select>
+        {templates.length > 0 && (
+          <div className="flex items-center gap-1.5">
+            <MailPlus className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+            <select
+              value={mailTemplateId}
+              onChange={(e) => setMailTemplateId(e.target.value)}
+              title="Modèle utilisé pour générer un mail depuis une ligne, ou pré-rempli dans les actions en lot"
+              className={cn(
+                "h-8 rounded-lg border bg-background px-2 text-xs focus:outline-none focus:ring-1 focus:ring-ring",
+                mailTemplateId ? "border-primary/50 text-foreground" : "border-input text-muted-foreground"
+              )}
+            >
+              <option value="">Générer un mail : choisir un modèle…</option>
+              {templates.map((t) => (
+                <option key={t.id} value={t.id}>{t.name}</option>
+              ))}
+            </select>
+          </div>
+        )}
       </div>
 
       {/* ── Barre d'actions en lot ── */}
@@ -406,6 +455,7 @@ export function ProspectionTable({
               <Th label="Dernier contact" col="lastContact" sortCol={sortCol} sortDir={sortDir} onSort={toggle} className="hidden md:table-cell" />
               <Th label="Source"          col="source"      sortCol={sortCol} sortDir={sortDir} onSort={toggle} className="hidden lg:table-cell" />
               <Th label="Ajouté"          col="createdAt"   sortCol={sortCol} sortDir={sortDir} onSort={toggle} className="hidden sm:table-cell" />
+              {templates.length > 0 && <th className="w-8" />}
             </tr>
           </thead>
           <tbody className="divide-y divide-border/40">
@@ -417,7 +467,7 @@ export function ProspectionTable({
                   key={p.id}
                   onClick={() => openClient(p.id)}
                   className={cn(
-                    "cursor-pointer hover:bg-muted/40 transition-colors [&>td]:px-3 [&>td]:py-2",
+                    "group cursor-pointer hover:bg-muted/40 transition-colors [&>td]:px-3 [&>td]:py-2",
                     selected.has(p.id) && "bg-primary/5"
                   )}
                 >
@@ -446,6 +496,22 @@ export function ProspectionTable({
                   </td>
                   <td className="hidden lg:table-cell text-xs text-muted-foreground whitespace-nowrap">{SOURCE_LABELS[p.source] ?? p.source}</td>
                   <td className="hidden sm:table-cell text-xs text-muted-foreground whitespace-nowrap">{fmtShort(p.createdAt)}</td>
+                  {templates.length > 0 && (
+                    <td onClick={(e) => e.stopPropagation()} className="w-8">
+                      <button
+                        onClick={() => generateMailForRow(p)}
+                        title={mailTemplateId ? "Générer le mail personnalisé (Gmail)" : "Choisir un modèle en haut pour générer le mail"}
+                        className={cn(
+                          "p-1.5 rounded transition-colors md:opacity-0 md:group-hover:opacity-100 focus:opacity-100",
+                          p.email?.trim()
+                            ? "text-muted-foreground hover:text-primary hover:bg-primary/10"
+                            : "text-muted-foreground/30 hover:text-muted-foreground/50"
+                        )}
+                      >
+                        <MailPlus className="h-3.5 w-3.5" />
+                      </button>
+                    </td>
+                  )}
                 </tr>
               )
             })}
@@ -510,6 +576,7 @@ export function ProspectionTable({
         targets={selectedProspects}
         emailFromConfigured={emailFromConfigured}
         onSent={() => setSelected(new Set())}
+        initialTemplateId={mailTemplateId}
       />
       <GmailPrepDialog
         open={gmailPrepOpen}
@@ -517,6 +584,7 @@ export function ProspectionTable({
         templates={templates}
         targets={selectedProspects}
         onDone={() => setSelected(new Set())}
+        initialTemplateId={mailTemplateId}
       />
     </div>
   )

@@ -2,7 +2,7 @@ import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { notFound } from "next/navigation"
 import Link from "next/link"
-import { Calendar, Clock, CheckSquare, BookOpen, FileText, Receipt, Flag } from "lucide-react"
+import { Calendar, Clock, CheckSquare, BookOpen, FileText, Receipt, Flag, Wallet } from "lucide-react"
 import { createJournalEntry } from "@/actions/projet"
 import { QuickNoteForm } from "@/components/modules/projet/QuickNoteForm"
 import { JournalEntryItem } from "@/components/modules/projet/JournalEntryItem"
@@ -153,6 +153,16 @@ export default async function ProjectOverviewPage({
     .filter((r) => r.status === "RECEIVED")
     .reduce((s, r) => s + r.amount, 0)
 
+  // Jalons (carte Suivi)
+  const totalMilestones = project.milestones.length
+  const doneMilestones = project.milestones.filter((m) => m.status === "DONE").length
+
+  // Vue argent consolidée facturation + revenus (carte Facturation)
+  const grandTotal = invoicedTotal + totalRevenue
+  const grandReceived = invoicedReceived + receivedRevenue
+  const pendingRevenue = totalRevenue - receivedRevenue // non déclaré + pas encore reçu → couleur distincte
+  const fmtEur = (n: number) => n.toLocaleString("fr-FR")
+
   return (
     <div className="space-y-6">
 
@@ -254,16 +264,32 @@ export default async function ProjectOverviewPage({
           </div>
 
           <div className="border-t border-border/40 pt-2.5 space-y-1.5 text-sm">
-            <div className="flex items-center justify-between">
-              <span className="text-muted-foreground flex items-center gap-1.5"><CheckSquare className="h-3.5 w-3.5" /> Tâches</span>
-              <span className="font-medium tabular-nums">{doneTasks}/{totalTasks}{inProgressTasks > 0 && <span className="text-xs text-muted-foreground font-normal"> · {inProgressTasks} en cours</span>}</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-muted-foreground flex items-center gap-1.5"><BookOpen className="h-3.5 w-3.5" /> Livrables validés</span>
-              <span className="font-medium tabular-nums">
-                {project.deliverables.filter((d) => d.status === "VALIDATED").length}/{project.deliverables.length}
-              </span>
-            </div>
+            {totalTasks > 0 && (
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground flex items-center gap-1.5"><CheckSquare className="h-3.5 w-3.5" /> Tâches</span>
+                <span className="font-medium tabular-nums">{doneTasks}/{totalTasks}{inProgressTasks > 0 && <span className="text-xs text-muted-foreground font-normal"> · {inProgressTasks} en cours</span>}</span>
+              </div>
+            )}
+            {totalMilestones > 0 && (
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground flex items-center gap-1.5"><Flag className="h-3.5 w-3.5" /> Jalons</span>
+                <span className="font-medium tabular-nums">{doneMilestones}/{totalMilestones}</span>
+              </div>
+            )}
+            {project.deliverables.length > 0 && (
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground flex items-center gap-1.5"><BookOpen className="h-3.5 w-3.5" /> Livrables validés</span>
+                <span className="font-medium tabular-nums">
+                  {project.deliverables.filter((d) => d.status === "VALIDATED").length}/{project.deliverables.length}
+                </span>
+              </div>
+            )}
+            {hasRevenue && (
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground flex items-center gap-1.5"><Receipt className="h-3.5 w-3.5" /> Revenus reçus</span>
+                <span className="font-medium tabular-nums">{fmtEur(receivedRevenue)} / {fmtEur(totalRevenue)} €</span>
+              </div>
+            )}
             {(project.startDate || project.endDate) && (
               <div className="flex items-center justify-between">
                 <span className="text-muted-foreground flex items-center gap-1.5"><Calendar className="h-3.5 w-3.5" /> Période</span>
@@ -306,22 +332,26 @@ export default async function ProjectOverviewPage({
             <div className="rounded-xl border border-border/50 bg-card p-5 space-y-4">
               <Link href="/facturation" className="flex items-center gap-2 font-semibold text-sm hover:text-primary transition-colors">
                 <Receipt className="h-4 w-4 text-muted-foreground" />
-                Facturation →
+                Facturation{hasRevenue ? " & revenus" : ""} →
               </Link>
 
-              {invoicedTotal > 0 && (
+              {grandTotal > 0 && (
                 <div className="space-y-1">
                   <div className="flex items-baseline justify-between">
                     <p className="text-lg font-bold">
-                      {invoicedReceived.toLocaleString("fr-FR")} <span className="text-xs font-normal text-muted-foreground">/ {invoicedTotal.toLocaleString("fr-FR")} € reçus</span>
+                      {fmtEur(grandReceived)} <span className="text-xs font-normal text-muted-foreground">/ {fmtEur(grandTotal)} € reçus</span>
                     </p>
                   </div>
-                  <div className="h-1 rounded-full bg-muted overflow-hidden">
-                    <div
-                      className="h-full rounded-full bg-emerald-500 transition-all"
-                      style={{ width: `${Math.min(100, Math.round((invoicedReceived / invoicedTotal) * 100))}%` }}
-                    />
+                  {/* Barre empilée : reçu (vert) + revenu non déclaré en attente (ambre, distinct) */}
+                  <div className="flex h-1 rounded-full bg-muted overflow-hidden">
+                    <div className="bg-emerald-500 transition-all" style={{ width: `${Math.round((grandReceived / grandTotal) * 100)}%` }} />
+                    {pendingRevenue > 0 && (
+                      <div className="bg-amber-500 transition-all" style={{ width: `${Math.round((pendingRevenue / grandTotal) * 100)}%` }} />
+                    )}
                   </div>
+                  {pendingRevenue > 0 && (
+                    <p className="text-xs text-amber-600">dont {fmtEur(pendingRevenue)} € de revenu non déclaré en attente</p>
+                  )}
                 </div>
               )}
 
@@ -371,6 +401,24 @@ export default async function ProjectOverviewPage({
                       </Link>
                     )
                   })}
+                </div>
+              )}
+
+              {hasRevenue && (
+                <div className="space-y-1.5">
+                  <Link href="/revenus" className="text-xs text-muted-foreground font-medium uppercase tracking-wide flex items-center gap-1 hover:text-primary transition-colors">
+                    <Wallet className="h-3 w-3" /> Revenus
+                  </Link>
+                  {project.revenues.map((r) => (
+                    <div key={r.id} className="flex items-center gap-2 text-sm py-0.5">
+                      <span className="text-xs text-muted-foreground shrink-0">{REVENUE_TYPE_LABELS[r.type] ?? r.type}</span>
+                      <span className="flex-1 truncate">{r.label}</span>
+                      <span className={`shrink-0 rounded-full px-1.5 py-0.5 text-xs font-medium ${revenueStatusCls[r.status] ?? ""}`}>
+                        {revenueStatusLabel[r.status] ?? r.status}
+                      </span>
+                      <span className="shrink-0 text-xs font-medium tabular-nums">{r.amount.toLocaleString("fr-FR")} €</span>
+                    </div>
+                  ))}
                 </div>
               )}
             </div>

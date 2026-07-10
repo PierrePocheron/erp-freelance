@@ -285,7 +285,7 @@ export async function getOrCreateDefaultEmailTemplates() {
   }
   return prisma.emailTemplate.findMany({
     where: { userId },
-    orderBy: { updatedAt: "desc" },
+    orderBy: [{ sortOrder: "asc" }, { updatedAt: "desc" }],
   })
 }
 
@@ -313,6 +313,21 @@ export async function updateEmailTemplate(templateId: string, data: { name: stri
 export async function deleteEmailTemplate(templateId: string) {
   const userId = await requireAuth()
   await prisma.emailTemplate.deleteMany({ where: { id: templateId, userId } })
+  revalidatePath("/prospection/modeles")
+}
+
+/**
+ * Persiste l'ordre d'affichage choisi par l'utilisateur (drag & drop) :
+ * chaque modèle reçoit son rang dans `orderedIds`. Scoped par userId
+ * (updateMany anti-IDOR) — un id étranger ne matche rien.
+ */
+export async function reorderEmailTemplates(orderedIds: string[]) {
+  const userId = await requireAuth()
+  await prisma.$transaction(
+    orderedIds.map((id, index) =>
+      prisma.emailTemplate.updateMany({ where: { id, userId }, data: { sortOrder: index } })
+    )
+  )
   revalidatePath("/prospection/modeles")
 }
 

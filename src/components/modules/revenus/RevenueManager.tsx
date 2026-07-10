@@ -2,6 +2,7 @@
 
 import { useState, useTransition, useMemo } from "react"
 import { useRouter } from "next/navigation"
+import Link from "next/link"
 import {
   Plus, Repeat, ChevronDown, ChevronUp, CheckCircle2, Clock,
   Pencil, Trash2, RefreshCw, AlertTriangle, X, Check,
@@ -179,7 +180,7 @@ function RevenueForm({
   }
 
   return (
-    <div className="rounded-xl border border-border/50 bg-card p-5 space-y-4">
+    <div className="rounded-xl border border-border/50 bg-card p-5 space-y-4 max-w-2xl">
       <div className="flex items-center justify-between">
         <h3 className="font-semibold text-sm">{initial?.id ? "Modifier" : "Nouveau revenu"}</h3>
         <button type="button" onClick={onClose} className="text-muted-foreground hover:text-foreground">
@@ -666,6 +667,7 @@ export function RevenueManager({
   const [isBulking,         startBulk]             = useTransition()
   const [quickMarkingId,    setQuickMarkingId]     = useState<string | null>(null)
   const [expandedPeriods,   setExpandedPeriods]    = useState<Set<string>>(new Set([getCurrentPeriod()]))
+  const [expandedYears,     setExpandedYears]      = useState<Set<string>>(new Set([String(new Date().getFullYear())]))
   const [isPendingGen,      startGen]              = useTransition()
   const [isPendingDel,      startDel]              = useTransition()
   const [genMessage,        setGenMessage]         = useState("")
@@ -705,13 +707,21 @@ export function RevenueManager({
     sortOrder === "desc" ? b.localeCompare(a) : a.localeCompare(b)
   )
 
+  // Groupement par année (au-dessus des mois). "Sans période" forme son propre groupe.
+  const yearOf = (period: string) => (period === "Sans période" ? "Sans année" : period.split("-")[0])
+  const yearsOrdered = [...new Set(sortedPeriods.map(yearOf))]
+  const periodsByYear: Record<string, string[]> = {}
+  for (const p of sortedPeriods) (periodsByYear[yearOf(p)] ??= []).push(p)
+
   const allExpanded = sortedPeriods.length > 0 && sortedPeriods.every(p => expandedPeriods.has(p))
 
   function toggleExpandAll() {
     if (allExpanded) {
       setExpandedPeriods(new Set())
+      setExpandedYears(new Set())
     } else {
       setExpandedPeriods(new Set(sortedPeriods))
+      setExpandedYears(new Set(yearsOrdered))
     }
   }
 
@@ -720,6 +730,15 @@ export function RevenueManager({
       const next = new Set(prev)
       if (next.has(p)) next.delete(p)
       else next.add(p)
+      return next
+    })
+  }
+
+  function toggleYear(y: string) {
+    setExpandedYears(prev => {
+      const next = new Set(prev)
+      if (next.has(y)) next.delete(y)
+      else next.add(y)
       return next
     })
   }
@@ -924,8 +943,40 @@ export function RevenueManager({
               )}
             </div>
           ) : (
-            <div className="space-y-3">
-              {sortedPeriods.map(period => {
+            <div className="space-y-4">
+              {yearsOrdered.map(year => {
+                const yearPeriods = periodsByYear[year]
+                const yearItems = yearPeriods.flatMap(p => byPeriod[p])
+                const yearTotal = yearItems.reduce((s, r) => s + r.amount, 0)
+                const yearReceived = yearItems.filter(r => r.status === "RECEIVED").reduce((s, r) => s + r.amount, 0)
+                const yearExpanded = expandedYears.has(year)
+
+                return (
+                  <div key={year} className="space-y-2">
+                    {/* En-tête année */}
+                    <div
+                      role="button"
+                      tabIndex={0}
+                      className="w-full flex items-center justify-between px-1.5 py-1 cursor-pointer group"
+                      onClick={() => toggleYear(year)}
+                      onKeyDown={e => e.key === "Enter" && toggleYear(year)}
+                    >
+                      <div className="flex items-center gap-2">
+                        {yearExpanded ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
+                        <span className="font-bold text-base">{year}</span>
+                        <span className="text-xs text-muted-foreground">{yearItems.length} entrée{yearItems.length > 1 ? "s" : ""}</span>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        {yearReceived < yearTotal && (
+                          <span className="text-xs text-amber-600">{fmt(yearTotal - yearReceived)} € en attente</span>
+                        )}
+                        <span className="font-semibold text-sm tabular-nums text-emerald-600">{fmt(yearReceived)} € reçus</span>
+                      </div>
+                    </div>
+
+                    {yearExpanded && (
+                      <div className="space-y-3">
+              {yearPeriods.map(period => {
                 const items = byPeriod[period]
                 const expanded = expandedPeriods.has(period)
                 const totalP = items.reduce((s, r) => s + r.amount, 0)
@@ -1018,13 +1069,28 @@ export function RevenueManager({
                                       </span>
                                     )}
                                     {r.company && (
-                                      <span className="text-xs text-muted-foreground">{r.fiscalSource ? `· ${r.company.name}` : r.company.name}</span>
+                                      <span className="text-xs text-muted-foreground">
+                                        {r.fiscalSource && "· "}
+                                        {r.companyId
+                                          ? <Link href={`/societes/${r.companyId}`} className="hover:text-primary hover:underline" onClick={e => e.stopPropagation()}>{r.company.name}</Link>
+                                          : r.company.name}
+                                      </span>
                                     )}
                                     {r.client && (
-                                      <span className="text-xs text-muted-foreground">{(r.fiscalSource || r.company) ? `· ${r.client.name}` : r.client.name}</span>
+                                      <span className="text-xs text-muted-foreground">
+                                        {(r.fiscalSource || r.company) && "· "}
+                                        {r.clientId
+                                          ? <Link href={`/contacts/${r.clientId}`} className="hover:text-primary hover:underline" onClick={e => e.stopPropagation()}>{r.client.name}</Link>
+                                          : r.client.name}
+                                      </span>
                                     )}
                                     {r.project && (
-                                      <span className="text-xs text-muted-foreground">{(r.fiscalSource || r.company || r.client) ? `· ${r.project.name}` : r.project.name}</span>
+                                      <span className="text-xs text-muted-foreground">
+                                        {(r.fiscalSource || r.company || r.client) && "· "}
+                                        {r.projectId
+                                          ? <Link href={`/projets/${r.projectId}`} className="hover:text-primary hover:underline" onClick={e => e.stopPropagation()}>{r.project.name}</Link>
+                                          : r.project.name}
+                                      </span>
                                     )}
                                     {r.notes && !r.isFromInvoice && !r.fiscalSource && !r.company && !r.client && !r.project && (
                                       <span className="text-xs text-muted-foreground truncate max-w-xs">{r.notes}</span>
@@ -1132,6 +1198,11 @@ export function RevenueManager({
                             ))}
                           </tbody>
                         </table>
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
                       </div>
                     )}
                   </div>

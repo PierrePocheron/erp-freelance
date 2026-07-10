@@ -5,6 +5,7 @@ import {
   updateProspectsStatusBulk,
   markProspectsContacted,
   deleteProspects,
+  importProspects,
 } from "@/actions/prospection"
 import { prisma } from "@/lib/prisma"
 import { setTestUser } from "./setup"
@@ -113,5 +114,44 @@ describe("updateProspectsStatusBulk / deleteProspects", () => {
     expect(deleted).toBe(1)
     expect(await prisma.client.findUnique({ where: { id: prospect.id } })).toBeNull()
     expect(await prisma.client.findUnique({ where: { id: realClient.id } })).not.toBeNull()
+  })
+})
+
+describe("importProspects", () => {
+  it("importe et déduplique par email, insensible à la casse, y compris contre un Client non-prospect", async () => {
+    const user = await makeUser()
+    setTestUser(user.id)
+    // Un CLIENT existant avec cet email — ne doit pas être réimporté en prospect
+    await makeClient(user.id, { type: "CLIENT", name: "Client existant", email: "Jean@Dupont.fr" })
+
+    const { imported, skipped } = await importProspects([
+      { name: "Jean Dupont", email: "jean@dupont.fr" },          // doublon (casse différente)
+      { name: "Marie Martin", email: "marie@martin.fr", companyName: "Boulangerie Martin", websiteUrl: "https://martin.fr", websiteType: "OUTDATED", region: "AURA" },
+      { name: "Sans Email" },                                     // pas d'email → importé sans dédup
+      { name: "Marie Bis", email: "MARIE@MARTIN.FR" },            // doublon interne au fichier
+    ])
+
+    expect(imported).toBe(2)
+    expect(skipped).toEqual(["jean@dupont.fr", "MARIE@MARTIN.FR"])
+
+    const marie = await prisma.client.findFirst({ where: { userId: user.id, email: "marie@martin.fr" } })
+    expect(marie?.type).toBe("PROSPECT")
+    expect(marie?.prospectStatus).toBe("TO_CONTACT")
+    expect(marie?.websiteType).toBe("OUTDATED")
+    expect(marie?.company).toBe("Boulangerie Martin")
+    expect(marie?.region).toBe("AURA")
+  })
+
+  it("ignore les lignes sans nom et normalise les types de site inconnus", async () => {
+    const user = await makeUser()
+    setTestUser(user.id)
+
+    const { imported } = await importProspects([
+      { name: "", email: "vide@x.fr" },
+      { name: "Type inconnu", websiteType: "N_IMPORTE_QUOI" },
+    ])
+    expect(imported).toBe(1)
+    const p = await prisma.client.findFirst({ where: { userId: user.id, name: "Type inconnu" } })
+    expect(p?.websiteType).toBeNull()
   })
 })

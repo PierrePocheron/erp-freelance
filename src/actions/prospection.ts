@@ -113,6 +113,85 @@ export async function markProspectsContacted(clientIds: string[], channel: Inter
   return { contacted: owned.length }
 }
 
+export type ImportProspectRow = {
+  name: string
+  firstName?: string | null
+  lastName?: string | null
+  email?: string | null
+  phone?: string | null
+  companyName?: string | null
+  websiteUrl?: string | null
+  websiteType?: string | null
+  websitePagesApprox?: number | null
+  businessDescription?: string | null
+  city?: string | null
+  region?: string | null
+  notes?: string | null
+  source?: string | null
+}
+
+const WEBSITE_TYPES = ["SHOWCASE", "ECOMMERCE", "BLOG_CONTENT", "OUTDATED", "OTHER"]
+const SOURCES = ["WORD_OF_MOUTH", "LINKEDIN", "WEBSITE", "INBOUND", "OTHER"]
+
+/**
+ * Import en masse (CSV scrapé) : déduplique par email normalisé contre TOUS
+ * les contacts du user (pas seulement les prospects — évite de réimporter un
+ * client existant en prospect). Doublons skippés avec rapport.
+ */
+export async function importProspects(rows: ImportProspectRow[]) {
+  const userId = await requireAuth()
+
+  const existing = await prisma.client.findMany({
+    where: { userId, email: { not: null } },
+    select: { email: true },
+  })
+  const known = new Set(existing.map((c) => c.email!.trim().toLowerCase()))
+
+  let imported = 0
+  const skipped: string[] = []
+
+  for (const row of rows) {
+    const name = row.name?.trim()
+    if (!name) continue
+
+    const email = row.email?.trim() || null
+    const emailKey = email?.toLowerCase()
+    if (emailKey && known.has(emailKey)) {
+      skipped.push(email!)
+      continue
+    }
+
+    const { companyId, companyName } = await resolveCompanyByName(userId, row.companyName)
+    await prisma.client.create({
+      data: {
+        userId,
+        name,
+        firstName: row.firstName?.trim() || null,
+        lastName: row.lastName?.trim() || null,
+        email,
+        phone: row.phone?.trim() || null,
+        companyId,
+        company: companyName,
+        type: "PROSPECT",
+        prospectStatus: "TO_CONTACT",
+        source: SOURCES.includes(row.source ?? "") ? (row.source as ClientSource) : "OTHER",
+        websiteUrl: row.websiteUrl?.trim() || null,
+        websiteType: WEBSITE_TYPES.includes(row.websiteType ?? "") ? (row.websiteType as never) : null,
+        websitePagesApprox: row.websitePagesApprox ?? null,
+        businessDescription: row.businessDescription?.trim() || null,
+        city: row.city?.trim() || null,
+        region: row.region?.trim() || null,
+        notes: row.notes?.trim() || null,
+      },
+    })
+    if (emailKey) known.add(emailKey) // dédup aussi à l'intérieur du fichier
+    imported++
+  }
+
+  revalidatePath("/prospection")
+  return { imported, skipped }
+}
+
 export async function deleteProspects(clientIds: string[]) {
   const userId = await requireAuth()
   const deleted = await prisma.client.deleteMany({

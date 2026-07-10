@@ -63,9 +63,18 @@ export async function createProspect(data: {
 
 export async function updateProspectStatus(clientId: string, status: ProspectStatus) {
   const userId = await requireAuth()
+  const current = await prisma.client.findFirst({
+    where: { id: clientId, userId },
+    select: { type: true, prospectStatus: true },
+  })
+  if (!current) throw new Error("Non autorisé")
+
   const data: Record<string, unknown> = { prospectStatus: status }
-  // Gagné → convertit automatiquement en client
+  // Gagné → convertit automatiquement en client ; quitter Gagné → redevient
+  // prospect (annulation d'une conversion, pas de clients fantômes).
   if (status === "WON") data.type = "CLIENT"
+  else if (current.type === "CLIENT" && current.prospectStatus === "WON") data.type = "PROSPECT"
+
   await prisma.client.update({ where: { id: clientId, userId }, data: data as never })
   revalidatePath("/prospection")
   revalidatePath(`/contacts/${clientId}`)
@@ -73,6 +82,13 @@ export async function updateProspectStatus(clientId: string, status: ProspectSta
 
 export async function updateProspectsStatusBulk(clientIds: string[], status: ProspectStatus) {
   const userId = await requireAuth()
+  if (status !== "WON") {
+    // Annule d'abord les conversions des gagnés inclus dans le lot
+    await prisma.client.updateMany({
+      where: { id: { in: clientIds }, userId, type: "CLIENT", prospectStatus: "WON" },
+      data: { type: "PROSPECT" },
+    })
+  }
   await prisma.client.updateMany({
     where: { id: { in: clientIds }, userId },
     data: {
@@ -206,6 +222,72 @@ export async function deleteProspects(clientIds: string[]) {
 }
 
 // ── Modèles de mails ─────────────────────────────────────────────────────────
+
+// Modèles de départ — {{nom_complet}} = nom du site/de l'entreprise pour les
+// prospects ajoutés via l'ajout rapide (le champ name porte le nom du business).
+const DEFAULT_EMAIL_TEMPLATES = [
+  {
+    name: "1er contact — refonte de site",
+    subject: "Votre site {{site}} — quelques pistes d'amélioration",
+    body: `Bonjour,
+
+Je suis tombé sur le site de {{nom_complet}} ({{site}}) en cherchant des entreprises de la région, et j'ai remarqué quelques points qui pourraient vous faire perdre des clients : affichage sur mobile, vitesse de chargement, visibilité sur Google.
+
+Je suis développeur web indépendant à Lyon et j'aide les petites entreprises à moderniser leur site sans les prix d'agence — souvent en repartant de l'existant.
+
+Seriez-vous ouvert à un échange de 10 minutes cette semaine ? Je peux vous montrer concrètement ce qui peut être amélioré, sans engagement.
+
+Bonne journée,
+Pierre — Pedro Dev
+
+PS : si vous ne souhaitez plus recevoir de message de ma part, répondez simplement « stop ».`,
+  },
+  {
+    name: "Relance douce (J+7)",
+    subject: "Re : votre site {{site}}",
+    body: `Bonjour,
+
+Je me permets une petite relance suite à mon message de la semaine dernière au sujet du site de {{nom_complet}}.
+
+Je sais que ce n'est pas toujours la priorité du moment — si le sujet vous intéresse mais que le timing est mauvais, dites-le moi simplement et je reviendrai vers vous plus tard.
+
+Et si vous préférez ne plus être contacté, un simple « stop » suffit.
+
+Bonne journée,
+Pierre — Pedro Dev`,
+  },
+  {
+    name: "Proposition d'audit gratuit",
+    subject: "Audit gratuit du site de {{nom_complet}}",
+    body: `Bonjour,
+
+Je propose en ce moment un mini-audit gratuit aux entreprises de la région : je passe en revue votre site ({{site}}) et je vous envoie 3 améliorations concrètes et prioritaires — vitesse, mobile, référencement Google.
+
+C'est gratuit, sans engagement, et vous pouvez appliquer les recommandations avec le prestataire de votre choix.
+
+Intéressé ? Répondez simplement à ce mail et je vous envoie l'audit sous 48 h.
+
+Bonne journée,
+Pierre — Pedro Dev
+
+PS : pour ne plus recevoir de message de ma part, répondez « stop ».`,
+  },
+]
+
+/** Provisionne 3 modèles de départ au premier usage — évite de partir d'une page vide. */
+export async function getOrCreateDefaultEmailTemplates() {
+  const userId = await requireAuth()
+  const count = await prisma.emailTemplate.count({ where: { userId } })
+  if (count === 0) {
+    await prisma.emailTemplate.createMany({
+      data: DEFAULT_EMAIL_TEMPLATES.map((t) => ({ userId, ...t })),
+    })
+  }
+  return prisma.emailTemplate.findMany({
+    where: { userId },
+    orderBy: { updatedAt: "desc" },
+  })
+}
 
 export async function createEmailTemplate(data: { name: string; subject: string; body: string }) {
   const userId = await requireAuth()

@@ -83,6 +83,7 @@ export default async function DashboardPage() {
     incompleteRevenuesRaw,
     unconfirmedMilestones,
     unconfirmedEvents,
+    incompleteRecurringExpenses,
   ] = await Promise.all([
     prisma.task.findMany({
       where: {
@@ -335,6 +336,11 @@ export default async function DashboardPage() {
       orderBy: { startDate: "asc" },
       take: 10,
     }),
+    // Dépenses récurrentes actives dont la date de prélèvement reste à renseigner
+    prisma.recurringExpense.findMany({
+      where: { userId, isActive: true, dateToConfirm: true },
+      select: { id: true },
+    }),
   ])
 
   const totalPending   = unpaidInvoices.reduce((s, i) => s + i.totalHT - i.depositDeducted, 0)
@@ -457,7 +463,8 @@ export default async function DashboardPage() {
   const incompleteContacts  = incompleteContactsRaw.filter(isContactIncomplete)
   const incompleteCompanies = incompleteCompaniesRaw.filter((c) => !c.website)
   const incompleteRevenues  = incompleteRevenuesRaw.filter((r) => !r.companyId && !r.clientId && !r.projectId)
-  const totalIncomplete = incompleteContacts.length + incompleteCompanies.length + incompleteRevenues.length
+  const incompleteExpensesCount = incompleteRecurringExpenses.length
+  const totalIncomplete = incompleteContacts.length + incompleteCompanies.length + incompleteRevenues.length + incompleteExpensesCount
 
   const hour = new Date().getHours()
   const greeting = hour < 12 ? "Bonjour" : hour < 18 ? "Bonjour" : "Bonsoir"
@@ -514,7 +521,7 @@ export default async function DashboardPage() {
         )}
 
         {/* Données à compléter — agrégé tous modules, mis en avant */}
-        {(has("contacts") || has("societes") || has("revenus")) && totalIncomplete > 0 && (
+        {(has("contacts") || has("societes") || has("revenus") || has("depenses")) && totalIncomplete > 0 && (
           <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 px-4 py-2.5 flex items-center gap-4 flex-wrap">
             <p className="flex items-center gap-1.5 text-xs font-medium text-amber-700 dark:text-amber-400 shrink-0">
               <AlertCircle className="h-3.5 w-3.5" />
@@ -536,6 +543,12 @@ export default async function DashboardPage() {
               <Link href="/revenus" className="group flex items-center gap-1 text-xs">
                 <span className="text-muted-foreground group-hover:text-foreground transition-colors">Revenus</span>
                 <span className="font-semibold tabular-nums text-amber-600">{incompleteRevenues.length}</span>
+              </Link>
+            )}
+            {has("depenses") && incompleteExpensesCount > 0 && (
+              <Link href="/depenses/recurrentes" className="group flex items-center gap-1 text-xs">
+                <span className="text-muted-foreground group-hover:text-foreground transition-colors">Dépenses récurrentes</span>
+                <span className="font-semibold tabular-nums text-amber-600">{incompleteExpensesCount}</span>
               </Link>
             )}
             {has("graph") && (

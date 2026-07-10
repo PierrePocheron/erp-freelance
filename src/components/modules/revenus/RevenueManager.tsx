@@ -1,17 +1,17 @@
 "use client"
 
-import { useState, useTransition, useMemo } from "react"
-import { useRouter } from "next/navigation"
+import { useState, useTransition, useMemo, useEffect } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
 import Link from "next/link"
 import {
   Plus, Repeat, ChevronDown, ChevronUp, CheckCircle2, Clock,
-  Pencil, Trash2, RefreshCw, AlertTriangle, X, Check,
-  ArrowUpDown, ExternalLink, ChevronsUpDown,
+  Pencil, Trash2, RefreshCw, X, Check,
+  ArrowUpDown, ExternalLink, ChevronsUpDown, RotateCcw,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
-  createRevenue, updateRevenue, deleteRevenue, markRevenueReceived,
+  createRevenue, updateRevenue, deleteRevenue, markRevenueReceived, markRevenuePending,
   createRecurringRevenue, updateRecurringRevenue, deleteRecurringRevenue,
   generatePendingRecurringRevenues, bulkMarkReceived,
 } from "@/actions/revenue"
@@ -372,82 +372,6 @@ function RevenueForm({
   )
 }
 
-// ── Modal "Marquer reçu" ───────────────────────────────────────────────────────
-
-function MarkReceivedModal({
-  revenue,
-  paymentLabels,
-  onClose,
-  onSave,
-}: {
-  revenue: Revenue
-  paymentLabels: Record<string, string>
-  onClose: () => void
-  onSave: () => void
-}) {
-  const [receivedAt, setReceivedAt] = useState(new Date().toISOString().slice(0, 10))
-  const [paymentMethod, setPaymentMethod] = useState("")
-  const [error, setError] = useState("")
-  const [isPending, start] = useTransition()
-
-  function handleSubmit() {
-    if (!receivedAt) { setError("La date est requise"); return }
-    setError("")
-    start(async () => {
-      const res = await markRevenueReceived(revenue.id, new Date(receivedAt), paymentMethod || "OTHER")
-      if (res.error) setError(res.error)
-      else onSave()
-    })
-  }
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={onClose}>
-      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
-      <div
-        className="relative bg-card border border-border rounded-xl shadow-2xl p-5 w-full max-w-sm mx-4 space-y-4"
-        onClick={e => e.stopPropagation()}
-      >
-        <div className="flex items-center justify-between">
-          <h3 className="font-semibold text-sm">Marquer comme reçu</h3>
-          <button type="button" onClick={onClose} className="text-muted-foreground hover:text-foreground">
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-        <p className="text-sm text-muted-foreground">{revenue.label}</p>
-        <p className="text-2xl font-bold tabular-nums">{fmt(revenue.amount)} {revenue.currency}</p>
-
-        <div className="space-y-3">
-          <div className="space-y-1">
-            <label className="text-xs font-medium text-muted-foreground">Date de réception</label>
-            <Input type="date" value={receivedAt} onChange={e => setReceivedAt(e.target.value)} className="h-9" />
-          </div>
-          <div className="space-y-1">
-            <label className="text-xs font-medium text-muted-foreground">Moyen de paiement</label>
-            <select
-              value={paymentMethod}
-              onChange={e => setPaymentMethod(e.target.value)}
-              className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
-            >
-              <option value="">— Choisir —</option>
-              {PAYMENT_METHODS.map(m => (
-                <option key={m} value={m}>{paymentLabels[m] ?? m}</option>
-              ))}
-            </select>
-          </div>
-        </div>
-
-        {error && <p className="text-xs text-red-500">{error}</p>}
-
-        <div className="flex justify-end gap-2">
-          <Button type="button" variant="outline" size="sm" onClick={onClose}>Annuler</Button>
-          <Button type="button" size="sm" disabled={isPending} onClick={handleSubmit}>
-            {isPending ? "…" : "Confirmer"}
-          </Button>
-        </div>
-      </div>
-    </div>
-  )
-}
 
 // ── Formulaire récurrent ───────────────────────────────────────────────────────
 
@@ -656,6 +580,10 @@ export function RevenueManager({
   fiscalSources?: FiscalSource[]
 }) {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  // Filtre « en attente uniquement » piloté par l'URL — activé par la carte
+  // KPI « En attente » en haut de la page (?filtre=attente)
+  const pendingOnly = searchParams.get("filtre") === "attente"
   const [tab,               setTab]               = useState<"list" | "recurring">("list")
   const [showForm,          setShowForm]           = useState(false)
   const [showRecurringForm, setShowRecurringForm]  = useState(false)
@@ -691,10 +619,22 @@ export function RevenueManager({
     return [...map.values()]
   }, [initialRevenues])
 
-  // Revenus filtrés par source
-  const filteredRevenues = filterSourceId
-    ? initialRevenues.filter(r => r.fiscalSourceId === filterSourceId)
-    : initialRevenues
+  // Revenus filtrés par source + éventuel filtre « en attente » (carte KPI)
+  const filteredRevenues = initialRevenues
+    .filter(r => !filterSourceId || r.fiscalSourceId === filterSourceId)
+    .filter(r => !pendingOnly || r.status === "PENDING")
+
+  // Activation du filtre « en attente » → tout déplier pour voir chaque montant
+  useEffect(() => {
+    if (!pendingOnly) return
+    const pending = initialRevenues.filter(r => r.status === "PENDING")
+    const periods = pending.map(r => r.period ?? "Sans période")
+    const years = periods.map(p => (p === "Sans période" ? "Sans année" : p.split("-")[0]))
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setExpandedPeriods(new Set(periods))
+     
+    setExpandedYears(new Set(years))
+  }, [pendingOnly, initialRevenues])
 
   // Groupement par période (sur la liste filtrée)
   const byPeriod: Record<string, Revenue[]> = {}
@@ -797,6 +737,16 @@ export function RevenueManager({
     })
   }
 
+  /** Inverse de handleQuickMark : repasse un revenu validé par erreur en attente. */
+  function handleUnmark(id: string) {
+    setQuickMarkingId(id)
+    startBulk(async () => {
+      await markRevenuePending(id)
+      setQuickMarkingId(null)
+      refresh()
+    })
+  }
+
   function handleBulkMark() {
     const ids = Array.from(selectedIds)
     if (!ids.length) return
@@ -857,6 +807,19 @@ export function RevenueManager({
 
           {/* Barre de filtres */}
           <div className="flex flex-wrap items-center gap-2">
+            {/* Chip filtre « en attente » (activé par la carte KPI du haut) */}
+            {pendingOnly && (
+              <button
+                type="button"
+                onClick={() => router.replace("/revenus", { scroll: false })}
+                title="Retirer le filtre"
+                className="h-8 px-2.5 text-xs rounded-md border border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-400 hover:bg-amber-500/20 transition-colors flex items-center gap-1.5 font-medium"
+              >
+                <Clock className="h-3 w-3" />
+                En attente uniquement
+                <X className="h-3 w-3" />
+              </button>
+            )}
             {/* Filtre source fiscale */}
             {availableSources.length > 0 && (
               <div className="relative">
@@ -917,20 +880,6 @@ export function RevenueManager({
             />
           )}
 
-          {editRevenue && (
-            <RevenueForm
-              typeLabels={revenueTypeLabels}
-              paymentLabels={paymentMethodLabels}
-              companies={companies}
-              clients={clients}
-              projects={projects}
-              fiscalSources={fiscalSources}
-              initial={editRevenue}
-              onClose={() => setEditRevenue(null)}
-              onSave={() => { setEditRevenue(null); refresh() }}
-            />
-          )}
-
           {filteredRevenues.length === 0 ? (
             <div className="rounded-xl border border-border/50 bg-card p-12 text-center">
               <p className="text-sm text-muted-foreground">
@@ -984,7 +933,7 @@ export function RevenueManager({
 
                 return (
                   <div key={period} className="rounded-xl border border-border/50 bg-card overflow-hidden">
-                    {/* eslint-disable-next-line jsx-a11y/no-static-element-interactions */}
+                    { }
                     <div
                       className="w-full flex items-center justify-between px-5 py-3.5 hover:bg-muted/30 transition-colors cursor-pointer"
                       onClick={() => togglePeriod(period)}
@@ -1021,17 +970,43 @@ export function RevenueManager({
                         <table className="w-full text-sm">
                           <tbody>
                             {items.map(r => (
+                              // Édition inline : le formulaire remplace la ligne
+                              editRevenue?.id === r.id ? (
+                                <tr key={r.id} className="border-b border-border/50 last:border-0">
+                                  <td colSpan={5} className="px-4 py-3 bg-muted/20">
+                                    <RevenueForm
+                                      typeLabels={revenueTypeLabels}
+                                      paymentLabels={paymentMethodLabels}
+                                      companies={companies}
+                                      clients={clients}
+                                      projects={projects}
+                                      fiscalSources={fiscalSources}
+                                      initial={editRevenue}
+                                      onClose={() => setEditRevenue(null)}
+                                      onSave={() => { setEditRevenue(null); refresh() }}
+                                    />
+                                  </td>
+                                </tr>
+                              ) : (
                               <tr key={r.id} className={`border-b border-border/50 last:border-0 hover:bg-muted/30 transition-colors ${selectedIds.has(r.id) ? "bg-emerald-500/5" : ""}`}>
-                                {/* Checkbox — masqué pour les entrées issues de factures */}
-                                <td className="pl-4 pr-1 py-3 w-8">
-                                  {!r.isFromInvoice && r.status === "PENDING" && (
+                                {/* Checkbox (en attente) ou badge Payé (reçu) */}
+                                <td className="pl-4 pr-1 py-3 whitespace-nowrap w-px">
+                                  {r.status === "RECEIVED" ? (
+                                    <span
+                                      title={r.receivedAt ? `Reçu le ${fmtDate(r.receivedAt)}` : "Reçu"}
+                                      className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 text-emerald-600 border border-emerald-500/25 px-2 py-0.5 text-[10px] font-semibold"
+                                    >
+                                      <CheckCircle2 className="h-3 w-3" />
+                                      Payé
+                                    </span>
+                                  ) : !r.isFromInvoice && r.status === "PENDING" ? (
                                     <input
                                       type="checkbox"
                                       checked={selectedIds.has(r.id)}
                                       onChange={() => toggleSelect(r.id)}
                                       className="h-4 w-4 rounded border-border accent-emerald-600 cursor-pointer"
                                     />
-                                  )}
+                                  ) : null}
                                 </td>
 
                                 {/* Libellé + infos */}
@@ -1163,6 +1138,20 @@ export function RevenueManager({
                                           }
                                         </button>
                                       )}
+                                      {r.status === "RECEIVED" && (
+                                        <button
+                                          type="button"
+                                          onClick={() => handleUnmark(r.id)}
+                                          disabled={isBulking}
+                                          title="Repasser en attente (erreur de saisie)"
+                                          className="inline-flex items-center justify-center h-7 w-7 rounded-full text-muted-foreground hover:bg-amber-500/15 hover:text-amber-600 transition-colors disabled:opacity-40"
+                                        >
+                                          {quickMarkingId === r.id
+                                            ? <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                                            : <RotateCcw className="h-3.5 w-3.5" />
+                                          }
+                                        </button>
+                                      )}
                                       <button
                                         type="button"
                                         onClick={() => { setEditRevenue(r); setShowForm(false) }}
@@ -1195,6 +1184,7 @@ export function RevenueManager({
                                   )}
                                 </td>
                               </tr>
+                              )
                             ))}
                           </tbody>
                         </table>

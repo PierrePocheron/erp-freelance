@@ -37,6 +37,7 @@ type Project = {
   tasksDone: number
   tags: { id: string; name: string; color: string }[]
   billing: { totalFacture: number; totalEncaisse: number }
+  revenue: { totalRevenu: number; revenuRecu: number }
 }
 
 type Company = { id: string; name: string; city: string | null }
@@ -281,6 +282,8 @@ export function ProjetsListView({
                         <BillingBar
                           totalFacture={p.billing.totalFacture}
                           totalEncaisse={p.billing.totalEncaisse}
+                          totalRevenu={p.revenue.totalRevenu}
+                          revenuRecu={p.revenue.revenuRecu}
                         />
                       </td>
                     )}

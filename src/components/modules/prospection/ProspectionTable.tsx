@@ -301,7 +301,7 @@ export function ProspectionTable({
             </button>
             {contactMenuOpen && (
               <>
-                <div className="fixed inset-0 z-10" onClick={() => setContactMenuOpen(false)} />
+                <div aria-hidden="true" className="fixed inset-0 z-10" onClick={() => setContactMenuOpen(false)} />
                 <div className="absolute left-0 top-full mt-1 z-20 rounded-lg border border-border bg-popover shadow-md p-1 min-w-36">
                   <button onClick={() => bulkContact("EMAIL")} className="w-full text-left px-2 py-1 text-xs rounded-md hover:bg-muted transition-colors flex items-center gap-2">
                     <Mail className="h-3 w-3" /> Par email
@@ -327,7 +327,7 @@ export function ProspectionTable({
             </button>
             {statusMenuOpen && (
               <>
-                <div className="fixed inset-0 z-10" onClick={() => setStatusMenuOpen(false)} />
+                <div aria-hidden="true" className="fixed inset-0 z-10" onClick={() => setStatusMenuOpen(false)} />
                 <div className="absolute left-0 top-full mt-1 z-20 rounded-lg border border-border bg-popover shadow-md p-1 min-w-40">
                   {ALL_STATUSES.map((s) => (
                     <button key={s} onClick={() => bulkStatus(s)} className="w-full text-left px-2 py-1 text-xs rounded-md hover:bg-muted transition-colors flex items-center gap-2">

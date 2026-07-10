@@ -7,16 +7,20 @@ import { createExpenseCategory } from "@/actions/expense"
 
 export type ExpenseCategory = { id: string; name: string; color: string }
 
-// Palette piochée au hasard à la création d'une catégorie à la volée —
-// mêmes teintes que celles proposées ailleurs dans l'app (tags projet, etc.).
-const RANDOM_COLORS = [
+// Palette pour les catégories créées à la volée — mêmes teintes que celles
+// proposées ailleurs dans l'app (tags projet, etc.). La couleur est dérivée
+// du nom (hash simple) : déterministe (recréer "Essence" redonne la même
+// teinte) et sans Math.random (signalé par l'analyse sécurité).
+const CATEGORY_COLORS = [
   "#6366f1", "#8b5cf6", "#0ea5e9", "#10b981",
   "#f59e0b", "#ef4444", "#ec4899", "#64748b",
   "#14b8a6", "#f97316",
 ]
 
-function randomColor(): string {
-  return RANDOM_COLORS[Math.floor(Math.random() * RANDOM_COLORS.length)]
+function colorForName(name: string): string {
+  let hash = 0
+  for (const ch of name.toLowerCase()) hash = (hash * 31 + ch.charCodeAt(0)) | 0
+  return CATEGORY_COLORS[Math.abs(hash) % CATEGORY_COLORS.length]
 }
 
 export function ExpenseCategoryCombobox({
@@ -91,7 +95,7 @@ export function ExpenseCategoryCombobox({
     if (!name || creating) return
     setCreating(true)
     try {
-      const category = await createExpenseCategory(name, randomColor())
+      const category = await createExpenseCategory(name, colorForName(name))
       const newCategory: ExpenseCategory = { id: category.id, name: category.name, color: category.color }
       setAllCategories((prev) => [...prev, newCategory])
       onChange(category.id)

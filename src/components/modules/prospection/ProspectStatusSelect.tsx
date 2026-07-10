@@ -42,8 +42,9 @@ export function ProspectStatusSelect({
 
       {open && (
         <>
-          <div className="fixed inset-0 z-10" onClick={(e) => { e.stopPropagation(); setOpen(false) }} />
-          <div className="absolute left-0 top-full mt-1 z-20 rounded-lg border border-border bg-popover shadow-md p-1 min-w-44" onClick={(e) => e.stopPropagation()}>
+          {/* Backdrop de fermeture — purement visuel, masqué aux lecteurs d'écran */}
+          <div aria-hidden="true" className="fixed inset-0 z-10" onClick={(e) => { e.stopPropagation(); setOpen(false) }} />
+          <div className="absolute left-0 top-full mt-1 z-20 rounded-lg border border-border bg-popover shadow-md p-1 min-w-44">
             <p className="px-2 py-1 text-[10px] font-semibold text-muted-foreground/60 uppercase tracking-wide">Pipeline</p>
             {PIPELINE_STATUSES.map((s) => (
               <button

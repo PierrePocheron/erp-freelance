@@ -20,7 +20,15 @@ export default async function ProspectionPage({
 
   const [prospects, templates] = await Promise.all([
     prisma.client.findMany({
-      where: { userId, type: "PROSPECT" },
+      // Inclut les gagnés convertis en CLIENT (prospectStatus WON) : ils
+      // restent visibles dans le pipeline comme trophées + réversibles.
+      where: {
+        userId,
+        OR: [
+          { type: "PROSPECT" },
+          { type: "CLIENT", prospectStatus: "WON" },
+        ],
+      },
       orderBy: { createdAt: "desc" },
       include: {
         _count: { select: { interactions: true } },

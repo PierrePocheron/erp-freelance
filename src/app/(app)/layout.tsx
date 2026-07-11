@@ -2,6 +2,7 @@ import { auth } from "@/lib/auth"
 import { redirect } from "next/navigation"
 import { Sidebar } from "@/components/layout/Sidebar"
 import { MobileBottomNav } from "@/components/layout/MobileBottomNav"
+import { InstallPwaPrompt } from "@/components/layout/InstallPwaPrompt"
 import { TimerBanner } from "@/components/layout/TimerBanner"
 import { CommandPalette } from "@/components/layout/CommandPalette"
 import { OnboardingGate } from "@/components/modules/onboarding/OnboardingGate"
@@ -55,6 +56,7 @@ export default async function AppLayout({
       </div>
       <CommandPalette />
       <MobileBottomNav />
+      <InstallPwaPrompt />
       <OnboardingGate />
       <NewModulesGate />
     </div>

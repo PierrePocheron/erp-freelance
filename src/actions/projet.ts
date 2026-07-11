@@ -270,7 +270,8 @@ export async function createTask(projectId: string, formData: FormData) {
 export async function createClientTask(
   clientId: string | null,
   title: string,
-  dueDate?: string | null
+  dueDate?: string | null,
+  priority?: "LOW" | "MEDIUM" | "HIGH" | "URGENT"
 ) {
   const userId = await requireAuth()
   if (clientId) {
@@ -283,6 +284,7 @@ export async function createClientTask(
       clientId: clientId || null,
       title: title.trim(),
       dueDate: dueDate ? new Date(dueDate) : null,
+      ...(priority ? { priority } : {}),
     },
   })
   await syncTaskGoogleState(userId, task.id)

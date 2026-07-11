@@ -7,6 +7,7 @@ import { TimerBanner } from "@/components/layout/TimerBanner"
 import { CommandPalette } from "@/components/layout/CommandPalette"
 import { OnboardingGate } from "@/components/modules/onboarding/OnboardingGate"
 import { NewModulesGate } from "@/components/modules/onboarding/NewModulesGate"
+import { UiTour } from "@/components/modules/onboarding/UiTour"
 import { NotificationBell } from "@/components/modules/notifications/NotificationBell"
 import { ensureSelfClient } from "@/actions/user"
 import { getRunningTimer } from "@/actions/timetracking"
@@ -59,6 +60,7 @@ export default async function AppLayout({
       <InstallPwaPrompt />
       <OnboardingGate />
       <NewModulesGate />
+      <UiTour />
     </div>
   )
 }

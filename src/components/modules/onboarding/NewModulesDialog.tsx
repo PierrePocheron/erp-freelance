@@ -83,7 +83,11 @@ export function NewModulesDialog({
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-4 border-t border-border/50 flex items-center justify-end gap-2">
+        <div className="px-6 py-4 border-t border-border/50 flex items-center justify-between gap-3">
+          <p className="hidden sm:block text-xs text-muted-foreground/70">
+            Modifiable à tout moment dans Paramètres
+          </p>
+          <div className="flex items-center justify-end gap-2">
           <button
             onClick={() => onValidate([])}
             className="h-9 px-4 rounded-lg border border-input text-sm text-muted-foreground hover:bg-muted/50 transition-colors"
@@ -96,6 +100,7 @@ export function NewModulesDialog({
           >
             Valider
           </button>
+          </div>
         </div>
       </div>
     </div>

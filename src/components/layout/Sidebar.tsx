@@ -66,7 +66,6 @@ export function Sidebar() {
     const stored = localStorage.getItem(STORAGE_KEY)
     // eslint-disable-next-line react-hooks/set-state-in-effect
     if (stored !== null) setExpanded(stored === "true")
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     setMounted(true)
   }, [])
 
@@ -98,7 +97,9 @@ export function Sidebar() {
           onClick={toggle}
           className={cn(
             "flex h-10 items-center gap-3 rounded-xl cursor-pointer transition-colors hover:bg-accent",
-            expanded ? "w-full px-2.5" : "w-10 justify-center"
+            // px-0.5 déplié = même retrait (2px) que le centrage du logo 36px dans
+            // le bouton 40px replié → l'icône ne bouge pas d'un pixel au toggle.
+            expanded ? "w-full px-0.5" : "w-10 justify-center"
           )}
         >
           <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary">

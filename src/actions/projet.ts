@@ -75,6 +75,7 @@ const CreateProjectSchema = z.object({
   description: z.string().optional(),
   companyId: z.string().optional(),
   contactId: z.string().optional(),
+  category: z.enum(["DEV", "ETUDE", "EVENEMENTIEL", "FORMATION", "PROSPECTION", "AUTRE"]).optional(),
   startDate: z.string().optional(),
   endDate: z.string().optional(),
   estimatedHours: z.coerce.number().optional(),
@@ -92,6 +93,7 @@ export async function createProject(_userId: string, formData: FormData) {
       clientId: contactId,
       name: parsed.name,
       description: parsed.description,
+      category: parsed.category ?? "AUTRE",
       startDate: parsed.startDate ? new Date(parsed.startDate) : undefined,
       endDate: parsed.endDate ? new Date(parsed.endDate) : undefined,
       estimatedHours: parsed.estimatedHours,
@@ -170,6 +172,17 @@ export async function updateProjectStatus(
   const userId = await requireAuth()
   await prisma.project.findFirstOrThrow({ where: { id: projectId, userId } })
   await prisma.project.update({ where: { id: projectId }, data: { status } })
+  revalidatePath("/projets")
+  revalidatePath(`/projets/${projectId}`)
+}
+
+export async function updateProjectCategory(
+  projectId: string,
+  category: "DEV" | "ETUDE" | "EVENEMENTIEL" | "FORMATION" | "PROSPECTION" | "AUTRE"
+) {
+  const userId = await requireAuth()
+  await prisma.project.findFirstOrThrow({ where: { id: projectId, userId } })
+  await prisma.project.update({ where: { id: projectId }, data: { category } })
   revalidatePath("/projets")
   revalidatePath(`/projets/${projectId}`)
 }

@@ -83,6 +83,7 @@ export default async function DashboardPage() {
     incompleteRevenuesRaw,
     unconfirmedMilestones,
     unconfirmedEvents,
+    incompleteRecurringExpenses,
   ] = await Promise.all([
     prisma.task.findMany({
       where: {
@@ -335,6 +336,11 @@ export default async function DashboardPage() {
       orderBy: { startDate: "asc" },
       take: 10,
     }),
+    // Dépenses récurrentes actives dont la date de prélèvement reste à renseigner
+    prisma.recurringExpense.findMany({
+      where: { userId, isActive: true, dateToConfirm: true },
+      select: { id: true },
+    }),
   ])
 
   const totalPending   = unpaidInvoices.reduce((s, i) => s + i.totalHT - i.depositDeducted, 0)
@@ -457,7 +463,8 @@ export default async function DashboardPage() {
   const incompleteContacts  = incompleteContactsRaw.filter(isContactIncomplete)
   const incompleteCompanies = incompleteCompaniesRaw.filter((c) => !c.website)
   const incompleteRevenues  = incompleteRevenuesRaw.filter((r) => !r.companyId && !r.clientId && !r.projectId)
-  const totalIncomplete = incompleteContacts.length + incompleteCompanies.length + incompleteRevenues.length
+  const incompleteExpensesCount = incompleteRecurringExpenses.length
+  const totalIncomplete = incompleteContacts.length + incompleteCompanies.length + incompleteRevenues.length + incompleteExpensesCount
 
   const hour = new Date().getHours()
   const greeting = hour < 12 ? "Bonjour" : hour < 18 ? "Bonjour" : "Bonsoir"
@@ -514,7 +521,7 @@ export default async function DashboardPage() {
         )}
 
         {/* Données à compléter — agrégé tous modules, mis en avant */}
-        {(has("contacts") || has("societes") || has("revenus")) && totalIncomplete > 0 && (
+        {(has("contacts") || has("societes") || has("revenus") || has("depenses")) && totalIncomplete > 0 && (
           <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 px-4 py-2.5 flex items-center gap-4 flex-wrap">
             <p className="flex items-center gap-1.5 text-xs font-medium text-amber-700 dark:text-amber-400 shrink-0">
               <AlertCircle className="h-3.5 w-3.5" />
@@ -538,6 +545,12 @@ export default async function DashboardPage() {
                 <span className="font-semibold tabular-nums text-amber-600">{incompleteRevenues.length}</span>
               </Link>
             )}
+            {has("depenses") && incompleteExpensesCount > 0 && (
+              <Link href="/depenses/recurrentes" className="group flex items-center gap-1 text-xs">
+                <span className="text-muted-foreground group-hover:text-foreground transition-colors">Dépenses récurrentes</span>
+                <span className="font-semibold tabular-nums text-amber-600">{incompleteExpensesCount}</span>
+              </Link>
+            )}
             {has("graph") && (
               <Link href="/graph" className="ml-auto text-xs text-amber-700 dark:text-amber-400 hover:underline shrink-0">
                 Voir dans le graphe →
@@ -547,9 +560,12 @@ export default async function DashboardPage() {
         )}
       </div>
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-        {/* Colonne principale */}
-        <div className="lg:col-span-2 space-y-6">
+      {/* Bento auto-équilibré : multicol CSS — le navigateur répartit les cartes
+          pour égaliser la hauteur des colonnes, quel que soit le sous-ensemble de
+          cartes visibles (modules actifs + données du jour). Une grille à colonnes
+          fixes laissait une colonne quasi vide dès que ses cartes n'avaient rien à
+          afficher. break-inside-avoid : une carte ne se coupe jamais en deux. */}
+      <div className="lg:columns-2 2xl:columns-3 gap-6 *:break-inside-avoid *:mb-6">
 
           {/* Aujourd'hui & demain — tâches du jour/lendemain + événements calendrier de demain */}
           {(has("taches") || has("projets") || has("calendrier")) &&
@@ -770,37 +786,6 @@ export default async function DashboardPage() {
             />
           )}
 
-          {/* Factures impayées */}
-          {has("facturation") && unpaidInvoices.length > 0 && (
-            <Section title="Factures en attente" icon={<TrendingUp className="h-4 w-4" />} href="/facturation/factures">
-              <div className="space-y-1.5">
-                {unpaidInvoices.map((inv) => {
-                  const isLate = inv.dueDate && new Date(inv.dueDate) < new Date()
-                  return (
-                    <Link key={inv.id} href={`/facturation/factures/${inv.id}`} className="flex items-center gap-3 rounded-lg px-3 py-2 hover:bg-muted/50 transition-colors">
-                      <span className={`h-2 w-2 rounded-full shrink-0 ${isLate ? "bg-red-500" : "bg-blue-500"}`} />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium font-mono">{inv.number}</p>
-                        <p className="text-xs text-muted-foreground">{inv.client.company ?? inv.client.name}</p>
-                      </div>
-                      <div className="text-right shrink-0">
-                        <p className={`text-sm font-bold ${isLate ? "text-red-500" : ""}`}>
-                          {(inv.totalHT - inv.depositDeducted).toLocaleString("fr-FR")} €
-                        </p>
-                        {inv.dueDate && (
-                          <p className={`text-xs ${isLate ? "text-red-500" : "text-muted-foreground"}`}>
-                            {isLate ? "En retard · " : ""}
-                            {new Date(inv.dueDate).toLocaleDateString("fr-FR", { day: "numeric", month: "short" })}
-                          </p>
-                        )}
-                      </div>
-                    </Link>
-                  )
-                })}
-              </div>
-            </Section>
-          )}
-
           {/* Jalons à venir */}
           {has("projets") && upcomingMilestones.length > 0 && (
             <Section title="Jalons à venir" icon={<Calendar className="h-4 w-4" />} href="/projets">
@@ -844,10 +829,7 @@ export default async function DashboardPage() {
               </div>
             </Section>
           )}
-        </div>
 
-        {/* Colonne secondaire */}
-        <div className="space-y-6">
           {/* Monitoring des prods */}
           {has("projets") && <ProdMonitorCard prods={prods} />}
 
@@ -1008,7 +990,6 @@ export default async function DashboardPage() {
               Tout est à jour ✓
             </div>
           )}
-        </div>
       </div>
     </div>
   )

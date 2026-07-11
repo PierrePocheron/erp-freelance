@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState, useTransition } from "react"
+import { useEffect, useMemo, useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { ExternalLink, Copy, Check, SkipForward } from "lucide-react"
@@ -22,18 +22,26 @@ export function GmailPrepDialog({
   templates,
   targets,
   onDone,
+  initialTemplateId,
 }: {
   open: boolean
   onOpenChange: (v: boolean) => void
   templates: EmailTemplateOption[]
   targets: SendTarget[]
   onDone: () => void
+  initialTemplateId?: string
 }) {
   const router = useRouter()
   const [templateId, setTemplateId] = useState("")
   const [index, setIndex] = useState(0)
   const [sentCount, setSentCount] = useState(0)
   const [isPending, startTransition] = useTransition()
+
+  // À l'ouverture, reprend le modèle éventuellement choisi en barre d'outils.
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (open && initialTemplateId) setTemplateId(initialTemplateId)
+  }, [open, initialTemplateId])
 
   const template = templates.find((t) => t.id === templateId) ?? null
   const withEmail = useMemo(() => targets.filter((t) => t.email?.trim()), [targets])

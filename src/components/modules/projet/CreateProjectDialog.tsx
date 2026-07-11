@@ -15,6 +15,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { createProject } from "@/actions/projet"
 import { createCompany } from "@/actions/crm"
+import { CATEGORY_CONFIG, ALL_CATEGORIES } from "./category-config"
 
 type Company = { id: string; name: string; city: string | null }
 type Contact = { id: string; name: string; company: string | null; companyId: string | null }
@@ -149,6 +150,21 @@ export function CreateProjectDialog({
               <div className="space-y-1.5">
                 <Label htmlFor="name">Nom du projet *</Label>
                 <Input id="name" name="name" placeholder="Mon site e-commerce" required />
+              </div>
+
+              {/* Catégorie (thème de la bannière) */}
+              <div className="space-y-1.5">
+                <Label htmlFor="category">Catégorie</Label>
+                <select
+                  id="category"
+                  name="category"
+                  defaultValue="AUTRE"
+                  className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+                >
+                  {ALL_CATEGORIES.map((c) => (
+                    <option key={c} value={c}>{CATEGORY_CONFIG[c].label}</option>
+                  ))}
+                </select>
               </div>
 
               {/* Société */}

@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { Poppins } from "next/font/google";
 import { Toaster } from "sonner";
-import Script from "next/script";
 import { THEME_INIT_SCRIPT } from "@/lib/theme-init-script";
 import "./globals.css";
 
@@ -28,18 +27,22 @@ export default function RootLayout({
       suppressHydrationWarning
     >
       <body className="h-full overflow-hidden bg-background text-foreground" suppressHydrationWarning>
-        {/* Script de thème inliné — doit s'exécuter avant tout rendu pour éviter le flash.
-            Un <script> JSX brut ici déclenche "Encountered a script tag while rendering" côté
-            React 19/Turbopack dev (le nœud n'est pas hydraté, il est recréé côté client) — donc
-            next/script (beforeInteractive) reste nécessaire malgré le mismatch nonce résiduel
-            ci-dessous (cosmétique : next/script source son propre nonce depuis le contexte
-            HeadManagerContext de Next, disponible seulement en SSR — suppressHydrationWarning
-            ne peut pas l'atteindre, next/script ne le transmet pas à l'élément réellement rendu
-            pour un script beforeInteractive inline). Sans conséquence fonctionnelle. */}
-        <Script
-          id="theme-init"
-          strategy="beforeInteractive"
-          dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }}
+        {/* Script de thème anti-FOUC — 4e (et dernière) itération de ce bug, cf.
+            9a80e29 puis 4e8fce4 : React 19 n'hydrate JAMAIS un élément <script>
+            (il le saute puis le recrée côté client sans l'exécuter), donc tout
+            <script> rendu dans l'arbre React — y compris celui que next/script
+            beforeInteractive rend en app router depuis Next 16.2 — déclenche
+            "Encountered a script tag while rendering React component".
+            Solution : le script n'est plus un élément React. Il voyage dans le
+            innerHTML d'un <div> inerte — streamé tel quel dans le HTML initial,
+            le parseur du navigateur l'exécute avant de peindre le reste du body
+            (anti-FOUC intact), et React n'hydrate qu'un <div>, sans jamais
+            diff-er son contenu (dangerouslySetInnerHTML). Contenu 100% statique
+            → autorisé en CSP par hash sha256 (src/proxy.ts), plus aucun nonce
+            interpolé → plus rien qui puisse mismatcher. */}
+        <div
+          hidden
+          dangerouslySetInnerHTML={{ __html: `<script>${THEME_INIT_SCRIPT}</script>` }}
         />
         {children}
         <Toaster position="bottom-right" richColors />

@@ -45,3 +45,6 @@ next-env.d.ts
 
 # Données réelles (seed privé — ne pas versionner)
 prisma/seed.real.ts
+
+# Worktrees des agents Claude (sessions parallèles)
+.claude/worktrees/

@@ -133,6 +133,26 @@ export async function markProspectsContacted(clientIds: string[], channel: Inter
   return { contacted: owned.length }
 }
 
+/**
+ * Recherche allégée de prospects par nom pour le quick-add mobile —
+ * sélection minimale, 8 résultats max.
+ */
+export async function searchProspectsQuick(query: string) {
+  const userId = await requireAuth()
+  const q = query.trim()
+  if (!q) return []
+  return prisma.client.findMany({
+    where: {
+      userId,
+      type: "PROSPECT",
+      name: { contains: q, mode: "insensitive" },
+    },
+    orderBy: { name: "asc" },
+    take: 8,
+    select: { id: true, name: true, company: true, prospectStatus: true },
+  })
+}
+
 export type ImportProspectRow = {
   name: string
   firstName?: string | null

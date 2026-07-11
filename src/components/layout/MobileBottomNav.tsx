@@ -1,82 +1,90 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import {
-  LayoutDashboard, Users, FileText, Code2, CheckSquare, Plus,
-} from "lucide-react"
+import { Home, Plus } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useModules, type ModuleId } from "@/hooks/use-modules"
 import { QuickAddSheet } from "@/components/layout/QuickAddSheet"
 
-type NavItem = {
-  href: string
-  icon: React.ElementType
-  label: string
-  moduleId?: ModuleId
-}
-
-const bottomItems: NavItem[] = [
-  { href: "/",            icon: LayoutDashboard, label: "Dashboard"  },
-  { href: "/contacts",    icon: Users,           label: "Contacts",    moduleId: "contacts"    },
-  { href: "/facturation", icon: FileText,         label: "Factures",   moduleId: "facturation" },
-  { href: "/projets",     icon: Code2,            label: "Projets",    moduleId: "projets"     },
-  { href: "/taches",      icon: CheckSquare,      label: "Tâches",     moduleId: "taches"      },
-]
-
-// Modules donnant lieu à une saisie express — le « + » central n'apparaît que
-// si au moins l'un d'eux est actif (miroir des actions de QuickAddSheet).
+// Modules donnant lieu à une saisie express — le « + » n'apparaît que si au
+// moins l'un d'eux est actif (miroir des actions de QuickAddSheet).
 const QUICK_ADD_MODULES: ModuleId[] = ["depenses", "taches", "prospection", "revenus"]
 
+/**
+ * Navigation mobile flottante. Plus de barre d'onglets : le dashboard mobile
+ * (grille de modules + recherche) EST la navigation — la barre ne faisait que
+ * la dupliquer (retour de Pierre). Restent deux boutons flottants :
+ * - « + » (bas droite) : saisies express — se cache quand on scrolle vers le
+ *   bas (lecture), réapparaît dès qu'on remonte ou qu'on est près du haut.
+ * - « Accueil » (bas gauche) : retour au menu, sur toutes les pages sauf le
+ *   dashboard — indispensable en PWA standalone où Safari n'affiche aucun
+ *   bouton de navigation.
+ */
 export function MobileBottomNav() {
   const pathname = usePathname()
   const { isActive } = useModules()
   const [quickAddOpen, setQuickAddOpen] = useState(false)
+  const [hidden, setHidden] = useState(false)
+  const lastScrollTop = useRef(0)
 
-  const visibleItems = bottomItems.filter(item => !item.moduleId || isActive(item.moduleId))
   const showQuickAdd = QUICK_ADD_MODULES.some(id => isActive(id))
+  const showHome = pathname !== "/"
 
-  // Le « + » s'insère au milieu des items visibles
-  const splitIndex = Math.ceil(visibleItems.length / 2)
-  const leftItems = showQuickAdd ? visibleItems.slice(0, splitIndex) : visibleItems
-  const rightItems = showQuickAdd ? visibleItems.slice(splitIndex) : []
+  // Cache/montre au scroll du conteneur principal (le <main> du layout —
+  // c'est lui qui scrolle, pas window).
+  useEffect(() => {
+    const main = document.getElementById("app-main")
+    if (!main) return
 
-  function renderItem({ href, icon: Icon, label }: NavItem) {
-    const active = href === "/" ? pathname === "/" : pathname.startsWith(href)
-    return (
-      <Link
-        key={href}
-        href={href}
-        className={cn(
-          "flex flex-1 flex-col items-center justify-center gap-1 py-2.5 text-[10px] font-medium transition-colors",
-          active ? "text-primary" : "text-muted-foreground hover:text-foreground"
-        )}
-      >
-        <Icon className={cn("h-[18px] w-[18px] shrink-0", active && "text-primary")} />
-        <span className="leading-none">{label}</span>
-      </Link>
-    )
-  }
+    function onScroll() {
+      const top = main!.scrollTop
+      const delta = top - lastScrollTop.current
+      // Près du haut → toujours visible ; sinon on suit la direction
+      // (seuil de 8px pour ignorer le jitter du scroll élastique iOS)
+       
+      if (top < 60) setHidden(false)
+      else if (delta > 8) setHidden(true)
+      else if (delta < -8) setHidden(false)
+      lastScrollTop.current = top
+    }
+
+    main.addEventListener("scroll", onScroll, { passive: true })
+    return () => main.removeEventListener("scroll", onScroll)
+  }, [])
 
   return (
     <>
-      <nav className="sm:hidden fixed bottom-0 left-0 right-0 z-50 flex items-stretch border-t border-border/70 bg-background/95 backdrop-blur-sm supports-[backdrop-filter]:bg-background/80">
-        {leftItems.map(renderItem)}
-        {showQuickAdd && (
-          <div className="flex flex-1 items-center justify-center">
-            <button
-              type="button"
-              onClick={() => setQuickAddOpen(true)}
-              aria-label="Ajout rapide"
-              className="-mt-6 flex h-14 w-14 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg shadow-primary/30 ring-4 ring-background transition-transform active:scale-95"
-            >
-              <Plus className="h-6 w-6" />
-            </button>
-          </div>
-        )}
-        {rightItems.map(renderItem)}
-      </nav>
+      {/* Accueil — bas gauche */}
+      {showHome && (
+        <Link
+          href="/"
+          aria-label="Retour à l'accueil"
+          className={cn(
+            "sm:hidden fixed bottom-5 left-4 z-50 flex h-12 w-12 items-center justify-center rounded-full border border-border bg-background/95 text-muted-foreground shadow-lg backdrop-blur-sm transition-all duration-200 active:scale-95",
+            hidden && "translate-y-24 opacity-0 pointer-events-none"
+          )}
+        >
+          <Home className="h-5 w-5" />
+        </Link>
+      )}
+
+      {/* Ajout rapide — bas droite */}
+      {showQuickAdd && (
+        <button
+          type="button"
+          onClick={() => setQuickAddOpen(true)}
+          aria-label="Ajout rapide"
+          className={cn(
+            "sm:hidden fixed bottom-5 right-4 z-50 flex h-14 w-14 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg shadow-primary/30 transition-all duration-200 active:scale-95",
+            hidden && "translate-y-24 opacity-0 pointer-events-none"
+          )}
+        >
+          <Plus className="h-6 w-6" />
+        </button>
+      )}
+
       {showQuickAdd && <QuickAddSheet open={quickAddOpen} onOpenChange={setQuickAddOpen} />}
     </>
   )

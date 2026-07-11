@@ -12,6 +12,7 @@ import { ProdMonitorCard } from "@/components/modules/dashboard/ProdMonitorCard"
 import { PendingIncomeCard } from "@/components/modules/dashboard/PendingIncomeCard"
 import { JobHuntCard } from "@/components/modules/dashboard/JobHuntCard"
 import { ConfirmEventsCard } from "@/components/modules/dashboard/ConfirmEventsCard"
+import { MobileHome } from "@/components/layout/MobileHome"
 import { getActiveModules } from "@/lib/modules-server"
 import { isContactIncomplete } from "@/lib/contact"
 import { STATUS_CONFIG, PIPELINE_STATUSES } from "@/components/modules/prospection/status-config"
@@ -466,11 +467,29 @@ export default async function DashboardPage() {
   const incompleteExpensesCount = incompleteRecurringExpenses.length
   const totalIncomplete = incompleteContacts.length + incompleteCompanies.length + incompleteRevenues.length + incompleteExpensesCount
 
+  // ── Accueil mobile — props sérialisables dérivées des données déjà fetchées ──
+  const mobileTodayTasks = has("taches") || has("projets") ? agendaToday.length : 0
+  const mobilePendingAmount =
+    (has("facturation") ? totalPending : 0)
+    + (has("revenus") ? pendingRevenueItems.reduce((s, r) => s + r.amount, 0) : 0)
+    + (has("sante") ? pendingReimbursementItems.reduce((s, r) => s + r.amount, 0) : 0)
+
   const hour = new Date().getHours()
   const greeting = hour < 12 ? "Bonjour" : hour < 18 ? "Bonjour" : "Bonsoir"
 
   return (
-    <div className="space-y-8">
+    <>
+    {/* Accueil mobile — remplace le dashboard sur petit écran */}
+    <div className="sm:hidden">
+      <MobileHome
+        todayTasksCount={mobileTodayTasks}
+        pendingAmount={mobilePendingAmount}
+        toConfirmCount={totalUnconfirmed}
+      />
+    </div>
+
+    {/* Dashboard complet — desktop uniquement */}
+    <div className="hidden sm:block space-y-8">
       <div>
         <h1 className="text-2xl font-bold tracking-tight">{greeting}, {firstName} 👋</h1>
         <p className="text-muted-foreground text-sm">
@@ -992,6 +1011,7 @@ export default async function DashboardPage() {
           )}
       </div>
     </div>
+    </>
   )
 }
 

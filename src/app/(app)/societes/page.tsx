@@ -124,8 +124,8 @@ export default async function SocietesPage() {
             <thead>
               <tr className="border-b border-border text-xs text-muted-foreground">
                 <th className="px-4 py-3 text-left font-medium">Société</th>
-                <th className="px-4 py-3 text-left font-medium">Ville</th>
-                <th className="px-4 py-3 text-left font-medium">Type</th>
+                <th className="px-4 py-3 text-left font-medium hidden md:table-cell">Ville</th>
+                <th className="px-4 py-3 text-left font-medium hidden sm:table-cell">Type</th>
                 <th className="px-4 py-3 text-left font-medium">Contacts</th>
                 <th className="px-4 py-3 text-left font-medium">Projets</th>
               </tr>
@@ -189,31 +189,36 @@ function CompanyRow({ co }: CompanyRowProps) {
   const typeCfg = co.companyType ? COMPANY_TYPE_CONFIG[co.companyType] : null
   return (
     <tr className="border-b border-border/50 last:border-0 hover:bg-muted/30 transition-colors">
-      <td className="px-4 py-3">
+      {/* w-full max-w-0 : la cellule prend la largeur restante du tableau et
+          la troncature fonctionne (sans max-w-0, table-layout:auto élargit la
+          colonne au lieu de tronquer) */}
+      <td className="px-4 py-3 w-full max-w-0">
+        {/* min-w-0 + truncate sur le nom : une seule ligne quoi qu'il arrive
+            (lignes alignées) ; badges insécables qui ne se compressent pas */}
         <Link
           href={`/societes/${co.id}`}
           className="flex items-center gap-2 font-medium hover:text-primary transition-colors"
         >
           <Building2 className="h-4 w-4 text-muted-foreground shrink-0" />
-          {co.name}
+          <span className="min-w-0 truncate" title={co.name}>{co.name}</span>
           {typeCfg && (
-            <span className={`inline-flex items-center text-[10px] font-medium rounded-full px-1.5 py-0.5 border ${typeCfg.className}`}>
+            <span className={`inline-flex items-center text-[10px] font-medium rounded-full px-1.5 py-0.5 border shrink-0 whitespace-nowrap ${typeCfg.className}`}>
               {typeCfg.label}
             </span>
           )}
           {isIncomplete && (
-            <span className="inline-flex items-center gap-1 text-[10px] font-medium rounded-full px-1.5 py-0.5 bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
+            <span className="inline-flex items-center gap-1 text-[10px] font-medium rounded-full px-1.5 py-0.5 bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 shrink-0 whitespace-nowrap">
               <AlertCircle className="h-2.5 w-2.5" />
               À compléter
             </span>
           )}
         </Link>
         {co.email && (
-          <p className="text-xs text-muted-foreground mt-0.5">{co.email}</p>
+          <p className="text-xs text-muted-foreground mt-0.5 truncate">{co.email}</p>
         )}
       </td>
-      <td className="px-4 py-3 text-muted-foreground">{co.city ?? "—"}</td>
-      <td className="px-4 py-3">
+      <td className="px-4 py-3 text-muted-foreground hidden md:table-cell">{co.city ?? "—"}</td>
+      <td className="px-4 py-3 hidden sm:table-cell">
         <CompanyTypeSelect companyId={co.id} value={co.companyType} />
       </td>
       <td className="px-4 py-3">

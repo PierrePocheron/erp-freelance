@@ -22,6 +22,9 @@ export default auth((req) => {
     // Le hash autorise le script de thème inline statique (hors arbre React,
     // cf. layout.tsx) — les hashes restent honorés avec 'strict-dynamic'.
     `script-src 'self' 'nonce-${nonce}' '${THEME_INIT_SCRIPT_HASH}' 'strict-dynamic' 'unsafe-eval'`,
+    // Service worker (/sw.js, push) — sans cette directive, strict-dynamic
+    // le bloquerait (un SW chargé par URL ne porte pas de nonce)
+    "worker-src 'self'",
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' blob: data: https:",
     "font-src 'self'",

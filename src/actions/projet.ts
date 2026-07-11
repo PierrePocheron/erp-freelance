@@ -8,6 +8,7 @@ import {
   syncTaskGoogleState, removeTaskFromGoogle,
   syncMilestoneGoogleState, removeMilestoneFromGoogle,
 } from "@/lib/google-task-sync"
+import { sendPushToUser } from "@/lib/push"
 
 async function requireAuth(): Promise<string> {
   const session = await auth()
@@ -822,6 +823,12 @@ export async function addProjectMember(
       },
     }),
   ])
+  // Push mobile (best-effort, jamais bloquant)
+  await sendPushToUser(target.id, {
+    title: "Invitation à collaborer",
+    body: `${ownerName} vous invite sur « ${project.name} »`,
+    url: `/projets/${projectId}`,
+  })
   revalidatePath(`/projets/${projectId}`)
   return {}
 }
@@ -853,6 +860,11 @@ export async function removeProjectMember(projectId: string, ownerUserId: string
       },
     }),
   ])
+  await sendPushToUser(memberId, {
+    title: "Retiré d'un projet",
+    body: `${ownerName} vous a retiré de « ${project.name} »`,
+    url: "/projets",
+  })
   revalidatePath(`/projets/${projectId}`)
 }
 

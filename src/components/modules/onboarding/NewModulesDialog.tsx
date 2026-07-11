@@ -32,7 +32,9 @@ export function NewModulesDialog({
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-      <div className="w-full max-w-lg rounded-2xl bg-background border border-border shadow-2xl overflow-hidden">
+      {/* max-h + flex-col : sur mobile, une longue liste de modules scrolle
+          au milieu au lieu d'être coupée (header et footer restent visibles) */}
+      <div className="w-full max-w-lg max-h-[85dvh] flex flex-col rounded-2xl bg-background border border-border shadow-2xl overflow-hidden">
         {/* Header */}
         <div className="px-6 py-5 border-b border-border/50">
           <div className="flex items-center gap-2.5">
@@ -51,7 +53,7 @@ export function NewModulesDialog({
         </div>
 
         {/* Modules */}
-        <div className="px-6 py-4 space-y-2">
+        <div className="px-6 py-4 space-y-2 overflow-y-auto">
           {info.modules.map((mod) => {
             const active = selected.has(mod.id)
             return (

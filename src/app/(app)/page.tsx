@@ -560,9 +560,12 @@ export default async function DashboardPage() {
         )}
       </div>
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-        {/* Colonne principale */}
-        <div className="lg:col-span-2 space-y-6">
+      {/* Bento auto-équilibré : multicol CSS — le navigateur répartit les cartes
+          pour égaliser la hauteur des colonnes, quel que soit le sous-ensemble de
+          cartes visibles (modules actifs + données du jour). Une grille à colonnes
+          fixes laissait une colonne quasi vide dès que ses cartes n'avaient rien à
+          afficher. break-inside-avoid : une carte ne se coupe jamais en deux. */}
+      <div className="lg:columns-2 2xl:columns-3 gap-6 *:break-inside-avoid *:mb-6">
 
           {/* Aujourd'hui & demain — tâches du jour/lendemain + événements calendrier de demain */}
           {(has("taches") || has("projets") || has("calendrier")) &&
@@ -826,10 +829,7 @@ export default async function DashboardPage() {
               </div>
             </Section>
           )}
-        </div>
 
-        {/* Colonne secondaire */}
-        <div className="space-y-6">
           {/* Monitoring des prods */}
           {has("projets") && <ProdMonitorCard prods={prods} />}
 
@@ -990,7 +990,6 @@ export default async function DashboardPage() {
               Tout est à jour ✓
             </div>
           )}
-        </div>
       </div>
     </div>
   )

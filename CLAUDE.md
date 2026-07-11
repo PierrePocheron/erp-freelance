@@ -88,11 +88,11 @@ Préfixe conventionnel (`feat(module):`, `fix(module):`, `refactor(module):`, `r
 
 ## Release (merge `dev` → `main`)
 
-1. Bump `version` dans `package.json` + mise à jour du tableau des modules dans `README.md`, commit `docs: mise à jour README vX.Y.Z — ...` sur `dev`.
-2. Push `dev`, attendre CI verte (`gh run watch`).
-3. `git checkout main && git merge dev --no-ff -m "chore: merge dev → main — vX.Y.Z\n\n..."`.
-4. `git tag -a vX.Y.Z -m "..."`, `git push origin main --follow-tags`.
-5. `gh release create vX.Y.Z --title "..." --notes-file ...` (voir les releases précédentes pour le format des notes).
-6. Le numéro de version est un choix éditorial (ampleur des changements) — **demander à Pierre** plutôt que de décider seul si ça touche plusieurs modules.
+Le chemin officiel est **`npm run release -- <version> "<titre>" [notes.md]`** (`scripts/release.sh`) : la version passée en argument pilote tout — bump `package.json`, PR dev→main, attente CI, merge, tag `vX.Y.Z`, GitHub release — plus rien à synchroniser à la main (demande de Pierre, juillet 2026). Le script lance vitest et refuse de partir si l'arbre n'est pas propre ou si le tag existe.
+
+Avant de le lancer :
+1. Mettre à jour le tableau des modules dans `README.md` (décision éditoriale, pas scriptable) et committer.
+2. Rédiger les notes de release (format : voir les releases précédentes) — sinon le script utilise `--generate-notes`.
+3. Le numéro de version est un choix éditorial (ampleur des changements) — **demander à Pierre** plutôt que de décider seul si ça touche plusieurs modules.
 
 Le déploiement Vercel est automatique sur push vers `main` (`prisma migrate deploy && next build`, cf. `package.json`).

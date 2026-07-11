@@ -293,15 +293,26 @@ export function ProjetsListView({
                 const clientLabel = p.company?.name ?? p.contactLinks[0]?.client?.name ?? "—"
                 const priority = p.priority ?? "MEDIUM"
                 const priorityCfg = PRIORITY_CONFIG[priority]
+                const cat = CATEGORY_CONFIG[p.category ?? "AUTRE"]
                 return (
                   <tr key={p.id} className="border-b border-border/50 last:border-0 hover:bg-muted/30 transition-colors">
                     <td className="px-4 py-3">
-                      <Link href={`/projets/${p.id}`} className="font-medium hover:text-primary transition-colors">
-                        {p.name}
-                      </Link>
-                      {p.description && (
-                        <p className="text-xs text-muted-foreground truncate max-w-xs mt-0.5">{p.description}</p>
-                      )}
+                      <div className="flex items-stretch gap-3">
+                        {/* Liseré catégorie — même couleur + motif que la bannière des cartes */}
+                        <span
+                          className={cn("w-1.5 rounded-full shrink-0", cat.bannerCls)}
+                          style={cat.pattern}
+                          title={cat.label}
+                        />
+                        <div className="min-w-0">
+                          <Link href={`/projets/${p.id}`} className="font-medium hover:text-primary transition-colors">
+                            {p.name}
+                          </Link>
+                          {p.description && (
+                            <p className="text-xs text-muted-foreground truncate max-w-xs mt-0.5">{p.description}</p>
+                          )}
+                        </div>
+                      </div>
                     </td>
                     <td className="px-4 py-3 text-muted-foreground hidden sm:table-cell">{clientLabel}</td>
                     <td className="px-4 py-3">

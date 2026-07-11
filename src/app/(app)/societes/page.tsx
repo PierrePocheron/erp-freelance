@@ -119,7 +119,7 @@ export default async function SocietesPage() {
           <p className="text-sm text-muted-foreground mt-1">Créez votre première société cliente</p>
         </div>
       ) : (
-        <div className="rounded-xl border border-border/50 bg-card overflow-hidden">
+        <div className="rounded-xl border border-border/50 bg-card overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border text-xs text-muted-foreground">

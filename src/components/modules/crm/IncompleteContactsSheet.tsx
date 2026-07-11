@@ -39,7 +39,7 @@ export function IncompleteContactsSheet({ contacts }: { contacts: IncompleteCont
       </button>
 
       <Sheet open={open} onOpenChange={setOpen}>
-        <SheetContent side="right" className="w-[420px] sm:max-w-[420px] p-0">
+        <SheetContent side="right" className="w-full sm:w-[420px] sm:max-w-[420px] p-0">
           <SheetHeader className="px-5 pt-5 pb-3 border-b border-border/50">
             <SheetTitle className="flex items-center gap-2">
               <AlertCircle className="h-4 w-4 text-amber-600" />

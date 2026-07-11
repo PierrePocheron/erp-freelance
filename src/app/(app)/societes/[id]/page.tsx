@@ -363,7 +363,7 @@ export default async function CompanyDetailPage({
 
           {/* Factures */}
           {invoices.length > 0 && (
-            <div className="rounded-xl border border-border/50 bg-card overflow-hidden">
+            <div className="rounded-xl border border-border/50 bg-card overflow-x-auto">
               <div className="flex items-center justify-between px-5 py-4 border-b border-border/50">
                 <div className="flex items-center gap-2">
                   <Receipt className="h-4 w-4 text-muted-foreground" />
@@ -427,7 +427,7 @@ export default async function CompanyDetailPage({
 
           {/* Devis */}
           {quotes.length > 0 && (
-            <div className="rounded-xl border border-border/50 bg-card overflow-hidden">
+            <div className="rounded-xl border border-border/50 bg-card overflow-x-auto">
               <div className="flex items-center justify-between px-5 py-4 border-b border-border/50">
                 <div className="flex items-center gap-2">
                   <FileText className="h-4 w-4 text-muted-foreground" />
@@ -490,7 +490,7 @@ export default async function CompanyDetailPage({
           )}
 
           {/* Contacts */}
-          <div className="rounded-xl border border-border/50 bg-card overflow-hidden">
+          <div className="rounded-xl border border-border/50 bg-card overflow-x-auto">
             <div className="flex items-center justify-between px-5 py-4 border-b border-border/50">
               <div className="flex items-center gap-2">
                 <Users className="h-4 w-4 text-muted-foreground" />

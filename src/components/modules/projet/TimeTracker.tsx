@@ -77,7 +77,7 @@ export function TimeTracker({ taskId, userId, projectId, timeEntries }: Props) {
           "rounded p-0.5 transition-colors",
           isRunning
             ? "text-red-500 hover:text-red-600 animate-pulse"
-            : "text-muted-foreground hover:text-foreground opacity-0 group-hover:opacity-100"
+            : "text-muted-foreground hover:text-foreground md:opacity-0 md:group-hover:opacity-100 focus:opacity-100"
         )}
       >
         {isRunning ? <Square className="h-3 w-3" /> : <Timer className="h-3 w-3" />}

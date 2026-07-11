@@ -95,7 +95,7 @@ export function ProjectContactsManager({
           <button
             onClick={() => handleRemove(pc.clientId)}
             disabled={isPending}
-            className="ml-auto shrink-0 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive disabled:opacity-40"
+            className="ml-auto shrink-0 md:opacity-0 md:group-hover:opacity-100 focus:opacity-100 transition-opacity text-muted-foreground hover:text-destructive disabled:opacity-40"
             title="Retirer ce contact"
           >
             <X className="h-3.5 w-3.5" />

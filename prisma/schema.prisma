@@ -29,6 +29,7 @@ model User {
   recurringInvoices RecurringInvoice[]
   emailLogs         EmailLog[]
   emailTemplates    EmailTemplate[]
+  pushSubscriptions PushSubscription[]
   calendarEvents      CalendarEvent[]
   calendarCategories  CalendarCategory[]
   timeEntries         TimeEntry[]
@@ -954,6 +955,21 @@ model EmailLog {
 
 // Modèle de mail de démarchage — texte brut avec variables {{prenom}},
 // {{societe}}, {{site}}... substituées par prospect à l'envoi (cf. lib/email-template).
+// Abonnement Web Push d'un appareil (PWA mobile). Un utilisateur peut en avoir
+// plusieurs (iPhone + autre navigateur) ; endpoint unique = un par appareil.
+model PushSubscription {
+  id        String   @id @default(cuid())
+  userId    String
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
 model EmailTemplate {
   id        String   @id @default(cuid())
   userId    String

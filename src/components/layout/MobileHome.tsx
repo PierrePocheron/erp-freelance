@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils"
 import { useModules } from "@/hooks/use-modules"
 import { navItems } from "@/components/layout/Sidebar"
 import { OPEN_COMMAND_PALETTE_EVENT } from "@/components/layout/CommandPalette"
+import { PushNotificationsCard } from "@/components/layout/PushNotificationsCard"
 
 type MobileHomeProps = {
   /** Montant total en attente de réception (factures + revenus + remboursements), en € */
@@ -126,6 +127,9 @@ export function MobileHome({ pendingAmount, toConfirmCount, incomplete }: Mobile
           </div>
         </section>
       )}
+
+      {/* Activation des push — visible uniquement si supporté et jamais demandé */}
+      <PushNotificationsCard />
     </div>
   )
 }

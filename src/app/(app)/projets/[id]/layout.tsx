@@ -5,7 +5,7 @@ import Link from "next/link"
 import { ChevronLeft, Users } from "lucide-react"
 import { ProjectTabs } from "@/components/modules/projet/ProjectTabs"
 import { ProjectDateBadge } from "@/components/modules/projet/ProjectDateBadge"
-import { ProjectNameEdit, ProjectDescriptionEdit, ProjectHoursEdit, ProjectStatusEdit, ProjectPriorityEdit } from "@/components/modules/projet/ProjectInlineEdit"
+import { ProjectNameEdit, ProjectDescriptionEdit, ProjectHoursEdit, ProjectStatusEdit, ProjectPriorityEdit, ProjectCategoryEdit } from "@/components/modules/projet/ProjectInlineEdit"
 import { TagSelector } from "@/components/modules/projet/TagSelector"
 import { ProjectSettingsDialog } from "@/components/modules/projet/ProjectSettingsDialog"
 import { ProjectContactsManager } from "@/components/modules/projet/ProjectContactsManager"
@@ -146,6 +146,7 @@ export default async function ProjectLayout({
               </div>
             )}
 
+            <ProjectCategoryEdit projectId={id} value={project.category} />
             <ProjectPriorityEdit projectId={id} value={project.priority as "LOW" | "MEDIUM" | "HIGH" | "URGENT"} />
             <ProjectStatusEdit projectId={id} value={project.status} />
             {isOwner && (

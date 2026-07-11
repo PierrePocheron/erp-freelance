@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState, useTransition } from "react"
+import { useEffect, useMemo, useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { Send, AlertTriangle, ChevronLeft, ChevronRight } from "lucide-react"
@@ -25,6 +25,7 @@ export function SendEmailDialog({
   targets,
   emailFromConfigured,
   onSent,
+  initialTemplateId,
 }: {
   open: boolean
   onOpenChange: (v: boolean) => void
@@ -32,11 +33,18 @@ export function SendEmailDialog({
   targets: SendTarget[]
   emailFromConfigured: boolean
   onSent: () => void
+  initialTemplateId?: string
 }) {
   const router = useRouter()
   const [templateId, setTemplateId] = useState("")
   const [previewIndex, setPreviewIndex] = useState(0)
   const [isPending, startTransition] = useTransition()
+
+  // À l'ouverture, reprend le modèle éventuellement choisi en barre d'outils.
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (open && initialTemplateId) setTemplateId(initialTemplateId)
+  }, [open, initialTemplateId])
 
   const template = templates.find((t) => t.id === templateId) ?? null
   const withEmail = useMemo(() => targets.filter((t) => t.email?.trim()), [targets])

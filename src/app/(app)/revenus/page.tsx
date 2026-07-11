@@ -195,14 +195,20 @@ export default async function RevenuePage() {
           <p className="text-xl font-bold tabular-nums text-blue-600">{fmt(totalMonth)} €</p>
           <p className="text-xs text-muted-foreground">{totalRecvMonth} entrées</p>
         </div>
-        <div className="rounded-xl border border-border/50 bg-card p-4 space-y-1">
+        {/* Cliquable : filtre le tableau sur les montants en attente + déplie tout */}
+        <Link
+          href="/revenus?filtre=attente"
+          scroll={false}
+          title="Voir uniquement les montants en attente"
+          className="rounded-xl border border-border/50 bg-card p-4 space-y-1 hover:border-amber-500/40 hover:bg-amber-500/5 transition-colors cursor-pointer"
+        >
           <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
             <Clock className="h-4 w-4 text-amber-600" />
             En attente
           </div>
           <p className="text-xl font-bold tabular-nums text-amber-600">{fmt(totalPending)} €</p>
           <p className="text-xs text-muted-foreground">{allRevenues.filter(r => r.status === "PENDING").length} entrées</p>
-        </div>
+        </Link>
         <div className="rounded-xl border border-border/50 bg-card p-4 space-y-1">
           <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
             <Repeat className="h-4 w-4 text-muted-foreground" />

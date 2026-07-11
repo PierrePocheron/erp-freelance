@@ -428,6 +428,17 @@ enum ProjectStatus {
   ARCHIVED
 }
 
+// Thème métier du projet — pilote la bannière colorée/motif des cartes et le
+// regroupement des projets terminés. Liste fixe (choix de Pierre, juillet 2026).
+enum ProjectCategory {
+  DEV
+  ETUDE
+  EVENEMENTIEL
+  FORMATION
+  PROSPECTION
+  AUTRE
+}
+
 enum MilestoneStatus {
   UPCOMING
   IN_PROGRESS
@@ -483,6 +494,7 @@ model Project {
   name           String
   description    String?
   status         ProjectStatus @default(ACTIVE)
+  category       ProjectCategory @default(AUTRE)
   priority       TaskPriority  @default(MEDIUM)
   startDate      DateTime?
   endDate        DateTime?
@@ -948,6 +960,7 @@ model EmailTemplate {
   name      String
   subject   String
   body      String
+  sortOrder Int      @default(0) // ordre d'affichage personnalisé (drag & drop)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

@@ -62,7 +62,8 @@ export function IncompleteContactsSheet({ contacts }: { contacts: IncompleteCont
   )
 }
 
-function ContactRow({ contact: c, onDone }: { contact: IncompleteContact; onDone: () => void }) {
+// Exportée : réutilisée par le volet global « Données à compléter » du dashboard.
+export function ContactRow({ contact: c, onDone }: { contact: IncompleteContact; onDone: () => void }) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [firstName, setFirstName] = useState("")

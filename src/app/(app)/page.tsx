@@ -12,6 +12,7 @@ import { ProdMonitorCard } from "@/components/modules/dashboard/ProdMonitorCard"
 import { PendingIncomeCard } from "@/components/modules/dashboard/PendingIncomeCard"
 import { JobHuntCard } from "@/components/modules/dashboard/JobHuntCard"
 import { ConfirmEventsCard } from "@/components/modules/dashboard/ConfirmEventsCard"
+import { IncompleteDataSheet } from "@/components/modules/dashboard/IncompleteDataSheet"
 import { MobileHome } from "@/components/layout/MobileHome"
 import { getActiveModules } from "@/lib/modules-server"
 import { isContactIncomplete } from "@/lib/contact"
@@ -304,7 +305,7 @@ export default async function DashboardPage() {
     // Données à compléter — agrégé pour la mise en avant dashboard
     prisma.client.findMany({
       where: { userId, type: { not: "SELF" } },
-      select: { id: true, name: true, firstName: true, lastName: true, email: true, phone: true },
+      select: { id: true, name: true, company: true, firstName: true, lastName: true, email: true, phone: true },
     }),
     prisma.company.findMany({
       where: { userId },
@@ -312,7 +313,7 @@ export default async function DashboardPage() {
     }),
     prisma.revenue.findMany({
       where: { userId },
-      select: { id: true, label: true, companyId: true, clientId: true, projectId: true },
+      select: { id: true, label: true, amount: true, companyId: true, clientId: true, projectId: true },
     }),
     // Jalons passés non confirmés (ni terminés ni annulés), fenêtre 7 jours — carte "À confirmer"
     prisma.milestone.findMany({
@@ -340,7 +341,7 @@ export default async function DashboardPage() {
     // Dépenses récurrentes actives dont la date de prélèvement reste à renseigner
     prisma.recurringExpense.findMany({
       where: { userId, isActive: true, dateToConfirm: true },
-      select: { id: true },
+      select: { id: true, label: true, amount: true },
     }),
   ])
 
@@ -544,43 +545,19 @@ export default async function DashboardPage() {
           </div>
         )}
 
-        {/* Données à compléter — agrégé tous modules, mis en avant */}
+        {/* Données à compléter — bandeau + volet de complétion rapide (édition
+            inline de toutes les infos manquantes, sans ouvrir les fiches) */}
         {(has("contacts") || has("societes") || has("revenus") || has("depenses")) && totalIncomplete > 0 && (
-          <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 px-4 py-2.5 flex items-center gap-4 flex-wrap">
-            <p className="flex items-center gap-1.5 text-xs font-medium text-amber-700 dark:text-amber-400 shrink-0">
-              <AlertCircle className="h-3.5 w-3.5" />
-              Données à compléter
-            </p>
-            {has("contacts") && incompleteContacts.length > 0 && (
-              <Link href="/contacts" className="group flex items-center gap-1 text-xs">
-                <span className="text-muted-foreground group-hover:text-foreground transition-colors">Contacts</span>
-                <span className="font-semibold tabular-nums text-amber-600">{incompleteContacts.length}</span>
-              </Link>
-            )}
-            {has("societes") && incompleteCompanies.length > 0 && (
-              <Link href="/societes" className="group flex items-center gap-1 text-xs">
-                <span className="text-muted-foreground group-hover:text-foreground transition-colors">Sociétés</span>
-                <span className="font-semibold tabular-nums text-amber-600">{incompleteCompanies.length}</span>
-              </Link>
-            )}
-            {has("revenus") && incompleteRevenues.length > 0 && (
-              <Link href="/revenus" className="group flex items-center gap-1 text-xs">
-                <span className="text-muted-foreground group-hover:text-foreground transition-colors">Revenus</span>
-                <span className="font-semibold tabular-nums text-amber-600">{incompleteRevenues.length}</span>
-              </Link>
-            )}
-            {has("depenses") && incompleteExpensesCount > 0 && (
-              <Link href="/depenses/recurrentes" className="group flex items-center gap-1 text-xs">
-                <span className="text-muted-foreground group-hover:text-foreground transition-colors">Dépenses récurrentes</span>
-                <span className="font-semibold tabular-nums text-amber-600">{incompleteExpensesCount}</span>
-              </Link>
-            )}
-            {has("graph") && (
-              <Link href="/graph" className="ml-auto text-xs text-amber-700 dark:text-amber-400 hover:underline shrink-0">
-                Voir dans le graphe →
-              </Link>
-            )}
-          </div>
+          <IncompleteDataSheet
+            contacts={has("contacts") ? incompleteContacts : []}
+            companies={has("societes") ? incompleteCompanies : []}
+            revenues={has("revenus") ? incompleteRevenues : []}
+            recurringExpenses={has("depenses") ? incompleteRecurringExpenses : []}
+            allCompanies={quickCompanies.map((c) => ({ id: c.id, name: c.name }))}
+            allClients={quickClients.map((c) => ({ id: c.id, name: c.name }))}
+            allProjects={quickProjects.map((p) => ({ id: p.id, name: p.name }))}
+            showGraphLink={has("graph")}
+          />
         )}
       </div>
 

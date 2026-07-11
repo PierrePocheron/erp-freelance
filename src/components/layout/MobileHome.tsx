@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils"
 import { useModules } from "@/hooks/use-modules"
 import { navItems } from "@/components/layout/Sidebar"
 import { OPEN_COMMAND_PALETTE_EVENT } from "@/components/layout/CommandPalette"
+import { OPEN_INCOMPLETE_SHEET_EVENT } from "@/components/modules/dashboard/IncompleteDataSheet"
 import { PushNotificationsCard } from "@/components/layout/PushNotificationsCard"
 
 type MobileHomeProps = {
@@ -34,12 +35,13 @@ export function MobileHome({ pendingAmount, toConfirmCount, incomplete }: Mobile
     (item) => item.href !== "/" && (!item.moduleId || isActive(item.moduleId))
   )
 
-  // Lignes « à compléter » — chacune gated par module actif côté client aussi
+  // Lignes « à compléter » — chacune gated par module actif côté client aussi.
+  // Le tap ouvre le volet de complétion rapide (rendu par la page dashboard).
   const incompleteRows = [
-    { label: "Contacts",             count: incomplete.contacts, href: "/contacts",             moduleId: "contacts" as const },
-    { label: "Sociétés",             count: incomplete.societes, href: "/societes",             moduleId: "societes" as const },
-    { label: "Revenus",              count: incomplete.revenus,  href: "/revenus",              moduleId: "revenus" as const },
-    { label: "Dépenses récurrentes", count: incomplete.depenses, href: "/depenses/recurrentes", moduleId: "depenses" as const },
+    { label: "Contacts",             count: incomplete.contacts, moduleId: "contacts" as const },
+    { label: "Sociétés",             count: incomplete.societes, moduleId: "societes" as const },
+    { label: "Revenus",              count: incomplete.revenus,  moduleId: "revenus" as const },
+    { label: "Dépenses récurrentes", count: incomplete.depenses, moduleId: "depenses" as const },
   ].filter((r) => r.count > 0 && isActive(r.moduleId))
 
   const showPending   = pendingAmount > 0 && (isActive("facturation") || isActive("revenus") || isActive("sante"))
@@ -91,15 +93,16 @@ export function MobileHome({ pendingAmount, toConfirmCount, incomplete }: Mobile
                 </p>
                 <div className="pb-1.5">
                   {incompleteRows.map((r) => (
-                    <Link
-                      key={r.href}
-                      href={r.href}
-                      className="flex items-center gap-2 px-4 py-2 transition-colors active:bg-amber-500/10"
+                    <button
+                      key={r.moduleId}
+                      type="button"
+                      onClick={() => window.dispatchEvent(new CustomEvent(OPEN_INCOMPLETE_SHEET_EVENT))}
+                      className="flex w-full items-center gap-2 px-4 py-2 text-left transition-colors active:bg-amber-500/10"
                     >
                       <span className="flex-1 text-sm">{r.label}</span>
                       <span className="text-sm font-semibold tabular-nums text-amber-600">{r.count}</span>
                       <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                    </Link>
+                    </button>
                   ))}
                 </div>
               </div>

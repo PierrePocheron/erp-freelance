@@ -468,11 +468,16 @@ export default async function DashboardPage() {
   const totalIncomplete = incompleteContacts.length + incompleteCompanies.length + incompleteRevenues.length + incompleteExpensesCount
 
   // ── Accueil mobile — props sérialisables dérivées des données déjà fetchées ──
-  const mobileTodayTasks = has("taches") || has("projets") ? agendaToday.length : 0
   const mobilePendingAmount =
     (has("facturation") ? totalPending : 0)
     + (has("revenus") ? pendingRevenueItems.reduce((s, r) => s + r.amount, 0) : 0)
     + (has("sante") ? pendingReimbursementItems.reduce((s, r) => s + r.amount, 0) : 0)
+  const mobileIncomplete = {
+    contacts: has("contacts") ? incompleteContacts.length : 0,
+    societes: has("societes") ? incompleteCompanies.length : 0,
+    revenus:  has("revenus") ? incompleteRevenues.length : 0,
+    depenses: has("depenses") ? incompleteExpensesCount : 0,
+  }
 
   const hour = new Date().getHours()
   const greeting = hour < 12 ? "Bonjour" : hour < 18 ? "Bonjour" : "Bonsoir"
@@ -482,9 +487,9 @@ export default async function DashboardPage() {
     {/* Accueil mobile — remplace le dashboard sur petit écran */}
     <div className="sm:hidden">
       <MobileHome
-        todayTasksCount={mobileTodayTasks}
         pendingAmount={mobilePendingAmount}
         toConfirmCount={totalUnconfirmed}
+        incomplete={mobileIncomplete}
       />
     </div>
 

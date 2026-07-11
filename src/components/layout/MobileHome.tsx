@@ -1,28 +1,29 @@
 "use client"
 
 import Link from "next/link"
-import { CalendarCheck, CheckSquare, Hourglass, Search } from "lucide-react"
+import { AlertCircle, CalendarCheck, ChevronRight, Hourglass, Search } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useModules } from "@/hooks/use-modules"
 import { navItems } from "@/components/layout/Sidebar"
 import { OPEN_COMMAND_PALETTE_EVENT } from "@/components/layout/CommandPalette"
 
 type MobileHomeProps = {
-  /** Tâches dues aujourd'hui (0 si les modules tâches/projets sont inactifs) */
-  todayTasksCount: number
   /** Montant total en attente de réception (factures + revenus + remboursements), en € */
   pendingAmount: number
   /** Items du passé récent à confirmer (tâches, jalons, événements) */
   toConfirmCount: number
+  /** Données incomplètes par module (0 si module inactif côté serveur) */
+  incomplete: { contacts: number; societes: number; revenus: number; depenses: number }
 }
 
 /**
  * Accueil mobile — remplace le dashboard sur petit écran (rendu dans un wrapper
  * `sm:hidden` par la page dashboard, qui lui passe des props déjà fetchées).
- * De haut en bas : recherche (ouvre la CommandPalette), strip « Aujourd'hui »,
- * grille des modules actifs.
+ * De haut en bas : recherche (ouvre la CommandPalette), grille des modules
+ * actifs, puis cartes « à traiter » (à compléter, en attente, à confirmer) —
+ * pas de widget de statistiques au-dessus de la grille (demande de Pierre).
  */
-export function MobileHome({ todayTasksCount, pendingAmount, toConfirmCount }: MobileHomeProps) {
+export function MobileHome({ pendingAmount, toConfirmCount, incomplete }: MobileHomeProps) {
   const { isActive } = useModules()
 
   // Tuiles = navItems de la Sidebar (source de vérité route + icône + module),
@@ -32,11 +33,20 @@ export function MobileHome({ todayTasksCount, pendingAmount, toConfirmCount }: M
     (item) => item.href !== "/" && (!item.moduleId || isActive(item.moduleId))
   )
 
-  const showToday = todayTasksCount > 0 || pendingAmount > 0 || toConfirmCount > 0
+  // Lignes « à compléter » — chacune gated par module actif côté client aussi
+  const incompleteRows = [
+    { label: "Contacts",             count: incomplete.contacts, href: "/contacts",             moduleId: "contacts" as const },
+    { label: "Sociétés",             count: incomplete.societes, href: "/societes",             moduleId: "societes" as const },
+    { label: "Revenus",              count: incomplete.revenus,  href: "/revenus",              moduleId: "revenus" as const },
+    { label: "Dépenses récurrentes", count: incomplete.depenses, href: "/depenses/recurrentes", moduleId: "depenses" as const },
+  ].filter((r) => r.count > 0 && isActive(r.moduleId))
+
+  const showPending   = pendingAmount > 0 && (isActive("facturation") || isActive("revenus") || isActive("sante"))
+  const showToConfirm = toConfirmCount > 0 && (isActive("taches") || isActive("projets") || isActive("calendrier"))
 
   return (
     <div className="space-y-5">
-      {/* Recherche — ouvre la CommandPalette (utilisable au tactile) */}
+      {/* Recherche — ouvre la CommandPalette (mêmes fonctionnalités que ⌘K) */}
       <button
         type="button"
         onClick={() => window.dispatchEvent(new CustomEvent(OPEN_COMMAND_PALETTE_EVENT))}
@@ -45,44 +55,6 @@ export function MobileHome({ todayTasksCount, pendingAmount, toConfirmCount }: M
         <Search className="h-4 w-4 shrink-0" />
         Rechercher…
       </button>
-
-      {/* Strip « Aujourd'hui » — uniquement si au moins une donnée non vide */}
-      {showToday && (
-        <section className="space-y-1.5">
-          <h2 className="px-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-            Aujourd&apos;hui
-          </h2>
-          <div className="flex gap-2">
-            {todayTasksCount > 0 && (
-              <StatCard
-                href="/taches"
-                icon={<CheckSquare className="h-3.5 w-3.5" />}
-                label="Tâches"
-                value={todayTasksCount}
-                valueClass="text-primary"
-              />
-            )}
-            {pendingAmount > 0 && (
-              <StatCard
-                href="/revenus"
-                icon={<Hourglass className="h-3.5 w-3.5" />}
-                label="En attente"
-                value={`${pendingAmount.toLocaleString("fr-FR")} €`}
-                valueClass="text-amber-600"
-              />
-            )}
-            {toConfirmCount > 0 && (
-              <StatCard
-                href="/"
-                icon={<CalendarCheck className="h-3.5 w-3.5" />}
-                label="À confirmer"
-                value={toConfirmCount}
-                valueClass="text-fuchsia-600"
-              />
-            )}
-          </div>
-        </section>
-      )}
 
       {/* Grille des modules actifs */}
       <section className="space-y-1.5">
@@ -102,11 +74,63 @@ export function MobileHome({ todayTasksCount, pendingAmount, toConfirmCount }: M
           ))}
         </div>
       </section>
+
+      {/* Cartes « à traiter » — sous la grille, uniquement si non vides */}
+      {(incompleteRows.length > 0 || showPending || showToConfirm) && (
+        <section className="space-y-1.5">
+          <h2 className="px-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+            À traiter
+          </h2>
+          <div className="space-y-2">
+            {incompleteRows.length > 0 && (
+              <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 overflow-hidden">
+                <p className="flex items-center gap-2 px-4 pt-3 pb-1 text-xs font-medium text-amber-700 dark:text-amber-400">
+                  <AlertCircle className="h-3.5 w-3.5" />
+                  Données à compléter
+                </p>
+                <div className="pb-1.5">
+                  {incompleteRows.map((r) => (
+                    <Link
+                      key={r.href}
+                      href={r.href}
+                      className="flex items-center gap-2 px-4 py-2 transition-colors active:bg-amber-500/10"
+                    >
+                      <span className="flex-1 text-sm">{r.label}</span>
+                      <span className="text-sm font-semibold tabular-nums text-amber-600">{r.count}</span>
+                      <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                    </Link>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {showPending && (
+              <InfoCard
+                href="/revenus?filtre=attente"
+                icon={<Hourglass className="h-4 w-4 text-amber-500" />}
+                label="En attente de réception"
+                value={`${pendingAmount.toLocaleString("fr-FR")} €`}
+                valueClass="text-amber-600"
+              />
+            )}
+
+            {showToConfirm && (
+              <InfoCard
+                href="/taches"
+                icon={<CalendarCheck className="h-4 w-4 text-fuchsia-500" />}
+                label="À confirmer"
+                value={toConfirmCount}
+                valueClass="text-fuchsia-600"
+              />
+            )}
+          </div>
+        </section>
+      )}
     </div>
   )
 }
 
-function StatCard({
+function InfoCard({
   href, icon, label, value, valueClass,
 }: {
   href: string
@@ -118,13 +142,12 @@ function StatCard({
   return (
     <Link
       href={href}
-      className="min-w-0 flex-1 rounded-xl border border-border/50 bg-card px-3 py-2.5 transition-colors active:bg-accent"
+      className="flex items-center gap-3 rounded-xl border border-border/50 bg-card px-4 py-3 transition-colors active:bg-accent"
     >
-      <div className="flex items-center gap-1.5 text-muted-foreground">
-        {icon}
-        <span className="truncate text-[10px] font-medium">{label}</span>
-      </div>
-      <p className={cn("mt-1.5 text-lg font-bold tabular-nums leading-none", valueClass)}>{value}</p>
+      {icon}
+      <span className="flex-1 text-sm font-medium">{label}</span>
+      <span className={cn("text-sm font-bold tabular-nums", valueClass)}>{value}</span>
+      <ChevronRight className="h-4 w-4 text-muted-foreground" />
     </Link>
   )
 }

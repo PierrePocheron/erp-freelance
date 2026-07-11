@@ -210,6 +210,22 @@ export async function convertRecurringToExpense(recurringExpenseId: string, data
   return expense
 }
 
+/**
+ * Renseigne la date de prélèvement d'une dépense récurrente « à compléter »
+ * (dateToConfirm) — utilisé par le volet de complétion rapide du dashboard.
+ */
+export async function confirmRecurringExpenseDate(recurringExpenseId: string, date: Date) {
+  const userId = await requireAuth()
+  const updated = await prisma.recurringExpense.updateMany({
+    where: { id: recurringExpenseId, userId },
+    data: { nextGenerationDate: date, dateToConfirm: false },
+  })
+  if (updated.count === 0) throw new Error("Dépense récurrente introuvable")
+  revalidatePath("/depenses")
+  revalidatePath("/calendrier")
+  revalidatePath("/")
+}
+
 export async function toggleRecurringExpenseActive(recurringExpenseId: string, isActive: boolean) {
   const userId = await requireAuth()
   const existing = await prisma.recurringExpense.findFirst({ where: { id: recurringExpenseId, userId }, select: { id: true } })

@@ -266,14 +266,14 @@ export function LineItemsEditor({ entityId, entityType, lines, editable = true }
                 <>
                   <button
                     onClick={() => setEditingId(line.id)}
-                    className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-foreground transition-opacity"
+                    className="md:opacity-0 md:group-hover:opacity-100 focus:opacity-100 text-muted-foreground hover:text-foreground transition-opacity"
                   >
                     <Pencil className="h-3.5 w-3.5" />
                   </button>
                   <button
                     onClick={() => startTransition(() => deleteLine(line.id))}
                     disabled={isPending}
-                    className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive transition-opacity"
+                    className="md:opacity-0 md:group-hover:opacity-100 focus:opacity-100 text-muted-foreground hover:text-destructive transition-opacity"
                   >
                     <Trash2 className="h-3.5 w-3.5" />
                   </button>

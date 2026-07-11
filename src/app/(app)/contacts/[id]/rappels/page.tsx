@@ -89,7 +89,7 @@ export default async function ClientRappelsPage({
                         {r.note && <p className="text-xs text-muted-foreground">{r.note}</p>}
                       </div>
                       <form action={async () => { "use server"; await deleteReminder(r.id, id) }}>
-                        <button type="submit" className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive transition-opacity">
+                        <button type="submit" className="md:opacity-0 md:group-hover:opacity-100 focus:opacity-100 text-muted-foreground hover:text-destructive transition-opacity">
                           <Trash2 className="h-3.5 w-3.5" />
                         </button>
                       </form>
@@ -116,7 +116,7 @@ export default async function ClientRappelsPage({
                       {r.note && <p className="text-xs text-muted-foreground">{r.note}</p>}
                     </div>
                     <form action={async () => { "use server"; await deleteReminder(r.id, id) }}>
-                      <button type="submit" className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive transition-opacity">
+                      <button type="submit" className="md:opacity-0 md:group-hover:opacity-100 focus:opacity-100 text-muted-foreground hover:text-destructive transition-opacity">
                         <Trash2 className="h-3.5 w-3.5" />
                       </button>
                     </form>

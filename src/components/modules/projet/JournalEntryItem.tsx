@@ -130,7 +130,7 @@ export function JournalEntryItem({ entry, projectId }: { entry: Entry; projectId
 
       {/* Actions (hover) */}
       {!editing && !confirmDelete && (
-        <div className="flex items-start gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0 pt-0.5">
+        <div className="flex items-start gap-0.5 md:opacity-0 md:group-hover:opacity-100 focus:opacity-100 transition-opacity shrink-0 pt-0.5">
           <button
             onClick={startEdit}
             className="rounded p-1 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"

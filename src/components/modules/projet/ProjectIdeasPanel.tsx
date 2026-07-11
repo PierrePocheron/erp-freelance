@@ -123,7 +123,7 @@ function IdeaCard({
 
         {isPending && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground shrink-0" />}
 
-        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+        <div className="flex items-center gap-1 md:opacity-0 md:group-hover:opacity-100 focus:opacity-100 transition-opacity">
           {expanded && (
             <button
               type="button"

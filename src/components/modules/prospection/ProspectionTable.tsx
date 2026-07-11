@@ -562,7 +562,7 @@ export function ProspectionTable({
 
       {/* ── Sheet fiche contact ── */}
       <Sheet open={panelOpen} onOpenChange={setPanelOpen}>
-        <SheetContent side="right" className="w-[460px] sm:max-w-[460px] p-0" showCloseButton>
+        <SheetContent side="right" className="w-full sm:w-[460px] sm:max-w-[460px] p-0" showCloseButton>
           {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
           <ClientPanel client={panelData as any} loading={isPanelPending || (panelOpen && panelData === null)} userId={userId} />
         </SheetContent>

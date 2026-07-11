@@ -147,7 +147,7 @@ function TaskRow({ task }: { task: ClientTask }) {
         <button
           onClick={() => setEditOpen(true)}
           title="Modifier"
-          className="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-foreground"
+          className="shrink-0 md:opacity-0 md:group-hover:opacity-100 focus:opacity-100 transition-opacity text-muted-foreground hover:text-foreground"
         >
           <Pencil className="h-3.5 w-3.5" />
         </button>
@@ -155,7 +155,7 @@ function TaskRow({ task }: { task: ClientTask }) {
           onClick={handleDelete}
           disabled={isDeleting}
           title="Supprimer"
-          className="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-red-500 disabled:opacity-30"
+          className="shrink-0 md:opacity-0 md:group-hover:opacity-100 focus:opacity-100 transition-opacity text-muted-foreground hover:text-red-500 disabled:opacity-30"
         >
           {isDeleting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
         </button>

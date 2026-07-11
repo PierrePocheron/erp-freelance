@@ -290,7 +290,7 @@ export function ApplicationPanel({ app, onEdit }: { app: JobApp; onEdit: () => v
                   </div>
                   <button
                     onClick={() => removeEvent(ev.id)}
-                    className="text-muted-foreground/40 hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
+                    className="text-muted-foreground/40 hover:text-destructive md:opacity-0 md:group-hover:opacity-100 focus:opacity-100 transition-opacity shrink-0"
                     title="Supprimer"
                   >
                     <Trash2 className="h-3.5 w-3.5" />

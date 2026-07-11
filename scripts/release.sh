@@ -46,7 +46,11 @@ git commit -m "chore: bump version v$VERSION (release)"
 # ── Push + PR + CI + merge ───────────────────────────────────────────────────
 echo "→ Push dev + PR vers main…"
 git push origin dev
-PR_ARGS=(--base main --head dev --title "Release v$VERSION — $TITLE")
+# PR complète : assignée à Pierre + label release. (Pas de reviewer : GitHub
+# refuse de demander une review à l'auteur de la PR, et gh est authentifié
+# avec le compte de Pierre.)
+GH_USER=$(gh api user --jq .login)
+PR_ARGS=(--base main --head dev --title "Release v$VERSION — $TITLE" --assignee "$GH_USER" --label release)
 if [ -n "$NOTES_FILE" ]; then PR_ARGS+=(--body-file "$NOTES_FILE"); else PR_ARGS+=(--fill); fi
 PR_URL=$(gh pr create "${PR_ARGS[@]}")
 PR_NUM=$(basename "$PR_URL")

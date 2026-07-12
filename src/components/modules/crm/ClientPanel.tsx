@@ -70,6 +70,7 @@ type ClientPanelData = {
   firstName: string | null
   lastName: string | null
   company: string | null
+  jobTitle?: string | null
   email: string | null
   phone: string | null
   type: string
@@ -216,11 +217,11 @@ export function ClientPanel({
       <div className="p-5 pr-10 border-b border-border/50 space-y-3">
         <div className="flex items-start justify-between gap-3">
           <div>
-            {client.company && (
+            {(client.company || client.jobTitle) && (
               <div className="flex items-center gap-2 mb-1">
                 <span className="text-xs text-muted-foreground flex items-center gap-1">
                   <Building2 className="h-3 w-3" />
-                  {client.company}
+                  {[client.jobTitle, client.company].filter(Boolean).join(" · ")}
                 </span>
               </div>
             )}

@@ -339,6 +339,7 @@ model Client {
   companyId     String?
   companyRef    Company?     @relation(fields: [companyId], references: [id], onDelete: SetNull)
   company       String?
+  jobTitle      String? // poste / fonction dans la société
   email         String?
   phone         String?
   source         ClientSource  @default(OTHER)

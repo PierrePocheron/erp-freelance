@@ -82,6 +82,7 @@ export function CreateClientDialog({
         companyName: company.name.trim() || undefined,
         email: (fd.get("email") as string) || undefined,
         phone: (fd.get("phone") as string) || undefined,
+        jobTitle: (fd.get("jobTitle") as string) || undefined,
         type: (fd.get("type") as string) || undefined,
         source: (fd.get("source") as string) || undefined,
         notes: (fd.get("notes") as string) || undefined,
@@ -227,6 +228,10 @@ export function CreateClientDialog({
                   <div className="space-y-1.5">
                     <Label>Téléphone</Label>
                     <Input name="phone" placeholder="+33 6 00 00 00 00" autoComplete="off" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>Poste</Label>
+                    <Input name="jobTitle" placeholder="Directeur marketing, CTO…" autoComplete="off" />
                   </div>
                 </div>
               </section>

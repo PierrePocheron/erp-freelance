@@ -30,6 +30,11 @@ export type ProfileData = {
   customAccentColors?: string | null
   defaultConditions?: string | null
   logoUrl?: string | null
+  // Branding PDF (template « Pedro »)
+  pdfLogoText?: string
+  pdfLogoSubtext?: string
+  pdfBackgroundColor?: string
+  pdfBankName?: string | null
 }
 
 export async function saveProfile(_userId: string, data: ProfileData) {
@@ -55,6 +60,10 @@ export async function saveProfile(_userId: string, data: ProfileData) {
       ...(data.pdfAccentColor !== undefined && { pdfAccentColor: data.pdfAccentColor }),
       ...(data.defaultConditions !== undefined && { defaultConditions: data.defaultConditions }),
       ...(data.logoUrl !== undefined && { logoUrl: data.logoUrl }),
+      ...(data.pdfLogoText !== undefined && { pdfLogoText: data.pdfLogoText }),
+      ...(data.pdfLogoSubtext !== undefined && { pdfLogoSubtext: data.pdfLogoSubtext }),
+      ...(data.pdfBackgroundColor !== undefined && { pdfBackgroundColor: data.pdfBackgroundColor }),
+      ...(data.pdfBankName !== undefined && { pdfBankName: data.pdfBankName }),
     } as never,
     update: {
       companyName: data.companyName,
@@ -74,6 +83,10 @@ export async function saveProfile(_userId: string, data: ProfileData) {
       ...(data.pdfAccentColor !== undefined && { pdfAccentColor: data.pdfAccentColor }),
       ...(data.defaultConditions !== undefined && { defaultConditions: data.defaultConditions }),
       ...(data.logoUrl !== undefined && { logoUrl: data.logoUrl }),
+      ...(data.pdfLogoText !== undefined && { pdfLogoText: data.pdfLogoText }),
+      ...(data.pdfLogoSubtext !== undefined && { pdfLogoSubtext: data.pdfLogoSubtext }),
+      ...(data.pdfBackgroundColor !== undefined && { pdfBackgroundColor: data.pdfBackgroundColor }),
+      ...(data.pdfBankName !== undefined && { pdfBankName: data.pdfBankName }),
     } as never,
   })
   revalidatePath("/settings")

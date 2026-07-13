@@ -16,7 +16,7 @@ function ensureConfigured(): boolean {
   const privateKey = process.env.VAPID_PRIVATE_KEY
   if (!publicKey || !privateKey) return false
   webpush.setVapidDetails(
-    process.env.VAPID_SUBJECT ?? "mailto:pierre.pocheron@gmail.com",
+    process.env.VAPID_SUBJECT ?? "mailto:pierre@exemple.fr",
     publicKey,
     privateKey,
   )

@@ -17,24 +17,41 @@ export type EmitterBlock = {
   bic?: string | null
 }
 
+// Branding PDF global (UserProfile) consommé par le template « Pedro ».
+export type PdfBranding = {
+  logoText: string | null
+  logoSubtext: string | null
+  backgroundColor: string | null
+}
+
 // Résout le bloc émetteur d'un document (devis/facture).
 // - Si le document est rattaché à un EmitterProfile → on l'utilise.
 // - Sinon (vieux document détaché, FK SET NULL) → fallback sur UserProfile.
 // Dans les deux cas, `name` reste l'identité de la personne (compte Google) et
-// `companyName` la raison sociale ; le template affiche la raison sociale en gros.
+// `companyName` la raison sociale. Le branding PDF (logo texte, sous-titre,
+// fond de page) est global : il vient toujours de UserProfile, quelle que soit
+// la société émettrice.
 export async function resolveEmitter(opts: {
   userId: string
   emitterProfileId: string | null
   userName: string | null
   userEmail: string | null
-}): Promise<{ emitter: EmitterBlock; accentColor: string | null }> {
+}): Promise<{ emitter: EmitterBlock; accentColor: string | null; branding: PdfBranding }> {
   const { userId, emitterProfileId, userName, userEmail } = opts
+
+  const p = await prisma.userProfile.findUnique({ where: { userId } }).catch(() => null)
+  const branding: PdfBranding = {
+    logoText: p?.pdfLogoText ?? null,
+    logoSubtext: p?.pdfLogoSubtext ?? null,
+    backgroundColor: p?.pdfBackgroundColor ?? null,
+  }
 
   if (emitterProfileId) {
     const e = await prisma.emitterProfile.findFirst({ where: { id: emitterProfileId, userId } })
     if (e) {
       return {
         accentColor: e.pdfAccentColor,
+        branding,
         emitter: {
           name: userName ?? "Freelance",
           email: e.email ?? userEmail ?? "",
@@ -56,9 +73,9 @@ export async function resolveEmitter(opts: {
   }
 
   // Fallback : ancienne identité émetteur portée par UserProfile.
-  const p = await prisma.userProfile.findUnique({ where: { userId } }).catch(() => null)
   return {
     accentColor: p?.pdfAccentColor ?? null,
+    branding,
     emitter: {
       name: userName ?? "Freelance",
       email: userEmail ?? "",
@@ -69,6 +86,7 @@ export async function resolveEmitter(opts: {
       siret: p?.siret,
       phone: p?.phone,
       website: p?.website,
+      bankName: p?.pdfBankName,
       iban: p?.iban,
       bic: p?.bic,
     },

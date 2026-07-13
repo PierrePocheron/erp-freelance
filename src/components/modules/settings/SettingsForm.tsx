@@ -5,8 +5,13 @@ import { saveProfile, type ProfileData } from "@/actions/settings"
 import { type NumberFormat, FORMAT_OPTIONS, buildNumberPreview } from "@/lib/number-format"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
-import { User, FileText, CheckCircle2, Loader2, ScrollText } from "lucide-react"
+import { User, FileText, CheckCircle2, Loader2, ScrollText, Palette, Plus } from "lucide-react"
 import { ConditionsManager } from "./ConditionsManager"
+
+// Couleurs proposées pour le point du logo (vert « Pedro Dev » en tête).
+const PDF_ACCENT_PRESETS = ["#6BCB3D", "#6366f1", "#0ea5e9", "#f59e0b", "#ef4444", "#ec4899", "#111111"]
+// Fonds de page : crème « Pedro Dev », blanc, gris très clair.
+const PDF_BACKGROUND_PRESETS = ["#FAF6EE", "#FFFFFF", "#F5F5F4"]
 
 type ConditionsTemplate = {
   id: string
@@ -29,6 +34,11 @@ export function SettingsForm({ userId, profile, userName, userEmail, conditionsT
   const [invoicePrefix, setInvoicePrefix] = useState(profile?.invoicePrefix ?? "FAC")
   const [quoteFormat, setQuoteFormat] = useState<NumberFormat>((profile?.quoteNumberFormat as NumberFormat) ?? "PREFIX-YYYY-NNN")
   const [invoiceFormat, setInvoiceFormat] = useState<NumberFormat>((profile?.invoiceNumberFormat as NumberFormat) ?? "PREFIX-YYYY-NNN")
+  // Branding des PDF (template « Pedro »)
+  const [pdfLogoText, setPdfLogoText] = useState(profile?.pdfLogoText ?? "PP")
+  const [pdfLogoSubtext, setPdfLogoSubtext] = useState(profile?.pdfLogoSubtext ?? "PEDRO DEV")
+  const [pdfAccentColor, setPdfAccentColor] = useState(profile?.pdfAccentColor ?? "#6366f1")
+  const [pdfBackgroundColor, setPdfBackgroundColor] = useState(profile?.pdfBackgroundColor ?? "#FAF6EE")
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -40,6 +50,11 @@ export function SettingsForm({ userId, profile, userName, userEmail, conditionsT
         invoicePrefix: (fd.get("invoicePrefix") as string) || "FAC",
         quoteNumberFormat: quoteFormat,
         invoiceNumberFormat: invoiceFormat,
+        pdfLogoText: pdfLogoText.trim() || "PP",
+        pdfLogoSubtext: pdfLogoSubtext.trim(),
+        pdfAccentColor,
+        pdfBackgroundColor,
+        pdfBankName: ((fd.get("pdfBankName") as string) || "").trim() || null,
       })
       setStatus("saved")
       setTimeout(() => setStatus("idle"), 3000)
@@ -143,6 +158,136 @@ export function SettingsForm({ userId, profile, userName, userEmail, conditionsT
         description="Modèles réutilisables pré-remplis à la création d'un devis. L'étoile définit le modèle par défaut."
       >
         <ConditionsManager userId={userId} templates={conditionsTemplates} />
+      </Section>
+
+      {/* Branding des PDF */}
+      <Section
+        icon={<Palette className="h-4 w-4" />}
+        title="Documents PDF"
+        description="Apparence des devis et factures générés : logo texte, couleurs et banque du bloc règlement."
+      >
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="Texte du logo" hint="Le point final prend la couleur d'accent">
+            <Input
+              value={pdfLogoText}
+              onChange={(e) => setPdfLogoText(e.target.value)}
+              placeholder="PP"
+              className="h-8"
+              maxLength={8}
+            />
+          </Field>
+          <Field label="Sous-titre du logo">
+            <Input
+              value={pdfLogoSubtext}
+              onChange={(e) => setPdfLogoSubtext(e.target.value)}
+              placeholder="PEDRO DEV"
+              className="h-8"
+              maxLength={32}
+            />
+          </Field>
+        </div>
+
+        <Field label="Couleur du point et des accents">
+          <div className="flex items-center gap-2 flex-wrap">
+            {PDF_ACCENT_PRESETS.map((c) => (
+              <button
+                key={c}
+                type="button"
+                title={c}
+                onClick={() => setPdfAccentColor(c)}
+                className="h-7 w-7 rounded-full border-2 transition-all"
+                style={{
+                  backgroundColor: c,
+                  borderColor: pdfAccentColor === c ? c : "transparent",
+                  boxShadow: pdfAccentColor === c ? `0 0 0 2px white, 0 0 0 4px ${c}` : "none",
+                }}
+              />
+            ))}
+            <label
+              title="Couleur personnalisée"
+              className="h-7 w-7 rounded-full border-2 border-dashed border-border flex items-center justify-center text-muted-foreground hover:border-primary hover:text-primary transition-colors cursor-pointer shrink-0"
+            >
+              <Plus className="h-3.5 w-3.5 pointer-events-none" />
+              <input
+                type="color"
+                value={pdfAccentColor}
+                onChange={(e) => setPdfAccentColor(e.target.value)}
+                className="sr-only"
+              />
+            </label>
+          </div>
+        </Field>
+
+        <Field label="Fond de page">
+          <div className="flex items-center gap-2 flex-wrap">
+            {PDF_BACKGROUND_PRESETS.map((c) => (
+              <button
+                key={c}
+                type="button"
+                title={c}
+                onClick={() => setPdfBackgroundColor(c)}
+                className="h-7 w-7 rounded-full border transition-all"
+                style={{
+                  backgroundColor: c,
+                  borderColor: "var(--border)",
+                  boxShadow: pdfBackgroundColor === c ? "0 0 0 2px white, 0 0 0 4px #94a3b8" : "none",
+                }}
+              />
+            ))}
+            <label
+              title="Couleur personnalisée"
+              className="h-7 w-7 rounded-full border-2 border-dashed border-border flex items-center justify-center text-muted-foreground hover:border-primary hover:text-primary transition-colors cursor-pointer shrink-0"
+            >
+              <Plus className="h-3.5 w-3.5 pointer-events-none" />
+              <input
+                type="color"
+                value={pdfBackgroundColor}
+                onChange={(e) => setPdfBackgroundColor(e.target.value)}
+                className="sr-only"
+              />
+            </label>
+          </div>
+        </Field>
+
+        <Field
+          label="Banque (bloc règlement)"
+          hint="Utilisée pour les documents sans société émettrice — sinon c'est la banque de la société qui s'affiche"
+        >
+          <Input
+            name="pdfBankName"
+            defaultValue={profile?.pdfBankName ?? ""}
+            placeholder="Revolut"
+            className="h-8"
+          />
+        </Field>
+
+        {/* Aperçu de l'en-tête du PDF */}
+        <div
+          className="rounded-md border border-border/60 p-4"
+          style={{ backgroundColor: pdfBackgroundColor }}
+        >
+          <div
+            className="border border-black/80 px-4 py-3 flex items-start justify-between gap-4"
+            style={{ color: "#111111", fontFamily: "Poppins, ui-sans-serif, sans-serif" }}
+          >
+            <div className="min-w-0">
+              <p className="text-2xl font-extrabold leading-none tracking-tight truncate">
+                {pdfLogoText.trim() || "PP"}
+                <span style={{ color: pdfAccentColor }}>.</span>
+              </p>
+              {pdfLogoSubtext.trim() && (
+                <p className="text-[9px] font-semibold uppercase tracking-[0.3em] mt-1 truncate">
+                  {pdfLogoSubtext}
+                </p>
+              )}
+            </div>
+            <div className="text-right shrink-0">
+              <p className="text-2xl font-extrabold leading-none">FACTURE</p>
+              <p className="text-[10px] font-extrabold mt-1">FACTURE N° : 250701</p>
+              <p className="text-[8px] font-semibold uppercase tracking-widest mt-0.5">JUILLET 2025</p>
+            </div>
+          </div>
+        </div>
       </Section>
 
         </div>{/* fin colonne droite */}

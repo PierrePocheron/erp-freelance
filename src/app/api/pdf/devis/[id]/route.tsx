@@ -27,7 +27,7 @@ export async function GET(
 
   if (!quote) return new Response("Not found", { status: 404 })
 
-  const { emitter, accentColor } = await resolveEmitter({
+  const { emitter, accentColor, branding } = await resolveEmitter({
     userId,
     emitterProfileId: quote.emitterProfileId,
     userName: quote.user.name,
@@ -45,11 +45,18 @@ export async function GET(
     depositPercent: quote.depositPercent,
     generalConditions: quote.generalConditions,
     accentColor,
+    logoText: branding.logoText,
+    logoSubtext: branding.logoSubtext,
+    backgroundColor: branding.backgroundColor,
     emitter,
     client: {
       name: quote.client.name,
       company: quote.client.company,
       email: quote.client.email,
+      address: quote.client.address,
+      postalCode: quote.client.postalCode,
+      city: quote.client.city,
+      siret: quote.client.siret,
     },
     lines: quote.lines.map((l) => ({
       description: l.description,

@@ -53,3 +53,36 @@ export function pdfFont(weight: 400 | 600 | 800): {
   if (registerPdfFonts()) return { fontFamily: "Poppins", fontWeight: weight }
   return { fontFamily: weight >= 600 ? "Helvetica-Bold" : "Helvetica" }
 }
+
+// ── Police du logo (« PP. ») — Barbra Semi Condensed ─────────────────────────
+// Police commerciale (Nurrontype, « All Rights Reserved », licenciée via
+// Canva) : le fichier n'est PAS versionné (repo public → pas de
+// redistribution ; gitignoré comme seed.real.ts). Sources par priorité :
+//   1. PDF_LOGO_FONT_URL — URL privée (ex. Vercel Blob) pour la prod
+//   2. public/fonts/Barbra-Regular.ttf — fichier local (poste de Pierre)
+//   3. fallback : Poppins ExtraBold (logo correct, juste moins fidèle)
+let logoRegistered: boolean | null = null
+
+function registerLogoFont(): boolean {
+  if (logoRegistered !== null) return logoRegistered
+  try {
+    const url = process.env.PDF_LOGO_FONT_URL
+    const local = path.join(FONT_DIR, "Barbra-Regular.ttf")
+    const src = url || (fs.existsSync(local) ? local : null)
+    if (!src) {
+      logoRegistered = false
+      return logoRegistered
+    }
+    Font.register({ family: "Barbra", src })
+    logoRegistered = true
+  } catch {
+    logoRegistered = false
+  }
+  return logoRegistered
+}
+
+/** Style du texte de logo : Barbra si disponible, sinon Poppins ExtraBold. */
+export function pdfLogoFont(): { fontFamily: string; fontWeight?: 400 | 600 | 800 } {
+  if (registerLogoFont()) return { fontFamily: "Barbra" }
+  return pdfFont(800)
+}

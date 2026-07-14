@@ -14,7 +14,7 @@ import {
   StyleSheet,
 } from "@react-pdf/renderer"
 import { computeTaxBreakdown, netAmount } from "@/lib/money"
-import { pdfFont, registerPdfFonts } from "@/lib/pdf-fonts"
+import { pdfFont, pdfLogoFont, registerPdfFonts } from "@/lib/pdf-fonts"
 
 const DEFAULT_ACCENT = "#6366f1"
 const DEFAULT_BACKGROUND = "#FAF6EE"
@@ -53,7 +53,8 @@ function makeStyles(accent: string, background: string) {
       alignItems: "flex-start",
     },
     logoText: {
-      ...pdfFont(800),
+      // Barbra Semi Condensed = la vraie police du logo Canva (fallback Poppins)
+      ...pdfLogoFont(),
       fontSize: 40,
       lineHeight: 1,
       letterSpacing: -1,

@@ -48,3 +48,7 @@ prisma/seed.real.ts
 
 # Worktrees des agents Claude (sessions parallèles)
 .claude/worktrees/
+
+# Police du logo PDF (Barbra — commerciale, non redistribuable, repo public)
+public/fonts/Barbra-*.ttf
+public/fonts/Barbra-*.otf

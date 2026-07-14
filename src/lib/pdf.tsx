@@ -54,10 +54,16 @@ function makeStyles(accent: string, background: string) {
       justifyContent: "space-between",
       alignItems: "flex-start",
     },
+    // Bloc logo : le sous-titre est centré sous le « PP. » (le conteneur se
+    // rétracte à la largeur du logo, alignSelf évite qu'il s'étire).
+    logoBlock: {
+      alignItems: "center",
+      alignSelf: "flex-start",
+    },
     logoText: {
       // Barbra Semi Condensed = la vraie police du logo Canva (fallback Poppins)
       ...pdfLogoFont(),
-      fontSize: 48,
+      fontSize: 58,
       lineHeight: 1,
       letterSpacing: -1,
     },
@@ -68,6 +74,9 @@ function makeStyles(accent: string, background: string) {
       ...pdfFont(600),
       fontSize: 8,
       letterSpacing: 3,
+      // Compense l'espace fantôme que letterSpacing ajoute après la dernière
+      // lettre — sans quoi le centrage sous le logo tirerait à gauche.
+      paddingLeft: 3,
       textTransform: "uppercase",
       marginTop: 4,
     },
@@ -417,7 +426,7 @@ export function InvoicePDF({
 
         {/* En-tête : logo texte + type de document */}
         <View style={styles.header}>
-          <View>
+          <View style={styles.logoBlock}>
             {brandText ? (
               <Text style={styles.logoText}>
                 {brandText}

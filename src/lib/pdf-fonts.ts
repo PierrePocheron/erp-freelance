@@ -55,11 +55,11 @@ export function pdfFont(weight: 400 | 600 | 800): {
 }
 
 // ── Police du logo (« PP. ») — Barbra Semi Condensed ─────────────────────────
-// Police commerciale (Nurrontype, « All Rights Reserved », licenciée via
-// Canva) : le fichier n'est PAS versionné (repo public → pas de
-// redistribution ; gitignoré comme seed.real.ts). Sources par priorité :
-//   1. PDF_LOGO_FONT_URL — URL privée (ex. Vercel Blob) pour la prod
-//   2. public/fonts/Barbra-Regular.ttf — fichier local (poste de Pierre)
+// Police commerciale (Nurrontype) — licence achetée par Pierre, versionnée sur
+// sa décision explicite (14/07/2026). Sources par priorité :
+//   1. PDF_LOGO_FONT_URL — override optionnel par URL
+//   2. public/fonts/Barbra-Regular.ttf — fichier versionné (embarqué en prod
+//      via outputFileTracingIncludes, cf. next.config.ts)
 //   3. fallback : Poppins ExtraBold (logo correct, juste moins fidèle)
 let logoRegistered: boolean | null = null
 

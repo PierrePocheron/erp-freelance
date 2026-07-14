@@ -88,8 +88,10 @@ model UserProfile {
   customAccentColors  String?
   logoUrl             String?
   // ── Branding PDF (template « Pedro ») ───────────────────────────────────
-  pdfLogoText         String   @default("PP") // logo texte en haut à gauche, le point final prend la couleur d'accent
-  pdfLogoSubtext      String   @default("PEDRO DEV") // petites capitales espacées sous le logo
+  // null → défauts dynamiques : initiales de l'utilisateur (logo) et raison
+  // sociale/nom (sous-titre) — résolus dans emitter-resolve.ts
+  pdfLogoText         String?  // logo texte en haut à gauche, le point final prend la couleur d'accent
+  pdfLogoSubtext      String?  // petites capitales espacées sous le logo
   pdfBackgroundColor  String   @default("#FAF6EE") // fond de page crème
   pdfBankName         String?  // banque du bloc RÈGLEMENT (fallback si le document n'a pas de société émettrice)
 

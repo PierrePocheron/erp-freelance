@@ -18,8 +18,10 @@ import { pdfFont, pdfLogoFont, registerPdfFonts } from "@/lib/pdf-fonts"
 
 const DEFAULT_ACCENT = "#6366f1"
 const DEFAULT_BACKGROUND = "#FAF6EE"
-const DEFAULT_LOGO_TEXT = "PP"
-const DEFAULT_LOGO_SUBTEXT = "PEDRO DEV"
+// Filets de sécurité seulement : les vrais défauts (initiales de l'utilisateur,
+// raison sociale) sont résolus en amont par emitter-resolve.ts.
+const DEFAULT_LOGO_TEXT = ""
+const DEFAULT_LOGO_SUBTEXT = ""
 const INK = "#111111"
 
 // Polices enregistrées au chargement du module (fallback Helvetica géré).
@@ -55,7 +57,7 @@ function makeStyles(accent: string, background: string) {
     logoText: {
       // Barbra Semi Condensed = la vraie police du logo Canva (fallback Poppins)
       ...pdfLogoFont(),
-      fontSize: 40,
+      fontSize: 48,
       lineHeight: 1,
       letterSpacing: -1,
     },
@@ -416,10 +418,12 @@ export function InvoicePDF({
         {/* En-tête : logo texte + type de document */}
         <View style={styles.header}>
           <View>
-            <Text style={styles.logoText}>
-              {brandText}
-              <Text style={styles.logoDot}>.</Text>
-            </Text>
+            {brandText ? (
+              <Text style={styles.logoText}>
+                {brandText}
+                <Text style={styles.logoDot}>.</Text>
+              </Text>
+            ) : null}
             {brandSubtext ? <Text style={styles.logoSubtext}>{brandSubtext}</Text> : null}
           </View>
           <View style={styles.titleBlock}>

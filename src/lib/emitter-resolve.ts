@@ -24,6 +24,21 @@ export type PdfBranding = {
   backgroundColor: string | null
 }
 
+/**
+ * Initiales de l'utilisateur (2 lettres max) — défaut du logo texte quand
+ * aucun n'est configuré. « Pierre Pocheron » → « PP » ; un seul mot → ses
+ * 2 premières lettres ; sans nom → 1re lettre de l'email.
+ */
+function initialsOf(name: string | null, email: string | null): string {
+  const clean = (name ?? "").trim()
+  if (clean) {
+    const words = clean.split(/\s+/).filter(Boolean)
+    if (words.length >= 2) return (words[0][0] + words[1][0]).toUpperCase()
+    return words[0].slice(0, 2).toUpperCase()
+  }
+  return (email?.[0] ?? "•").toUpperCase()
+}
+
 // Résout le bloc émetteur d'un document (devis/facture).
 // - Si le document est rattaché à un EmitterProfile → on l'utilise.
 // - Sinon (vieux document détaché, FK SET NULL) → fallback sur UserProfile.
@@ -41,8 +56,10 @@ export async function resolveEmitter(opts: {
 
   const p = await prisma.userProfile.findUnique({ where: { userId } }).catch(() => null)
   const branding: PdfBranding = {
-    logoText: p?.pdfLogoText ?? null,
-    logoSubtext: p?.pdfLogoSubtext ?? null,
+    // Défauts dynamiques : initiales de l'utilisateur (logo) et raison
+    // sociale/nom (sous-titre) — un profil vierge produit déjà un PDF marqué.
+    logoText: p?.pdfLogoText?.trim() || initialsOf(userName, userEmail),
+    logoSubtext: p?.pdfLogoSubtext?.trim() || (p?.companyName ?? userName ?? "").toUpperCase() || null,
     backgroundColor: p?.pdfBackgroundColor ?? null,
   }
 

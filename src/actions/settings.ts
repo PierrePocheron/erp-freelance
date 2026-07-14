@@ -31,8 +31,8 @@ export type ProfileData = {
   defaultConditions?: string | null
   logoUrl?: string | null
   // Branding PDF (template « Pedro »)
-  pdfLogoText?: string
-  pdfLogoSubtext?: string
+  pdfLogoText?: string | null
+  pdfLogoSubtext?: string | null
   pdfBackgroundColor?: string
   pdfBankName?: string | null
 }
@@ -60,8 +60,8 @@ export async function saveProfile(_userId: string, data: ProfileData) {
       ...(data.pdfAccentColor !== undefined && { pdfAccentColor: data.pdfAccentColor }),
       ...(data.defaultConditions !== undefined && { defaultConditions: data.defaultConditions }),
       ...(data.logoUrl !== undefined && { logoUrl: data.logoUrl }),
-      ...(data.pdfLogoText !== undefined && { pdfLogoText: data.pdfLogoText }),
-      ...(data.pdfLogoSubtext !== undefined && { pdfLogoSubtext: data.pdfLogoSubtext }),
+      ...(data.pdfLogoText !== undefined && { pdfLogoText: data.pdfLogoText?.trim() || null }),
+      ...(data.pdfLogoSubtext !== undefined && { pdfLogoSubtext: data.pdfLogoSubtext?.trim() || null }),
       ...(data.pdfBackgroundColor !== undefined && { pdfBackgroundColor: data.pdfBackgroundColor }),
       ...(data.pdfBankName !== undefined && { pdfBankName: data.pdfBankName }),
     } as never,
@@ -83,8 +83,8 @@ export async function saveProfile(_userId: string, data: ProfileData) {
       ...(data.pdfAccentColor !== undefined && { pdfAccentColor: data.pdfAccentColor }),
       ...(data.defaultConditions !== undefined && { defaultConditions: data.defaultConditions }),
       ...(data.logoUrl !== undefined && { logoUrl: data.logoUrl }),
-      ...(data.pdfLogoText !== undefined && { pdfLogoText: data.pdfLogoText }),
-      ...(data.pdfLogoSubtext !== undefined && { pdfLogoSubtext: data.pdfLogoSubtext }),
+      ...(data.pdfLogoText !== undefined && { pdfLogoText: data.pdfLogoText?.trim() || null }),
+      ...(data.pdfLogoSubtext !== undefined && { pdfLogoSubtext: data.pdfLogoSubtext?.trim() || null }),
       ...(data.pdfBackgroundColor !== undefined && { pdfBackgroundColor: data.pdfBackgroundColor }),
       ...(data.pdfBankName !== undefined && { pdfBankName: data.pdfBankName }),
     } as never,

@@ -35,8 +35,15 @@ export function SettingsForm({ userId, profile, userName, userEmail, conditionsT
   const [quoteFormat, setQuoteFormat] = useState<NumberFormat>((profile?.quoteNumberFormat as NumberFormat) ?? "PREFIX-YYYY-NNN")
   const [invoiceFormat, setInvoiceFormat] = useState<NumberFormat>((profile?.invoiceNumberFormat as NumberFormat) ?? "PREFIX-YYYY-NNN")
   // Branding des PDF (template « Pedro »)
-  const [pdfLogoText, setPdfLogoText] = useState(profile?.pdfLogoText ?? "PP")
-  const [pdfLogoSubtext, setPdfLogoSubtext] = useState(profile?.pdfLogoSubtext ?? "PEDRO DEV")
+  const [pdfLogoText, setPdfLogoText] = useState(profile?.pdfLogoText ?? "")
+  const [pdfLogoSubtext, setPdfLogoSubtext] = useState(profile?.pdfLogoSubtext ?? "")
+  // Défauts dynamiques (miroir client de emitter-resolve.ts) : initiales de
+  // l'utilisateur pour le logo, raison sociale/nom pour le sous-titre.
+  const nameWords = (userName ?? "").trim().split(/\s+/).filter(Boolean)
+  const defaultInitials = nameWords.length >= 2
+    ? (nameWords[0][0] + nameWords[1][0]).toUpperCase()
+    : (nameWords[0]?.slice(0, 2) ?? userEmail?.[0] ?? "•").toUpperCase()
+  const defaultSubtext = (profile?.companyName ?? userName ?? "").toUpperCase()
   const [pdfAccentColor, setPdfAccentColor] = useState(profile?.pdfAccentColor ?? "#6366f1")
   const [pdfBackgroundColor, setPdfBackgroundColor] = useState(profile?.pdfBackgroundColor ?? "#FAF6EE")
 
@@ -50,7 +57,7 @@ export function SettingsForm({ userId, profile, userName, userEmail, conditionsT
         invoicePrefix: (fd.get("invoicePrefix") as string) || "FAC",
         quoteNumberFormat: quoteFormat,
         invoiceNumberFormat: invoiceFormat,
-        pdfLogoText: pdfLogoText.trim() || "PP",
+        pdfLogoText: pdfLogoText.trim(),
         pdfLogoSubtext: pdfLogoSubtext.trim(),
         pdfAccentColor,
         pdfBackgroundColor,
@@ -167,11 +174,11 @@ export function SettingsForm({ userId, profile, userName, userEmail, conditionsT
         description="Apparence des devis et factures générés : logo texte, couleurs et banque du bloc règlement."
       >
         <div className="grid grid-cols-2 gap-3">
-          <Field label="Texte du logo" hint="Le point final prend la couleur d'accent">
+          <Field label="Texte du logo" hint="Vide = vos initiales · le point final prend la couleur d'accent">
             <Input
               value={pdfLogoText}
               onChange={(e) => setPdfLogoText(e.target.value)}
-              placeholder="PP"
+              placeholder={defaultInitials}
               className="h-8"
               maxLength={8}
             />
@@ -272,12 +279,12 @@ export function SettingsForm({ userId, profile, userName, userEmail, conditionsT
           >
             <div className="min-w-0">
               <p className="text-2xl font-extrabold leading-none tracking-tight truncate">
-                {pdfLogoText.trim() || "PP"}
+                {pdfLogoText.trim() || defaultInitials}
                 <span style={{ color: pdfAccentColor }}>.</span>
               </p>
-              {pdfLogoSubtext.trim() && (
+              {(pdfLogoSubtext.trim() || defaultSubtext) && (
                 <p className="text-[9px] font-semibold uppercase tracking-[0.3em] mt-1 truncate">
-                  {pdfLogoSubtext}
+                  {pdfLogoSubtext.trim() || defaultSubtext}
                 </p>
               )}
             </div>

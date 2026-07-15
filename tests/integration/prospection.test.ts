@@ -6,6 +6,9 @@ import {
   markProspectsContacted,
   deleteProspects,
   importProspects,
+  searchProspectsQuick,
+  createEmailTemplate,
+  reorderEmailTemplates,
 } from "@/actions/prospection"
 import { prisma } from "@/lib/prisma"
 import { setTestUser } from "./setup"
@@ -114,6 +117,82 @@ describe("updateProspectsStatusBulk / deleteProspects", () => {
     expect(deleted).toBe(1)
     expect(await prisma.client.findUnique({ where: { id: prospect.id } })).toBeNull()
     expect(await prisma.client.findUnique({ where: { id: realClient.id } })).not.toBeNull()
+  })
+})
+
+describe("searchProspectsQuick", () => {
+  it("matche le nom insensiblement à la casse, uniquement les PROSPECT du user courant", async () => {
+    const user = await makeUser()
+    const other = await makeUser()
+    await makeClient(user.id, { type: "PROSPECT", name: "Boulangerie Dupont" })
+    await makeClient(user.id, { type: "CLIENT", name: "Dupont Déjà Client" })      // pas un prospect
+    await makeClient(other.id, { type: "PROSPECT", name: "Dupont Chez L'Autre" })  // autre user
+
+    setTestUser(user.id)
+    const results = await searchProspectsQuick("dupont")
+
+    expect(results).toHaveLength(1)
+    expect(results[0].name).toBe("Boulangerie Dupont")
+  })
+
+  it("requête vide ou blanche → tableau vide", async () => {
+    const user = await makeUser()
+    setTestUser(user.id)
+    await makeClient(user.id, { type: "PROSPECT", name: "Quelqu'un" })
+
+    expect(await searchProspectsQuick("")).toEqual([])
+    expect(await searchProspectsQuick("   ")).toEqual([])
+  })
+
+  it("plafonne à 8 résultats", async () => {
+    const user = await makeUser()
+    setTestUser(user.id)
+    for (let i = 1; i <= 10; i++) {
+      await makeClient(user.id, { type: "PROSPECT", name: `Garage Martin ${i}` })
+    }
+
+    const results = await searchProspectsQuick("martin")
+    expect(results).toHaveLength(8)
+  })
+})
+
+describe("reorderEmailTemplates", () => {
+  it("persiste le sortOrder selon l'ordre passé", async () => {
+    const user = await makeUser()
+    setTestUser(user.id)
+
+    const a = await createEmailTemplate({ name: "A", subject: "s", body: "b" })
+    const b = await createEmailTemplate({ name: "B", subject: "s", body: "b" })
+    const c = await createEmailTemplate({ name: "C", subject: "s", body: "b" })
+
+    await reorderEmailTemplates([c.id, a.id, b.id])
+
+    const rows = await prisma.emailTemplate.findMany({
+      where: { userId: user.id },
+      orderBy: { sortOrder: "asc" },
+      select: { name: true, sortOrder: true },
+    })
+    expect(rows.map((r) => r.name)).toEqual(["C", "A", "B"])
+    expect(rows.map((r) => r.sortOrder)).toEqual([0, 1, 2])
+  })
+
+  it("ignore les ids d'un autre utilisateur (anti-IDOR)", async () => {
+    const owner = await makeUser()
+    const attacker = await makeUser()
+
+    setTestUser(owner.id)
+    const victim = await createEmailTemplate({ name: "Victime", subject: "s", body: "b" })
+    await prisma.emailTemplate.update({ where: { id: victim.id }, data: { sortOrder: 5 } })
+
+    setTestUser(attacker.id)
+    const mine = await createEmailTemplate({ name: "Attaquant", subject: "s", body: "b" })
+    await reorderEmailTemplates([victim.id, mine.id])
+
+    // Le modèle de l'owner n'a pas bougé ; celui de l'attaquant a bien pris son rang.
+    const victimAfter = await prisma.emailTemplate.findUnique({ where: { id: victim.id } })
+    expect(victimAfter?.sortOrder).toBe(5)
+    const mineAfter = await prisma.emailTemplate.findUnique({ where: { id: mine.id } })
+    expect(mineAfter?.sortOrder).toBe(1)
   })
 })
 

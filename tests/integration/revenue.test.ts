@@ -2,6 +2,8 @@ import { describe, it, expect } from "vitest"
 import {
   createRevenue,
   markRevenueReceived,
+  markRevenuePending,
+  getPendingRevenuesQuick,
   bulkMarkReceived,
   deleteRevenue,
   createRecurringRevenue,
@@ -120,6 +122,111 @@ describe("markRevenueReceived", () => {
     setTestUser(intruder.id)
     const result = await markRevenueReceived(id!, new Date(), "VIREMENT")
     expect(result.error).toBeDefined()
+  })
+})
+
+// ── markRevenuePending ─────────────────────────────────────────────────────────
+
+describe("markRevenuePending", () => {
+  it("repasse un revenu RECEIVED en PENDING et efface date + moyen de paiement", async () => {
+    const user = await makeUser()
+    setTestUser(user.id)
+
+    const { id } = await createRevenue({
+      type: "FREELANCE",
+      label: "Erreur de saisie",
+      amount: 450,
+      status: "RECEIVED",
+      receivedAt: new Date("2026-06-10T00:00:00Z"),
+      paymentMethod: "VIREMENT",
+    })
+
+    const result = await markRevenuePending(id!)
+
+    expect(result.error).toBeUndefined()
+    const rev = await prisma.revenue.findUnique({ where: { id: id! } })
+    expect(rev?.status).toBe("PENDING")
+    expect(rev?.receivedAt).toBeNull()
+    expect(rev?.paymentMethod).toBeNull()
+  })
+
+  it("round-trip received → pending → received sans perte", async () => {
+    const user = await makeUser()
+    setTestUser(user.id)
+
+    const { id } = await createRevenue({ type: "FREELANCE", label: "Aller-retour", amount: 900 })
+    await markRevenueReceived(id!, new Date("2026-06-01T00:00:00Z"), "CHEQUE")
+    await markRevenuePending(id!)
+    await markRevenueReceived(id!, new Date("2026-06-20T00:00:00Z"), "VIREMENT")
+
+    const rev = await prisma.revenue.findUnique({ where: { id: id! } })
+    expect(rev?.status).toBe("RECEIVED")
+    expect(rev?.receivedAt?.toISOString()).toBe("2026-06-20T00:00:00.000Z")
+    expect(rev?.paymentMethod).toBe("VIREMENT")
+  })
+
+  it("renvoie une erreur si le revenu appartient à un autre utilisateur", async () => {
+    const owner = await makeUser()
+    const intruder = await makeUser()
+
+    setTestUser(owner.id)
+    const { id } = await createRevenue({
+      type: "FREELANCE", label: "Pas à toi", amount: 300,
+      status: "RECEIVED", receivedAt: new Date(), paymentMethod: "VIREMENT",
+    })
+
+    setTestUser(intruder.id)
+    const result = await markRevenuePending(id!)
+    expect(result.error).toMatch(/introuvable/i)
+
+    const rev = await prisma.revenue.findUnique({ where: { id: id! } })
+    expect(rev?.status).toBe("RECEIVED")
+  })
+})
+
+// ── getPendingRevenuesQuick ────────────────────────────────────────────────────
+
+describe("getPendingRevenuesQuick", () => {
+  it("ne renvoie que les PENDING du user courant, triés par expectedAt croissant", async () => {
+    const user = await makeUser()
+    const other = await makeUser()
+
+    await prisma.revenue.createMany({
+      data: [
+        { userId: user.id, type: "FREELANCE", label: "Tard",    amount: 100, status: "PENDING",  expectedAt: new Date("2026-09-01T00:00:00Z") },
+        { userId: user.id, type: "FREELANCE", label: "Tôt",     amount: 200, status: "PENDING",  expectedAt: new Date("2026-07-01T00:00:00Z") },
+        { userId: user.id, type: "FREELANCE", label: "Milieu",  amount: 300, status: "PENDING",  expectedAt: new Date("2026-08-01T00:00:00Z") },
+        { userId: user.id, type: "FREELANCE", label: "Déjà là", amount: 400, status: "RECEIVED", receivedAt: new Date() },
+        { userId: other.id, type: "FREELANCE", label: "Autre",  amount: 500, status: "PENDING",  expectedAt: new Date("2026-07-15T00:00:00Z") },
+      ],
+    })
+
+    setTestUser(user.id)
+    const quick = await getPendingRevenuesQuick()
+
+    expect(quick.map((r) => r.label)).toEqual(["Tôt", "Milieu", "Tard"])
+  })
+
+  it("plafonne à 20 résultats (les plus proches d'abord)", async () => {
+    const user = await makeUser()
+    setTestUser(user.id)
+
+    await prisma.revenue.createMany({
+      data: Array.from({ length: 25 }, (_, i) => ({
+        userId: user.id,
+        type: "OTHER" as const,
+        label: `Rev ${String(i + 1).padStart(2, "0")}`,
+        amount: 10,
+        status: "PENDING" as const,
+        expectedAt: new Date(Date.UTC(2026, 0, i + 1)),
+      })),
+    })
+
+    const quick = await getPendingRevenuesQuick()
+    expect(quick).toHaveLength(20)
+    // Les 20 dates les plus proches : Rev 01 … Rev 20.
+    expect(quick[0].label).toBe("Rev 01")
+    expect(quick[19].label).toBe("Rev 20")
   })
 })
 

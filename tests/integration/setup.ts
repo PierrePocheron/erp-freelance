@@ -11,6 +11,10 @@ export function setTestUser(userId: string) {
 }
 
 // ── Mocks des frontières externes ─────────────────────────────────────────────
+// Marqueur "server-only" (importé par @/lib/push, @/lib/emitter-resolve…) : le
+// paquet n'est résolu que par le bundler Next → neutralisé pour les tests.
+vi.mock("server-only", () => ({}))
+
 vi.mock("next/cache", () => ({
   revalidatePath: vi.fn(),
   revalidateTag: vi.fn(),

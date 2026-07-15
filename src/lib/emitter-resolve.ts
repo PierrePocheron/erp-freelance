@@ -1,5 +1,6 @@
 import "server-only"
 import { prisma } from "@/lib/prisma"
+import { initialsOf } from "@/lib/initials"
 
 // Bloc émetteur tel que consommé par le template PDF (@/lib/pdf).
 export type EmitterBlock = {
@@ -22,21 +23,6 @@ export type PdfBranding = {
   logoText: string | null
   logoSubtext: string | null
   backgroundColor: string | null
-}
-
-/**
- * Initiales de l'utilisateur (2 lettres max) — défaut du logo texte quand
- * aucun n'est configuré. « Pierre Pocheron » → « PP » ; un seul mot → ses
- * 2 premières lettres ; sans nom → 1re lettre de l'email.
- */
-function initialsOf(name: string | null, email: string | null): string {
-  const clean = (name ?? "").trim()
-  if (clean) {
-    const words = clean.split(/\s+/).filter(Boolean)
-    if (words.length >= 2) return (words[0][0] + words[1][0]).toUpperCase()
-    return words[0].slice(0, 2).toUpperCase()
-  }
-  return (email?.[0] ?? "•").toUpperCase()
 }
 
 // Résout le bloc émetteur d'un document (devis/facture).

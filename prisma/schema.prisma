@@ -53,6 +53,7 @@ model User {
   healthReimbursements HealthReimbursement[]
   jobApplications     JobApplication[]
   urssafDeclarations  UrssafDeclaration[]
+  emailDrafts         EmailDraft[]
 }
 
 model ProjectIdea {
@@ -395,6 +396,7 @@ model Client {
   recurringRevenues RecurringRevenue[] @relation("RecurringRevenueClient")
   jobApplications   JobApplication[]   @relation("RecruiterApplications")
   emailLogs         EmailLog[]
+  emailDrafts       EmailDraft[]
 
   @@index([companyId])
 }
@@ -996,9 +998,41 @@ model EmailTemplate {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user   User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  drafts EmailDraft[]
 
   @@index([userId])
+}
+
+// File de brouillons de prospection : chaque mail est généré depuis un modèle,
+// relu/édité individuellement, marqué READY explicitement, puis envoyé après
+// confirmation récapitulative. Jamais d'envoi automatique.
+enum EmailDraftStatus {
+  DRAFT     // généré ou ré-édité — relecture requise
+  READY     // relu et validé — seul statut envoyable
+  SENT      // parti via Resend (sentAt renseigné)
+  CANCELLED // écarté sans envoi
+}
+
+model EmailDraft {
+  id          String           @id @default(cuid())
+  userId      String
+  clientId    String
+  templateId  String?          // modèle d'origine (trace) — survit à sa suppression
+  emailTo     String?          // destinataire figé à la génération, éditable à la relecture
+  subject     String
+  body        String
+  missingVars String?          // clés {{var}} restées vides à la génération, séparées par des virgules
+  status      EmailDraftStatus @default(DRAFT)
+  sentAt      DateTime?
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  user     User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  client   Client         @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  template EmailTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
+
+  @@index([userId, status])
 }
 
 // ─── Calendar ─────────────────────────────────────────────────────────────────

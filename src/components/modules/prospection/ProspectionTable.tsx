@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useRef, useState, useTransition } from "react"
-import { Search, X, Mail, MailPlus, Phone, Trash2, ChevronLeft, ChevronRight, Send, ExternalLink } from "lucide-react"
+import { Search, X, Mail, MailPlus, Phone, Trash2, ChevronLeft, ChevronRight, Send, ExternalLink, NotebookPen } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { toast } from "sonner"
 import { useSortState, cmp } from "@/hooks/use-sortable"
@@ -15,6 +15,7 @@ import { STATUS_CONFIG, ALL_STATUSES, WEBSITE_TYPE_CONFIG, SOURCE_LABELS } from 
 import { ProspectStatusSelect } from "./ProspectStatusSelect"
 import { SendEmailDialog, type EmailTemplateOption } from "./SendEmailDialog"
 import { GmailPrepDialog } from "./GmailPrepDialog"
+import { PrepareDraftsDialog } from "./PrepareDraftsDialog"
 import type { ProspectStatus, WebsiteType, InteractionChannel } from "@/generated/prisma/enums"
 
 type Prospect = {
@@ -94,6 +95,7 @@ export function ProspectionTable({
   const [statusMenuOpen, setStatusMenuOpen] = useState(false)
   const [sendEmailOpen, setSendEmailOpen] = useState(false)
   const [gmailPrepOpen, setGmailPrepOpen] = useState(false)
+  const [prepareDraftsOpen, setPrepareDraftsOpen] = useState(false)
 
   // Panel contact
   const [panelOpen, setPanelOpen] = useState(false)
@@ -401,6 +403,14 @@ export function ProspectionTable({
           </div>
 
           <button
+            onClick={() => setPrepareDraftsOpen(true)}
+            disabled={isBulkPending}
+            title="Génère un brouillon par prospect dans la file de relecture — rien n'est envoyé"
+            className="flex items-center gap-1.5 h-7 px-2.5 rounded-lg border border-input bg-background text-xs font-medium hover:bg-muted transition-colors disabled:opacity-50"
+          >
+            <NotebookPen className="h-3 w-3" /> Préparer les brouillons
+          </button>
+          <button
             onClick={() => setSendEmailOpen(true)}
             disabled={isBulkPending}
             className="flex items-center gap-1.5 h-7 px-2.5 rounded-lg border border-input bg-background text-xs font-medium hover:bg-muted transition-colors disabled:opacity-50"
@@ -587,6 +597,14 @@ export function ProspectionTable({
       <GmailPrepDialog
         open={gmailPrepOpen}
         onOpenChange={setGmailPrepOpen}
+        templates={templates}
+        targets={selectedProspects}
+        onDone={() => setSelected(new Set())}
+        initialTemplateId={mailTemplateId}
+      />
+      <PrepareDraftsDialog
+        open={prepareDraftsOpen}
+        onOpenChange={setPrepareDraftsOpen}
         templates={templates}
         targets={selectedProspects}
         onDone={() => setSelected(new Set())}

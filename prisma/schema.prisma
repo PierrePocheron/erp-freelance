@@ -361,6 +361,14 @@ model Client {
   websitePagesApprox  Int?
   businessDescription String?      // ce que fait le business / à quoi sert le site
   region              String?
+  // Enrichissement prospect-finder (audit technique du site — matière des mails)
+  cms                 String?      // ex. "local.fr / Solocal" — le signal de prospection
+  seoScore            Int?         // score SEO on-page (0-100)
+  performanceScore    Int?         // score performance (0-100)
+  seoIssues           String?      // problèmes détectés, un par ligne
+  publicationManager  String?      // responsable de publication (mentions légales) — souvent le gérant
+  domainCreatedAt     DateTime?    // âge du site (RDAP)
+  enrichmentJson      String?      // reste de l'enrichissement brut (multi emails/tél, sitemap, https…)
   // Adresse du CONTACT (optionnelle — distincte de l'adresse société)
   address       String?
   postalCode    String?

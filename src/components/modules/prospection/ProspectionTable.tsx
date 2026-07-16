@@ -32,6 +32,12 @@ type Prospect = {
   city: string | null
   region: string | null
   businessDescription: string | null
+  cms?: string | null
+  seoScore?: number | null
+  performanceScore?: number | null
+  seoIssues?: string | null
+  publicationManager?: string | null
+  domainCreatedAt?: Date | string | null
   createdAt: Date | string
   _count: { interactions: number }
   interactions: { date: Date | string; channel: string }[]

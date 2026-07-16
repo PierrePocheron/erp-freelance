@@ -11,6 +11,7 @@ export const REVENUE_TYPE_LABELS: Record<string, string> = {
 
 export const PAYMENT_METHOD_LABELS: Record<string, string> = {
   VIREMENT:     "Virement",
+  WERO:         "Wero",
   ESPECES:      "Espèces",
   CHEQUE:       "Chèque",
   CARTE:        "Carte",

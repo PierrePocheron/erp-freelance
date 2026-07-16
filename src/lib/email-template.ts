@@ -102,6 +102,24 @@ export function renderTemplate(
   }
 }
 
+/**
+ * Clés {{variables}} encore présentes (non substituées) dans un ou plusieurs
+ * textes déjà rendus — sert à la relecture des brouillons : un draft n'est
+ * marquable « relu » que si aucune variable ne subsiste dans sujet/corps.
+ */
+export function residualTemplateVars(...texts: string[]): string[] {
+  const found = new Set<string>()
+  for (const text of texts) {
+    for (const m of text.matchAll(/\{\{\s*(\w+)\s*\}\}/g)) found.add(m[1])
+  }
+  return [...found]
+}
+
+/** Validation minimale d'un destinataire (assez pour bloquer les envois à vide). */
+export function isValidEmailAddress(email: string | null | undefined): boolean {
+  return !!email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())
+}
+
 /** Convertit un corps texte rendu en HTML simple (paragraphes), valeurs échappées. */
 export function bodyToHtml(body: string): string {
   return body

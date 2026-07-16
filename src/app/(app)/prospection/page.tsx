@@ -7,7 +7,7 @@ import { ImportCsvDialog } from "@/components/modules/prospection/ImportCsvDialo
 import { ALL_STATUSES } from "@/components/modules/prospection/status-config"
 import { prospectionFromAddress } from "@/lib/prospection-email"
 import type { ProspectStatus } from "@/generated/prisma/enums"
-import { TrendingUp, Send, CheckCircle2, XCircle, Mail } from "lucide-react"
+import { TrendingUp, Send, CheckCircle2, XCircle, Mail, NotebookPen } from "lucide-react"
 
 export default async function ProspectionPage({
   searchParams,
@@ -18,7 +18,7 @@ export default async function ProspectionPage({
   const session = await auth()
   const userId = session!.user.id
 
-  const [prospects, templates] = await Promise.all([
+  const [prospects, templates, pendingDrafts] = await Promise.all([
     prisma.client.findMany({
       // Inclut les gagnés convertis en CLIENT (prospectStatus WON) : ils
       // restent visibles dans le pipeline comme trophées + réversibles.
@@ -40,6 +40,8 @@ export default async function ProspectionPage({
       orderBy: [{ sortOrder: "asc" }, { updatedAt: "desc" }],
       select: { id: true, name: true, subject: true, body: true },
     }),
+    // Badge de la file de brouillons : à relire (DRAFT) + relus non envoyés (READY)
+    prisma.emailDraft.count({ where: { userId, status: { in: ["DRAFT", "READY"] } } }),
   ])
 
   const active    = prospects.filter((p) => !["WON", "LOST"].includes(p.prospectStatus))
@@ -61,6 +63,18 @@ export default async function ProspectionPage({
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <Link
+            href="/prospection/brouillons"
+            className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border border-input text-sm text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
+          >
+            <NotebookPen className="h-3.5 w-3.5" />
+            Brouillons
+            {pendingDrafts > 0 && (
+              <span className="inline-flex items-center justify-center min-w-5 h-5 px-1 rounded-full bg-primary text-primary-foreground text-[11px] font-semibold tabular-nums">
+                {pendingDrafts}
+              </span>
+            )}
+          </Link>
           <Link
             href="/prospection/modeles"
             className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border border-input text-sm text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"

@@ -3,7 +3,7 @@
 import { useMemo, useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
 import {
-  AlertTriangle, CheckCircle2, ChevronDown, ChevronRight, PenLine,
+  AlertTriangle, CheckCircle2, ChevronDown, ChevronRight, FlaskConical, PenLine,
   Send, Undo2, XCircle, Save, Inbox,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -16,6 +16,7 @@ import {
   setEmailDraftBack,
   cancelEmailDraft,
   sendReadyDrafts,
+  sendDraftTest,
 } from "@/actions/email-drafts"
 import { residualTemplateVars, isValidEmailAddress } from "@/lib/email-template"
 
@@ -267,6 +268,11 @@ function DraftCard({ draft, onChanged }: { draft: DraftItem; onChanged: () => vo
     }, `« ${draft.client.name} » marqué relu`)
 
   const back = () => run(() => setEmailDraftBack(draft.id), "Repassé en brouillon")
+  const sendTest = () =>
+    run(async () => {
+      const { to } = await sendDraftTest(draft.id)
+      toast.success(`Email de test envoyé à ${to}`)
+    })
   const cancel = () => {
     setConfirmCancel(false)
     run(() => cancelEmailDraft(draft.id), "Brouillon annulé (ne sera pas envoyé)")
@@ -374,6 +380,16 @@ function DraftCard({ draft, onChanged }: { draft: DraftItem; onChanged: () => vo
             <Undo2 className="h-3.5 w-3.5" /> Repasser en brouillon
           </Button>
         )}
+        {/* Test dans SA boîte (compte connecté) — jamais vers le prospect */}
+        <Button
+          variant="outline"
+          onClick={sendTest}
+          disabled={isPending || dirty}
+          className="gap-1.5 h-10 sm:h-8"
+          title={dirty ? "Enregistrez d'abord — le test envoie la version sauvegardée" : "S'envoyer ce mail en test"}
+        >
+          <FlaskConical className="h-3.5 w-3.5" /> M&apos;envoyer un test
+        </Button>
 
         <div className="ml-auto">
           {confirmCancel ? (

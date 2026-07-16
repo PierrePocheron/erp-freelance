@@ -202,6 +202,42 @@ const BATCH_INTERVAL_MS = 600 // limite Resend par défaut : 2 req/s
  * summary), bump TO_CONTACT → CONTACTED, brouillon marqué SENT + sentAt.
  * Best-effort par lot Resend : un lot en échec n'empêche pas les suivants.
  */
+/**
+ * Envoie un brouillon EN TEST à l'adresse du compte connecté (jamais au
+ * prospect) : sujet préfixé [TEST], aucun EmailLog/Interaction, statut du
+ * brouillon inchangé — pour vérifier le rendu réel dans sa propre boîte
+ * avant de marquer relu.
+ */
+export async function sendDraftTest(id: string): Promise<{ to: string }> {
+  const session = await auth()
+  const userId = session?.user?.id
+  const selfEmail = session?.user?.email
+  if (!userId) throw new Error("Non autorisé")
+  if (!selfEmail) throw new Error("Adresse du compte introuvable")
+
+  const from = prospectionFromAddress()
+  if (!from) {
+    throw new Error("Adresse d'envoi non configurée — vérifiez un domaine chez Resend puis renseignez RESEND_FROM_EMAIL (hors sandbox resend.dev).")
+  }
+  await enforceRateLimit(`prospection-email-test:${userId}`, 30, 3_600_000)
+
+  const draft = await prisma.emailDraft.findFirst({ where: { id, userId } })
+  if (!draft) throw new Error("Brouillon introuvable")
+  if (draft.status === "SENT" || draft.status === "CANCELLED") {
+    throw new Error("Ce brouillon n'est plus actif")
+  }
+
+  const { error } = await getResend().emails.send({
+    from,
+    to: selfEmail,
+    subject: `[TEST] ${draft.subject}`,
+    html: bodyToHtml(draft.body),
+    text: draft.body,
+  })
+  if (error) throw new Error(`Échec de l'envoi du test : ${error.message}`)
+  return { to: selfEmail }
+}
+
 export async function sendReadyDrafts(draftIds: string[]) {
   const userId = await requireAuth()
   const from = prospectionFromAddress()

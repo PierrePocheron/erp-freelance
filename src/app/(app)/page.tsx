@@ -12,6 +12,7 @@ import { ProdMonitorCard } from "@/components/modules/dashboard/ProdMonitorCard"
 import { PendingIncomeCard } from "@/components/modules/dashboard/PendingIncomeCard"
 import { JobHuntCard } from "@/components/modules/dashboard/JobHuntCard"
 import { ConfirmEventsCard } from "@/components/modules/dashboard/ConfirmEventsCard"
+import { InProgressTasksCard } from "@/components/modules/dashboard/InProgressTasksCard"
 import { IncompleteDataSheet } from "@/components/modules/dashboard/IncompleteDataSheet"
 import { MobileHome } from "@/components/layout/MobileHome"
 import { getActiveModules } from "@/lib/modules-server"
@@ -375,6 +376,24 @@ export default async function DashboardPage() {
     expectedDate: r.expectedDate ? r.expectedDate.toISOString() : null,
   }))
 
+  // ── Tâches démarrées (IN_PROGRESS) — carte « En cours » du dashboard ──────────
+  // updatedAt ≈ moment du dernier changement (le passage en cours, sauf édition
+  // ultérieure) — assez fiable pour un « depuis X ».
+  const fmtSince = (dt: Date) => {
+    const h = Math.floor((now.getTime() - dt.getTime()) / 3_600_000)
+    if (h < 1) return "depuis moins d'1 h"
+    if (h < 24) return `depuis ${h} h`
+    const j = Math.floor(h / 24)
+    return j === 1 ? "depuis hier" : `depuis ${j} j`
+  }
+  const inProgressItems = tasksInProgress.map((t) => ({
+    id: t.id,
+    title: t.title,
+    href: t.project ? `/projets/${t.project.id}/dev` : "/taches",
+    sub: t.project?.name ?? t.client?.company ?? t.client?.name ?? null,
+    since: fmtSince(t.updatedAt),
+  }))
+
   // ── Entretiens (candidatures actives) ─────────────────────────────────────────
   const jobAppItems = dashboardJobApps.map((a) => ({
     id: a.id,
@@ -651,6 +670,11 @@ export default async function DashboardPage() {
           {/* À confirmer — tâches/jalons/événements passés sans confirmation */}
           {totalUnconfirmed > 0 && (
             <ConfirmEventsCard tasks={confirmTaskItems} milestones={confirmMilestoneItems} events={confirmEventItems} />
+          )}
+
+          {/* En cours — tâches démarrées, coche pour confirmer la fin */}
+          {(has("taches") || has("projets")) && inProgressItems.length > 0 && (
+            <InProgressTasksCard tasks={inProgressItems} />
           )}
 
           {/* Agenda semaine — en retard + cette semaine + en cours */}

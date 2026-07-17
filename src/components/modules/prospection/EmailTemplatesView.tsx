@@ -189,7 +189,7 @@ export function EmailTemplatesView({ templates }: { templates: EmailTemplate[] }
                   <GripVertical className="h-4 w-4" />
                 </button>
                 <p className="text-sm font-semibold truncate flex-1">{t.name}</p>
-                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                <div className="flex items-center gap-1 md:opacity-0 md:group-hover:opacity-100 focus:opacity-100 transition-opacity shrink-0">
                   <button
                     onClick={() => startEdit(t)}
                     className="p-1.5 rounded text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors"

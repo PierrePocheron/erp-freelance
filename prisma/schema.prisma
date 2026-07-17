@@ -29,6 +29,7 @@ model User {
   recurringInvoices RecurringInvoice[]
   emailLogs         EmailLog[]
   emailTemplates    EmailTemplate[]
+  pushSubscriptions PushSubscription[]
   calendarEvents      CalendarEvent[]
   calendarCategories  CalendarCategory[]
   timeEntries         TimeEntry[]
@@ -52,6 +53,7 @@ model User {
   healthReimbursements HealthReimbursement[]
   jobApplications     JobApplication[]
   urssafDeclarations  UrssafDeclaration[]
+  emailDrafts         EmailDraft[]
 }
 
 model ProjectIdea {
@@ -86,6 +88,13 @@ model UserProfile {
   pdfAccentColor      String   @default("#6366f1")
   customAccentColors  String?
   logoUrl             String?
+  // ── Branding PDF (template « Pedro ») ───────────────────────────────────
+  // null → défauts dynamiques : initiales de l'utilisateur (logo) et raison
+  // sociale/nom (sous-titre) — résolus dans emitter-resolve.ts
+  pdfLogoText         String?  // logo texte en haut à gauche, le point final prend la couleur d'accent
+  pdfLogoSubtext      String?  // petites capitales espacées sous le logo
+  pdfBackgroundColor  String   @default("#FAF6EE") // fond de page crème
+  pdfBankName         String?  // banque du bloc RÈGLEMENT (fallback si le document n'a pas de société émettrice)
 
   // ── Fiscalité / imposition ──────────────────────────────────────────────
   legalStatus          String               @default("AUTO_ENTREPRENEUR") // AUTO_ENTREPRENEUR | EI | EURL | SASU | OTHER
@@ -338,6 +347,7 @@ model Client {
   companyId     String?
   companyRef    Company?     @relation(fields: [companyId], references: [id], onDelete: SetNull)
   company       String?
+  jobTitle      String? // poste / fonction dans la société
   email         String?
   phone         String?
   source         ClientSource  @default(OTHER)
@@ -352,6 +362,14 @@ model Client {
   websitePagesApprox  Int?
   businessDescription String?      // ce que fait le business / à quoi sert le site
   region              String?
+  // Enrichissement prospect-finder (audit technique du site — matière des mails)
+  cms                 String?      // ex. "local.fr / Solocal" — le signal de prospection
+  seoScore            Int?         // score SEO on-page (0-100)
+  performanceScore    Int?         // score performance (0-100)
+  seoIssues           String?      // problèmes détectés, un par ligne
+  publicationManager  String?      // responsable de publication (mentions légales) — souvent le gérant
+  domainCreatedAt     DateTime?    // âge du site (RDAP)
+  enrichmentJson      String?      // reste de l'enrichissement brut (multi emails/tél, sitemap, https…)
   // Adresse du CONTACT (optionnelle — distincte de l'adresse société)
   address       String?
   postalCode    String?
@@ -378,6 +396,7 @@ model Client {
   recurringRevenues RecurringRevenue[] @relation("RecurringRevenueClient")
   jobApplications   JobApplication[]   @relation("RecruiterApplications")
   emailLogs         EmailLog[]
+  emailDrafts       EmailDraft[]
 
   @@index([companyId])
 }
@@ -954,6 +973,21 @@ model EmailLog {
 
 // Modèle de mail de démarchage — texte brut avec variables {{prenom}},
 // {{societe}}, {{site}}... substituées par prospect à l'envoi (cf. lib/email-template).
+// Abonnement Web Push d'un appareil (PWA mobile). Un utilisateur peut en avoir
+// plusieurs (iPhone + autre navigateur) ; endpoint unique = un par appareil.
+model PushSubscription {
+  id        String   @id @default(cuid())
+  userId    String
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
 model EmailTemplate {
   id        String   @id @default(cuid())
   userId    String
@@ -964,9 +998,41 @@ model EmailTemplate {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user   User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  drafts EmailDraft[]
 
   @@index([userId])
+}
+
+// File de brouillons de prospection : chaque mail est généré depuis un modèle,
+// relu/édité individuellement, marqué READY explicitement, puis envoyé après
+// confirmation récapitulative. Jamais d'envoi automatique.
+enum EmailDraftStatus {
+  DRAFT     // généré ou ré-édité — relecture requise
+  READY     // relu et validé — seul statut envoyable
+  SENT      // parti via Resend (sentAt renseigné)
+  CANCELLED // écarté sans envoi
+}
+
+model EmailDraft {
+  id          String           @id @default(cuid())
+  userId      String
+  clientId    String
+  templateId  String?          // modèle d'origine (trace) — survit à sa suppression
+  emailTo     String?          // destinataire figé à la génération, éditable à la relecture
+  subject     String
+  body        String
+  missingVars String?          // clés {{var}} restées vides à la génération, séparées par des virgules
+  status      EmailDraftStatus @default(DRAFT)
+  sentAt      DateTime?
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  user     User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  client   Client         @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  template EmailTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
+
+  @@index([userId, status])
 }
 
 // ─── Calendar ─────────────────────────────────────────────────────────────────

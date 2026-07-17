@@ -265,7 +265,7 @@ export function ProjectNameEdit({ projectId, value }: { projectId: string; value
       className="group flex items-center gap-2 text-left"
     >
       <h1 className="text-2xl font-bold tracking-tight">{value}</h1>
-      <Pencil className="h-3.5 w-3.5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+      <Pencil className="h-3.5 w-3.5 text-muted-foreground md:opacity-0 md:group-hover:opacity-100 focus:opacity-100 transition-opacity" />
     </button>
   )
 }
@@ -323,7 +323,7 @@ export function ProjectDescriptionEdit({
       <p className={cn("text-sm", value ? "text-muted-foreground" : "text-muted-foreground/50 italic")}>
         {value ?? "Ajouter une description..."}
       </p>
-      <Pencil className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
+      <Pencil className="h-3 w-3 text-muted-foreground md:opacity-0 md:group-hover:opacity-100 focus:opacity-100 transition-opacity shrink-0" />
     </button>
   )
 }
@@ -391,7 +391,7 @@ export function ProjectHoursEdit({
     >
       <span>⏱</span>
       {value ? `${value}h estimées` : "Heures estimées"}
-      <Pencil className="h-2.5 w-2.5 opacity-0 group-hover:opacity-100 transition-opacity" />
+      <Pencil className="h-2.5 w-2.5 md:opacity-0 md:group-hover:opacity-100 focus:opacity-100 transition-opacity" />
     </button>
   )
 }

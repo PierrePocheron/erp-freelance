@@ -351,7 +351,7 @@ function ApplicationCard({ app, onOpen }: { app: JobApp; onOpen: () => void }) {
               "rounded-md p-0.5 transition-all",
               isPriority
                 ? "text-amber-500 hover:text-amber-600"
-                : "text-muted-foreground/30 opacity-0 group-hover:opacity-100 hover:text-amber-400"
+                : "text-muted-foreground/30 md:opacity-0 md:group-hover:opacity-100 focus:opacity-100 hover:text-amber-400"
             )}
           >
             <Star className={cn("h-3 w-3", isPriority && "fill-current")} />
@@ -361,7 +361,7 @@ function ApplicationCard({ app, onOpen }: { app: JobApp; onOpen: () => void }) {
             href={`/entretiens/${app.id}`}
             onClick={(e) => e.stopPropagation()}
             title="Voir le process complet"
-            className="rounded-md p-0.5 text-muted-foreground/40 hover:text-primary opacity-0 group-hover:opacity-100 transition-all"
+            className="rounded-md p-0.5 text-muted-foreground/40 hover:text-primary md:opacity-0 md:group-hover:opacity-100 focus:opacity-100 transition-all"
           >
             <ExternalLink className="h-3 w-3" />
           </Link>
@@ -384,7 +384,7 @@ function ApplicationCard({ app, onOpen }: { app: JobApp; onOpen: () => void }) {
           <span className="text-muted-foreground/50 italic">Pas encore de contact</span>
         )}
         {app.events.length > 0 && !confirmDelete && (
-          <span className="ml-auto text-muted-foreground/60 opacity-0 group-hover:opacity-100 transition-opacity">
+          <span className="ml-auto text-muted-foreground/60 md:opacity-0 md:group-hover:opacity-100 focus:opacity-100 transition-opacity">
             {app.events.length} évt
           </span>
         )}
@@ -401,7 +401,7 @@ function ApplicationCard({ app, onOpen }: { app: JobApp; onOpen: () => void }) {
         ) : (
           <button
             onClick={e => { e.stopPropagation(); setConfirmDelete(true) }}
-            className="text-muted-foreground/40 hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
+            className="text-muted-foreground/40 hover:text-destructive md:opacity-0 md:group-hover:opacity-100 focus:opacity-100 transition-opacity"
             title="Supprimer"
           >
             <X className="h-3.5 w-3.5" />

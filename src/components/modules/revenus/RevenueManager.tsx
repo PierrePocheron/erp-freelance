@@ -1336,9 +1336,10 @@ export function RevenueManager({
         </div>
       )}
 
-      {/* Floating bulk-mark bar */}
+      {/* Floating bulk-mark bar — en mobile : au-dessus de la MobileBottomNav
+          (bottom-20) et bornée à la largeur de l'écran avec retour à la ligne */}
       {selectedIds.size > 0 && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 bg-card border border-border shadow-2xl rounded-2xl px-4 py-3">
+        <div className="fixed bottom-20 sm:bottom-6 left-3 right-3 sm:left-1/2 sm:right-auto sm:-translate-x-1/2 z-50 flex flex-wrap items-center justify-center gap-3 bg-card border border-border shadow-2xl rounded-2xl px-4 py-3">
           <span className="text-sm font-semibold text-foreground whitespace-nowrap">
             {selectedIds.size} sélectionné{selectedIds.size > 1 ? "s" : ""}
           </span>

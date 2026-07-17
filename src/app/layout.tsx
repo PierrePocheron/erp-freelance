@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Poppins } from "next/font/google";
 import { Toaster } from "sonner";
 import { THEME_INIT_SCRIPT } from "@/lib/theme-init-script";
@@ -13,6 +13,23 @@ const poppins = Poppins({
 export const metadata: Metadata = {
   title: "ERP Freelance",
   description: "Centralisez votre activité freelance",
+  // PWA installée (iOS) : plein écran sans chrome Safari, titre sous l'icône
+  appleWebApp: {
+    capable: true,
+    title: "ERP",
+    statusBarStyle: "black-translucent",
+  },
+  icons: {
+    apple: "/icons/apple-touch-icon.png",
+  },
+};
+
+export const viewport: Viewport = {
+  // Couleur de la barre système, alignée sur --background (light/dark)
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#ffffff" },
+    { media: "(prefers-color-scheme: dark)", color: "#0a0a0a" },
+  ],
 };
 
 export default function RootLayout({

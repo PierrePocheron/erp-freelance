@@ -100,7 +100,7 @@ export function ExpenseDialog({
     <Dialog open={open} onOpenChange={setOpen}>
       {isEdit ? (
         <DialogTrigger
-          render={<button className="text-muted-foreground hover:text-foreground transition-colors opacity-0 group-hover:opacity-100" title="Modifier" />}
+          render={<button className="text-muted-foreground hover:text-foreground transition-colors md:opacity-0 md:group-hover:opacity-100 focus:opacity-100" title="Modifier" />}
         >
           <Pencil className="h-3.5 w-3.5" />
         </DialogTrigger>

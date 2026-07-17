@@ -22,6 +22,14 @@ const nextConfig: NextConfig = {
       { protocol: "https", hostname: "**.vercel-storage.com" },
     ],
   },
+  // Les TTF Poppins du template PDF (src/lib/pdf-fonts.ts) sont lus via fs à
+  // l'exécution : on force leur inclusion dans les fonctions serverless
+  // (routes /api/pdf/*, /api/export/archive et server actions de facturation
+  // — d'où le glob large). Sans ça, Vercel ne les embarque pas et le rendu
+  // retomberait silencieusement sur Helvetica.
+  outputFileTracingIncludes: {
+    "/**": ["./public/fonts/*.ttf"],
+  },
 }
 
 export default nextConfig;

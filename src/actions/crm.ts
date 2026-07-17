@@ -192,6 +192,7 @@ export async function createClient(
     companyName?: string
     email?: string
     phone?: string
+    jobTitle?: string
     type?: string
     source?: string
     notes?: string
@@ -221,6 +222,7 @@ export async function createClient(
       name,
       email: data.email?.trim() || null,
       phone: data.phone?.trim() || null,
+      jobTitle: data.jobTitle?.trim() || null,
       type: (data.type as ClientType) || "TO_COMPLETE",
       source: (data.source as ClientSource) || "OTHER",
       priorityScore: 1,
@@ -297,6 +299,7 @@ export async function updateClientAll(
     label?: string | null
     companyId?: string | null
     companyName?: string | null
+    jobTitle?: string | null
     email?: string | null
     phone?: string | null
     source?: string
@@ -349,6 +352,7 @@ export async function updateClientAll(
     clean.name = computeContactName({ label, firstName, lastName, companyName })
   }
 
+  if ("jobTitle" in data) clean.jobTitle = data.jobTitle?.trim() || null
   // Autres champs du contact.
   if ("email" in data) clean.email = data.email?.trim() || null
   if ("phone" in data) clean.phone = data.phone?.trim() || null

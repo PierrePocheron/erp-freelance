@@ -47,6 +47,7 @@ type ClientData = {
   label: string | null
   company: string | null
   companyId: string | null
+  jobTitle: string | null
   email: string | null
   phone: string | null
   linkedinUrl: string | null
@@ -77,6 +78,7 @@ export function ClientInfoCard({ client, isOwner = true }: { client: ClientData;
     id: client.companyId,
     name: client.company ?? "",
   })
+  const [jobTitle, setJobTitle] = useState(client.jobTitle ?? "")
   const [email, setEmail] = useState(client.email ?? "")
   const [phone, setPhone] = useState(client.phone ?? "")
   const [linkedinUrl, setLinkedinUrl] = useState(client.linkedinUrl ?? "")
@@ -102,6 +104,7 @@ export function ClientInfoCard({ client, isOwner = true }: { client: ClientData;
     setLastName(client.lastName ?? "")
     setLabel(client.label ?? "")
     setCompany({ id: client.companyId, name: client.company ?? "" })
+    setJobTitle(client.jobTitle ?? "")
     setEmail(client.email ?? "")
     setPhone(client.phone ?? "")
     setLinkedinUrl(client.linkedinUrl ?? "")
@@ -131,6 +134,7 @@ export function ClientInfoCard({ client, isOwner = true }: { client: ClientData;
           label: label.trim() || null,
           companyId: company.id,
           companyName: company.name.trim() || null,
+          jobTitle: jobTitle.trim() || null,
           email: email.trim() || null,
           phone: phone.trim() || null,
           linkedinUrl: linkedinUrl.trim() || null,
@@ -223,9 +227,15 @@ export function ClientInfoCard({ client, isOwner = true }: { client: ClientData;
               <input value={lastName} onChange={(e) => setLastName(e.target.value)} placeholder="Dupont" className="flex h-8 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-ring" />
             </div>
           </div>
-          <div className="space-y-1">
-            <label className="text-xs text-muted-foreground">Société</label>
-            <CompanyCombobox value={company} onChange={setCompany} />
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <label className="text-xs text-muted-foreground">Société</label>
+              <CompanyCombobox value={company} onChange={setCompany} />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs text-muted-foreground">Poste</label>
+              <input value={jobTitle} onChange={(e) => setJobTitle(e.target.value)} placeholder="Directeur marketing, CTO…" className="flex h-8 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-ring" />
+            </div>
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
@@ -388,10 +398,12 @@ export function ClientInfoCard({ client, isOwner = true }: { client: ClientData;
                 <a href={`tel:${client.phone}`} className="hover:text-primary transition-colors">{client.phone}</a>
               </div>
             )}
-            {client.company && (
+            {(client.company || client.jobTitle) && (
               <div className="flex items-center gap-2.5 text-sm">
                 <Building2 className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                <span className="text-muted-foreground">{client.company}</span>
+                <span className="text-muted-foreground">
+                  {[client.jobTitle, client.company].filter(Boolean).join(" · ")}
+                </span>
               </div>
             )}
             <div className="flex items-center gap-2.5 text-sm">

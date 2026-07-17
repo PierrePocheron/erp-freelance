@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <!-- Icône PWA — même identité que le logo de la sidebar (pavé primary + glyphe
+       Server lucide). Plein cadre (pas de coins transparents) : iOS et Android
+       appliquent leur propre masque ; le glyphe reste dans la zone sûre maskable
+       (~45% de la largeur). Régénérer les PNG : scripts/generate-pwa-icons.sh -->
+  <rect width="1024" height="1024" fill="#171717"/>
+  <g transform="translate(512 512) scale(19.5) translate(-12 -12)" fill="none" stroke="#fafafa" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <rect width="20" height="8" x="2" y="2" rx="2" ry="2"/>
+    <rect width="20" height="8" x="2" y="14" rx="2" ry="2"/>
+    <line x1="6" x2="6.01" y1="6" y2="6"/>
+    <line x1="6" x2="6.01" y1="18" y2="18"/>
+  </g>
+</svg>

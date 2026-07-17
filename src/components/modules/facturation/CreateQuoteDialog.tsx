@@ -580,7 +580,7 @@ export function CreateQuoteDialog({
                         <div className="col-span-2 text-right font-semibold">
                           {fmtEur(line.quantity * line.unitPrice)}
                         </div>
-                        <div className="col-span-1 flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <div className="col-span-1 flex items-center justify-end gap-1 md:opacity-0 md:group-hover:opacity-100 focus:opacity-100 transition-opacity">
                           <button
                             type="button"
                             onClick={() => startEdit(line.localId)}

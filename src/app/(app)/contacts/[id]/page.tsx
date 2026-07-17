@@ -168,6 +168,7 @@ export default async function ClientOverviewPage({
           label: client.label,
           company: client.company,
           companyId: client.companyId,
+          jobTitle: client.jobTitle,
           email: client.email,
           phone: client.phone,
           linkedinUrl: client.linkedinUrl ?? null,

@@ -946,7 +946,8 @@ export async function getGoogleCalendarConnectionStatus(): Promise<GoogleConnect
   return checkGoogleCalendarStatus(userId)
 }
 
-export async function syncGoogleEvents(monthsBack: number = 1): Promise<SyncResult> {
+/** Étape « récupération » de la sync : Google → ERP (pull + dédoublonnage). */
+export async function syncGooglePull(monthsBack: number = 1): Promise<SyncResult> {
   const session = await auth()
   const userId = session!.user.id
 
@@ -1063,20 +1064,6 @@ export async function syncGoogleEvents(monthsBack: number = 1): Promise<SyncResu
       synced++
     }
 
-    // Push ERP → Google du backlog : événements manuels de la fenêtre pas encore
-    // poussés (googleEventId NULL). Les nouveaux événements sont déjà poussés à la
-    // création ; ce passage rattrape ceux créés avant l'activation de la synchro.
-    const backlog = await prisma.$queryRaw<{ id: string }[]>`
-      SELECT id FROM "CalendarEvent"
-      WHERE "userId" = ${userId} AND "sourceType" = 'MANUAL'
-        AND "googleEventId" IS NULL
-        AND "startDate" >= ${pushFrom} AND "startDate" <= ${to}
-    `
-    for (const row of backlog) {
-      await pushEventToGoogle(userId, row.id)
-      synced++
-    }
-
     revalidatePath("/calendrier")
     return { synced }
 
@@ -1084,4 +1071,56 @@ export async function syncGoogleEvents(monthsBack: number = 1): Promise<SyncResu
     const message = err instanceof Error ? err.message : "Erreur inconnue"
     return { synced: 0, error: message }
   }
+}
+
+/**
+ * Étape « export » de la sync : ERP → Google. Rattrape le backlog des
+ * événements manuels de la fenêtre récente jamais poussés (googleEventId
+ * NULL) — les nouveaux événements sont déjà poussés à la création.
+ */
+export async function syncGooglePush(): Promise<SyncResult> {
+  const session = await auth()
+  const userId = session!.user.id
+
+  const hasScope = await hasCalendarScope(userId)
+  if (!hasScope) return { synced: 0, needsPermission: true }
+  const accessToken = await getGoogleAccessToken(userId)
+  if (!accessToken) return { synced: 0, needsPermission: true }
+
+  try {
+    const pushFrom = new Date()
+    pushFrom.setMonth(pushFrom.getMonth() - 1)
+    const to = new Date()
+    to.setMonth(to.getMonth() + 3)
+
+    const backlog = await prisma.$queryRaw<{ id: string }[]>`
+      SELECT id FROM "CalendarEvent"
+      WHERE "userId" = ${userId} AND "sourceType" = 'MANUAL'
+        AND "googleEventId" IS NULL
+        AND "startDate" >= ${pushFrom} AND "startDate" <= ${to}
+    `
+    let synced = 0
+    for (const row of backlog) {
+      await pushEventToGoogle(userId, row.id)
+      synced++
+    }
+
+    revalidatePath("/calendrier")
+    return { synced }
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Erreur inconnue"
+    return { synced: 0, error: message }
+  }
+}
+
+/**
+ * Sync complète (compat) : pull puis push — conservée pour les appelants
+ * existants ; le calendrier appelle désormais les deux étapes séparément
+ * pour visualiser la progression.
+ */
+export async function syncGoogleEvents(monthsBack: number = 1): Promise<SyncResult> {
+  const pull = await syncGooglePull(monthsBack)
+  if (pull.needsPermission || pull.error) return pull
+  const push = await syncGooglePush()
+  return { synced: pull.synced + (push.synced ?? 0), error: push.error, needsPermission: push.needsPermission }
 }

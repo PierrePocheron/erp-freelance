@@ -27,6 +27,7 @@ import {
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { ThemeToggle } from "./ThemeToggle"
+import { OPEN_COMMAND_PALETTE_EVENT } from "./CommandPalette"
 import { useModules, type ModuleId } from "@/hooks/use-modules"
 
 type NavItem = {
@@ -36,7 +37,8 @@ type NavItem = {
   moduleId?: ModuleId   // si absent → toujours visible (Dashboard, Paramètres)
 }
 
-const navItems: NavItem[] = [
+// Exporté : source de vérité route + icône + module, réutilisée par MobileHome.
+export const navItems: NavItem[] = [
   { href: "/",           icon: LayoutDashboard, label: "Dashboard" },
   { href: "/contacts",   icon: Users,           label: "Contacts",   moduleId: "contacts"    },
   { href: "/prospection",icon: Target,          label: "Prospection",moduleId: "prospection" },
@@ -146,7 +148,7 @@ export function Sidebar() {
       {/* Recherche Cmd+K */}
       <div className="px-2 pb-1">
         <button
-          onClick={() => document.dispatchEvent(new KeyboardEvent("keydown", { key: "k", metaKey: true, bubbles: true }))}
+          onClick={() => window.dispatchEvent(new CustomEvent(OPEN_COMMAND_PALETTE_EVENT))}
           className={cn(
             "flex h-9 items-center gap-3 rounded-xl px-2.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground w-full",
             expanded ? "" : "w-10 justify-center"

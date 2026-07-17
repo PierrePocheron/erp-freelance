@@ -138,24 +138,6 @@ export default async function DepensesPage({
         <ExpenseDialog categories={categories} />
       </div>
 
-      {/* Navigation par mois */}
-      <div className="flex items-center gap-2">
-        <Link href={prevHref} className="flex h-8 w-8 items-center justify-center rounded-lg border border-border text-muted-foreground hover:bg-muted hover:text-foreground transition-colors" title="Mois précédent">
-          <ChevronLeft className="h-4 w-4" />
-        </Link>
-        <span className={`min-w-36 text-center text-sm font-semibold capitalize ${isCurrentMonth ? "text-primary" : ""}`}>
-          {monthLabel}
-        </span>
-        <Link href={nextHref} className="flex h-8 w-8 items-center justify-center rounded-lg border border-border text-muted-foreground hover:bg-muted hover:text-foreground transition-colors" title="Mois suivant">
-          <ChevronRight className="h-4 w-4" />
-        </Link>
-        {!isCurrentMonth && (
-          <Link href={scopeFilter ? `/depenses?scope=${scopeFilter}` : "/depenses"} className="text-xs text-primary hover:underline ml-1">
-            Revenir à ce mois-ci
-          </Link>
-        )}
-      </div>
-
       {/* Stats du mois affiché */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <div className="rounded-xl border border-border/50 bg-card p-4 space-y-1">
@@ -223,7 +205,26 @@ export default async function DepensesPage({
         </div>
 
         <div className="rounded-xl border border-border/50 bg-card p-5 space-y-4 lg:col-span-2">
-          <h2 className="font-semibold text-sm capitalize">Dépenses — {monthLabel}</h2>
+          {/* En-tête de carte : titre + navigation entre les mois */}
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <h2 className="font-semibold text-sm capitalize">Dépenses — {monthLabel}</h2>
+            <div className="flex items-center gap-1.5">
+              {!isCurrentMonth && (
+                <Link href={scopeFilter ? `/depenses?scope=${scopeFilter}` : "/depenses"} className="text-xs text-primary hover:underline mr-1">
+                  Ce mois-ci
+                </Link>
+              )}
+              <Link href={prevHref} className="flex h-7 w-7 items-center justify-center rounded-lg border border-border text-muted-foreground hover:bg-muted hover:text-foreground transition-colors" title="Mois précédent">
+                <ChevronLeft className="h-4 w-4" />
+              </Link>
+              <span className={`min-w-28 text-center text-xs font-semibold capitalize tabular-nums ${isCurrentMonth ? "text-primary" : ""}`}>
+                {monthLabel}
+              </span>
+              <Link href={nextHref} className="flex h-7 w-7 items-center justify-center rounded-lg border border-border text-muted-foreground hover:bg-muted hover:text-foreground transition-colors" title="Mois suivant">
+                <ChevronRight className="h-4 w-4" />
+              </Link>
+            </div>
+          </div>
           {monthRows.length === 0 ? (
             <p className="text-xs text-muted-foreground italic">Aucune dépense sur ce mois</p>
           ) : (
@@ -259,7 +260,7 @@ export default async function DepensesPage({
                   <span className="shrink-0 text-sm font-medium tabular-nums w-16 text-right">{fmt(row.e.amount)} €</span>
                   <ExpenseDialog
                     categories={categories}
-                    expense={{ id: row.e.id, label: row.e.label, merchant: row.e.merchant, amount: row.e.amount, date: row.e.date, scope: row.e.scope, categoryId: row.e.categoryId, notes: row.e.notes }}
+                    expense={{ id: row.e.id, label: row.e.label, merchant: row.e.merchant, amount: row.e.amount, date: row.e.date, scope: row.e.scope, categoryId: row.e.categoryId, notes: row.e.notes, fromRecurring: !!row.e.recurringExpenseId }}
                   />
                 </div>
               ) : (

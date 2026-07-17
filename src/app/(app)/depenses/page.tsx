@@ -71,8 +71,8 @@ export default async function DepensesPage({
       include: {
         category: { select: { id: true, name: true, color: true } },
         // Une dépense générée depuis une récurrente affiche la fréquence
-        // d'origine (mensuelle, annuelle…) plutôt que « Ponctuelle »
-        recurringExpense: { select: { frequency: true } },
+        // d'origine, et porte le bouton pause/reprise de sa récurrente parente
+        recurringExpense: { select: { id: true, frequency: true, isActive: true } },
       },
     }),
     prisma.recurringExpense.findMany({
@@ -88,28 +88,39 @@ export default async function DepensesPage({
   const activeRecurring = recurringExpenses.filter((r) => r.isActive)
 
   // Occurrences récurrentes À VENIR sur le mois affiché : après la génération
-  // automatique, nextGenerationDate est toujours futur — la projection couvre
-  // donc le reste du mois courant et les mois futurs, sans double compte avec
-  // les dépenses déjà matérialisées.
-  const upcoming = activeRecurring.flatMap((r) =>
-    getOccurrencesInRange(r.nextGenerationDate, r.frequency, monthStart, monthEnd)
-      .map((date) => ({ r, date }))
-  )
+  // automatique, nextGenerationDate est toujours futur pour les actives — la
+  // projection couvre donc le reste du mois courant et les mois futurs, sans
+  // double compte avec les dépenses déjà matérialisées. Les récurrentes EN
+  // PAUSE sont projetées aussi (affichées grisées pour matérialiser la pause)
+  // mais exclues des totaux : elles ne seront pas prélevées.
+  const upcoming = recurringExpenses
+    .filter((r) => !r.dateToConfirm)
+    .flatMap((r) =>
+      getOccurrencesInRange(r.nextGenerationDate, r.frequency, monthStart, monthEnd)
+        .map((date) => ({ r, date }))
+    )
+
+  // Les récurrentes sans date connue n'apparaîtraient nulle part : rattachées
+  // au mois courant pour rester éditables (compléter la date, pause, etc.)
+  const withoutDate = isCurrentMonth ? recurringExpenses.filter((r) => r.dateToConfirm) : []
 
   type MonthRow =
     | { kind: "REAL"; date: Date; e: (typeof monthExpenses)[number] }
     | { kind: "UPCOMING"; date: Date; r: (typeof recurringExpenses)[number] }
+    | { kind: "NODATE"; date: Date; r: (typeof recurringExpenses)[number] }
 
   const monthRows: MonthRow[] = [
     ...monthExpenses.map((e) => ({ kind: "REAL" as const, date: e.date, e })),
     ...upcoming.map(({ r, date }) => ({ kind: "UPCOMING" as const, date, r })),
+    // Sans date → en fin de liste
+    ...withoutDate.map((r) => ({ kind: "NODATE" as const, date: monthEnd, r })),
   ].sort((a, b) => a.date.getTime() - b.date.getTime())
 
-  // ── Stats du mois affiché (réel + à venir) ────────────────────────────────
+  // ── Stats du mois affiché (réel + à venir actif) ──────────────────────────
   type MonthItem = { amount: number; scope: string; category: { id: string; name: string; color: string } | null }
   const monthItems: MonthItem[] = [
     ...monthExpenses.map((e) => ({ amount: e.amount, scope: e.scope, category: e.category })),
-    ...upcoming.map(({ r }) => ({ amount: r.amount, scope: r.scope, category: r.category })),
+    ...upcoming.filter(({ r }) => r.isActive).map(({ r }) => ({ amount: r.amount, scope: r.scope, category: r.category })),
   ]
   const filteredMonthItems = scopeFilter ? monthItems.filter((e) => e.scope === scopeFilter) : monthItems
 
@@ -262,19 +273,41 @@ export default async function DepensesPage({
                     {new Date(row.e.date).toLocaleDateString("fr-FR", { day: "numeric", month: "short" })}
                   </span>
                   <span className="shrink-0 text-sm font-medium tabular-nums w-16 text-right">{fmt(row.e.amount)} €</span>
+                  {/* Pause/reprise de la récurrente parente, directement sur la ligne */}
+                  {row.e.recurringExpense && (
+                    <form action={async () => { "use server"; await toggleRecurringExpenseActive(row.e.recurringExpense!.id, !row.e.recurringExpense!.isActive) }}>
+                      <button type="submit" className="text-muted-foreground hover:text-foreground transition-colors" title={row.e.recurringExpense.isActive ? "Mettre la récurrente en pause" : "Réactiver la récurrente"}>
+                        {row.e.recurringExpense.isActive ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}
+                      </button>
+                    </form>
+                  )}
                   <ExpenseDialog
                     categories={categories}
                     expense={{ id: row.e.id, label: row.e.label, merchant: row.e.merchant, amount: row.e.amount, date: row.e.date, scope: row.e.scope, categoryId: row.e.categoryId, notes: row.e.notes, fromRecurring: !!row.e.recurringExpenseId }}
                   />
                 </div>
               ) : (
-                // Occurrence récurrente à venir sur le mois — projetée, pas encore en base
-                <div key={`u-${row.r.id}-${row.date.toISOString()}`} className="flex items-center gap-3 py-1.5 group opacity-70">
+                // Occurrence récurrente projetée (à venir), récurrente en pause,
+                // ou récurrente sans date connue (kind NODATE, mois courant)
+                <div
+                  key={`u-${row.r.id}-${row.date.toISOString()}`}
+                  className={`flex items-center gap-3 py-1.5 group ${row.r.isActive ? "opacity-70" : "opacity-40"}`}
+                >
                   <span className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: row.r.category?.color ?? "#94a3b8" }} />
                   <span className="flex-1 text-sm truncate min-w-0">{row.r.label}</span>
-                  <span className="shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-medium bg-blue-500/10 text-blue-600 whitespace-nowrap">
-                    À venir
-                  </span>
+                  {!row.r.isActive ? (
+                    <span className="shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-medium bg-muted text-muted-foreground whitespace-nowrap">
+                      En pause
+                    </span>
+                  ) : row.kind === "NODATE" ? (
+                    <span className="shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-medium bg-amber-500/10 text-amber-700 whitespace-nowrap">
+                      Date à compléter
+                    </span>
+                  ) : (
+                    <span className="shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-medium bg-blue-500/10 text-blue-600 whitespace-nowrap">
+                      À venir
+                    </span>
+                  )}
                   <span className={`shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-medium ${row.r.scope === "PRO" ? "bg-indigo-500/15 text-indigo-600" : "bg-slate-500/15 text-slate-600"}`}>
                     {row.r.scope === "PRO" ? "Pro" : "Perso"}
                   </span>
@@ -282,9 +315,14 @@ export default async function DepensesPage({
                     {FREQUENCY_LABELS[row.r.frequency]}
                   </span>
                   <span className="shrink-0 text-xs text-muted-foreground whitespace-nowrap">
-                    {row.date.toLocaleDateString("fr-FR", { day: "numeric", month: "short" })}
+                    {row.kind === "NODATE" ? "—" : row.date.toLocaleDateString("fr-FR", { day: "numeric", month: "short" })}
                   </span>
                   <span className="shrink-0 text-sm font-medium tabular-nums w-16 text-right">{fmt(row.r.amount)} €</span>
+                  <form action={async () => { "use server"; await toggleRecurringExpenseActive(row.r.id, !row.r.isActive) }}>
+                    <button type="submit" className="text-muted-foreground hover:text-foreground transition-colors" title={row.r.isActive ? "Mettre en pause" : "Réactiver"}>
+                      {row.r.isActive ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}
+                    </button>
+                  </form>
                   <RecurringExpenseDialog
                     categories={categories}
                     recurringExpense={{
@@ -299,52 +337,6 @@ export default async function DepensesPage({
         </div>
       </div>
 
-      {/* Dépenses récurrentes — définitions (pause, édition), hors vue mensuelle */}
-      {recurringExpenses.length > 0 && (
-        <div className="rounded-xl border border-border/50 bg-card p-5 space-y-4">
-          <div className="flex items-center gap-2">
-            <Repeat className="h-4 w-4 text-muted-foreground" />
-            <h2 className="font-semibold text-sm">Dépenses récurrentes</h2>
-            <span className="text-xs text-muted-foreground">({activeRecurring.length} active{activeRecurring.length > 1 ? "s" : ""})</span>
-          </div>
-          <div className="space-y-1.5">
-            {recurringExpenses.map((r) => (
-              <div key={r.id} className={`flex items-center gap-3 py-1.5 group ${!r.isActive ? "opacity-50" : ""}`}>
-                <span className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: r.category?.color ?? "#94a3b8" }} />
-                <span className="flex-1 text-sm truncate min-w-0">{r.label}</span>
-                <span className={`shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-medium ${r.scope === "PRO" ? "bg-indigo-500/15 text-indigo-600" : "bg-slate-500/15 text-slate-600"}`}>
-                  {r.scope === "PRO" ? "Pro" : "Perso"}
-                </span>
-                <span className="shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-medium bg-primary/10 text-primary">
-                  {FREQUENCY_LABELS[r.frequency]}
-                </span>
-                {r.dateToConfirm ? (
-                  <span className="shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-medium bg-amber-500/10 text-amber-700 whitespace-nowrap">
-                    À compléter
-                  </span>
-                ) : (
-                  <span className="shrink-0 text-xs text-muted-foreground whitespace-nowrap" title="Prochaine échéance">
-                    {new Date(r.nextGenerationDate).toLocaleDateString("fr-FR", { day: "numeric", month: "short" })}
-                  </span>
-                )}
-                <span className="shrink-0 text-sm font-medium tabular-nums w-16 text-right">{fmt(r.amount)} €</span>
-                <form action={async () => { "use server"; await toggleRecurringExpenseActive(r.id, !r.isActive) }}>
-                  <button type="submit" className="text-muted-foreground hover:text-foreground transition-colors" title={r.isActive ? "Mettre en pause" : "Réactiver"}>
-                    {r.isActive ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}
-                  </button>
-                </form>
-                <RecurringExpenseDialog
-                  categories={categories}
-                  recurringExpense={{
-                    id: r.id, label: r.label, amount: r.amount, scope: r.scope, frequency: r.frequency,
-                    nextGenerationDate: r.nextGenerationDate, dateToConfirm: r.dateToConfirm, categoryId: r.categoryId, notes: r.notes,
-                  }}
-                />
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
     </div>
   )
 }

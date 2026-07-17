@@ -87,7 +87,8 @@ export async function exportAllData(): Promise<string> {
 
   // Statistiques de l'export
   const stats = {
-    clients: clients.length,
+    contacts: clients.filter((c) => c.type !== "PROSPECT").length,
+    prospects: clients.filter((c) => c.type === "PROSPECT").length,
     projects: projects.length,
     tasks: tasks.length,
     quotes: quotes.length,

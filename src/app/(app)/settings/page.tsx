@@ -43,7 +43,8 @@ export default async function SettingsPage() {
       orderBy: { createdAt: "asc" },
     }),
     Promise.all([
-      prisma.client.count({ where: { userId } }),
+      prisma.client.count({ where: { userId, type: { not: "PROSPECT" } } }),
+      prisma.client.count({ where: { userId, type: "PROSPECT" } }),
       prisma.project.count({ where: { userId } }),
       prisma.task.count({ where: { OR: [{ project: { userId } }, { userId }] } }),
       prisma.quote.count({ where: { userId } }),
@@ -51,8 +52,8 @@ export default async function SettingsPage() {
       prisma.interaction.count({ where: { client: { userId } } }),
       prisma.timeEntry.count({ where: { userId } }),
       prisma.revenue.count({ where: { userId } }),
-    ]).then(([clients, projects, tasks, quotes, invoices, interactions, timeEntries, revenues]) => ({
-      clients, projects, tasks, quotes, invoices, interactions, timeEntries, revenues,
+    ]).then(([contacts, prospects, projects, tasks, quotes, invoices, interactions, timeEntries, revenues]) => ({
+      contacts, prospects, projects, tasks, quotes, invoices, interactions, timeEntries, revenues,
     })),
     hasCalendarScope(userId),
   ])

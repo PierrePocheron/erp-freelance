@@ -12,7 +12,8 @@ import { toast } from "sonner"
 
 interface Props {
   stats: {
-    clients: number
+    contacts: number
+    prospects: number
     projects: number
     tasks: number
     quotes: number
@@ -117,8 +118,11 @@ export function ExportSection({ stats }: Props) {
     if (fileInputRef.current) fileInputRef.current.value = ""
   }
 
+  // Contacts et prospects séparés : ce sont deux populations différentes
+  // (les prospects sont des Client type PROSPECT, ils gonflaient « Contacts »)
   const statItems = [
-    { label: "Contacts", value: stats.clients },
+    { label: "Contacts", value: stats.contacts },
+    { label: "Prospects", value: stats.prospects },
     { label: "Projets", value: stats.projects },
     { label: "Tâches", value: stats.tasks },
     { label: "Devis", value: stats.quotes },
@@ -145,7 +149,7 @@ export function ExportSection({ stats }: Props) {
         </div>
 
         {/* Stats actuelles */}
-        <div className="grid grid-cols-4 gap-2 sm:grid-cols-8">
+        <div className="grid grid-cols-3 gap-2 sm:grid-cols-9">
           {statItems.map(({ label, value }) => (
             <div key={label} className="rounded-lg bg-muted/40 p-2.5 text-center">
               <p className="text-lg font-bold">{value}</p>

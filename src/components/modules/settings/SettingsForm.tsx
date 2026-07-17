@@ -1,17 +1,43 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { saveProfile, type ProfileData } from "@/actions/settings"
 import { type NumberFormat, FORMAT_OPTIONS, buildNumberPreview } from "@/lib/number-format"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
-import { User, FileText, CheckCircle2, Loader2, ScrollText, Palette, Plus } from "lucide-react"
+import { User, FileText, CheckCircle2, Loader2, ScrollText, Palette, Plus, TriangleAlert, X } from "lucide-react"
 import { ConditionsManager } from "./ConditionsManager"
 
 // Couleurs proposées pour le point du logo (vert « Pedro Dev » en tête).
 const PDF_ACCENT_PRESETS = ["#6BCB3D", "#6366f1", "#0ea5e9", "#f59e0b", "#ef4444", "#ec4899", "#111111"]
 // Fonds de page : crème « Pedro Dev », blanc, gris très clair.
 const PDF_BACKGROUND_PRESETS = ["#FAF6EE", "#FFFFFF", "#F5F5F4"]
+
+const sameColor = (a: string, b: string) => a.toLowerCase() === b.toLowerCase()
+const inPalette = (list: string[], c: string) => list.some((x) => sameColor(x, c))
+const isHexColor = (c: unknown): c is string => typeof c === "string" && /^#[0-9a-fA-F]{6}$/.test(c)
+
+// Palettes personnalisées, stockées en JSON dans UserProfile.customAccentColors :
+// { accent: string[], background: string[] } — tolère l'ancien format tableau nu.
+function parseCustomPalettes(json: string | null | undefined): { accent: string[]; background: string[] } {
+  if (!json) return { accent: [], background: [] }
+  try {
+    const parsed: unknown = JSON.parse(json)
+    if (Array.isArray(parsed)) return { accent: parsed.filter(isHexColor), background: [] }
+    const obj = parsed as { accent?: unknown; background?: unknown }
+    return {
+      accent: Array.isArray(obj.accent) ? obj.accent.filter(isHexColor) : [],
+      background: Array.isArray(obj.background) ? obj.background.filter(isHexColor) : [],
+    }
+  } catch {
+    return { accent: [], background: [] }
+  }
+}
+
+/** Ajoute la couleur sélectionnée à la palette si elle n'est ni un preset ni déjà connue. */
+function paletteWithSelection(palette: string[], value: string, presets: string[]): string[] {
+  return inPalette(presets, value) || inPalette(palette, value) ? palette : [...palette, value]
+}
 
 type ConditionsTemplate = {
   id: string
@@ -46,34 +72,80 @@ export function SettingsForm({ userId, profile, userName, userEmail, conditionsT
   const defaultSubtext = (profile?.companyName ?? userName ?? "").toUpperCase()
   const [pdfAccentColor, setPdfAccentColor] = useState(profile?.pdfAccentColor ?? "#6366f1")
   const [pdfBackgroundColor, setPdfBackgroundColor] = useState(profile?.pdfBackgroundColor ?? "#FAF6EE")
+  const [pdfBankName, setPdfBankName] = useState(profile?.pdfBankName ?? "")
 
-  // Une couleur personnalisée (choisie via le picker « + ») n'est dans aucun
-  // preset : on l'affiche comme pastille supplémentaire, sinon elle semble ne
-  // jamais s'ajouter alors qu'elle est bien dans l'état et sauvegardée.
-  const sameColor = (a: string, b: string) => a.toLowerCase() === b.toLowerCase()
-  const accentSwatches = PDF_ACCENT_PRESETS.some((c) => sameColor(c, pdfAccentColor))
-    ? PDF_ACCENT_PRESETS
-    : [...PDF_ACCENT_PRESETS, pdfAccentColor]
-  const backgroundSwatches = PDF_BACKGROUND_PRESETS.some((c) => sameColor(c, pdfBackgroundColor))
-    ? PDF_BACKGROUND_PRESETS
-    : [...PDF_BACKGROUND_PRESETS, pdfBackgroundColor]
+  // Palettes de couleurs personnalisées (persistées) : une couleur choisie via
+  // le picker « + » y est ajoutée à l'enregistrement et reste réutilisable.
+  const initialPalettes = parseCustomPalettes(profile?.customAccentColors)
+  const [customAccent, setCustomAccent] = useState<string[]>(initialPalettes.accent)
+  const [customBackground, setCustomBackground] = useState<string[]>(initialPalettes.background)
+
+  // ── Détection des modifications non enregistrées ──────────────────────────
+  const makeSnapshot = () => JSON.stringify({
+    quotePrefix, invoicePrefix, quoteFormat, invoiceFormat,
+    pdfLogoText, pdfLogoSubtext, pdfAccentColor, pdfBackgroundColor,
+    pdfBankName, customAccent, customBackground,
+  })
+  const [savedSnapshot, setSavedSnapshot] = useState(makeSnapshot)
+  const currentSnapshot = makeSnapshot()
+  const dirty = useMemo(() => currentSnapshot !== savedSnapshot, [currentSnapshot, savedSnapshot])
+
+  // Garde-fou navigateur : fermeture d'onglet / rechargement / navigation dure
+  useEffect(() => {
+    if (!dirty) return
+    const warn = (e: BeforeUnloadEvent) => {
+      e.preventDefault()
+      e.returnValue = ""
+    }
+    window.addEventListener("beforeunload", warn)
+    return () => window.removeEventListener("beforeunload", warn)
+  }, [dirty])
+
+  // Garde-fou navigation interne : beforeunload ne couvre pas le routing client
+  // Next (clic sidebar…) → on intercepte les clics de liens en phase capture et
+  // on demande confirmation tant que des modifications ne sont pas enregistrées.
+  useEffect(() => {
+    if (!dirty) return
+    const confirmLeave = (e: MouseEvent) => {
+      const anchor = (e.target as HTMLElement).closest?.("a[href]") as HTMLAnchorElement | null
+      if (!anchor) return
+      const href = anchor.getAttribute("href")
+      if (!href || href.startsWith("#") || anchor.target === "_blank" || e.metaKey || e.ctrlKey) return
+      if (!window.confirm("Modifications non enregistrées — quitter sans sauvegarder ?")) {
+        e.preventDefault()
+        e.stopPropagation()
+      }
+    }
+    document.addEventListener("click", confirmLeave, true)
+    return () => document.removeEventListener("click", confirmLeave, true)
+  }, [dirty])
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
     setStatus("saving")
-    const fd = new FormData(e.currentTarget)
+    // Une couleur personnalisée sélectionnée rejoint définitivement sa palette
+    const nextAccentPalette = paletteWithSelection(customAccent, pdfAccentColor, PDF_ACCENT_PRESETS)
+    const nextBackgroundPalette = paletteWithSelection(customBackground, pdfBackgroundColor, PDF_BACKGROUND_PRESETS)
     try {
       await saveProfile(userId, {
-        quotePrefix: (fd.get("quotePrefix") as string) || "DEV",
-        invoicePrefix: (fd.get("invoicePrefix") as string) || "FAC",
+        quotePrefix: quotePrefix || "DEV",
+        invoicePrefix: invoicePrefix || "FAC",
         quoteNumberFormat: quoteFormat,
         invoiceNumberFormat: invoiceFormat,
         pdfLogoText: pdfLogoText.trim(),
         pdfLogoSubtext: pdfLogoSubtext.trim(),
         pdfAccentColor,
         pdfBackgroundColor,
-        pdfBankName: ((fd.get("pdfBankName") as string) || "").trim() || null,
+        customAccentColors: JSON.stringify({ accent: nextAccentPalette, background: nextBackgroundPalette }),
+        pdfBankName: pdfBankName.trim() || null,
       })
+      setCustomAccent(nextAccentPalette)
+      setCustomBackground(nextBackgroundPalette)
+      setSavedSnapshot(JSON.stringify({
+        quotePrefix, invoicePrefix, quoteFormat, invoiceFormat,
+        pdfLogoText, pdfLogoSubtext, pdfAccentColor, pdfBackgroundColor,
+        pdfBankName, customAccent: nextAccentPalette, customBackground: nextBackgroundPalette,
+      }))
       setStatus("saved")
       setTimeout(() => setStatus("idle"), 3000)
     } catch {
@@ -205,66 +277,32 @@ export function SettingsForm({ userId, profile, userName, userEmail, conditionsT
           </Field>
         </div>
 
-        <Field label="Couleur du point et des accents">
-          <div className="flex items-center gap-2 flex-wrap">
-            {accentSwatches.map((c) => (
-              <button
-                key={c}
-                type="button"
-                title={c}
-                onClick={() => setPdfAccentColor(c)}
-                className="h-7 w-7 rounded-full border-2 transition-all"
-                style={{
-                  backgroundColor: c,
-                  borderColor: sameColor(pdfAccentColor, c) ? c : "transparent",
-                  boxShadow: sameColor(pdfAccentColor, c) ? `0 0 0 2px white, 0 0 0 4px ${c}` : "none",
-                }}
-              />
-            ))}
-            <label
-              title="Couleur personnalisée"
-              className="h-7 w-7 rounded-full border-2 border-dashed border-border flex items-center justify-center text-muted-foreground hover:border-primary hover:text-primary transition-colors cursor-pointer shrink-0"
-            >
-              <Plus className="h-3.5 w-3.5 pointer-events-none" />
-              <input
-                type="color"
-                value={pdfAccentColor}
-                onChange={(e) => setPdfAccentColor(e.target.value)}
-                className="sr-only"
-              />
-            </label>
-          </div>
+        <Field
+          label="Couleur du point et des accents"
+          hint="Une couleur choisie via « + » rejoint votre palette à l'enregistrement"
+        >
+          <ColorSwatches
+            presets={PDF_ACCENT_PRESETS}
+            custom={customAccent}
+            value={pdfAccentColor}
+            variant="accent"
+            onSelect={setPdfAccentColor}
+            onRemove={(c) => setCustomAccent((list) => list.filter((x) => !sameColor(x, c)))}
+          />
         </Field>
 
-        <Field label="Fond de page">
-          <div className="flex items-center gap-2 flex-wrap">
-            {backgroundSwatches.map((c) => (
-              <button
-                key={c}
-                type="button"
-                title={c}
-                onClick={() => setPdfBackgroundColor(c)}
-                className="h-7 w-7 rounded-full border transition-all"
-                style={{
-                  backgroundColor: c,
-                  borderColor: "var(--border)",
-                  boxShadow: sameColor(pdfBackgroundColor, c) ? "0 0 0 2px white, 0 0 0 4px #94a3b8" : "none",
-                }}
-              />
-            ))}
-            <label
-              title="Couleur personnalisée"
-              className="h-7 w-7 rounded-full border-2 border-dashed border-border flex items-center justify-center text-muted-foreground hover:border-primary hover:text-primary transition-colors cursor-pointer shrink-0"
-            >
-              <Plus className="h-3.5 w-3.5 pointer-events-none" />
-              <input
-                type="color"
-                value={pdfBackgroundColor}
-                onChange={(e) => setPdfBackgroundColor(e.target.value)}
-                className="sr-only"
-              />
-            </label>
-          </div>
+        <Field
+          label="Fond de page"
+          hint="Une couleur choisie via « + » rejoint votre palette à l'enregistrement"
+        >
+          <ColorSwatches
+            presets={PDF_BACKGROUND_PRESETS}
+            custom={customBackground}
+            value={pdfBackgroundColor}
+            variant="background"
+            onSelect={setPdfBackgroundColor}
+            onRemove={(c) => setCustomBackground((list) => list.filter((x) => !sameColor(x, c)))}
+          />
         </Field>
 
         <Field
@@ -273,7 +311,8 @@ export function SettingsForm({ userId, profile, userName, userEmail, conditionsT
         >
           <Input
             name="pdfBankName"
-            defaultValue={profile?.pdfBankName ?? ""}
+            value={pdfBankName}
+            onChange={(e) => setPdfBankName(e.target.value)}
             placeholder="Revolut"
             className="h-8"
           />
@@ -327,7 +366,112 @@ export function SettingsForm({ userId, profile, userName, userEmail, conditionsT
           <span className="text-sm text-red-500">Une erreur est survenue, réessayez.</span>
         )}
       </div>
+
+      {/* Barre flottante : modifications non enregistrées */}
+      {dirty && (
+        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 rounded-xl border border-amber-500/40 bg-background/95 backdrop-blur px-4 py-2.5 shadow-lg">
+          <TriangleAlert className="h-4 w-4 text-amber-500 shrink-0" />
+          <span className="text-sm">
+            Modifications non enregistrées — elles seront perdues si vous quittez la page.
+          </span>
+          <Button type="submit" size="sm" disabled={status === "saving"}>
+            {status === "saving" ? <Loader2 className="h-4 w-4 animate-spin" /> : "Enregistrer"}
+          </Button>
+        </div>
+      )}
     </form>
+  )
+}
+
+/**
+ * Rangée de pastilles couleur : presets + palette personnalisée persistée +
+ * couleur en cours de choix (pas encore enregistrée). Les couleurs de la
+ * palette se retirent au survol (sauf celle actuellement sélectionnée).
+ */
+function ColorSwatches({
+  presets,
+  custom,
+  value,
+  variant,
+  onSelect,
+  onRemove,
+}: {
+  presets: string[]
+  custom: string[]
+  value: string
+  variant: "accent" | "background"
+  onSelect: (c: string) => void
+  onRemove: (c: string) => void
+}) {
+  const borderCls = variant === "accent" ? "border-2" : "border"
+  const swatchStyle = (c: string, selected: boolean) =>
+    variant === "accent"
+      ? {
+          backgroundColor: c,
+          borderColor: selected ? c : "transparent",
+          boxShadow: selected ? `0 0 0 2px white, 0 0 0 4px ${c}` : "none",
+        }
+      : {
+          backgroundColor: c,
+          borderColor: "var(--border)",
+          boxShadow: selected ? "0 0 0 2px white, 0 0 0 4px #94a3b8" : "none",
+        }
+  // Couleur choisie via le picker mais encore inconnue : pastille "en attente"
+  const pending = !inPalette(presets, value) && !inPalette(custom, value)
+
+  return (
+    <div className="flex items-center gap-2 flex-wrap">
+      {presets.map((c) => (
+        <button
+          key={c}
+          type="button"
+          title={c}
+          onClick={() => onSelect(c)}
+          className={`h-7 w-7 rounded-full ${borderCls} transition-all`}
+          style={swatchStyle(c, sameColor(value, c))}
+        />
+      ))}
+      {custom.map((c) => {
+        const selected = sameColor(value, c)
+        return (
+          <span key={c} className="relative group inline-flex">
+            <button
+              type="button"
+              title={c}
+              onClick={() => onSelect(c)}
+              className={`h-7 w-7 rounded-full ${borderCls} transition-all`}
+              style={swatchStyle(c, selected)}
+            />
+            {!selected && (
+              <button
+                type="button"
+                title="Retirer cette couleur de la palette"
+                onClick={() => onRemove(c)}
+                className="absolute -top-1.5 -right-1.5 hidden group-hover:flex h-4 w-4 items-center justify-center rounded-full bg-foreground text-background"
+              >
+                <X className="h-2.5 w-2.5" />
+              </button>
+            )}
+          </span>
+        )
+      })}
+      {pending && (
+        <button
+          type="button"
+          title={`${value} — sera ajoutée à votre palette à l'enregistrement`}
+          onClick={() => onSelect(value)}
+          className={`h-7 w-7 rounded-full ${borderCls} transition-all`}
+          style={swatchStyle(value, true)}
+        />
+      )}
+      <label
+        title="Couleur personnalisée"
+        className="h-7 w-7 rounded-full border-2 border-dashed border-border flex items-center justify-center text-muted-foreground hover:border-primary hover:text-primary transition-colors cursor-pointer shrink-0"
+      >
+        <Plus className="h-3.5 w-3.5 pointer-events-none" />
+        <input type="color" value={value} onChange={(e) => onSelect(e.target.value)} className="sr-only" />
+      </label>
+    </div>
   )
 }
 

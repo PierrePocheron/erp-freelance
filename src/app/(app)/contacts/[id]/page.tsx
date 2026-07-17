@@ -271,6 +271,14 @@ export default async function ClientOverviewPage({
               </div>
             )}
           </div>
+          {allClientInvoices.length > 0 && (
+            <Link
+              href={`/facturation/factures?client=${client.id}`}
+              className="block text-xs text-primary hover:underline pt-1"
+            >
+              Voir la facturation du client →
+            </Link>
+          )}
         </div>
 
         {/* Rappels */}

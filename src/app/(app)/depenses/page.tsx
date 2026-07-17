@@ -46,7 +46,12 @@ export default async function DepensesPage({
       where: { userId },
       orderBy: { date: "desc" },
       take: 100,
-      include: { category: { select: { id: true, name: true, color: true } } },
+      include: {
+        category: { select: { id: true, name: true, color: true } },
+        // Une dépense générée depuis une récurrente affiche la fréquence
+        // d'origine (mensuelle, annuelle…) plutôt que « Ponctuelle »
+        recurringExpense: { select: { frequency: true } },
+      },
     }),
     prisma.recurringExpense.findMany({
       where: { userId },
@@ -202,9 +207,15 @@ export default async function DepensesPage({
                   <span className={`shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-medium ${row.e.scope === "PRO" ? "bg-indigo-500/15 text-indigo-600" : "bg-slate-500/15 text-slate-600"}`}>
                     {row.e.scope === "PRO" ? "Pro" : "Perso"}
                   </span>
-                  <span className="shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-medium bg-muted text-muted-foreground">
-                    Ponctuelle
-                  </span>
+                  {row.e.recurringExpense ? (
+                    <span className="shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-medium bg-primary/10 text-primary">
+                      {FREQUENCY_LABELS[row.e.recurringExpense.frequency]}
+                    </span>
+                  ) : (
+                    <span className="shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-medium bg-muted text-muted-foreground">
+                      Ponctuelle
+                    </span>
+                  )}
                   <span className="shrink-0 text-xs text-muted-foreground whitespace-nowrap">
                     {new Date(row.e.date).toLocaleDateString("fr-FR", { day: "numeric", month: "short" })}
                   </span>

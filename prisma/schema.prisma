@@ -1263,6 +1263,7 @@ model Expense {
   categoryId         String?
   scope              ExpenseScope @default(PERSO)
   label              String
+  merchant           String?      // société / enseigne concernée (Décathlon…) — affichée en préfixe du libellé
   amount             Float
   currency           String       @default("EUR")
   date               DateTime     // date de la dépense / du prélèvement

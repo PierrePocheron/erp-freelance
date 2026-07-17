@@ -16,6 +16,7 @@ import { FREQUENCY_LABELS } from "./RecurringExpenseDialog"
 export type ExpenseForEdit = {
   id: string
   label: string
+  merchant: string | null
   amount: number
   date: Date | string
   scope: "PRO" | "PERSO"
@@ -37,6 +38,7 @@ export function ExpenseDialog({
   const [isDeleting, startDelete] = useTransition()
 
   const [label, setLabel]           = useState(expense?.label ?? "")
+  const [merchant, setMerchant]     = useState(expense?.merchant ?? "")
   const [amount, setAmount]         = useState(expense ? String(expense.amount) : "")
   const [date, setDate]             = useState(() => new Date(expense?.date ?? new Date()).toISOString().slice(0, 10))
   const [scope, setScope]           = useState<"PRO" | "PERSO">(expense?.scope ?? "PERSO")
@@ -48,6 +50,7 @@ export function ExpenseDialog({
 
   function resetForm() {
     setLabel("")
+    setMerchant("")
     setAmount("")
     setDate(new Date().toISOString().slice(0, 10))
     setScope("PERSO")
@@ -65,6 +68,7 @@ export function ExpenseDialog({
 
     const shared = {
       label: label.trim(),
+      merchant: merchant.trim() || null,
       amount: amountNum,
       scope,
       categoryId: categoryId || null,
@@ -119,6 +123,11 @@ export function ExpenseDialog({
           <div className="space-y-1">
             <label className="text-xs text-muted-foreground">Libellé</label>
             <Input value={label} onChange={e => setLabel(e.target.value)} placeholder="Courses, essence, forfait mobile…" required />
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs text-muted-foreground">Société / enseigne</label>
+            <Input value={merchant} onChange={e => setMerchant(e.target.value)} placeholder="Décathlon, Sephora…" />
+            <p className="text-[11px] text-muted-foreground">Affichée en préfixe du libellé — sans elle, la dépense reste « à compléter »</p>
           </div>
           <div className="space-y-1">
             <label className="text-xs text-muted-foreground">Montant (€)</label>

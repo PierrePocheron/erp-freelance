@@ -47,6 +47,17 @@ export function SettingsForm({ userId, profile, userName, userEmail, conditionsT
   const [pdfAccentColor, setPdfAccentColor] = useState(profile?.pdfAccentColor ?? "#6366f1")
   const [pdfBackgroundColor, setPdfBackgroundColor] = useState(profile?.pdfBackgroundColor ?? "#FAF6EE")
 
+  // Une couleur personnalisée (choisie via le picker « + ») n'est dans aucun
+  // preset : on l'affiche comme pastille supplémentaire, sinon elle semble ne
+  // jamais s'ajouter alors qu'elle est bien dans l'état et sauvegardée.
+  const sameColor = (a: string, b: string) => a.toLowerCase() === b.toLowerCase()
+  const accentSwatches = PDF_ACCENT_PRESETS.some((c) => sameColor(c, pdfAccentColor))
+    ? PDF_ACCENT_PRESETS
+    : [...PDF_ACCENT_PRESETS, pdfAccentColor]
+  const backgroundSwatches = PDF_BACKGROUND_PRESETS.some((c) => sameColor(c, pdfBackgroundColor))
+    ? PDF_BACKGROUND_PRESETS
+    : [...PDF_BACKGROUND_PRESETS, pdfBackgroundColor]
+
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
     setStatus("saving")
@@ -196,7 +207,7 @@ export function SettingsForm({ userId, profile, userName, userEmail, conditionsT
 
         <Field label="Couleur du point et des accents">
           <div className="flex items-center gap-2 flex-wrap">
-            {PDF_ACCENT_PRESETS.map((c) => (
+            {accentSwatches.map((c) => (
               <button
                 key={c}
                 type="button"
@@ -205,8 +216,8 @@ export function SettingsForm({ userId, profile, userName, userEmail, conditionsT
                 className="h-7 w-7 rounded-full border-2 transition-all"
                 style={{
                   backgroundColor: c,
-                  borderColor: pdfAccentColor === c ? c : "transparent",
-                  boxShadow: pdfAccentColor === c ? `0 0 0 2px white, 0 0 0 4px ${c}` : "none",
+                  borderColor: sameColor(pdfAccentColor, c) ? c : "transparent",
+                  boxShadow: sameColor(pdfAccentColor, c) ? `0 0 0 2px white, 0 0 0 4px ${c}` : "none",
                 }}
               />
             ))}
@@ -227,7 +238,7 @@ export function SettingsForm({ userId, profile, userName, userEmail, conditionsT
 
         <Field label="Fond de page">
           <div className="flex items-center gap-2 flex-wrap">
-            {PDF_BACKGROUND_PRESETS.map((c) => (
+            {backgroundSwatches.map((c) => (
               <button
                 key={c}
                 type="button"
@@ -237,7 +248,7 @@ export function SettingsForm({ userId, profile, userName, userEmail, conditionsT
                 style={{
                   backgroundColor: c,
                   borderColor: "var(--border)",
-                  boxShadow: pdfBackgroundColor === c ? "0 0 0 2px white, 0 0 0 4px #94a3b8" : "none",
+                  boxShadow: sameColor(pdfBackgroundColor, c) ? "0 0 0 2px white, 0 0 0 4px #94a3b8" : "none",
                 }}
               />
             ))}

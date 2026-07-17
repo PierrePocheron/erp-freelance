@@ -111,7 +111,7 @@ export function EntretienView({
         {/* Header */}
         <div className="flex items-start justify-between gap-4 flex-wrap">
           <div>
-            <h1 className="text-2xl font-bold tracking-tight">Entretiens</h1>
+            <h1 className="sm:hidden text-2xl font-bold tracking-tight">Entretiens</h1>
             <p className="text-sm text-muted-foreground">Suivi des candidatures et processus de recrutement</p>
           </div>
           <button

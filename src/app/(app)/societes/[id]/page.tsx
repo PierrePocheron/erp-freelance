@@ -372,7 +372,7 @@ export default async function CompanyDetailPage({
                     <span className="text-muted-foreground font-normal ml-1.5">({nbInvoices})</span>
                   </h2>
                 </div>
-                <Link href="/facturation/factures" className="text-xs text-primary hover:underline">
+                <Link href={`/facturation/factures?societe=${company.id}`} className="text-xs text-primary hover:underline">
                   Voir toutes
                 </Link>
               </div>

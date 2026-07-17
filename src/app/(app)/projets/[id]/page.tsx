@@ -330,7 +330,7 @@ export default async function ProjectOverviewPage({
         <div className="order-3">
         {hasBilling ? (
             <div className="rounded-xl border border-border/50 bg-card p-5 space-y-4">
-              <Link href="/facturation" className="flex items-center gap-2 font-semibold text-sm hover:text-primary transition-colors">
+              <Link href={`/facturation/factures?projet=${project.id}`} className="flex items-center gap-2 font-semibold text-sm hover:text-primary transition-colors">
                 <Receipt className="h-4 w-4 text-muted-foreground" />
                 Facturation{hasRevenue ? " & revenus" : ""} →
               </Link>

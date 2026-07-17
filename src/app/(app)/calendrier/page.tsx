@@ -377,7 +377,7 @@ export default async function CalendrierPage() {
   return (
     <div className="h-full flex flex-col gap-4">
       <div className="shrink-0">
-        <h1 className="text-2xl font-bold tracking-tight">Calendrier</h1>
+        <h1 className="sm:hidden text-2xl font-bold tracking-tight">Calendrier</h1>
         <p className="text-sm text-muted-foreground">
           Tâches, jalons, rappels, factures, entretiens et santé
         </p>

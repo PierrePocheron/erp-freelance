@@ -163,7 +163,7 @@ export default async function RevenuePage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Revenus</h1>
+          <h1 className="sm:hidden text-2xl font-bold tracking-tight">Revenus</h1>
           <p className="text-sm text-muted-foreground mt-0.5">
             Vue unifiée — revenus manuels + factures AE encaissées
           </p>

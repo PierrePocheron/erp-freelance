@@ -57,7 +57,7 @@ export default async function ProspectionPage({
     <div className="space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Prospection</h1>
+          <h1 className="sm:hidden text-2xl font-bold tracking-tight">Prospection</h1>
           <p className="text-sm text-muted-foreground">
             {prospects.length} prospect{prospects.length !== 1 ? "s" : ""} · démarchage, suivi et relances
           </p>

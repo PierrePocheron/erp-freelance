@@ -118,7 +118,7 @@ export function ProjetsListView({
     <div className="space-y-8">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Projets</h1>
+          <h1 className="sm:hidden text-2xl font-bold tracking-tight">Projets</h1>
           <p className="text-sm text-muted-foreground">
             {filtered.length}{filtered.length !== projects.length ? `/${projects.length}` : ""} projet{projects.length !== 1 ? "s" : ""}
           </p>

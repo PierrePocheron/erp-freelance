@@ -107,7 +107,7 @@ export default async function DepensesPage({
     <div className="space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Dépenses</h1>
+          <h1 className="sm:hidden text-2xl font-bold tracking-tight">Dépenses</h1>
           <p className="text-sm text-muted-foreground mt-0.5">
             Suivi des dépenses pro et perso, par catégorie
           </p>

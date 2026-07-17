@@ -204,6 +204,19 @@ export function FacturesListView({
   const clientName = clientFilter ? clients.find((c) => c.id === clientFilter)?.name ?? "Client inconnu" : null
   const societeName = societeFilter ? companies.find((c) => c.id === societeFilter)?.name ?? "Société inconnue" : null
 
+  // L'export CSV porte tous les filtres actifs : il exporte ce que le tableau affiche
+  const exportHref = useMemo(() => {
+    const params = new URLSearchParams()
+    if (statusFilter !== "ALL") params.set("status", statusFilter)
+    if (projectFilter) params.set("projet", projectFilter)
+    if (clientFilter) params.set("client", clientFilter)
+    if (societeFilter) params.set("societe", societeFilter)
+    if (monthsFilter.length > 0) params.set("mois", monthsFilter.join(","))
+    if (q.trim()) params.set("q", q.trim())
+    const qs = params.toString()
+    return `/api/export/factures${qs ? `?${qs}` : ""}`
+  }, [statusFilter, projectFilter, clientFilter, societeFilter, monthsFilter, q])
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-3">
@@ -231,10 +244,10 @@ export function FacturesListView({
             </button>
           </div>
           <a
-            href={`/api/export/factures${statusFilter !== "ALL" ? `?status=${statusFilter}` : ""}`}
+            href={exportHref}
             download
             className="inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1.5 text-xs text-muted-foreground hover:bg-muted transition-colors"
-            title="Exporter en CSV"
+            title="Exporter en CSV (filtres actifs inclus)"
           >
             <Download className="h-3.5 w-3.5" />
             CSV

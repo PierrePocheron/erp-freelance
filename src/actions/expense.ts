@@ -67,6 +67,7 @@ export async function deleteExpenseCategory(categoryId: string) {
 
 export type ExpenseInput = {
   label: string
+  merchant?: string | null
   amount: number
   date: Date
   scope: "PRO" | "PERSO"
@@ -80,6 +81,7 @@ export async function createExpense(data: ExpenseInput) {
     data: {
       userId,
       label: data.label.trim(),
+      merchant: data.merchant?.trim() || null,
       amount: data.amount,
       date: data.date,
       scope: data.scope,
@@ -101,6 +103,7 @@ export async function updateExpense(expenseId: string, data: ExpenseInput) {
     where: { id: expenseId },
     data: {
       label: data.label.trim(),
+      merchant: data.merchant?.trim() || null,
       amount: data.amount,
       date: data.date,
       scope: data.scope,

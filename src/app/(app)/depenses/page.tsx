@@ -203,7 +203,16 @@ export default async function DepensesPage({
               {expenseRows.map((row) => row.kind === "ONE" ? (
                 <div key={`e-${row.e.id}`} className="flex items-center gap-3 py-1.5 group">
                   <span className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: row.e.category?.color ?? "#94a3b8" }} />
-                  <span className="flex-1 text-sm truncate min-w-0">{row.e.label}</span>
+                  <span className="flex-1 text-sm truncate min-w-0">
+                    {row.e.merchant && <span className="font-medium">{row.e.merchant} – </span>}
+                    {row.e.label}
+                  </span>
+                  {/* Achat ponctuel sans société/enseigne renseignée → à compléter */}
+                  {!row.e.merchant && !row.e.recurringExpenseId && (
+                    <span className="shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-medium bg-amber-500/10 text-amber-700 whitespace-nowrap">
+                      À compléter
+                    </span>
+                  )}
                   <span className={`shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-medium ${row.e.scope === "PRO" ? "bg-indigo-500/15 text-indigo-600" : "bg-slate-500/15 text-slate-600"}`}>
                     {row.e.scope === "PRO" ? "Pro" : "Perso"}
                   </span>
@@ -222,7 +231,7 @@ export default async function DepensesPage({
                   <span className="shrink-0 text-sm font-medium tabular-nums w-16 text-right">{fmt(row.e.amount)} €</span>
                   <ExpenseDialog
                     categories={categories}
-                    expense={{ id: row.e.id, label: row.e.label, amount: row.e.amount, date: row.e.date, scope: row.e.scope, categoryId: row.e.categoryId, notes: row.e.notes }}
+                    expense={{ id: row.e.id, label: row.e.label, merchant: row.e.merchant, amount: row.e.amount, date: row.e.date, scope: row.e.scope, categoryId: row.e.categoryId, notes: row.e.notes }}
                   />
                 </div>
               ) : (

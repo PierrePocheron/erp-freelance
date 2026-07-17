@@ -8,6 +8,7 @@ import { useSortState, cmp } from "@/hooks/use-sortable"
 import { Th } from "@/components/ui/sortable-header"
 import { CreateInvoiceDialog } from "./CreateInvoiceDialog"
 import { ImportInvoiceModal } from "./ImportInvoiceModal"
+import { RevenueBars } from "./MonthlyRevenueChart"
 
 type Invoice = {
   id: string
@@ -86,6 +87,12 @@ export function FacturesListView({
   const [view, setView] = useState<"list" | "cards">("list")
   const [q, setQ] = useState("")
   const { sortCol, sortDir, toggle } = useSortState("createdAt", "desc")
+
+  // Date de référence figée au premier rendu (règle react-hooks/purity)
+  const [now] = useState(() => new Date())
+  const currentYear = now.getFullYear()
+  const currentMonth = now.getMonth()
+  const [chartYear, setChartYear] = useState(currentYear)
 
   // ── Filtres pilotés par l'URL (source de vérité) ─────────────────────────
   // ?statut= ?projet= ?client= ?societe= ?mois=YYYY-MM[,YYYY-MM…]
@@ -166,6 +173,24 @@ export function FacturesListView({
     })
   }, [filtered, sortCol, sortDir])
 
+  // Données du graphique : encaissements de l'année affichée, calculés
+  // client-side depuis les factures déjà chargées (mêmes règles que la vue
+  // d'ensemble : factures PAID, mois de paidAt ?? createdAt).
+  const minYear = useMemo(
+    () => invoices.reduce((min, inv) => Math.min(min, new Date(inv.paidAt ?? inv.createdAt).getFullYear()), currentYear),
+    [invoices, currentYear]
+  )
+  const chartData = useMemo(() => {
+    const arr = Array(12).fill(0) as number[]
+    for (const inv of invoices) {
+      if (inv.status !== "PAID") continue
+      const d = new Date(inv.paidAt ?? inv.createdAt)
+      if (d.getFullYear() !== chartYear) continue
+      arr[d.getMonth()] += inv.totalHT - inv.depositDeducted
+    }
+    return arr
+  }, [invoices, chartYear])
+
   // Libellés des filtres contextuels actifs (chips)
   const projectName = projectFilter ? projects.find((p) => p.id === projectFilter)?.name ?? "Projet inconnu" : null
   const clientName = clientFilter ? clients.find((c) => c.id === clientFilter)?.name ?? "Client inconnu" : null
@@ -210,6 +235,20 @@ export function FacturesListView({
           <CreateInvoiceDialog userId={userId} clients={clients} companies={companies} projects={projects} quotes={quotes} />
         </div>
       </div>
+
+      {/* ── Graphique mensuel interactif : clic = filtre mois, Maj+clic = multi ── */}
+      <RevenueBars
+        data={chartData}
+        year={chartYear}
+        currentYear={currentYear}
+        currentMonth={currentMonth}
+        onYearChange={(delta) => setChartYear((y) => y + delta)}
+        canPrev={chartYear > minYear}
+        canNext={chartYear < currentYear}
+        selectedKeys={monthsFilter}
+        onMonthClick={toggleMonth}
+        clickHint="Clic : filtrer ce mois · Maj+clic : multi-sélection"
+      />
 
       {/* ── Barre de filtres ─────────────────────────────────────────────── */}
       <div className="space-y-2">

@@ -273,14 +273,17 @@ export default async function DepensesPage({
                     {new Date(row.e.date).toLocaleDateString("fr-FR", { day: "numeric", month: "short" })}
                   </span>
                   <span className="shrink-0 text-sm font-medium tabular-nums w-16 text-right">{fmt(row.e.amount)} €</span>
-                  {/* Pause/reprise de la récurrente parente, directement sur la ligne */}
-                  {row.e.recurringExpense && (
-                    <form action={async () => { "use server"; await toggleRecurringExpenseActive(row.e.recurringExpense!.id, !row.e.recurringExpense!.isActive) }}>
-                      <button type="submit" className="text-muted-foreground hover:text-foreground transition-colors" title={row.e.recurringExpense.isActive ? "Mettre la récurrente en pause" : "Réactiver la récurrente"}>
-                        {row.e.recurringExpense.isActive ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}
-                      </button>
-                    </form>
-                  )}
+                  {/* Colonne pause/reprise à largeur FIXE : présente sur toutes les
+                      lignes (vide pour les ponctuelles) pour un alignement stable */}
+                  <div className="w-4 shrink-0 flex justify-center">
+                    {row.e.recurringExpense && (
+                      <form action={async () => { "use server"; await toggleRecurringExpenseActive(row.e.recurringExpense!.id, !row.e.recurringExpense!.isActive) }}>
+                        <button type="submit" className="text-muted-foreground hover:text-foreground transition-colors" title={row.e.recurringExpense.isActive ? "Mettre la récurrente en pause" : "Réactiver la récurrente"}>
+                          {row.e.recurringExpense.isActive ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}
+                        </button>
+                      </form>
+                    )}
+                  </div>
                   <ExpenseDialog
                     categories={categories}
                     expense={{ id: row.e.id, label: row.e.label, merchant: row.e.merchant, amount: row.e.amount, date: row.e.date, scope: row.e.scope, categoryId: row.e.categoryId, notes: row.e.notes, fromRecurring: !!row.e.recurringExpenseId }}
@@ -318,11 +321,13 @@ export default async function DepensesPage({
                     {row.kind === "NODATE" ? "—" : row.date.toLocaleDateString("fr-FR", { day: "numeric", month: "short" })}
                   </span>
                   <span className="shrink-0 text-sm font-medium tabular-nums w-16 text-right">{fmt(row.r.amount)} €</span>
-                  <form action={async () => { "use server"; await toggleRecurringExpenseActive(row.r.id, !row.r.isActive) }}>
-                    <button type="submit" className="text-muted-foreground hover:text-foreground transition-colors" title={row.r.isActive ? "Mettre en pause" : "Réactiver"}>
-                      {row.r.isActive ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}
-                    </button>
-                  </form>
+                  <div className="w-4 shrink-0 flex justify-center">
+                    <form action={async () => { "use server"; await toggleRecurringExpenseActive(row.r.id, !row.r.isActive) }}>
+                      <button type="submit" className="text-muted-foreground hover:text-foreground transition-colors" title={row.r.isActive ? "Mettre en pause" : "Réactiver"}>
+                        {row.r.isActive ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}
+                      </button>
+                    </form>
+                  </div>
                   <RecurringExpenseDialog
                     categories={categories}
                     recurringExpense={{

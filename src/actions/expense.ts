@@ -278,10 +278,32 @@ export async function confirmRecurringExpenseDate(recurringExpenseId: string, da
 
 export async function toggleRecurringExpenseActive(recurringExpenseId: string, isActive: boolean) {
   const userId = await requireAuth()
-  const existing = await prisma.recurringExpense.findFirst({ where: { id: recurringExpenseId, userId }, select: { id: true } })
+  const existing = await prisma.recurringExpense.findFirst({
+    where: { id: recurringExpenseId, userId },
+    select: { id: true, frequency: true, nextGenerationDate: true },
+  })
   if (!existing) throw new Error("Dépense récurrente introuvable")
 
-  await prisma.recurringExpense.update({ where: { id: recurringExpenseId }, data: { isActive } })
+  // À la RÉACTIVATION, avancer l'échéance jusque dans le futur : les mois
+  // passés en pause n'ont pas été prélevés — sans ça, la génération
+  // automatique rattraperait toutes les occurrences sautées.
+  let nextGenerationDate = existing.nextGenerationDate
+  if (isActive) {
+    const now = new Date()
+    let iterations = 0
+    while (nextGenerationDate.getTime() <= now.getTime()) {
+      const next = advanceByFrequency(nextGenerationDate, existing.frequency)
+      if (next.getTime() === nextGenerationDate.getTime()) break // fréquence inconnue
+      nextGenerationDate = next
+      if (++iterations > MAX_GENERATION_ITERATIONS) break
+    }
+  }
+
+  await prisma.recurringExpense.update({
+    where: { id: recurringExpenseId },
+    data: { isActive, nextGenerationDate },
+  })
+  revalidatePath("/depenses")
   revalidatePath("/depenses/recurrentes")
   revalidatePath("/calendrier")
 }

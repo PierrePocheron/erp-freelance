@@ -17,11 +17,18 @@ export default async function FacturationOverviewPage() {
   const yearStart = new Date(now.getFullYear(), 0, 1)
   const yearEnd = new Date(now.getFullYear(), 11, 31, 23, 59, 59)
 
-  const [invoicesThisYear, allPending, quotes, profile, quickClients, quickCompanies, quickProjects] = await Promise.all([
+  const [invoicesThisYear, paidInvoicesThisYear, allPending, quotes, profile, quickClients, quickCompanies, quickProjects] = await Promise.all([
     prisma.invoice.findMany({
       where: { userId, createdAt: { gte: yearStart, lte: yearEnd } },
       include: { client: { select: { name: true, company: true } } },
       orderBy: { createdAt: "desc" },
+    }),
+    // Encaissements de l'année : par date de PAIEMENT, pas de création — le
+    // createdAt ne veut rien dire (un import ou un re-seed recrée tout à la
+    // date du jour) et une facture payée une autre année sortirait du cadre.
+    prisma.invoice.findMany({
+      where: { userId, status: "PAID", paidAt: { gte: yearStart, lte: yearEnd } },
+      select: { paidAt: true, totalHT: true, depositDeducted: true },
     }),
     prisma.invoice.findMany({
       where: { userId, status: { in: ["SENT", "LATE"] } },
@@ -52,8 +59,7 @@ export default async function FacturationOverviewPage() {
     }),
   ])
 
-  const paidThisYear = invoicesThisYear
-    .filter((i) => i.status === "PAID")
+  const paidThisYear = paidInvoicesThisYear
     .reduce((s, i) => s + i.totalHT - i.depositDeducted, 0)
 
   const totalPending = allPending
@@ -67,17 +73,12 @@ export default async function FacturationOverviewPage() {
   const quotesWaiting = quotes.filter((q) => q.status === "SENT").length
   const profileIncomplete = !profile?.companyName || !profile?.siret || !profile?.address
 
-  // Revenus mensuels (factures payées cette année)
-  const monthlyRevenue = Array.from({ length: 12 }, (_, m) => {
-    const total = invoicesThisYear
-      .filter((i) => {
-        if (i.status !== "PAID") return false
-        const d = new Date(i.paidAt ?? i.createdAt)
-        return d.getMonth() === m
-      })
+  // Revenus mensuels (factures payées cette année, mois de paidAt)
+  const monthlyRevenue = Array.from({ length: 12 }, (_, m) =>
+    paidInvoicesThisYear
+      .filter((i) => i.paidAt && new Date(i.paidAt).getMonth() === m)
       .reduce((s, i) => s + i.totalHT - i.depositDeducted, 0)
-    return total
-  })
+  )
 
   const currentMonth = now.getMonth()
   const recentInvoices = invoicesThisYear.slice(0, 8)

@@ -18,6 +18,7 @@ type Invoice = {
   totalHT: number
   depositDeducted: number
   dueDate: Date | null
+  issuedAt: Date | null
   paidAt: Date | null
   createdAt: Date
   clientId: string
@@ -57,10 +58,11 @@ const STATUS_FILTERS = [
   { value: "CANCELLED", label: "Annulées" },
 ]
 
-/** Clé "YYYY-MM" du mois de référence d'une facture (encaissement, sinon création
- *  — même sémantique que le graphique des revenus mensuels). */
+/** Clé "YYYY-MM" du mois de référence d'une facture : encaissement (paidAt),
+ *  sinon date d'émission — jamais createdAt en priorité, qui ne reflète que la
+ *  date d'insertion en base (import, re-seed) et pas la vie de la facture. */
 function invoiceMonthKey(inv: Invoice): string {
-  const d = new Date(inv.paidAt ?? inv.createdAt)
+  const d = new Date(inv.paidAt ?? inv.issuedAt ?? inv.createdAt)
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`
 }
 
@@ -175,16 +177,22 @@ export function FacturesListView({
 
   // Données du graphique : encaissements de l'année affichée, calculés
   // client-side depuis les factures déjà chargées (mêmes règles que la vue
-  // d'ensemble : factures PAID, mois de paidAt ?? createdAt).
+  // d'ensemble : factures PAID, mois de paidAt — issuedAt en secours, jamais
+  // createdAt qui ne reflète que la date d'insertion en base).
   const minYear = useMemo(
-    () => invoices.reduce((min, inv) => Math.min(min, new Date(inv.paidAt ?? inv.createdAt).getFullYear()), currentYear),
+    () => invoices.reduce((min, inv) => {
+      const d = inv.paidAt ?? inv.issuedAt
+      return d ? Math.min(min, new Date(d).getFullYear()) : min
+    }, currentYear),
     [invoices, currentYear]
   )
   const chartData = useMemo(() => {
     const arr = Array(12).fill(0) as number[]
     for (const inv of invoices) {
       if (inv.status !== "PAID") continue
-      const d = new Date(inv.paidAt ?? inv.createdAt)
+      const date = inv.paidAt ?? inv.issuedAt
+      if (!date) continue
+      const d = new Date(date)
       if (d.getFullYear() !== chartYear) continue
       arr[d.getMonth()] += inv.totalHT - inv.depositDeducted
     }

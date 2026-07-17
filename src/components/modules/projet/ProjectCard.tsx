@@ -33,6 +33,7 @@ type Props = {
     tasksDone: number
     tags: { id: string; name: string; color: string }[]
     billing: { totalFacture: number; totalEncaisse: number }
+    revenue: { totalRevenu: number; revenuRecu: number }
   }
   showBilling?: boolean
 }
@@ -118,21 +119,42 @@ export function ProjectCard({ project, showBilling = false }: Props) {
           )}
         </div>
 
-        {showBilling && project.billing.totalFacture > 0 && (
-          <div className="pt-3 border-t border-border/50 space-y-1.5">
-            <div className="flex items-center justify-between text-xs">
-              <span className="text-muted-foreground">Facturation</span>
-              <span>
-                <span className="font-medium">{fmtEur(project.billing.totalEncaisse)}</span>
-                <span className="text-muted-foreground"> / {fmtEur(project.billing.totalFacture)}</span>
-              </span>
-            </div>
-            <div className="h-1.5 rounded-full bg-muted overflow-hidden">
-              <div
-                className="h-full rounded-full bg-emerald-500 transition-all"
-                style={{ width: `${Math.min(100, (project.billing.totalEncaisse / project.billing.totalFacture) * 100)}%` }}
-              />
-            </div>
+        {showBilling && (project.billing.totalFacture > 0 || project.revenue.totalRevenu > 0) && (
+          <div className="pt-3 border-t border-border/50 space-y-2.5">
+            {project.billing.totalFacture > 0 && (
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-muted-foreground">Facturation</span>
+                  <span>
+                    <span className="font-medium">{fmtEur(project.billing.totalEncaisse)}</span>
+                    <span className="text-muted-foreground"> / {fmtEur(project.billing.totalFacture)}</span>
+                  </span>
+                </div>
+                <div className="h-1.5 rounded-full bg-muted overflow-hidden">
+                  <div
+                    className="h-full rounded-full bg-emerald-500 transition-all"
+                    style={{ width: `${Math.min(100, (project.billing.totalEncaisse / project.billing.totalFacture) * 100)}%` }}
+                  />
+                </div>
+              </div>
+            )}
+            {project.revenue.totalRevenu > 0 && (
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-muted-foreground">Revenus</span>
+                  <span>
+                    <span className="font-medium">{fmtEur(project.revenue.revenuRecu)}</span>
+                    <span className="text-muted-foreground"> / {fmtEur(project.revenue.totalRevenu)}</span>
+                  </span>
+                </div>
+                <div className="h-1.5 rounded-full bg-muted overflow-hidden">
+                  <div
+                    className="h-full rounded-full bg-teal-500 transition-all"
+                    style={{ width: `${Math.min(100, (project.revenue.revenuRecu / project.revenue.totalRevenu) * 100)}%` }}
+                  />
+                </div>
+              </div>
+            )}
           </div>
         )}
         </div>

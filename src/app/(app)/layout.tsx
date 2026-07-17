@@ -24,14 +24,12 @@ export default async function AppLayout({
   if (!session) redirect("/login")
 
   const userId = session.user.id
-  await ensureSelfClient(userId)
 
-  const profile = await prisma.userProfile.findUnique({
-    where: { userId },
-    select: { urssafFrequency: true },
-  })
-  await ensureUrssafReminderTask(userId, profile?.urssafFrequency ?? "QUARTERLY")
-
+  // Ce layout s'exécute à CHAQUE navigation serveur : les gardes idempotentes
+  // (client SELF, rappel URSSAF) et les données du shell partent en parallèle —
+  // en séquence, chaque aller-retour vers Neon s'additionnait sur toutes les
+  // pages. Seul enchaînement conservé : le profil avant la garde URSSAF, qui
+  // dépend de sa fréquence de déclaration.
   const [runningTimer, notifications] = await Promise.all([
     getRunningTimer(userId),
     prisma.notification.findMany({
@@ -39,6 +37,10 @@ export default async function AppLayout({
       orderBy: { createdAt: "desc" },
       take: 30,
     }),
+    ensureSelfClient(userId),
+    prisma.userProfile
+      .findUnique({ where: { userId }, select: { urssafFrequency: true } })
+      .then((profile) => ensureUrssafReminderTask(userId, profile?.urssafFrequency ?? "QUARTERLY")),
   ])
 
   async function logout() {

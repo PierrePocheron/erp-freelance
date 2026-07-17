@@ -174,10 +174,10 @@ export function ProjetsListView({
                 ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/20"
                 : "text-muted-foreground border-border hover:bg-muted/50 hover:text-foreground"
             )}
-            title="Afficher la facturation"
+            title="Afficher la facturation et les revenus"
           >
             <TrendingUp className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">Facturation</span>
+            <span className="hidden sm:inline">Facturation & revenus</span>
           </button>
 
           {/* Vue */}
@@ -282,7 +282,7 @@ export function ProjetsListView({
                 <Th label="Priorité"    col="priority" sortCol={sortCol} sortDir={sortDir} onSort={toggle} className="px-4 py-3" />
                 <Th label="Statut"      col="status"   sortCol={sortCol} sortDir={sortDir} onSort={toggle} className="px-4 py-3" />
                 <th className="px-4 py-3 text-left font-medium text-xs text-muted-foreground hidden md:table-cell">Tâches</th>
-                {showBilling && <th className="px-4 py-3 text-left font-medium text-xs text-muted-foreground hidden md:table-cell">Facturation</th>}
+                {showBilling && <th className="px-4 py-3 text-left font-medium text-xs text-muted-foreground hidden md:table-cell">Facturation / Revenus</th>}
                 <Th label="Fin estimée" col="endDate"  sortCol={sortCol} sortDir={sortDir} onSort={toggle} className="px-4 py-3 hidden lg:table-cell" />
               </tr>
             </thead>

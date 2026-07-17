@@ -1,8 +1,9 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import { useState, useMemo, useCallback } from "react"
 import Link from "next/link"
-import { Receipt, LayoutGrid, List, Download } from "lucide-react"
+import { useSearchParams } from "next/navigation"
+import { Receipt, LayoutGrid, List, Download, Search, X } from "lucide-react"
 import { useSortState, cmp } from "@/hooks/use-sortable"
 import { Th } from "@/components/ui/sortable-header"
 import { CreateInvoiceDialog } from "./CreateInvoiceDialog"
@@ -16,9 +17,12 @@ type Invoice = {
   totalHT: number
   depositDeducted: number
   dueDate: Date | null
+  paidAt: Date | null
   createdAt: Date
-  client: { name: string; company: string | null }
-  project: { name: string } | null
+  clientId: string
+  projectId: string | null
+  client: { name: string; company: string | null; companyId: string | null }
+  project: { id: string; name: string; companyId: string | null } | null
 }
 
 type Company = { id: string; name: string; city: string | null }
@@ -52,6 +56,18 @@ const STATUS_FILTERS = [
   { value: "CANCELLED", label: "Annulées" },
 ]
 
+/** Clé "YYYY-MM" du mois de référence d'une facture (encaissement, sinon création
+ *  — même sémantique que le graphique des revenus mensuels). */
+function invoiceMonthKey(inv: Invoice): string {
+  const d = new Date(inv.paidAt ?? inv.createdAt)
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`
+}
+
+function monthKeyLabel(key: string): string {
+  const [y, m] = key.split("-").map(Number)
+  return new Date(y, m - 1, 1).toLocaleDateString("fr-FR", { month: "long", year: "numeric" })
+}
+
 export function FacturesListView({
   userId,
   invoices,
@@ -68,10 +84,70 @@ export function FacturesListView({
   quotes?: Quote[]
 }) {
   const [view, setView] = useState<"list" | "cards">("list")
-  const [statusFilter, setStatusFilter] = useState("ALL")
+  const [q, setQ] = useState("")
   const { sortCol, sortDir, toggle } = useSortState("createdAt", "desc")
 
-  const filtered = statusFilter === "ALL" ? invoices : invoices.filter((i) => i.status === statusFilter)
+  // ── Filtres pilotés par l'URL (source de vérité) ─────────────────────────
+  // ?statut= ?projet= ?client= ?societe= ?mois=YYYY-MM[,YYYY-MM…]
+  // Mise à jour en shallow routing (history.replaceState) : pas d'aller-retour
+  // serveur, mais une URL partageable et des arrivées contextuelles possibles
+  // depuis les fiches projet / client / société.
+  const searchParams = useSearchParams()
+  const statusFilter = searchParams.get("statut") ?? "ALL"
+  const projectFilter = searchParams.get("projet")
+  const clientFilter = searchParams.get("client")
+  const societeFilter = searchParams.get("societe")
+  const monthsFilter = useMemo(
+    () => (searchParams.get("mois")?.split(",").filter(Boolean) ?? []),
+    [searchParams]
+  )
+
+  const setParam = useCallback((key: string, value: string | null) => {
+    const params = new URLSearchParams(window.location.search)
+    if (value === null) params.delete(key)
+    else params.set(key, value)
+    const qs = params.toString()
+    window.history.replaceState(null, "", qs ? `?${qs}` : window.location.pathname)
+  }, [])
+
+  function toggleMonth(key: string, shift: boolean) {
+    let next: string[]
+    if (shift) {
+      next = monthsFilter.includes(key)
+        ? monthsFilter.filter((k) => k !== key)
+        : [...monthsFilter, key]
+    } else {
+      next = monthsFilter.length === 1 && monthsFilter[0] === key ? [] : [key]
+    }
+    setParam("mois", next.length ? next.join(",") : null)
+  }
+
+  const hasFilters =
+    statusFilter !== "ALL" || !!projectFilter || !!clientFilter || !!societeFilter || monthsFilter.length > 0 || q.trim() !== ""
+
+  function resetFilters() {
+    setQ("")
+    window.history.replaceState(null, "", window.location.pathname)
+  }
+
+  // ── Application des filtres ───────────────────────────────────────────────
+  const filtered = useMemo(() => {
+    const needle = q.trim().toLowerCase()
+    return invoices.filter((inv) => {
+      if (statusFilter !== "ALL" && inv.status !== statusFilter) return false
+      if (projectFilter && inv.projectId !== projectFilter) return false
+      if (clientFilter && inv.clientId !== clientFilter) return false
+      if (societeFilter && inv.client.companyId !== societeFilter && inv.project?.companyId !== societeFilter) return false
+      if (monthsFilter.length > 0 && !monthsFilter.includes(invoiceMonthKey(inv))) return false
+      if (needle) {
+        const haystack = [inv.number, inv.client.name, inv.client.company ?? "", inv.project?.name ?? ""]
+          .join(" ")
+          .toLowerCase()
+        if (!haystack.includes(needle)) return false
+      }
+      return true
+    })
+  }, [invoices, statusFilter, projectFilter, clientFilter, societeFilter, monthsFilter, q])
 
   const sorted = useMemo(() => {
     if (!sortCol) return filtered
@@ -79,6 +155,7 @@ export function FacturesListView({
       switch (sortCol) {
         case "number":  return cmp(a.number, b.number, sortDir)
         case "client":  return cmp(a.client.company ?? a.client.name, b.client.company ?? b.client.name, sortDir)
+        case "project": return cmp(a.project?.name ?? "", b.project?.name ?? "", sortDir)
         case "type":    return cmp(a.type, b.type, sortDir)
         case "status":  return cmp(a.status, b.status, sortDir)
         case "amount":  return cmp(a.totalHT - a.depositDeducted, b.totalHT - b.depositDeducted, sortDir)
@@ -89,6 +166,11 @@ export function FacturesListView({
     })
   }, [filtered, sortCol, sortDir])
 
+  // Libellés des filtres contextuels actifs (chips)
+  const projectName = projectFilter ? projects.find((p) => p.id === projectFilter)?.name ?? "Projet inconnu" : null
+  const clientName = clientFilter ? clients.find((c) => c.id === clientFilter)?.name ?? "Client inconnu" : null
+  const societeName = societeFilter ? companies.find((c) => c.id === societeFilter)?.name ?? "Société inconnue" : null
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-3">
@@ -97,34 +179,6 @@ export function FacturesListView({
           <p className="text-sm text-muted-foreground">{filtered.length} / {invoices.length} facture{invoices.length !== 1 ? "s" : ""}</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
-          {/* Status filters — select on mobile, buttons on sm+ */}
-          <select
-            className="sm:hidden rounded-lg border border-border px-2.5 py-1.5 text-xs bg-background text-foreground"
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-          >
-            {STATUS_FILTERS.map((f) => (
-              <option key={f.value} value={f.value}>{f.label}</option>
-            ))}
-          </select>
-          <div className="hidden sm:flex rounded-lg border border-border overflow-hidden text-xs">
-            {STATUS_FILTERS.map((f) => (
-              <button
-                key={f.value}
-                onClick={() => setStatusFilter(f.value)}
-                className={`px-3 py-1.5 border-r last:border-r-0 border-border transition-colors ${
-                  statusFilter === f.value ? "bg-accent font-medium" : "text-muted-foreground hover:bg-muted/50"
-                }`}
-              >
-                {f.label}
-                {f.value !== "ALL" && (
-                  <span className="ml-1 text-[10px] opacity-60">
-                    ({invoices.filter((i) => i.status === f.value).length})
-                  </span>
-                )}
-              </button>
-            ))}
-          </div>
           <div className="flex rounded-lg border border-border overflow-hidden">
             <button
               type="button"
@@ -157,6 +211,104 @@ export function FacturesListView({
         </div>
       </div>
 
+      {/* ── Barre de filtres ─────────────────────────────────────────────── */}
+      <div className="space-y-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          {/* Recherche */}
+          <div className="relative flex-1 min-w-[180px] max-w-xs">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
+            <input
+              type="search"
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              placeholder="N°, client, projet…"
+              className="w-full rounded-lg border border-border bg-background pl-8 pr-2.5 py-1.5 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+            />
+          </div>
+
+          {/* Projet */}
+          <select
+            className="rounded-lg border border-border px-2.5 py-1.5 text-xs bg-background text-foreground max-w-[180px]"
+            value={projectFilter ?? ""}
+            onChange={(e) => setParam("projet", e.target.value || null)}
+          >
+            <option value="">Tous les projets</option>
+            {projects.map((p) => (
+              <option key={p.id} value={p.id}>{p.name}</option>
+            ))}
+          </select>
+
+          {/* Client */}
+          <select
+            className="rounded-lg border border-border px-2.5 py-1.5 text-xs bg-background text-foreground max-w-[180px]"
+            value={clientFilter ?? ""}
+            onChange={(e) => setParam("client", e.target.value || null)}
+          >
+            <option value="">Tous les clients</option>
+            {clients.map((c) => (
+              <option key={c.id} value={c.id}>{c.company ? `${c.name} — ${c.company}` : c.name}</option>
+            ))}
+          </select>
+
+          {/* Statut — select en mobile, boutons en sm+ */}
+          <select
+            className="sm:hidden rounded-lg border border-border px-2.5 py-1.5 text-xs bg-background text-foreground"
+            value={statusFilter}
+            onChange={(e) => setParam("statut", e.target.value === "ALL" ? null : e.target.value)}
+          >
+            {STATUS_FILTERS.map((f) => (
+              <option key={f.value} value={f.value}>{f.label}</option>
+            ))}
+          </select>
+          <div className="hidden sm:flex rounded-lg border border-border overflow-hidden text-xs">
+            {STATUS_FILTERS.map((f) => (
+              <button
+                key={f.value}
+                onClick={() => setParam("statut", f.value === "ALL" ? null : f.value)}
+                className={`px-3 py-1.5 border-r last:border-r-0 border-border transition-colors ${
+                  statusFilter === f.value ? "bg-accent font-medium" : "text-muted-foreground hover:bg-muted/50"
+                }`}
+              >
+                {f.label}
+                {f.value !== "ALL" && (
+                  <span className="ml-1 text-[10px] opacity-60">
+                    ({invoices.filter((i) => i.status === f.value).length})
+                  </span>
+                )}
+              </button>
+            ))}
+          </div>
+
+          {hasFilters && (
+            <button
+              onClick={resetFilters}
+              className="inline-flex items-center gap-1 rounded-lg border border-border px-2.5 py-1.5 text-xs text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+            >
+              <X className="h-3 w-3" />
+              Réinitialiser
+            </button>
+          )}
+        </div>
+
+        {/* Chips des filtres contextuels actifs */}
+        {(projectName || clientName || societeName || monthsFilter.length > 0) && (
+          <div className="flex items-center gap-1.5 flex-wrap text-xs">
+            {projectName && (
+              <FilterChip label={`Projet : ${projectName}`} onRemove={() => setParam("projet", null)} />
+            )}
+            {clientName && (
+              <FilterChip label={`Client : ${clientName}`} onRemove={() => setParam("client", null)} />
+            )}
+            {societeName && (
+              <FilterChip label={`Société : ${societeName}`} onRemove={() => setParam("societe", null)} />
+            )}
+            {[...monthsFilter].sort().map((key) => (
+              <FilterChip key={key} label={monthKeyLabel(key)} onRemove={() => toggleMonth(key, true)} />
+            ))}
+          </div>
+        )}
+      </div>
+
       {invoices.length === 0 ? (
         <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border py-20 text-center">
           <Receipt className="h-10 w-10 text-muted-foreground mb-3" />
@@ -165,7 +317,7 @@ export function FacturesListView({
         </div>
       ) : filtered.length === 0 ? (
         <p className="text-sm text-muted-foreground italic text-center py-10">
-          Aucune facture pour ce filtre
+          Aucune facture pour ces filtres
         </p>
       ) : view === "list" ? (
         <div className="rounded-xl border border-border/50 bg-card overflow-x-auto">
@@ -174,6 +326,7 @@ export function FacturesListView({
               <tr className="border-b border-border">
                 <Th label="Numéro"    col="number"    sortCol={sortCol} sortDir={sortDir} onSort={toggle} className="px-4 py-3" />
                 <Th label="Client"    col="client"    sortCol={sortCol} sortDir={sortDir} onSort={toggle} className="px-4 py-3" />
+                <Th label="Projet"    col="project"   sortCol={sortCol} sortDir={sortDir} onSort={toggle} className="px-4 py-3 hidden lg:table-cell" />
                 <Th label="Type"      col="type"      sortCol={sortCol} sortDir={sortDir} onSort={toggle} className="px-4 py-3 hidden sm:table-cell" />
                 <Th label="Statut"    col="status"    sortCol={sortCol} sortDir={sortDir} onSort={toggle} className="px-4 py-3" />
                 <Th label="Montant HT" col="amount"  sortCol={sortCol} sortDir={sortDir} onSort={toggle} className="px-4 py-3" align="right" />
@@ -190,7 +343,20 @@ export function FacturesListView({
                     <td className="px-4 py-3">
                       <Link href={`/facturation/factures/${inv.id}`} className="text-primary hover:underline font-mono text-xs font-medium">{inv.number}</Link>
                     </td>
-                    <td className="px-4 py-3 text-muted-foreground">{inv.client.company ?? inv.client.name}</td>
+                    <td className="px-4 py-3">
+                      <Link href={`/contacts/${inv.clientId}`} className="text-muted-foreground hover:text-primary hover:underline transition-colors">
+                        {inv.client.company ?? inv.client.name}
+                      </Link>
+                    </td>
+                    <td className="px-4 py-3 text-xs hidden lg:table-cell">
+                      {inv.project ? (
+                        <Link href={`/projets/${inv.project.id}`} className="text-muted-foreground hover:text-primary hover:underline transition-colors">
+                          {inv.project.name}
+                        </Link>
+                      ) : (
+                        <span className="text-muted-foreground/50">—</span>
+                      )}
+                    </td>
                     <td className="px-4 py-3 text-xs text-muted-foreground hidden sm:table-cell">{typeLabels[inv.type] ?? inv.type}</td>
                     <td className="px-4 py-3">
                       <span className={`rounded-full border px-2 py-0.5 text-xs font-medium ${status.cls}`}>{status.label}</span>
@@ -212,16 +378,22 @@ export function FacturesListView({
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filtered.map((inv) => {
+          {sorted.map((inv) => {
             const status = statusConfig[inv.status] ?? { label: inv.status, cls: "bg-muted text-muted-foreground border-border" }
             const isLate = inv.dueDate && inv.status === "SENT" && new Date(inv.dueDate) < new Date()
             const amount = inv.totalHT - inv.depositDeducted
             return (
-              <Link
+              // La carte entière est cliquable via un overlay, pour que client et
+              // projet restent des liens propres (pas de <a> imbriqués).
+              <div
                 key={inv.id}
-                href={`/facturation/factures/${inv.id}`}
-                className={`rounded-xl border bg-card p-4 hover:shadow-sm transition-all space-y-3 ${isLate ? "border-red-500/40 bg-red-500/5" : "border-border/50 hover:border-border"}`}
+                className={`relative rounded-xl border bg-card p-4 hover:shadow-sm transition-all space-y-3 ${isLate ? "border-red-500/40 bg-red-500/5" : "border-border/50 hover:border-border"}`}
               >
+                <Link
+                  href={`/facturation/factures/${inv.id}`}
+                  className="absolute inset-0 rounded-xl"
+                  aria-label={`Facture ${inv.number}`}
+                />
                 <div className="flex items-start justify-between gap-2">
                   <span className="font-mono text-xs font-semibold text-muted-foreground">{inv.number}</span>
                   <div className="flex gap-1 flex-wrap justify-end">
@@ -232,9 +404,21 @@ export function FacturesListView({
                   </div>
                 </div>
                 <div>
-                  <p className="font-semibold text-sm leading-tight">{inv.client.company ?? inv.client.name}</p>
+                  <Link
+                    href={`/contacts/${inv.clientId}`}
+                    className="relative z-10 font-semibold text-sm leading-tight hover:text-primary hover:underline transition-colors"
+                  >
+                    {inv.client.company ?? inv.client.name}
+                  </Link>
                   {inv.project && (
-                    <p className="text-xs text-muted-foreground mt-0.5">{inv.project.name}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      <Link
+                        href={`/projets/${inv.project.id}`}
+                        className="relative z-10 hover:text-primary hover:underline transition-colors"
+                      >
+                        {inv.project.name}
+                      </Link>
+                    </p>
                   )}
                 </div>
                 <div className="pt-1 border-t border-border/50 space-y-1">
@@ -252,11 +436,22 @@ export function FacturesListView({
                     </p>
                   )}
                 </div>
-              </Link>
+              </div>
             )
           })}
         </div>
       )}
     </div>
+  )
+}
+
+function FilterChip({ label, onRemove }: { label: string; onRemove: () => void }) {
+  return (
+    <span className="inline-flex items-center gap-1 rounded-full border border-primary/30 bg-primary/10 text-primary px-2.5 py-0.5 font-medium">
+      {label}
+      <button onClick={onRemove} className="hover:bg-primary/20 rounded-full p-0.5 transition-colors" title="Retirer ce filtre">
+        <X className="h-3 w-3" />
+      </button>
+    </span>
   )
 }

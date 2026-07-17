@@ -134,8 +134,16 @@ export function SettingsShell({ nodes }: { nodes: Record<SectionId, React.ReactN
       </aside>
 
       {/* ── Contenu de la catégorie active ─────────────────────────────────── */}
-      <div className="flex-1 min-w-0 w-full space-y-6">
-        {visibleId ? nodes[visibleId] : (
+      {/* Toutes les sections restent montées (masquées en CSS) : changer de
+          catégorie ne détruit pas un formulaire en cours d'édition — ses
+          modifications non enregistrées survivent à l'aller-retour. */}
+      <div className="flex-1 min-w-0 w-full">
+        {SECTIONS.map((s) => (
+          <div key={s.id} hidden={s.id !== visibleId} className="space-y-6">
+            {nodes[s.id]}
+          </div>
+        ))}
+        {!visibleId && (
           <div className="rounded-xl border border-dashed border-border p-10 text-center text-sm text-muted-foreground">
             Essayez un autre terme de recherche.
           </div>

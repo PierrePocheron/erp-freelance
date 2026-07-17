@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input"
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger,
 } from "@/components/ui/dialog"
+import { DatePartsField } from "@/components/ui/date-parts-field"
 import { createExpense, updateExpense, deleteExpense, createRecurringExpense } from "@/actions/expense"
 import { ExpenseCategoryCombobox, type ExpenseCategory } from "./ExpenseCategoryCombobox"
 import { FREQUENCY_LABELS } from "./RecurringExpenseDialog"
@@ -119,21 +120,19 @@ export function ExpenseDialog({
             <label className="text-xs text-muted-foreground">Libellé</label>
             <Input value={label} onChange={e => setLabel(e.target.value)} placeholder="Courses, essence, forfait mobile…" required />
           </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1">
-              <label className="text-xs text-muted-foreground">Montant (€)</label>
-              <Input type="text" inputMode="decimal" value={amount} onChange={e => setAmount(e.target.value)} placeholder="0.00" required />
-            </div>
-            <div className="space-y-1">
-              <label className="text-xs text-muted-foreground">{!isEdit && isRecurring ? "Prochaine échéance" : "Date"}</label>
-              {!isEdit && isRecurring && dateToConfirm ? (
-                <div className="flex h-9 items-center rounded-md border border-dashed border-amber-500/40 bg-amber-500/5 px-3 text-sm text-amber-700">
-                  À compléter
-                </div>
-              ) : (
-                <Input type="date" value={date} onChange={e => setDate(e.target.value)} required />
-              )}
-            </div>
+          <div className="space-y-1">
+            <label className="text-xs text-muted-foreground">Montant (€)</label>
+            <Input type="text" inputMode="decimal" value={amount} onChange={e => setAmount(e.target.value)} placeholder="0.00" required />
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs text-muted-foreground">{!isEdit && isRecurring ? "Prochaine échéance" : "Date"}</label>
+            {!isEdit && isRecurring && dateToConfirm ? (
+              <div className="flex h-9 items-center rounded-md border border-dashed border-amber-500/40 bg-amber-500/5 px-3 text-sm text-amber-700">
+                À compléter
+              </div>
+            ) : (
+              <DatePartsField value={date} onChange={setDate} />
+            )}
           </div>
 
           {!isEdit && (

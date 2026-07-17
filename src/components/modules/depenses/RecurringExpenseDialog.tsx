@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input"
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger,
 } from "@/components/ui/dialog"
+import { DatePartsField } from "@/components/ui/date-parts-field"
 import { createRecurringExpense, updateRecurringExpense, deleteRecurringExpense, createExpense, convertRecurringToExpense } from "@/actions/expense"
 import { ExpenseCategoryCombobox, type ExpenseCategory } from "./ExpenseCategoryCombobox"
 
@@ -135,28 +136,28 @@ export function RecurringExpenseDialog({
               </select>
             </div>
           </div>
+          <div className="space-y-1">
+            <label className="text-xs text-muted-foreground">{isOneTime ? "Date" : "Prochaine échéance"}</label>
+            {!isOneTime && dateToConfirm ? (
+              <div className="flex h-9 items-center rounded-md border border-dashed border-amber-500/40 bg-amber-500/5 px-3 text-sm text-amber-700">
+                À compléter
+              </div>
+            ) : (
+              <DatePartsField value={nextDate} onChange={setNextDate} />
+            )}
+            {!isOneTime && (
+              <label className="flex items-center gap-1.5 pt-1 text-[11px] text-muted-foreground cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={dateToConfirm}
+                  onChange={e => setDateToConfirm(e.target.checked)}
+                  className="h-3 w-3 rounded border-input accent-primary"
+                />
+                Date de prélèvement pas encore connue
+              </label>
+            )}
+          </div>
           <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1">
-              <label className="text-xs text-muted-foreground">{isOneTime ? "Date" : "Prochaine échéance"}</label>
-              {!isOneTime && dateToConfirm ? (
-                <div className="flex h-9 items-center rounded-md border border-dashed border-amber-500/40 bg-amber-500/5 px-3 text-sm text-amber-700">
-                  À compléter
-                </div>
-              ) : (
-                <Input type="date" value={nextDate} onChange={e => setNextDate(e.target.value)} required />
-              )}
-              {!isOneTime && (
-                <label className="flex items-center gap-1.5 pt-1 text-[11px] text-muted-foreground cursor-pointer select-none">
-                  <input
-                    type="checkbox"
-                    checked={dateToConfirm}
-                    onChange={e => setDateToConfirm(e.target.checked)}
-                    className="h-3 w-3 rounded border-input accent-primary"
-                  />
-                  Date de prélèvement pas encore connue
-                </label>
-              )}
-            </div>
             <div className="space-y-1">
               <label className="text-xs text-muted-foreground">Portée</label>
               <select
@@ -168,10 +169,10 @@ export function RecurringExpenseDialog({
                 <option value="PRO">Pro</option>
               </select>
             </div>
-          </div>
-          <div className="space-y-1">
-            <label className="text-xs text-muted-foreground">Catégorie</label>
-            <ExpenseCategoryCombobox categories={categories} value={categoryId} onChange={setCategoryId} />
+            <div className="space-y-1">
+              <label className="text-xs text-muted-foreground">Catégorie</label>
+              <ExpenseCategoryCombobox categories={categories} value={categoryId} onChange={setCategoryId} />
+            </div>
           </div>
           <div className="space-y-1">
             <label className="text-xs text-muted-foreground">Notes (optionnel)</label>

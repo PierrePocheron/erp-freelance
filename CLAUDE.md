@@ -6,6 +6,8 @@ ERP personnel de Pierre (Next.js 16 App Router, Prisma 7 + PostgreSQL/Neon). Pou
 
 ## Règles absolues (jamais d'exception sans confirmation explicite de Pierre)
 
+- **Le repo est PUBLIC — jamais de données personnelles réelles dans les fichiers versionnés NI dans les corps de commit** : pas d'IBAN, SIRET, adresse, téléphone, montants de factures ou noms de clients réels. Scripts/tests/previews utilisent des valeurs factices. (Incident du 14/07/2026 : le vrai IBAN a fuité via scripts/preview-pdf.ts, purgé par filter-branch + force-push le 16/07.)
+
 - **Branche `dev` uniquement.** Ne jamais committer/pousser sur `main` directement — `main` ne reçoit que des merges de release explicites (voir "Release" plus bas).
 - **Ne jamais pousser vers `origin` sans instruction explicite**, même sur `dev`.
 - **Jamais de `Co-Authored-By`** dans les commits ni les PR (instruction globale de Pierre, voir `~/.claude/CLAUDE.md`).
@@ -47,6 +49,9 @@ Ces fichiers de migration sont **versionnés normalement** (contrairement à `se
   PATH="/opt/homebrew/opt/node@22/bin:$PATH" npx tsx prisma/seed.real.ts
   ```
 - `TimeEntry.duration` est stocké en **secondes**, pas en minutes (bug déjà rencontré une fois).
+- **Prospects** : le seed lit `prisma/prospects.csv` (gitignored aussi — export brut de l'app prospect-finder). Mettre la liste à jour = remplacer le fichier + relancer le seed (dédup par domaine, mapping automatique). Toute saisie faite dans l'app entre deux runs est perdue (comportement connu).
+- **Règle métier études** (Pierre, 16/07/2026) : étude marketing/clinique réalisée → projet COMPLETED + Revenue type STUDY status PENDING (dédommagement attendu le mois suivant, jamais déclaré URSSAF — non imposable). Dépense partagée (amis/famille) : Expense pleine + Revenue REIMBURSEMENT PENDING sur le contact PERSONAL.
+- **Contrôle visuel des PDF factures** : `PATH="/opt/homebrew/opt/node@22/bin:$PATH" npx tsx scripts/preview-pdf.ts` rend 3 documents factices dans /tmp (facture, acompte, devis) sans toucher à la base — puis `pdftoppm` (poppler installé) pour rasteriser si besoin de comparer visuellement.
 
 ## Système de modules (activation optionnelle)
 

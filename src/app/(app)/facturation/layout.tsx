@@ -17,7 +17,8 @@ export default function FacturationLayout({ children }: { children: React.ReactN
 
   return (
     <div className="space-y-5">
-      <div className="flex gap-1 border-b border-border">
+      {/* overflow-x-auto : les 5 onglets débordent d'un écran de téléphone */}
+      <div className="flex gap-1 border-b border-border overflow-x-auto [&>a]:shrink-0 [&>a]:whitespace-nowrap">
         {tabs.map(({ label, href }) => {
           const isActive =
             href === "/facturation"

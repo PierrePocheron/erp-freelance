@@ -19,7 +19,7 @@ export async function buildInvoicePdfBuffer(invoiceId: string, userId: string): 
 
   if (!invoice) throw new Error("Facture introuvable")
 
-  const { emitter, accentColor } = await resolveEmitter({
+  const { emitter, accentColor, branding } = await resolveEmitter({
     userId,
     emitterProfileId: invoice.emitterProfileId,
     userName: invoice.user.name,
@@ -34,12 +34,20 @@ export async function buildInvoicePdfBuffer(invoiceId: string, userId: string): 
     dueDate: invoice.dueDate,
     sentAt: invoice.sentAt,
     depositDeducted: invoice.depositDeducted,
+    invoiceType: invoice.type,
     accentColor,
+    logoText: branding.logoText,
+    logoSubtext: branding.logoSubtext,
+    backgroundColor: branding.backgroundColor,
     emitter,
     client: {
       name: invoice.client.name,
       company: invoice.client.company,
       email: invoice.client.email,
+      address: invoice.client.address,
+      postalCode: invoice.client.postalCode,
+      city: invoice.client.city,
+      siret: invoice.client.siret,
     },
     lines: invoice.lines.map((l) => ({
       description: l.description,

@@ -155,7 +155,7 @@ export default async function ProjectTempsPage({
       </div>
 
       {/* Tableau par tâche */}
-      <div className="rounded-xl border border-border/50 bg-card overflow-hidden">
+      <div className="rounded-xl border border-border/50 bg-card overflow-x-auto">
         <div className="flex items-center gap-2 px-5 py-3 border-b border-border/50">
           <Clock className="h-4 w-4 text-muted-foreground" />
           <h2 className="font-semibold text-sm">Temps par tâche</h2>
@@ -299,7 +299,7 @@ export default async function ProjectTempsPage({
                   }}>
                     <button
                       type="submit"
-                      className="text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
+                      className="text-muted-foreground hover:text-destructive md:opacity-0 md:group-hover:opacity-100 focus:opacity-100 transition-opacity"
                     >
                       <Trash2 className="h-3.5 w-3.5" />
                     </button>

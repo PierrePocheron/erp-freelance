@@ -12,6 +12,9 @@ import { ProdMonitorCard } from "@/components/modules/dashboard/ProdMonitorCard"
 import { PendingIncomeCard } from "@/components/modules/dashboard/PendingIncomeCard"
 import { JobHuntCard } from "@/components/modules/dashboard/JobHuntCard"
 import { ConfirmEventsCard } from "@/components/modules/dashboard/ConfirmEventsCard"
+import { InProgressTasksCard } from "@/components/modules/dashboard/InProgressTasksCard"
+import { IncompleteDataSheet } from "@/components/modules/dashboard/IncompleteDataSheet"
+import { MobileHome } from "@/components/layout/MobileHome"
 import { getActiveModules } from "@/lib/modules-server"
 import { isContactIncomplete } from "@/lib/contact"
 import { STATUS_CONFIG, PIPELINE_STATUSES } from "@/components/modules/prospection/status-config"
@@ -303,7 +306,7 @@ export default async function DashboardPage() {
     // Données à compléter — agrégé pour la mise en avant dashboard
     prisma.client.findMany({
       where: { userId, type: { not: "SELF" } },
-      select: { id: true, name: true, firstName: true, lastName: true, email: true, phone: true },
+      select: { id: true, name: true, company: true, firstName: true, lastName: true, email: true, phone: true },
     }),
     prisma.company.findMany({
       where: { userId },
@@ -311,7 +314,7 @@ export default async function DashboardPage() {
     }),
     prisma.revenue.findMany({
       where: { userId },
-      select: { id: true, label: true, companyId: true, clientId: true, projectId: true },
+      select: { id: true, label: true, amount: true, companyId: true, clientId: true, projectId: true },
     }),
     // Jalons passés non confirmés (ni terminés ni annulés), fenêtre 7 jours — carte "À confirmer"
     prisma.milestone.findMany({
@@ -339,7 +342,7 @@ export default async function DashboardPage() {
     // Dépenses récurrentes actives dont la date de prélèvement reste à renseigner
     prisma.recurringExpense.findMany({
       where: { userId, isActive: true, dateToConfirm: true },
-      select: { id: true },
+      select: { id: true, label: true, amount: true },
     }),
   ])
 
@@ -371,6 +374,24 @@ export default async function DashboardPage() {
     amount: r.amount,
     source: r.source,
     expectedDate: r.expectedDate ? r.expectedDate.toISOString() : null,
+  }))
+
+  // ── Tâches démarrées (IN_PROGRESS) — carte « En cours » du dashboard ──────────
+  // updatedAt ≈ moment du dernier changement (le passage en cours, sauf édition
+  // ultérieure) — assez fiable pour un « depuis X ».
+  const fmtSince = (dt: Date) => {
+    const h = Math.floor((now.getTime() - dt.getTime()) / 3_600_000)
+    if (h < 1) return "depuis moins d'1 h"
+    if (h < 24) return `depuis ${h} h`
+    const j = Math.floor(h / 24)
+    return j === 1 ? "depuis hier" : `depuis ${j} j`
+  }
+  const inProgressItems = tasksInProgress.map((t) => ({
+    id: t.id,
+    title: t.title,
+    href: t.project ? `/projets/${t.project.id}/dev` : "/taches",
+    sub: t.project?.name ?? t.client?.company ?? t.client?.name ?? null,
+    since: fmtSince(t.updatedAt),
   }))
 
   // ── Entretiens (candidatures actives) ─────────────────────────────────────────
@@ -466,11 +487,34 @@ export default async function DashboardPage() {
   const incompleteExpensesCount = incompleteRecurringExpenses.length
   const totalIncomplete = incompleteContacts.length + incompleteCompanies.length + incompleteRevenues.length + incompleteExpensesCount
 
+  // ── Accueil mobile — props sérialisables dérivées des données déjà fetchées ──
+  const mobilePendingAmount =
+    (has("facturation") ? totalPending : 0)
+    + (has("revenus") ? pendingRevenueItems.reduce((s, r) => s + r.amount, 0) : 0)
+    + (has("sante") ? pendingReimbursementItems.reduce((s, r) => s + r.amount, 0) : 0)
+  const mobileIncomplete = {
+    contacts: has("contacts") ? incompleteContacts.length : 0,
+    societes: has("societes") ? incompleteCompanies.length : 0,
+    revenus:  has("revenus") ? incompleteRevenues.length : 0,
+    depenses: has("depenses") ? incompleteExpensesCount : 0,
+  }
+
   const hour = new Date().getHours()
   const greeting = hour < 12 ? "Bonjour" : hour < 18 ? "Bonjour" : "Bonsoir"
 
   return (
-    <div className="space-y-8">
+    <>
+    {/* Accueil mobile — remplace le dashboard sur petit écran */}
+    <div className="sm:hidden">
+      <MobileHome
+        pendingAmount={mobilePendingAmount}
+        toConfirmCount={totalUnconfirmed}
+        incomplete={mobileIncomplete}
+      />
+    </div>
+
+    {/* Dashboard complet — desktop uniquement */}
+    <div className="hidden sm:block space-y-8">
       <div>
         <h1 className="text-2xl font-bold tracking-tight">{greeting}, {firstName} 👋</h1>
         <p className="text-muted-foreground text-sm">
@@ -520,43 +564,19 @@ export default async function DashboardPage() {
           </div>
         )}
 
-        {/* Données à compléter — agrégé tous modules, mis en avant */}
+        {/* Données à compléter — bandeau + volet de complétion rapide (édition
+            inline de toutes les infos manquantes, sans ouvrir les fiches) */}
         {(has("contacts") || has("societes") || has("revenus") || has("depenses")) && totalIncomplete > 0 && (
-          <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 px-4 py-2.5 flex items-center gap-4 flex-wrap">
-            <p className="flex items-center gap-1.5 text-xs font-medium text-amber-700 dark:text-amber-400 shrink-0">
-              <AlertCircle className="h-3.5 w-3.5" />
-              Données à compléter
-            </p>
-            {has("contacts") && incompleteContacts.length > 0 && (
-              <Link href="/contacts" className="group flex items-center gap-1 text-xs">
-                <span className="text-muted-foreground group-hover:text-foreground transition-colors">Contacts</span>
-                <span className="font-semibold tabular-nums text-amber-600">{incompleteContacts.length}</span>
-              </Link>
-            )}
-            {has("societes") && incompleteCompanies.length > 0 && (
-              <Link href="/societes" className="group flex items-center gap-1 text-xs">
-                <span className="text-muted-foreground group-hover:text-foreground transition-colors">Sociétés</span>
-                <span className="font-semibold tabular-nums text-amber-600">{incompleteCompanies.length}</span>
-              </Link>
-            )}
-            {has("revenus") && incompleteRevenues.length > 0 && (
-              <Link href="/revenus" className="group flex items-center gap-1 text-xs">
-                <span className="text-muted-foreground group-hover:text-foreground transition-colors">Revenus</span>
-                <span className="font-semibold tabular-nums text-amber-600">{incompleteRevenues.length}</span>
-              </Link>
-            )}
-            {has("depenses") && incompleteExpensesCount > 0 && (
-              <Link href="/depenses/recurrentes" className="group flex items-center gap-1 text-xs">
-                <span className="text-muted-foreground group-hover:text-foreground transition-colors">Dépenses récurrentes</span>
-                <span className="font-semibold tabular-nums text-amber-600">{incompleteExpensesCount}</span>
-              </Link>
-            )}
-            {has("graph") && (
-              <Link href="/graph" className="ml-auto text-xs text-amber-700 dark:text-amber-400 hover:underline shrink-0">
-                Voir dans le graphe →
-              </Link>
-            )}
-          </div>
+          <IncompleteDataSheet
+            contacts={has("contacts") ? incompleteContacts : []}
+            companies={has("societes") ? incompleteCompanies : []}
+            revenues={has("revenus") ? incompleteRevenues : []}
+            recurringExpenses={has("depenses") ? incompleteRecurringExpenses : []}
+            allCompanies={quickCompanies.map((c) => ({ id: c.id, name: c.name }))}
+            allClients={quickClients.map((c) => ({ id: c.id, name: c.name }))}
+            allProjects={quickProjects.map((p) => ({ id: p.id, name: p.name }))}
+            showGraphLink={has("graph")}
+          />
         )}
       </div>
 
@@ -650,6 +670,11 @@ export default async function DashboardPage() {
           {/* À confirmer — tâches/jalons/événements passés sans confirmation */}
           {totalUnconfirmed > 0 && (
             <ConfirmEventsCard tasks={confirmTaskItems} milestones={confirmMilestoneItems} events={confirmEventItems} />
+          )}
+
+          {/* En cours — tâches démarrées, coche pour confirmer la fin */}
+          {(has("taches") || has("projets")) && inProgressItems.length > 0 && (
+            <InProgressTasksCard tasks={inProgressItems} />
           )}
 
           {/* Agenda semaine — en retard + cette semaine + en cours */}
@@ -992,6 +1017,7 @@ export default async function DashboardPage() {
           )}
       </div>
     </div>
+    </>
   )
 }
 

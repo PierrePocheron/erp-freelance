@@ -72,6 +72,13 @@ const TYPE_LABEL: Record<string, string> = {
   revenue:              "Revenu",
 }
 
+/**
+ * Événement window permettant d'ouvrir la palette depuis n'importe quel composant
+ * (barre de recherche de l'accueil mobile, bouton Sidebar...) sans dépendre du
+ * raccourci clavier ⌘K — indispensable au tactile.
+ */
+export const OPEN_COMMAND_PALETTE_EVENT = "open-command-palette"
+
 function normalize(s: string) {
   return s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "")
 }
@@ -102,8 +109,15 @@ export function CommandPalette() {
         setOpen((v) => !v)
       }
     }
+    function onOpenRequest() {
+      setOpen(true)
+    }
     document.addEventListener("keydown", onKeyDown)
-    return () => document.removeEventListener("keydown", onKeyDown)
+    window.addEventListener(OPEN_COMMAND_PALETTE_EVENT, onOpenRequest)
+    return () => {
+      document.removeEventListener("keydown", onKeyDown)
+      window.removeEventListener(OPEN_COMMAND_PALETTE_EVENT, onOpenRequest)
+    }
   }, [])
 
   useEffect(() => {
@@ -161,7 +175,8 @@ export function CommandPalette() {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-start justify-center pt-[18vh]"
+      // Mobile : collée en haut pour laisser la place au clavier iOS
+      className="fixed inset-0 z-50 flex items-start justify-center pt-4 sm:pt-[18vh]"
       onClick={() => setOpen(false)}
     >
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
@@ -169,11 +184,13 @@ export function CommandPalette() {
         className="relative w-full max-w-md mx-4 rounded-xl border border-border bg-card shadow-2xl overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Search input */}
+        {/* Search input — autoFocus : monté dans le geste du tap, iOS ouvre
+            le clavier (un focus() différé en useEffect ne le ferait pas) */}
         <div className="flex items-center gap-3 px-4 py-3 border-b border-border">
           <Search className="h-4 w-4 text-muted-foreground shrink-0" />
           <input
             ref={inputRef}
+            autoFocus
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={handleKeyDown}
@@ -183,11 +200,11 @@ export function CommandPalette() {
           {(searching || isPending) && (
             <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground shrink-0" />
           )}
-          <kbd className="text-xs text-muted-foreground bg-muted border border-border px-1.5 py-0.5 rounded font-mono shrink-0">esc</kbd>
+          <kbd className="hidden sm:block text-xs text-muted-foreground bg-muted border border-border px-1.5 py-0.5 rounded font-mono shrink-0">esc</kbd>
         </div>
 
         {/* Results */}
-        <div className="max-h-96 overflow-y-auto p-1">
+        <div className="max-h-[60dvh] sm:max-h-96 overflow-y-auto p-1">
 
           {/* Mode navigation (query vide) */}
           {query.length < 2 && (
@@ -276,8 +293,8 @@ export function CommandPalette() {
           )}
         </div>
 
-        {/* Footer hint */}
-        <div className="flex items-center gap-3 px-4 py-2 border-t border-border text-xs text-muted-foreground">
+        {/* Footer hint — raccourcis clavier, sans objet au tactile */}
+        <div className="hidden sm:flex items-center gap-3 px-4 py-2 border-t border-border text-xs text-muted-foreground">
           <span><kbd className="bg-muted border border-border px-1 py-0.5 rounded font-mono">↑↓</kbd> naviguer</span>
           <span><kbd className="bg-muted border border-border px-1 py-0.5 rounded font-mono">↵</kbd> ouvrir</span>
           <span className="ml-auto"><kbd className="bg-muted border border-border px-1 py-0.5 rounded font-mono">⌘K</kbd> fermer</span>

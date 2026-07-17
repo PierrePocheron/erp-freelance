@@ -64,7 +64,7 @@ export function ProjectDateBadge({ projectId, field, value, label }: Props) {
     >
       <Calendar className="h-3 w-3 shrink-0" />
       {formatted ?? label}
-      <Pencil className="h-2.5 w-2.5 opacity-0 group-hover:opacity-100 transition-opacity" />
+      <Pencil className="h-2.5 w-2.5 md:opacity-0 md:group-hover:opacity-100 focus:opacity-100 transition-opacity" />
     </button>
   )
 }

@@ -16,7 +16,7 @@ import { Button } from "@/components/ui/button"
 import {
   DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu"
-import { createCalendarItem, moveCalendarItem, updateCalendarItem, deleteCalendarItem, syncGoogleEvents, getGoogleCalendarConnectionStatus } from "@/actions/calendar"
+import { createCalendarItem, moveCalendarItem, updateCalendarItem, deleteCalendarItem, syncGooglePull, syncGooglePush, getGoogleCalendarConnectionStatus } from "@/actions/calendar"
 import { DatePicker, TimePicker } from "./DateTimePicker"
 import { useModules } from "@/hooks/use-modules"
 
@@ -1028,6 +1028,8 @@ export function CalendarView({
   const [hiddenTypes, setHiddenTypes] = useState<Set<string>>(new Set())
   const [editingEvent, setEditingEvent] = useState<CalendarEvent | null>(null)
   const [isSyncing, startSync]          = useTransition()
+  // Étape de sync en cours : 0 = repos, 1 = connexion, 2 = récupération, 3 = export
+  const [syncStep, setSyncStep]         = useState<0 | 1 | 2 | 3>(0)
   const [syncStatus, setSyncStatus]     = useState<"idle" | "success" | "error" | "noPermission">("idle")
   const [syncCount, setSyncCount]       = useState(0)
   const [syncError, setSyncError]       = useState<string>("")
@@ -1162,29 +1164,59 @@ export function CalendarView({
       // { error } normal — sans ce try/catch, le bouton restait bloqué en "Sync…"
       // indéfiniment puisque aucun setSyncStatus n'était jamais atteint.
       try {
-        const result = await syncGoogleEvents(target)
-        if (result.needsPermission) {
+        // Séquence visible en 3 étapes : connexion → récupération → export.
+        setSyncStep(1)
+        const conn = await getGoogleCalendarConnectionStatus()
+        if (conn.status !== "connected") {
+          if (conn.status === "error") {
+            setSyncStatus("error")
+            setSyncError(conn.detail ?? "Connexion Google Calendar en erreur")
+          } else {
+            setSyncStatus("noPermission")
+            setTimeout(() => setSyncStatus("idle"), 6000)
+          }
+          setConnectionStatus("error")
+          return
+        }
+
+        setSyncStep(2)
+        const pull = await syncGooglePull(target)
+        if (pull.needsPermission) {
           setSyncStatus("noPermission")
           setConnectionStatus("error")
           setTimeout(() => setSyncStatus("idle"), 6000)
-        } else if (result.error) {
+          return
+        }
+        if (pull.error) {
           setSyncStatus("error")
-          setSyncError(result.error)
+          setSyncError(pull.error)
           setConnectionStatus("error")
           // l'erreur reste affichée jusqu'à la prochaine sync (pas d'auto-effacement)
-        } else {
-          syncedMonthsBackRef.current = target
-          setSyncStatus("success")
-          setSyncCount(result.synced)
-          setSyncError("")
-          setConnectionStatus("connected")
-          router.refresh()
-          setTimeout(() => setSyncStatus("idle"), 4000)
+          return
         }
+
+        setSyncStep(3)
+        const push = await syncGooglePush()
+        if (push.error) {
+          setSyncStatus("error")
+          setSyncError(push.error)
+          setConnectionStatus("error")
+          return
+        }
+
+        syncedMonthsBackRef.current = target
+        setSyncStatus("success")
+        setSyncCount(pull.synced + (push.synced ?? 0))
+        setSyncError("")
+        setConnectionStatus("connected")
+        router.refresh()
+        setTimeout(() => setSyncStatus("idle"), 4000)
       } catch (err) {
         setSyncStatus("error")
         setSyncError(err instanceof Error ? err.message : "Connexion interrompue")
         setConnectionStatus("error")
+      } finally {
+        setSyncStep(0)
       }
     })
   }
@@ -1281,7 +1313,7 @@ export function CalendarView({
                   : connectionStatus === "checking" ? "Vérification de la connexion Google Calendar…"
                   : "Synchroniser avec Google Calendar"
               }
-              className={cn("inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium transition-colors border-r border-border/50",
+              className={cn("relative inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium transition-colors border-r border-border/50",
                 syncStatus === "success"      ? "text-emerald-600 bg-emerald-500/5"
                   : syncStatus === "error"        ? "text-red-600 bg-red-500/5"
                   : syncStatus === "noPermission" ? "text-amber-600 bg-amber-500/5"
@@ -1299,13 +1331,24 @@ export function CalendarView({
                 : (syncStatus === "error" || syncStatus === "noPermission") ? <AlertCircle className="h-3.5 w-3.5" />
                 : <RefreshCw className="h-3.5 w-3.5" />}
               <span>
-                {isSyncing ? "Sync…"
+                {isSyncing
+                  ? (syncStep === 1 ? "1/3 · Connexion…"
+                    : syncStep === 2 ? "2/3 · Récupération…"
+                    : syncStep === 3 ? "3/3 · Export…"
+                    : "Sync…")
                   : syncStatus === "success" ? `${syncCount} sync`
                   : syncStatus === "error" ? "Erreur"
                   : syncStatus === "noPermission" ? "Autorisation"
                   : connectionStatus === "error" ? "Reconnexion"
                   : "Sync"}
               </span>
+              {/* Barre de progression des 3 étapes de sync */}
+              {isSyncing && syncStep > 0 && (
+                <span
+                  className="absolute bottom-0 left-0 h-0.5 bg-current opacity-60 transition-all duration-300"
+                  style={{ width: `${(syncStep / 3) * 100}%` }}
+                />
+              )}
             </button>
             <DropdownMenu>
               <DropdownMenuTrigger title="Paramètres Google Calendar"

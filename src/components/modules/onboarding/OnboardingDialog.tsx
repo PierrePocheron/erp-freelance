@@ -119,6 +119,10 @@ export function OnboardingDialog({
         <div className="px-6 py-4 border-t border-border/50 flex items-center justify-between gap-3 shrink-0">
           <p className="text-xs text-muted-foreground">
             {selected.size} module{selected.size > 1 ? "s" : ""} sélectionné{selected.size > 1 ? "s" : ""}
+            <span className="hidden sm:inline"> · </span>
+            <span className="block sm:inline text-muted-foreground/70">
+              Ce choix n&apos;est pas définitif — modifiable à tout moment dans Paramètres
+            </span>
           </p>
           <div className="flex items-center gap-2">
             {mode === "manual" && onCancel && (

@@ -104,7 +104,7 @@ export function ProdMonitorCard({ prods }: { prods: ProdStatus[] }) {
                     target="_blank"
                     rel="noopener noreferrer"
                     onClick={e => e.stopPropagation()}
-                    className="text-muted-foreground opacity-0 group-hover:opacity-60 hover:opacity-100 transition-opacity shrink-0"
+                    className="text-muted-foreground md:opacity-0 md:group-hover:opacity-60 hover:opacity-100 focus:opacity-100 transition-opacity shrink-0"
                     title="Ouvrir la prod"
                   >
                     <ExternalLink className="h-3.5 w-3.5" />

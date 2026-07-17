@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest"
+import { describe, it, expect, afterEach, vi } from "vitest"
 import { createInvoice } from "@/actions/facturation"
 import { prisma } from "@/lib/prisma"
 import { setTestUser } from "./setup"
@@ -9,6 +9,10 @@ import { makeUser, makeClient } from "./helpers/factories"
 // On ne fige pas l'année (horloge réelle) → on teste la séquence et le scoping.
 
 describe("numérotation des factures", () => {
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
   it("incrémente la séquence sur des numéros consécutifs zero-paddés", async () => {
     const user = await makeUser()
     const client = await makeClient(user.id)
@@ -52,6 +56,30 @@ describe("numérotation des factures", () => {
     setTestUser(userB.id)
     const b1 = await createInvoice("ignored", { clientId: clientB.id })
     expect(b1.number).toMatch(/-001$/)
+  })
+
+  it("format compact PREFIXYYMMNN : compteur par mois, repart à 01 le mois suivant", async () => {
+    // On ne fake QUE Date (pas les timers) : le driver pg dépend de setTimeout.
+    vi.useFakeTimers({ toFake: ["Date"] })
+    vi.setSystemTime(new Date("2026-07-15T10:00:00Z"))
+
+    const user = await makeUser()
+    const client = await makeClient(user.id)
+    await prisma.userProfile.create({
+      data: { userId: user.id, invoicePrefix: "FA", invoiceNumberFormat: "PREFIXYYMMNN" },
+    })
+    setTestUser(user.id)
+
+    // Deux factures le même mois → la séquence mensuelle s'incrémente.
+    const a = await createInvoice("ignored", { clientId: client.id })
+    const b = await createInvoice("ignored", { clientId: client.id })
+    expect(a.number).toBe("FA260701")
+    expect(b.number).toBe("FA260702")
+
+    // Mois suivant → le compteur repart à 01 (scope = préfixe + AAMM).
+    vi.setSystemTime(new Date("2026-08-03T10:00:00Z"))
+    const c = await createInvoice("ignored", { clientId: client.id })
+    expect(c.number).toBe("FA260801")
   })
 
   it("respecte le format du profil (PREFIX-YYMM-NN) quand il existe", async () => {

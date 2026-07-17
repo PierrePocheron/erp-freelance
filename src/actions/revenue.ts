@@ -129,6 +129,22 @@ export async function updateRevenue(
   return {}
 }
 
+/**
+ * Liste allégée des revenus en attente pour le quick-add mobile —
+ * sélection minimale, 20 résultats max, les plus proches d'abord.
+ */
+export async function getPendingRevenuesQuick() {
+  const session = await auth()
+  const userId = session!.user.id
+
+  return prisma.revenue.findMany({
+    where: { userId, status: "PENDING" },
+    orderBy: { expectedAt: "asc" },
+    take: 20,
+    select: { id: true, label: true, amount: true, expectedAt: true },
+  })
+}
+
 /** Marque un revenu comme reçu avec la date + moyen de paiement. */
 export async function markRevenueReceived(
   id: string,

@@ -78,7 +78,7 @@ export function TagManager({
           <button
             type="button"
             onClick={() => handleDelete(tag)}
-            className="opacity-0 group-hover/tag:opacity-100 text-muted-foreground hover:text-destructive transition-opacity"
+            className="md:opacity-0 md:group-hover/tag:opacity-100 focus:opacity-100 text-muted-foreground hover:text-destructive transition-opacity"
             title="Supprimer le tag"
           >
             <X className="h-3 w-3" />

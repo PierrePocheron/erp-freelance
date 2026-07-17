@@ -243,7 +243,7 @@ export function RecurrentesManager({
           </p>
         </div>
       ) : (
-        <div className="rounded-xl border border-border/50 bg-card overflow-hidden">
+        <div className="rounded-xl border border-border/50 bg-card overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border">

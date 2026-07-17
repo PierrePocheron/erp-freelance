@@ -2,10 +2,12 @@ import { auth } from "@/lib/auth"
 import { redirect } from "next/navigation"
 import { Sidebar } from "@/components/layout/Sidebar"
 import { MobileBottomNav } from "@/components/layout/MobileBottomNav"
+import { InstallPwaPrompt } from "@/components/layout/InstallPwaPrompt"
 import { TimerBanner } from "@/components/layout/TimerBanner"
 import { CommandPalette } from "@/components/layout/CommandPalette"
 import { OnboardingGate } from "@/components/modules/onboarding/OnboardingGate"
 import { NewModulesGate } from "@/components/modules/onboarding/NewModulesGate"
+import { UiTour } from "@/components/modules/onboarding/UiTour"
 import { NotificationBell } from "@/components/modules/notifications/NotificationBell"
 import { ensureSelfClient } from "@/actions/user"
 import { getRunningTimer } from "@/actions/timetracking"
@@ -43,7 +45,9 @@ export default async function AppLayout({
       <Sidebar />
       <div className="relative flex flex-1 flex-col overflow-hidden">
         <TimerBanner initialTimer={runningTimer} userId={userId} />
-        <main className="flex-1 overflow-y-auto p-3 sm:p-6 pb-20 sm:pb-6">{children}</main>
+        {/* id consommé par MobileBottomNav : masquage au scroll des boutons
+            flottants (c'est ce conteneur qui scrolle, pas window) */}
+        <main id="app-main" className="flex-1 overflow-y-auto p-3 sm:p-6 pb-24 sm:pb-6">{children}</main>
         {/* Cloche de notifications : bouton flottant (gagne la hauteur de l'ancien header) */}
         <div className="absolute top-3 right-4 z-50">
           <div className="rounded-lg border border-border/50 bg-background/80 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -53,8 +57,10 @@ export default async function AppLayout({
       </div>
       <CommandPalette />
       <MobileBottomNav />
+      <InstallPwaPrompt />
       <OnboardingGate />
       <NewModulesGate />
+      <UiTour />
     </div>
   )
 }

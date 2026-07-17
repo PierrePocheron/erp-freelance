@@ -71,8 +71,10 @@ export default async function ProjectLayout({
           <ChevronLeft className="h-4 w-4" /> Projets
         </Link>
 
-        <div className="flex items-start justify-between gap-4">
-          <div className="space-y-2">
+        {/* flex-wrap + min-w-0 : sur mobile les pills passent sous le titre
+            au lieu de le compresser */}
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div className="space-y-2 min-w-0">
             {project.company ? (
               <Link
                 href={`/societes/${project.company.id}`}

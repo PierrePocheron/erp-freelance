@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react"
 import { useModules, readNeedsOnboarding, type ModuleId } from "@/hooks/use-modules"
 import { OnboardingDialog } from "./OnboardingDialog"
+import { START_UI_TOUR_EVENT } from "./UiTour"
 
 // Événement custom permettant de rouvrir l'écran depuis les paramètres.
 export const OPEN_ONBOARDING_EVENT = "erp:open-onboarding"
@@ -33,8 +34,11 @@ export function OnboardingGate() {
       mode={mode}
       initialSelection={[...activeModules] as ModuleId[]}
       onValidate={(ids) => {
+        const isFirstRun = mode === "auto"
         completeOnboarding(ids)
         setMode(null)
+        // Première connexion : enchaîne sur le tour guidé de l'interface
+        if (isFirstRun) window.dispatchEvent(new CustomEvent(START_UI_TOUR_EVENT))
       }}
       onCancel={mode === "manual" ? () => setMode(null) : undefined}
     />

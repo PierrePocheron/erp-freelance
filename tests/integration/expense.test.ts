@@ -3,6 +3,8 @@ import {
   createExpense,
   deleteExpense,
   createRecurringExpense,
+  convertRecurringToExpense,
+  confirmRecurringExpenseDate,
   generateExpenseFromRecurring,
   generatePendingRecurringExpenses,
   toggleRecurringExpenseActive,
@@ -63,6 +65,106 @@ describe("deleteExpense", () => {
 })
 
 // ── Dépenses récurrentes — génération ────────────────────────────────────────
+
+// ── convertRecurringToExpense ────────────────────────────────────────────────
+
+describe("convertRecurringToExpense", () => {
+  it("supprime le modèle récurrent ET crée la dépense ponctuelle (atomique)", async () => {
+    const user = await makeUser()
+    setTestUser(user.id)
+
+    const rec = await createRecurringExpense({
+      label: "Netflix",
+      amount: 13.49,
+      scope: "PERSO",
+      frequency: "MONTHLY",
+      nextGenerationDate: new Date("2026-07-05T00:00:00Z"),
+    })
+
+    const expense = await convertRecurringToExpense(rec.id, {
+      label: "Netflix (dernier mois)",
+      amount: 13.49,
+      date: new Date("2026-07-05T00:00:00Z"),
+      scope: "PERSO",
+    })
+
+    // Les deux effets de la transaction sont présents : plus de récurrent…
+    expect(await prisma.recurringExpense.findUnique({ where: { id: rec.id } })).toBeNull()
+    // …et une Expense unique créée avec les champs passés.
+    const row = await prisma.expense.findUnique({ where: { id: expense.id } })
+    expect(row?.userId).toBe(user.id)
+    expect(row?.label).toBe("Netflix (dernier mois)")
+    expect(row?.amount).toBe(13.49)
+    expect(row?.date.toISOString()).toBe("2026-07-05T00:00:00.000Z")
+  })
+
+  it("refuse le modèle récurrent d'un autre utilisateur (anti-IDOR), sans rien muter", async () => {
+    const owner = await makeUser()
+    const intruder = await makeUser()
+
+    setTestUser(owner.id)
+    const rec = await createRecurringExpense({
+      label: "Assurance owner", amount: 20, scope: "PRO", frequency: "MONTHLY", nextGenerationDate: new Date(),
+    })
+
+    setTestUser(intruder.id)
+    await expect(
+      convertRecurringToExpense(rec.id, { label: "Volée", amount: 20, date: new Date(), scope: "PRO" })
+    ).rejects.toThrow(/introuvable/i)
+
+    // Le modèle de l'owner est intact et aucune dépense n'a été créée.
+    expect(await prisma.recurringExpense.findUnique({ where: { id: rec.id } })).not.toBeNull()
+    expect(await prisma.expense.count()).toBe(0)
+  })
+})
+
+// ── confirmRecurringExpenseDate ──────────────────────────────────────────────
+
+describe("confirmRecurringExpenseDate", () => {
+  it("pose la date de prélèvement et lève le flag dateToConfirm", async () => {
+    const user = await makeUser()
+    setTestUser(user.id)
+
+    const rec = await createRecurringExpense({
+      label: "Impôts",
+      amount: 250,
+      scope: "PERSO",
+      frequency: "MONTHLY",
+      nextGenerationDate: new Date("2026-01-01T00:00:00Z"),
+      dateToConfirm: true,
+    })
+
+    await confirmRecurringExpenseDate(rec.id, new Date("2026-07-15T00:00:00Z"))
+
+    const after = await prisma.recurringExpense.findUnique({ where: { id: rec.id } })
+    expect(after?.nextGenerationDate.toISOString()).toBe("2026-07-15T00:00:00.000Z")
+    expect(after?.dateToConfirm).toBe(false)
+  })
+
+  it("rejette l'id d'un autre utilisateur sans toucher au modèle", async () => {
+    const owner = await makeUser()
+    const intruder = await makeUser()
+
+    setTestUser(owner.id)
+    const rec = await createRecurringExpense({
+      label: "Loyer",
+      amount: 700,
+      scope: "PERSO",
+      frequency: "MONTHLY",
+      nextGenerationDate: new Date("2026-01-01T00:00:00Z"),
+      dateToConfirm: true,
+    })
+
+    setTestUser(intruder.id)
+    await expect(
+      confirmRecurringExpenseDate(rec.id, new Date("2026-08-01T00:00:00Z"))
+    ).rejects.toThrow(/introuvable/i)
+
+    const after = await prisma.recurringExpense.findUnique({ where: { id: rec.id } })
+    expect(after?.dateToConfirm).toBe(true)
+    expect(after?.nextGenerationDate.toISOString()).toBe("2026-01-01T00:00:00.000Z")
+  })
+})
 
 describe("dépenses récurrentes — génération", () => {
   it("generateExpenseFromRecurring crée une dépense et avance le curseur", async () => {

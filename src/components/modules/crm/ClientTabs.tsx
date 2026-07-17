@@ -16,7 +16,7 @@ export function ClientTabs({ clientId }: { clientId: string }) {
   const base = `/contacts/${clientId}`
 
   return (
-    <div className="flex gap-1 border-b border-border">
+    <div className="flex gap-1 border-b border-border overflow-x-auto [&>a]:shrink-0 [&>a]:whitespace-nowrap">
       {tabs.map(({ label, suffix }) => {
         const href = base + suffix
         const isActive = suffix === "" ? pathname === base : pathname.startsWith(href)

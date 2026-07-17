@@ -12,13 +12,11 @@ import { DatePartsField } from "@/components/ui/date-parts-field"
 import { createRecurringExpense, updateRecurringExpense, deleteRecurringExpense, createExpense, convertRecurringToExpense } from "@/actions/expense"
 import { ExpenseCategoryCombobox, type ExpenseCategory } from "./ExpenseCategoryCombobox"
 
-export const FREQUENCY_LABELS: Record<string, string> = {
-  WEEKLY: "Hebdomadaire",
-  MONTHLY: "Mensuelle",
-  QUARTERLY: "Trimestrielle",
-  YEARLY: "Annuelle",
-  CUSTOM: "Personnalisée",
-}
+import { FREQUENCY_LABELS } from "@/lib/expense-constants"
+
+// Ré-export conservé pour les imports client existants ; les Server
+// Components doivent importer depuis @/lib/expense-constants directement.
+export { FREQUENCY_LABELS }
 
 export type RecurringExpenseForEdit = {
   id: string

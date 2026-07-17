@@ -6,7 +6,11 @@ import { getOrCreateDefaultExpenseCategories, toggleRecurringExpenseActive, gene
 import { getOccurrencesInRange } from "@/lib/dates"
 import { ExpenseDonutChart, type DonutSegment } from "@/components/modules/depenses/ExpenseDonutChart"
 import { ExpenseDialog } from "@/components/modules/depenses/ExpenseDialog"
-import { RecurringExpenseDialog, FREQUENCY_LABELS } from "@/components/modules/depenses/RecurringExpenseDialog"
+import { RecurringExpenseDialog } from "@/components/modules/depenses/RecurringExpenseDialog"
+// Depuis le module neutre, PAS depuis le composant client : importées à
+// travers une frontière "use client", ces constantes deviennent des
+// références client et se rendent vides côté serveur (badge fréquence vide).
+import { FREQUENCY_LABELS } from "@/lib/expense-constants"
 
 const fmt = (n: number) => n.toLocaleString("fr-FR", { maximumFractionDigits: 0 })
 

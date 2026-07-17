@@ -202,12 +202,13 @@ export function DepensesView({
         <ExpenseDialog categories={categories} />
       </div>
 
-      {/* Stats du mois affiché */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+      {/* Les 5 cartes de stats sur une seule ligne (desktop) : total du mois,
+          Pro, Perso, puis estimations mensuelle/annuelle des récurrentes */}
+      <div className={`grid grid-cols-2 gap-4 sm:grid-cols-3 ${activeRecurring.length > 0 ? "lg:grid-cols-5" : ""}`}>
         <div className="rounded-xl border border-border/50 bg-card p-4 space-y-1">
           <div className="flex items-center gap-2 text-muted-foreground text-xs">
-            <TrendingDown className="h-3.5 w-3.5" />
-            <span className="capitalize">Total — {monthLabel}</span>
+            <TrendingDown className="h-3.5 w-3.5 shrink-0" />
+            <span className="capitalize truncate">Total — {monthLabel}</span>
           </div>
           <p className="text-2xl font-bold tabular-nums">{fmt(monthTotal)} €</p>
         </div>
@@ -219,29 +220,27 @@ export function DepensesView({
           <p className="text-xs text-muted-foreground">Perso</p>
           <p className="text-2xl font-bold tabular-nums">{fmt(persoTotal)} €</p>
         </div>
+        {activeRecurring.length > 0 && (
+          <>
+            <div className="rounded-xl border border-border/50 bg-card p-4 space-y-1">
+              <div className="flex items-center gap-2 text-muted-foreground text-xs">
+                <Repeat className="h-3.5 w-3.5 shrink-0" />
+                <span className="truncate">Estimation par mois</span>
+              </div>
+              <p className="text-2xl font-bold tabular-nums">{fmt(monthlyRecurringTotal)} €</p>
+              <p className="text-xs text-muted-foreground">via les récurrentes actives</p>
+            </div>
+            <div className="rounded-xl border border-border/50 bg-card p-4 space-y-1">
+              <div className="flex items-center gap-2 text-muted-foreground text-xs">
+                <Repeat className="h-3.5 w-3.5 shrink-0" />
+                <span className="truncate">Estimation par an</span>
+              </div>
+              <p className="text-2xl font-bold tabular-nums">{fmt(yearlyRecurringTotal)} €</p>
+              <p className="text-xs text-muted-foreground">via les récurrentes actives</p>
+            </div>
+          </>
+        )}
       </div>
-
-      {/* Estimations récurrentes — normalisées par mois/an quelle que soit la fréquence */}
-      {activeRecurring.length > 0 && (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <div className="rounded-xl border border-border/50 bg-card p-4 space-y-1">
-            <div className="flex items-center gap-2 text-muted-foreground text-xs">
-              <Repeat className="h-3.5 w-3.5" />
-              Estimation par mois
-            </div>
-            <p className="text-2xl font-bold tabular-nums">{fmt(monthlyRecurringTotal)} €</p>
-            <p className="text-xs text-muted-foreground">via les dépenses récurrentes actives</p>
-          </div>
-          <div className="rounded-xl border border-border/50 bg-card p-4 space-y-1">
-            <div className="flex items-center gap-2 text-muted-foreground text-xs">
-              <Repeat className="h-3.5 w-3.5" />
-              Estimation par an
-            </div>
-            <p className="text-2xl font-bold tabular-nums">{fmt(yearlyRecurringTotal)} €</p>
-            <p className="text-xs text-muted-foreground">via les dépenses récurrentes actives</p>
-          </div>
-        </div>
-      )}
 
       {/* Camembert + liste du mois */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">

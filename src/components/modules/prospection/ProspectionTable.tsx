@@ -271,7 +271,9 @@ export function ProspectionTable({
           onClick={() => setStatusFilter("ALL")}
           className={cn(
             "rounded-full border px-2.5 py-0.5 text-xs font-medium transition-colors",
-            statusFilter === "ALL" ? "bg-primary text-primary-foreground border-primary" : "border-border text-muted-foreground hover:bg-muted"
+            statusFilter === "ALL"
+              ? "bg-[var(--at-ink,var(--primary))] text-[var(--at-paper,var(--primary-foreground))] border-transparent"
+              : "border-[color:var(--at-rule-strong,var(--border))] text-[color:var(--at-ink-3,var(--muted-foreground))] hover:border-[color:var(--at-ink,var(--foreground))]"
           )}
         >
           Tous ({prospects.length})
@@ -283,7 +285,7 @@ export function ProspectionTable({
             className={cn(
               "rounded-full border px-2.5 py-0.5 text-xs font-medium transition-opacity hover:opacity-80",
               STATUS_CONFIG[s].cls,
-              statusFilter === s && "ring-1 ring-foreground/40"
+              statusFilter === s && "ring-1 ring-[color:var(--at-ink,var(--foreground))]/50"
             )}
           >
             {STATUS_CONFIG[s].label} ({countByStatus[s]})
@@ -299,7 +301,7 @@ export function ProspectionTable({
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Rechercher (nom, email, société, région, site)…"
-            className="w-full h-8 rounded-lg border border-input bg-transparent pl-8 pr-7 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+            className="w-full h-9 rounded-full border border-[color:var(--at-rule-strong,var(--input))] bg-[var(--at-paper,transparent)] pl-8 pr-7 text-sm placeholder:text-[color:var(--at-ink-3,var(--muted-foreground))] focus:outline-none focus:border-[color:var(--at-ink,var(--ring))]"
           />
           {search && (
             <button onClick={() => setSearch("")} className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors">
@@ -448,11 +450,11 @@ export function ProspectionTable({
         </div>
       )}
 
-      {/* ── Tableau ── */}
-      <div className="rounded-xl border border-border/50 bg-card overflow-x-auto">
+      {/* ── Tableau — surface « papier » du thème Atelier ── */}
+      <div className="rounded-2xl border border-[color:var(--at-rule-strong,var(--border))] bg-[var(--at-paper,var(--card))] overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-border/50 [&>th]:px-3 [&>th]:py-2 text-left">
+            <tr className="border-b border-[color:var(--at-rule-strong,var(--border))] [&>th]:px-3 [&>th]:py-2.5 text-left [&>th]:at-label [&>th]:text-[10px] [&>th]:font-medium [&>th]:text-[color:var(--at-ink-3,var(--muted-foreground))]">
               <th className="w-8">
                 <input
                   ref={headerCheckboxRef}
@@ -474,7 +476,7 @@ export function ProspectionTable({
               {templates.length > 0 && <th className="w-8" />}
             </tr>
           </thead>
-          <tbody className="divide-y divide-border/40">
+          <tbody className="divide-y divide-[color:var(--at-rule,var(--border))]">
             {paged.map((p) => {
               const last = p.interactions[0]
               const siteType = p.websiteType ? WEBSITE_TYPE_CONFIG[p.websiteType as WebsiteType] : null
@@ -483,8 +485,8 @@ export function ProspectionTable({
                   key={p.id}
                   onClick={() => openClient(p.id)}
                   className={cn(
-                    "group cursor-pointer hover:bg-muted/40 transition-colors [&>td]:px-3 [&>td]:py-2",
-                    selected.has(p.id) && "bg-primary/5"
+                    "group cursor-pointer hover:bg-[var(--at-bg,var(--muted))]/60 transition-colors [&>td]:px-3 [&>td]:py-2",
+                    selected.has(p.id) && "bg-[#D3B8DA]/20"
                   )}
                 >
                   <td onClick={(e) => e.stopPropagation()}>

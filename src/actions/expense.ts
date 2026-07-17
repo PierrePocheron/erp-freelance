@@ -122,6 +122,53 @@ export async function deleteExpense(expenseId: string) {
   revalidatePath("/calendrier")
 }
 
+/**
+ * Convertit une dépense ponctuelle en récurrente (sens inverse de
+ * convertRecurringToExpense) : la dépense existante devient la première
+ * occurrence matérialisée, et la prochaine échéance part de sa date.
+ */
+export async function convertExpenseToRecurring(
+  expenseId: string,
+  frequency: "WEEKLY" | "MONTHLY" | "QUARTERLY" | "YEARLY",
+  data: ExpenseInput,
+) {
+  const userId = await requireAuth()
+  const existing = await prisma.expense.findFirst({ where: { id: expenseId, userId }, select: { id: true, currency: true } })
+  if (!existing) throw new Error("Dépense introuvable")
+
+  await prisma.$transaction(async (tx) => {
+    const recurring = await tx.recurringExpense.create({
+      data: {
+        userId,
+        label: data.label.trim(),
+        amount: data.amount,
+        currency: existing.currency,
+        scope: data.scope,
+        frequency,
+        nextGenerationDate: advanceByFrequency(data.date, frequency),
+        categoryId: data.categoryId ?? null,
+        notes: data.notes?.trim() || null,
+      },
+    })
+    await tx.expense.update({
+      where: { id: expenseId },
+      data: {
+        label: data.label.trim(),
+        merchant: data.merchant?.trim() || null,
+        amount: data.amount,
+        date: data.date,
+        scope: data.scope,
+        categoryId: data.categoryId ?? null,
+        notes: data.notes?.trim() || null,
+        recurringExpenseId: recurring.id,
+      },
+    })
+  })
+  revalidatePath("/depenses")
+  revalidatePath("/depenses/recurrentes")
+  revalidatePath("/calendrier")
+}
+
 // ─── Dépenses récurrentes ───────────────────────────────────────────────────
 
 export type RecurringExpenseInput = {
@@ -317,10 +364,8 @@ export async function generatePendingRecurringExpenses(): Promise<{ generated: n
     }
   }
 
-  if (generated > 0) {
-    revalidatePath("/depenses")
-    revalidatePath("/depenses/recurrentes")
-    revalidatePath("/calendrier")
-  }
+  // Pas de revalidatePath ici : cette fonction est appelée PENDANT le rendu de
+  // la page Dépenses (génération automatique), où Next l'interdit — et les
+  // requêtes de la page s'exécutent de toute façon après la génération.
   return { generated }
 }

@@ -70,6 +70,14 @@ export default async function ProspectionPage({
           </p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
+          {/* CTA principal façon portfolio : session sur les 10 plus anciens à contacter */}
+          <Link
+            href="/prospection/mode"
+            className="inline-flex items-center gap-2 h-9 px-4 rounded-full bg-[var(--at-ink)] text-[var(--at-paper)] text-sm font-medium hover:opacity-90 transition-opacity"
+          >
+            Démarrer une session
+            <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[var(--at-paper)]/20">→</span>
+          </Link>
           <Link
             href="/prospection/brouillons"
             className="inline-flex items-center gap-1.5 h-9 px-4 rounded-full border border-[color:var(--at-rule-strong)] text-sm text-[color:var(--at-ink-2)] hover:border-[color:var(--at-ink)] hover:bg-[var(--at-paper)] transition-colors"

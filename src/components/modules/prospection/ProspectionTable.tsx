@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useRef, useState, useTransition } from "react"
-import { Search, X, Mail, MailPlus, Phone, Trash2, ChevronLeft, ChevronRight, Send, ExternalLink, NotebookPen } from "lucide-react"
+import { Search, X, Mail, MailPlus, Phone, Trash2, ChevronLeft, ChevronRight, Send, ExternalLink, NotebookPen, Play } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { toast } from "sonner"
 import { useSortState, cmp } from "@/hooks/use-sortable"
@@ -404,6 +404,13 @@ export function ProspectionTable({
             )}
           </div>
 
+          <a
+            href={`/prospection/mode?ids=${[...selected].join(",")}`}
+            title="Session de démarchage sur la sélection : fiche, actions rapides, frise, notes"
+            className="flex items-center gap-1.5 h-7 px-2.5 rounded-lg bg-[var(--at-ink,var(--primary))] text-[var(--at-paper,var(--primary-foreground))] text-xs font-medium hover:opacity-90 transition-opacity"
+          >
+            <Play className="h-3 w-3" /> Mode prospection
+          </a>
           <button
             onClick={() => setPrepareDraftsOpen(true)}
             disabled={isBulkPending}

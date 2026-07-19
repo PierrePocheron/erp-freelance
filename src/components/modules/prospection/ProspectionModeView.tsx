@@ -5,7 +5,7 @@ import Link from "next/link"
 import {
   ArrowLeft, ChevronLeft, ChevronRight, ExternalLink, Phone, PhoneMissed,
   Mail, ThumbsUp, ThumbsDown, CalendarCheck, Trophy, XCircle, Plus,
-  Pencil, Trash2, Globe, MapPin, User, Gauge, Check,
+  Pencil, Trash2, Globe, MapPin, User, Gauge, Check, StickyNote,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { toast } from "sonner"
@@ -67,6 +67,11 @@ const QUICK_ACTIONS: { kind: Exclude<ProspectEventKind, "STATUS_CHANGE">; label:
   { kind: "MEETING_BOOKED", label: "RDV fixé",           icon: CalendarCheck },
 ]
 
+// Frise unifiée : événements + notes, triés par date
+type TimelineItem =
+  | { type: "event"; date: Date; ev: ModeEvent }
+  | { type: "note"; date: Date; note: ModeNote }
+
 const fmtDate = (d: Date | string) =>
   new Date(d).toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "2-digit" }) +
   " · " + new Date(d).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })
@@ -80,9 +85,8 @@ const domainAge = (d: Date | string | null) => {
 /**
  * Mode prospection : session de démarchage. Toute l'activité (frise, statut,
  * notes) est tenue en état LOCAL et mise à jour depuis les retours des server
- * actions — aucun re-rendu serveur pendant la session, la frise réagit
- * immédiatement. On ne passe JAMAIS au prospect suivant automatiquement :
- * navigation manuelle (boutons ou ← →).
+ * actions — la frise réagit immédiatement. Les notes vivent DANS la frise, à
+ * leur date de création. Navigation entre prospects strictement manuelle.
  */
 export function ProspectionModeView({ prospects }: { prospects: ModeProspect[] }) {
   const [index, setIndex] = useState(0)
@@ -101,13 +105,34 @@ export function ProspectionModeView({ prospects }: { prospects: ModeProspect[] }
   // Prospects « traités » pendant cette session (au moins une action loggée)
   const [handled, setHandled] = useState<Set<string>>(new Set())
 
+  // Formulaire de note (dans la carte Actions rapides)
+  const [noteFormOpen, setNoteFormOpen] = useState(false)
+  const [editingNoteId, setEditingNoteId] = useState<string | null>(null)
+  const [noteTitle, setNoteTitle] = useState("")
+  const [noteContent, setNoteContent] = useState("")
+  const [isSavingNote, startSaveNote] = useTransition()
+
   const prospect = prospects[Math.min(index, prospects.length - 1)]
   const status = STATUS_CONFIG[statusById[prospect.id]] ?? STATUS_CONFIG.TO_CONTACT
-  const events = eventsById[prospect.id] ?? []
-  const notes = notesById[prospect.id] ?? []
 
-  const goPrev = useCallback(() => setIndex((i) => Math.max(0, i - 1)), [])
-  const goNext = useCallback(() => setIndex((i) => Math.min(prospects.length - 1, i + 1)), [prospects.length])
+  const timeline: TimelineItem[] = useMemo(() => {
+    const events = eventsById[prospect.id] ?? []
+    const notes = notesById[prospect.id] ?? []
+    return [
+      ...events.map((ev) => ({ type: "event" as const, date: new Date(ev.date), ev })),
+      ...notes.map((note) => ({ type: "note" as const, date: new Date(note.createdAt), note })),
+    ].sort((a, b) => b.date.getTime() - a.date.getTime())
+  }, [eventsById, notesById, prospect.id])
+
+  const closeNoteForm = useCallback(() => {
+    setNoteFormOpen(false)
+    setEditingNoteId(null)
+    setNoteTitle("")
+    setNoteContent("")
+  }, [])
+
+  const goPrev = useCallback(() => { setIndex((i) => Math.max(0, i - 1)); closeNoteForm() }, [closeNoteForm])
+  const goNext = useCallback(() => { setIndex((i) => Math.min(prospects.length - 1, i + 1)); closeNoteForm() }, [prospects.length, closeNoteForm])
 
   // Navigation clavier ← → (hors champs de saisie)
   useEffect(() => {
@@ -152,6 +177,51 @@ export function ProspectionModeView({ prospects }: { prospects: ModeProspect[] }
       }
       markHandled(id)
       toast.success(`Statut : ${STATUS_CONFIG[target].label}`)
+    })
+  }
+
+  function openAddNote() {
+    setNoteFormOpen(true)
+    setEditingNoteId(null)
+    setNoteTitle("")
+    setNoteContent("")
+  }
+
+  function openEditNote(note: ModeNote) {
+    setNoteFormOpen(true)
+    setEditingNoteId(note.id)
+    setNoteTitle(note.title)
+    setNoteContent(note.content ?? "")
+  }
+
+  function saveNote() {
+    if (!noteTitle.trim()) return
+    const id = prospect.id
+    startSaveNote(async () => {
+      if (editingNoteId) {
+        await updateProspectNote(editingNoteId, { title: noteTitle, content: noteContent })
+        setNotesById((prev) => ({
+          ...prev,
+          [id]: (prev[id] ?? []).map((n) =>
+            n.id === editingNoteId ? { ...n, title: noteTitle.trim(), content: noteContent.trim() || null } : n
+          ),
+        }))
+      } else {
+        const created = await createProspectNote(id, { title: noteTitle, content: noteContent })
+        setNotesById((prev) => ({ ...prev, [id]: [created as ModeNote, ...(prev[id] ?? [])] }))
+        markHandled(id)
+      }
+      closeNoteForm()
+      toast.success("Note enregistrée")
+    })
+  }
+
+  function removeNote(noteId: string) {
+    const id = prospect.id
+    startSaveNote(async () => {
+      await deleteProspectNote(noteId)
+      setNotesById((prev) => ({ ...prev, [id]: (prev[id] ?? []).filter((n) => n.id !== noteId) }))
+      if (editingNoteId === noteId) closeNoteForm()
     })
   }
 
@@ -292,51 +362,137 @@ export function ProspectionModeView({ prospects }: { prospects: ModeProspect[] }
               </a>
             </div>
           )}
+        </div>
 
-          {/* Frise chronologique */}
+        {/* ── Colonne process : actions rapides puis frise ── */}
+        <div className="xl:col-span-2 space-y-5">
+          {/* Actions rapides — chaque action alimente la frise et avance le
+              statut si besoin ; on RESTE sur le prospect courant */}
+          <div className="rounded-xl border border-border/50 bg-card p-5 space-y-4">
+            <h2 className="font-semibold text-sm">Actions rapides</h2>
+            <div className="grid grid-cols-2 gap-2">
+              {QUICK_ACTIONS.map(({ kind, label, icon: Icon }) => (
+                <button
+                  key={kind}
+                  onClick={() => runAction(kind)}
+                  disabled={isPending}
+                  className="flex items-center gap-2 h-10 px-3 rounded-lg border border-input text-sm hover:bg-muted/50 disabled:opacity-50 transition-colors text-left"
+                >
+                  <Icon className="h-4 w-4 shrink-0 text-muted-foreground" />
+                  <span className="truncate">{label}</span>
+                </button>
+              ))}
+              <button
+                onClick={openAddNote}
+                disabled={isPending || noteFormOpen}
+                className="flex items-center gap-2 h-10 px-3 rounded-lg border border-dashed border-input text-sm text-muted-foreground hover:bg-muted/50 hover:text-foreground disabled:opacity-50 transition-colors text-left"
+              >
+                <Plus className="h-4 w-4 shrink-0" />
+                <span className="truncate">Ajouter une note</span>
+              </button>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2 pt-2 border-t border-border/50">
+              <button
+                onClick={() => setOutcome("WON")}
+                disabled={isPending}
+                className="flex items-center justify-center gap-2 h-10 px-3 rounded-lg bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 text-sm font-medium hover:bg-emerald-500/25 disabled:opacity-50 transition-colors"
+              >
+                <Trophy className="h-4 w-4" /> Gagné 🎉
+              </button>
+              <button
+                onClick={() => setOutcome("LOST")}
+                disabled={isPending}
+                className="flex items-center justify-center gap-2 h-10 px-3 rounded-lg bg-red-500/10 text-red-600 text-sm font-medium hover:bg-red-500/20 disabled:opacity-50 transition-colors"
+              >
+                <XCircle className="h-4 w-4" /> Perdu
+              </button>
+            </div>
+
+            {/* Formulaire de note, directement dans la carte */}
+            {noteFormOpen && (
+              <div className="space-y-2 rounded-lg border border-border p-3">
+                <input
+                  value={noteTitle}
+                  onChange={(e) => setNoteTitle(e.target.value)}
+                  placeholder="Titre — ex. Premier appel"
+                  autoFocus
+                  className="w-full h-8 rounded-lg border border-input bg-transparent px-2.5 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+                />
+                <textarea
+                  value={noteContent}
+                  onChange={(e) => setNoteContent(e.target.value)}
+                  placeholder="Contenu — ex. pas de réponse, rappeler la semaine prochaine…"
+                  rows={3}
+                  className="w-full rounded-lg border border-input bg-transparent px-2.5 py-1.5 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring resize-y"
+                />
+                <div className="flex justify-end gap-2">
+                  <button onClick={closeNoteForm} className="h-8 px-3 rounded-lg text-xs text-muted-foreground hover:text-foreground transition-colors">
+                    Annuler
+                  </button>
+                  <button
+                    onClick={saveNote}
+                    disabled={isSavingNote || !noteTitle.trim()}
+                    className="h-8 px-3.5 rounded-lg bg-primary text-primary-foreground text-xs font-medium hover:opacity-90 disabled:opacity-50 transition-opacity"
+                  >
+                    {isSavingNote ? "Enregistrement…" : editingNoteId ? "Enregistrer" : "Ajouter"}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Frise chronologique — événements ET notes, par date */}
           <div className="rounded-xl border border-border/50 bg-card p-5 space-y-3">
             <h2 className="font-semibold text-sm">Frise chronologique</h2>
-            {events.length === 0 ? (
+            {timeline.length === 0 ? (
               <p className="text-sm text-muted-foreground italic">Aucun événement — première prise de contact à tracer.</p>
             ) : (
               <ol className="relative space-y-4 pl-5 before:absolute before:left-[5px] before:top-1.5 before:bottom-1.5 before:w-px before:bg-border">
-                {events.map((ev) => {
-                  const cfg = EVENT_CONFIG[ev.kind]
-                  return (
-                    <li key={ev.id} className="relative">
-                      <span className={cn("absolute -left-5 top-1 h-[11px] w-[11px] rounded-full border-2 border-card", cfg.dot)} />
+                {timeline.map((item) =>
+                  item.type === "event" ? (
+                    <li key={`e-${item.ev.id}`} className="relative">
+                      <span className={cn("absolute -left-5 top-1 h-[11px] w-[11px] rounded-full border-2 border-card", EVENT_CONFIG[item.ev.kind].dot)} />
                       <div className="flex items-baseline justify-between gap-2 flex-wrap">
-                        <p className="text-sm font-medium leading-tight">{cfg.label}</p>
-                        <p className="text-xs text-muted-foreground">{fmtDate(ev.date)}</p>
+                        <p className="text-sm font-medium leading-tight">{EVENT_CONFIG[item.ev.kind].label}</p>
+                        <p className="text-xs text-muted-foreground">{fmtDate(item.ev.date)}</p>
                       </div>
-                      {ev.fromStatus && ev.toStatus && (
+                      {item.ev.fromStatus && item.ev.toStatus && (
                         <p className="mt-1 flex items-center gap-1.5 text-[11px]">
-                          <span className={cn("rounded-full border px-1.5 py-px", STATUS_CONFIG[ev.fromStatus].cls)}>{STATUS_CONFIG[ev.fromStatus].label}</span>
+                          <span className={cn("rounded-full border px-1.5 py-px", STATUS_CONFIG[item.ev.fromStatus].cls)}>{STATUS_CONFIG[item.ev.fromStatus].label}</span>
                           <span className="text-muted-foreground">→</span>
-                          <span className={cn("rounded-full border px-1.5 py-px", STATUS_CONFIG[ev.toStatus].cls)}>{STATUS_CONFIG[ev.toStatus].label}</span>
+                          <span className={cn("rounded-full border px-1.5 py-px", STATUS_CONFIG[item.ev.toStatus].cls)}>{STATUS_CONFIG[item.ev.toStatus].label}</span>
                         </p>
                       )}
-                      {ev.note && <p className="text-xs text-muted-foreground mt-1">{ev.note}</p>}
+                      {item.ev.note && <p className="text-xs text-muted-foreground mt-1">{item.ev.note}</p>}
+                    </li>
+                  ) : (
+                    <li key={`n-${item.note.id}`} className="relative group">
+                      <span className="absolute -left-5 top-1 h-[11px] w-[11px] rounded-full border-2 border-card bg-amber-400" />
+                      <div className="flex items-baseline justify-between gap-2 flex-wrap">
+                        <p className="text-sm font-medium leading-tight inline-flex items-center gap-1.5">
+                          <StickyNote className="h-3.5 w-3.5 text-amber-500" />
+                          {item.note.title}
+                        </p>
+                        <span className="flex items-center gap-1.5">
+                          <span className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button onClick={() => openEditNote(item.note)} className="text-muted-foreground hover:text-foreground transition-colors" title="Modifier la note">
+                              <Pencil className="h-3.5 w-3.5" />
+                            </button>
+                            <button onClick={() => removeNote(item.note.id)} disabled={isSavingNote} className="text-muted-foreground hover:text-red-500 transition-colors" title="Supprimer la note">
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          </span>
+                          <span className="text-xs text-muted-foreground">{fmtDate(item.note.createdAt)}</span>
+                        </span>
+                      </div>
+                      {item.note.content && <p className="text-sm text-muted-foreground mt-1 whitespace-pre-wrap">{item.note.content}</p>}
                     </li>
                   )
-                })}
+                )}
               </ol>
             )}
           </div>
-        </div>
-
-        {/* ── Colonne process : actions rapides + notes intégrées ── */}
-        <div className="xl:col-span-2 space-y-5">
-          <ActionsCard
-            key={prospect.id}
-            isPending={isPending}
-            notes={notes}
-            clientId={prospect.id}
-            onAction={runAction}
-            onOutcome={setOutcome}
-            onNotesChange={(next) => setNotesById((prev) => ({ ...prev, [prospect.id]: next }))}
-            onHandled={() => markHandled(prospect.id)}
-          />
         </div>
       </div>
     </div>
@@ -354,170 +510,5 @@ function ScoreBar({ label, value }: { label: string; value: number }) {
       </span>
       <span className="text-xs font-medium tabular-nums">{value}</span>
     </span>
-  )
-}
-
-function ActionsCard({
-  clientId, notes, isPending, onAction, onOutcome, onNotesChange, onHandled,
-}: {
-  clientId: string
-  notes: ModeNote[]
-  isPending: boolean
-  onAction: (kind: Exclude<ProspectEventKind, "STATUS_CHANGE">) => void
-  onOutcome: (status: ProspectStatus) => void
-  onNotesChange: (notes: ModeNote[]) => void
-  onHandled: () => void
-}) {
-  const [isSaving, startSave] = useTransition()
-  const [formOpen, setFormOpen] = useState(false)
-  const [editingId, setEditingId] = useState<string | null>(null)
-  const [title, setTitle] = useState("")
-  const [content, setContent] = useState("")
-
-  function openAdd() {
-    setFormOpen(true)
-    setEditingId(null)
-    setTitle("")
-    setContent("")
-  }
-
-  function openEdit(note: ModeNote) {
-    setFormOpen(true)
-    setEditingId(note.id)
-    setTitle(note.title)
-    setContent(note.content ?? "")
-  }
-
-  function cancel() {
-    setFormOpen(false)
-    setEditingId(null)
-  }
-
-  function save() {
-    if (!title.trim()) return
-    startSave(async () => {
-      if (editingId) {
-        await updateProspectNote(editingId, { title, content })
-        onNotesChange(notes.map((n) => (n.id === editingId ? { ...n, title: title.trim(), content: content.trim() || null } : n)))
-      } else {
-        const created = await createProspectNote(clientId, { title, content })
-        onNotesChange([created as ModeNote, ...notes])
-        onHandled()
-      }
-      cancel()
-      toast.success("Note enregistrée")
-    })
-  }
-
-  function remove(noteId: string) {
-    startSave(async () => {
-      await deleteProspectNote(noteId)
-      onNotesChange(notes.filter((n) => n.id !== noteId))
-      if (editingId === noteId) cancel()
-    })
-  }
-
-  return (
-    <div className="rounded-xl border border-border/50 bg-card p-5 space-y-4">
-      <h2 className="font-semibold text-sm">Actions rapides</h2>
-
-      {/* Chaque action ajoute un événement à la frise et avance le statut si
-          besoin — on RESTE sur le prospect courant (passage au suivant manuel) */}
-      <div className="grid grid-cols-2 gap-2">
-        {QUICK_ACTIONS.map(({ kind, label, icon: Icon }) => (
-          <button
-            key={kind}
-            onClick={() => onAction(kind)}
-            disabled={isPending}
-            className="flex items-center gap-2 h-10 px-3 rounded-lg border border-input text-sm hover:bg-muted/50 disabled:opacity-50 transition-colors text-left"
-          >
-            <Icon className="h-4 w-4 shrink-0 text-muted-foreground" />
-            <span className="truncate">{label}</span>
-          </button>
-        ))}
-        {/* + Note fait partie des actions rapides */}
-        <button
-          onClick={openAdd}
-          disabled={isPending || formOpen}
-          className="flex items-center gap-2 h-10 px-3 rounded-lg border border-dashed border-input text-sm text-muted-foreground hover:bg-muted/50 hover:text-foreground disabled:opacity-50 transition-colors text-left"
-        >
-          <Plus className="h-4 w-4 shrink-0" />
-          <span className="truncate">Ajouter une note</span>
-        </button>
-      </div>
-
-      <div className="grid grid-cols-2 gap-2 pt-2 border-t border-border/50">
-        <button
-          onClick={() => onOutcome("WON")}
-          disabled={isPending}
-          className="flex items-center justify-center gap-2 h-10 px-3 rounded-lg bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 text-sm font-medium hover:bg-emerald-500/25 disabled:opacity-50 transition-colors"
-        >
-          <Trophy className="h-4 w-4" /> Gagné 🎉
-        </button>
-        <button
-          onClick={() => onOutcome("LOST")}
-          disabled={isPending}
-          className="flex items-center justify-center gap-2 h-10 px-3 rounded-lg bg-red-500/10 text-red-600 text-sm font-medium hover:bg-red-500/20 disabled:opacity-50 transition-colors"
-        >
-          <XCircle className="h-4 w-4" /> Perdu
-        </button>
-      </div>
-
-      {/* Formulaire de note, directement dans la carte */}
-      {formOpen && (
-        <div className="space-y-2 rounded-lg border border-border p-3">
-          <input
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            placeholder="Titre — ex. Premier appel"
-            autoFocus
-            className="w-full h-8 rounded-lg border border-input bg-transparent px-2.5 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-          />
-          <textarea
-            value={content}
-            onChange={(e) => setContent(e.target.value)}
-            placeholder="Contenu — ex. pas de réponse, rappeler la semaine prochaine…"
-            rows={3}
-            className="w-full rounded-lg border border-input bg-transparent px-2.5 py-1.5 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring resize-y"
-          />
-          <div className="flex justify-end gap-2">
-            <button onClick={cancel} className="h-8 px-3 rounded-lg text-xs text-muted-foreground hover:text-foreground transition-colors">
-              Annuler
-            </button>
-            <button
-              onClick={save}
-              disabled={isSaving || !title.trim()}
-              className="h-8 px-3.5 rounded-lg bg-primary text-primary-foreground text-xs font-medium hover:opacity-90 disabled:opacity-50 transition-opacity"
-            >
-              {isSaving ? "Enregistrement…" : editingId ? "Enregistrer" : "Ajouter"}
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Notes affichées directement dans la carte */}
-      {notes.length > 0 && (
-        <div className="space-y-2 pt-2 border-t border-border/50">
-          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Notes ({notes.length})</p>
-          {notes.map((note) => (
-            <div key={note.id} className="group rounded-lg border border-border/50 p-3 space-y-1">
-              <div className="flex items-start justify-between gap-2">
-                <p className="text-sm font-semibold leading-tight">{note.title}</p>
-                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
-                  <button onClick={() => openEdit(note)} className="text-muted-foreground hover:text-foreground transition-colors" title="Modifier">
-                    <Pencil className="h-3.5 w-3.5" />
-                  </button>
-                  <button onClick={() => remove(note.id)} disabled={isSaving} className="text-muted-foreground hover:text-red-500 transition-colors" title="Supprimer">
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </button>
-                </div>
-              </div>
-              {note.content && <p className="text-sm text-muted-foreground whitespace-pre-wrap">{note.content}</p>}
-              <p className="text-[11px] text-muted-foreground/70">{fmtDate(note.createdAt)}</p>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
   )
 }

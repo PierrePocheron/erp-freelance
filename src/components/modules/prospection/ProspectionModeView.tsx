@@ -103,6 +103,12 @@ export function ProspectionModeView({
   templates: EmailTemplateOption[]
   emailFromConfigured: boolean
 }) {
+  // Liste FIGÉE au montage : la session reste sur les X prospects choisis au
+  // départ, quoi qu'il arrive côté serveur. Un rafraîchissement post-action
+  // (Next re-rend la route) ne peut donc ni retirer un prospect passé « Perdu »,
+  // ni en réinjecter un nouveau — le compteur « traités » reste borné par X.
+  const [sessionProspects] = useState(() => prospects)
+
   const [index, setIndex] = useState(0)
   const [isPending, startTransition] = useTransition()
 
@@ -113,13 +119,13 @@ export function ProspectionModeView({
 
   // État local de session, initialisé depuis le serveur
   const [statusById, setStatusById] = useState<Record<string, ProspectStatus>>(
-    () => Object.fromEntries(prospects.map((p) => [p.id, p.prospectStatus as ProspectStatus]))
+    () => Object.fromEntries(sessionProspects.map((p) => [p.id, p.prospectStatus as ProspectStatus]))
   )
   const [eventsById, setEventsById] = useState<Record<string, ModeEvent[]>>(
-    () => Object.fromEntries(prospects.map((p) => [p.id, p.prospectEvents]))
+    () => Object.fromEntries(sessionProspects.map((p) => [p.id, p.prospectEvents]))
   )
   const [notesById, setNotesById] = useState<Record<string, ModeNote[]>>(
-    () => Object.fromEntries(prospects.map((p) => [p.id, p.prospectNotes]))
+    () => Object.fromEntries(sessionProspects.map((p) => [p.id, p.prospectNotes]))
   )
   // Prospects « traités » pendant cette session (au moins une action loggée)
   const [handled, setHandled] = useState<Set<string>>(new Set())
@@ -131,7 +137,7 @@ export function ProspectionModeView({
   const [noteContent, setNoteContent] = useState("")
   const [isSavingNote, startSaveNote] = useTransition()
 
-  const prospect = prospects[Math.min(index, prospects.length - 1)]
+  const prospect = sessionProspects[Math.min(index, sessionProspects.length - 1)]
   const status = STATUS_CONFIG[statusById[prospect.id]] ?? STATUS_CONFIG.TO_CONTACT
 
   const timeline: TimelineItem[] = useMemo(() => {
@@ -151,7 +157,7 @@ export function ProspectionModeView({
   }, [])
 
   const goPrev = useCallback(() => { setIndex((i) => Math.max(0, i - 1)); closeNoteForm() }, [closeNoteForm])
-  const goNext = useCallback(() => { setIndex((i) => Math.min(prospects.length - 1, i + 1)); closeNoteForm() }, [prospects.length, closeNoteForm])
+  const goNext = useCallback(() => { setIndex((i) => Math.min(sessionProspects.length - 1, i + 1)); closeNoteForm() }, [sessionProspects.length, closeNoteForm])
 
   // Navigation clavier ← → (hors champs de saisie)
   useEffect(() => {
@@ -308,7 +314,7 @@ export function ProspectionModeView({
         </Link>
         <div className="flex-1 min-w-40 max-w-md space-y-1">
           <p className="text-xs text-muted-foreground text-center">
-            Prospect <span className="font-semibold text-foreground">{index + 1} / {prospects.length}</span>
+            Prospect <span className="font-semibold text-foreground">{index + 1} / {sessionProspects.length}</span>
             {" · "}
             <span className={handled.size > 0 ? "text-emerald-600 font-medium" : ""}>{handled.size} traité{handled.size > 1 ? "s" : ""}</span>
           </p>
@@ -316,7 +322,7 @@ export function ProspectionModeView({
           <div className="h-1.5 rounded-full bg-muted overflow-hidden">
             <div
               className="h-full rounded-full bg-emerald-500 transition-all"
-              style={{ width: `${(handled.size / prospects.length) * 100}%` }}
+              style={{ width: `${(handled.size / sessionProspects.length) * 100}%` }}
             />
           </div>
         </div>
@@ -331,7 +337,7 @@ export function ProspectionModeView({
           </button>
           <button
             onClick={goNext}
-            disabled={index === prospects.length - 1}
+            disabled={index === sessionProspects.length - 1}
             className="flex h-8 w-8 items-center justify-center rounded-lg border border-border text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-30 transition-colors"
             title="Prospect suivant (→)"
           >

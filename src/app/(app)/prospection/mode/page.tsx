@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma"
 import Link from "next/link"
 import { ProspectionModeView } from "@/components/modules/prospection/ProspectionModeView"
 import { PIPELINE_STATUSES } from "@/components/modules/prospection/status-config"
+import { prospectionFromAddress } from "@/lib/prospection-email"
 import type { ProspectStatus, WebsiteType } from "@/generated/prisma/enums"
 
 const WEBSITE_TYPES: WebsiteType[] = ["SHOWCASE", "ECOMMERCE", "BLOG_CONTENT", "OUTDATED", "OTHER"]
@@ -25,6 +26,12 @@ export default async function ProspectionModePage({
   const statusFilter = statut && (PIPELINE_STATUSES as string[]).includes(statut) ? (statut as ProspectStatus) : null
   const typeFilter = type && (WEBSITE_TYPES as string[]).includes(type) ? (type as WebsiteType) : null
   const count = Math.min(Math.max(Number(n) || 10, 1), 50)
+
+  const templatesPromise = prisma.emailTemplate.findMany({
+    where: { userId },
+    orderBy: [{ sortOrder: "asc" }, { updatedAt: "desc" }],
+    select: { id: true, name: true, subject: true, body: true },
+  })
 
   const prospects = await prisma.client.findMany({
     where: idList.length > 0
@@ -63,5 +70,13 @@ export default async function ProspectionModePage({
     )
   }
 
-  return <ProspectionModeView prospects={ordered} />
+  const templates = await templatesPromise
+
+  return (
+    <ProspectionModeView
+      prospects={ordered}
+      templates={templates}
+      emailFromConfigured={prospectionFromAddress() !== null}
+    />
+  )
 }

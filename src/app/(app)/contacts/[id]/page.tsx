@@ -8,14 +8,10 @@ import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { STATUS_CONFIG, type JobAppStatus } from "@/components/modules/entretien/status-config"
 import { ClientInfoCard } from "@/components/modules/crm/ClientInfoCard"
+import { ContactTimeline } from "@/components/modules/crm/ContactTimeline"
 import { ClientTasksSection } from "@/components/modules/crm/ClientTasksSection"
 import { ClientProjectsCard } from "@/components/modules/crm/ClientProjectsCard"
 import { FiscalCategoryCard } from "@/components/modules/crm/FiscalCategoryCard"
-
-const channelLabels: Record<string, string> = {
-  EMAIL: "Email", CALL: "Appel", LINKEDIN: "LinkedIn",
-  MEETING: "Réunion", SMS: "SMS", OTHER: "Autre",
-}
 
 export default async function ClientOverviewPage({
   params,
@@ -36,7 +32,9 @@ export default async function ClientOverviewPage({
     },
     include: {
       _count: { select: { interactions: true, projects: true, invoices: true } },
-      interactions: { orderBy: { date: "desc" }, take: 3 },
+      interactions: { orderBy: { date: "desc" }, select: { id: true, date: true, channel: true, summary: true, response: true } },
+      prospectNotes: { orderBy: { createdAt: "desc" } },
+      prospectEvents: { orderBy: { date: "desc" } },
       reminders: { where: { isDone: false }, orderBy: { dueDate: "asc" } },
       projects: { select: { id: true, name: true, status: true }, take: 5 },
       invoices: { select: { totalHT: true, depositDeducted: true, status: true } },
@@ -304,26 +302,21 @@ export default async function ClientOverviewPage({
           </div>
         )}
 
-        {/* Dernières interactions */}
-        {client.interactions.length > 0 && (
-          <div className="rounded-xl border border-border/50 bg-card p-5 space-y-3">
+        {/* Frise chronologique — interactions, notes et événements de prospection */}
+        {(client.interactions.length > 0 || client.prospectNotes.length > 0 || client.prospectEvents.length > 0) && (
+          <div className="rounded-xl border border-border/50 bg-card p-5 space-y-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <MessageSquare className="h-4 w-4 text-muted-foreground" />
-                <h2 className="font-semibold text-sm">Dernières interactions</h2>
+                <h2 className="font-semibold text-sm">Frise chronologique</h2>
               </div>
-              <Link href={`/contacts/${id}/interactions`} className="text-xs text-primary hover:underline">Voir tout</Link>
+              <Link href={`/contacts/${id}/interactions`} className="text-xs text-primary hover:underline">Interactions</Link>
             </div>
-            <div className="space-y-2">
-              {client.interactions.map((i) => (
-                <div key={i.id} className="border-l-2 border-border pl-3">
-                  <p className="text-xs text-muted-foreground">
-                    {channelLabels[i.channel] ?? i.channel} · {fmt(i.date)}
-                  </p>
-                  <p className="text-sm line-clamp-2">{i.summary}</p>
-                </div>
-              ))}
-            </div>
+            <ContactTimeline
+              interactions={client.interactions}
+              events={client.prospectEvents}
+              notes={client.prospectNotes}
+            />
           </div>
         )}
 

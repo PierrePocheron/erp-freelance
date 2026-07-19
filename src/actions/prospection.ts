@@ -51,7 +51,8 @@ export async function createProspect(data: {
       companyId,
       company: companyName,
       type: "PROSPECT",
-      source: (data.source as ClientSource) || "OTHER",
+      // Un prospect créé dans le module vient de la prospection par défaut
+      source: (data.source as ClientSource) || "PROSPECTION",
       prospectStatus: "TO_CONTACT",
       websiteUrl: data.websiteUrl?.trim() || null,
       region: data.region?.trim() || null,
@@ -244,7 +245,7 @@ export async function importProspects(rows: ImportProspectRow[]) {
         company: companyName,
         type: "PROSPECT",
         prospectStatus: "TO_CONTACT",
-        source: SOURCES.includes(row.source ?? "") ? (row.source as ClientSource) : "OTHER",
+        source: SOURCES.includes(row.source ?? "") ? (row.source as ClientSource) : "PROSPECTION",
         websiteUrl: row.websiteUrl?.trim() || null,
         websiteType: WEBSITE_TYPES.includes(row.websiteType ?? "") ? (row.websiteType as never) : null,
         websitePagesApprox: row.websitePagesApprox ?? null,

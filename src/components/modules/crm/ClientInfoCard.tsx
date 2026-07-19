@@ -13,14 +13,7 @@ import { isContactIncomplete } from "@/lib/contact"
 import { CompanyCombobox } from "./CompanyCombobox"
 import { STATUS_CONFIG, PIPELINE_STATUSES, OUTCOME_STATUSES, WEBSITE_TYPE_CONFIG } from "@/components/modules/prospection/status-config"
 import type { ProspectStatus, WebsiteType } from "@/generated/prisma/enums"
-
-const SOURCE_LABELS: Record<string, string> = {
-  WORD_OF_MOUTH: "Bouche à oreille",
-  LINKEDIN: "LinkedIn",
-  WEBSITE: "Site web",
-  INBOUND: "Entrant",
-  OTHER: "Autre",
-}
+import { CLIENT_SOURCE_LABELS as SOURCE_LABELS } from "@/lib/client-source"
 
 const TYPE_OPTIONS = [
   { value: "PROSPECT",  label: "Prospect" },

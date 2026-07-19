@@ -25,13 +25,8 @@ export const WEBSITE_TYPE_CONFIG: Record<WebsiteType, { label: string; cls: stri
   OTHER:        { label: "Autre",      cls: "bg-muted text-muted-foreground"   },
 }
 
-export const SOURCE_LABELS: Record<string, string> = {
-  WORD_OF_MOUTH: "Bouche à oreille",
-  LINKEDIN: "LinkedIn",
-  WEBSITE: "Site web",
-  INBOUND: "Entrant",
-  OTHER: "Autre",
-}
+// Ré-export depuis la source de vérité partagée (contacts + prospection)
+export { CLIENT_SOURCE_LABELS as SOURCE_LABELS } from "@/lib/client-source"
 
 // Mapping de l'ancien pipeline 10 étapes vers le statut 6 valeurs — miroir
 // exact du backfill SQL de la migration 20260709175541 (testé unitairement).

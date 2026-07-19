@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
 import { Plus } from "lucide-react"
+import { CLIENT_SOURCE_LABELS, CLIENT_SOURCES } from "@/lib/client-source"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
@@ -252,12 +253,10 @@ export function CreateClientDialog({
                   </div>
                   <div className="space-y-1.5">
                     <Label>Source</Label>
-                    <select name="source" className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-ring">
-                      <option value="OTHER">Autre</option>
-                      <option value="WORD_OF_MOUTH">Bouche à oreille</option>
-                      <option value="LINKEDIN">LinkedIn</option>
-                      <option value="WEBSITE">Site web</option>
-                      <option value="INBOUND">Entrant</option>
+                    <select name="source" defaultValue="OTHER" className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-ring">
+                      {CLIENT_SOURCES.map((s) => (
+                        <option key={s} value={s}>{CLIENT_SOURCE_LABELS[s]}</option>
+                      ))}
                     </select>
                   </div>
                 </div>

@@ -2,29 +2,41 @@ import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import Link from "next/link"
 import { ProspectionModeView } from "@/components/modules/prospection/ProspectionModeView"
-import { atelierSans, atelierMono } from "@/lib/atelier-fonts"
+import { PIPELINE_STATUSES } from "@/components/modules/prospection/status-config"
+import type { ProspectStatus, WebsiteType } from "@/generated/prisma/enums"
+
+const WEBSITE_TYPES: WebsiteType[] = ["SHOWCASE", "ECOMMERCE", "BLOG_CONTENT", "OUTDATED", "OTHER"]
 
 /**
- * Mode prospection : session de démarchage plein écran sur une sélection de
- * prospects (?ids=a,b,c — l'ordre de sélection est conservé). Sans sélection,
- * démarre sur les 10 plus anciens « À contacter ».
+ * Mode prospection : session de démarchage sur une sélection de prospects
+ * (?ids=a,b,c — l'ordre de sélection est conservé), ou sur des conditions
+ * choisies dans le dialog de lancement (?statut= &type= &n=).
  */
 export default async function ProspectionModePage({
   searchParams,
 }: {
-  searchParams: Promise<{ ids?: string }>
+  searchParams: Promise<{ ids?: string; statut?: string; type?: string; n?: string }>
 }) {
-  const { ids } = await searchParams
+  const { ids, statut, type, n } = await searchParams
   const session = await auth()
   const userId = session!.user.id
 
   const idList = ids?.split(",").filter(Boolean).slice(0, 100) ?? []
+  const statusFilter = statut && (PIPELINE_STATUSES as string[]).includes(statut) ? (statut as ProspectStatus) : null
+  const typeFilter = type && (WEBSITE_TYPES as string[]).includes(type) ? (type as WebsiteType) : null
+  const count = Math.min(Math.max(Number(n) || 10, 1), 50)
 
   const prospects = await prisma.client.findMany({
     where: idList.length > 0
       ? { userId, id: { in: idList } }
-      : { userId, type: "PROSPECT", prospectStatus: "TO_CONTACT" },
-    ...(idList.length === 0 ? { orderBy: { createdAt: "asc" as const }, take: 10 } : {}),
+      : {
+          userId,
+          type: "PROSPECT",
+          // Sans condition de statut : tous les statuts actifs du pipeline
+          prospectStatus: statusFilter ?? { in: PIPELINE_STATUSES },
+          ...(typeFilter ? { websiteType: typeFilter } : {}),
+        },
+    ...(idList.length === 0 ? { orderBy: { createdAt: "asc" as const }, take: count } : {}),
     include: {
       prospectNotes: { orderBy: { createdAt: "desc" } },
       prospectEvents: { orderBy: { date: "desc" } },
@@ -38,10 +50,13 @@ export default async function ProspectionModePage({
 
   if (ordered.length === 0) {
     return (
-      <div className={`atelier ${atelierSans.variable} ${atelierMono.variable} -m-3 sm:-m-6 min-h-full bg-[var(--at-bg)] p-8 flex flex-col items-center justify-center gap-4 text-[color:var(--at-ink)]`}>
-        <p className="at-label text-[11px] text-[color:var(--at-ink-3)]">✿ Mode prospection</p>
-        <h1 className="at-display text-3xl">Aucun prospect à traiter</h1>
-        <Link href="/prospection" className="inline-flex items-center h-9 px-4 rounded-full border border-[color:var(--at-rule-strong)] text-sm hover:border-[color:var(--at-ink)] transition-colors">
+      <div className="flex flex-col items-center justify-center gap-4 py-24 text-center">
+        <h1 className="text-2xl font-bold tracking-tight">Aucun prospect à traiter</h1>
+        <p className="text-sm text-muted-foreground">Aucun prospect ne correspond à ces conditions.</p>
+        <Link
+          href="/prospection"
+          className="inline-flex items-center h-8 px-3 rounded-lg border border-input text-sm text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
+        >
           ← Retour à la prospection
         </Link>
       </div>

@@ -537,24 +537,26 @@ export async function logProspectAction(
 
   const now = new Date()
   const interaction = ACTION_INTERACTION[kind]
-  await prisma.$transaction([
-    ...(to !== from
-      ? [prisma.client.update({ where: { id: clientId, userId }, data: { prospectStatus: to } })]
-      : []),
-    prisma.prospectEvent.create({
+  const event = await prisma.$transaction(async (tx) => {
+    if (to !== from) {
+      await tx.client.update({ where: { id: clientId, userId }, data: { prospectStatus: to } })
+    }
+    const ev = await tx.prospectEvent.create({
       data: {
         clientId, kind, date: now, note: note?.trim() || null,
         ...(to !== from ? { fromStatus: from, toStatus: to } : {}),
       },
-    }),
-    prisma.interaction.create({
+    })
+    await tx.interaction.create({
       data: { clientId, date: now, channel: interaction.channel, summary: interaction.summary },
-    }),
-  ])
+    })
+    return ev
+  })
 
   revalidatePath("/prospection")
   revalidatePath(`/contacts/${clientId}`)
-  return { status: to }
+  // L'événement est renvoyé pour mise à jour instantanée de la frise côté client
+  return { status: to, event }
 }
 
 export async function createProspectNote(clientId: string, data: { title: string; content?: string | null }) {

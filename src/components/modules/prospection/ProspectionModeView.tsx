@@ -6,7 +6,7 @@ import {
   ArrowLeft, ChevronLeft, ChevronRight, ExternalLink, Phone, PhoneMissed,
   Mail, ThumbsUp, ThumbsDown, CalendarCheck, Trophy, XCircle, Plus,
   Pencil, Trash2, Globe, MapPin, User, Gauge, Check, StickyNote,
-  Send, NotebookPen, AlertTriangle,
+  Send, NotebookPen, AlertTriangle, ChevronDown,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { toast } from "sonner"
@@ -454,25 +454,34 @@ export function ProspectionModeView({
               </p>
             ) : (
               <>
-                <select
-                  value={templateId}
-                  onChange={(e) => setTemplateId(e.target.value)}
-                  className="w-full h-9 rounded-lg border border-input bg-background px-3 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
-                >
-                  <option value="">Choisir un modèle…</option>
-                  {templates.map((t) => (
-                    <option key={t.id} value={t.id}>{t.name}</option>
-                  ))}
-                </select>
+                <div className="relative">
+                  <select
+                    value={templateId}
+                    onChange={(e) => setTemplateId(e.target.value)}
+                    className="w-full h-9 appearance-none rounded-lg border border-input bg-background pl-3 pr-9 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+                  >
+                    <option value="">Choisir un modèle…</option>
+                    {templates.map((t) => (
+                      <option key={t.id} value={t.id}>{t.name}</option>
+                    ))}
+                  </select>
+                  <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+                </div>
 
                 {preview && (
-                  <div className="rounded-lg border border-border/50 bg-muted/30 p-3 space-y-1.5">
-                    <p className="text-xs text-muted-foreground">
-                      <span className="font-medium text-foreground">Objet :</span> {preview.subject}
-                    </p>
-                    <p className="text-xs text-muted-foreground line-clamp-3 whitespace-pre-wrap">{preview.body}</p>
+                  <div className="rounded-lg border border-border/50 bg-muted/30 overflow-hidden">
+                    <div className="px-3 py-2 border-b border-border/50">
+                      <p className="text-xs">
+                        <span className="font-medium">Objet :</span>{" "}
+                        <span className="text-muted-foreground">{preview.subject}</span>
+                      </p>
+                    </div>
+                    {/* Corps complet, défilable si long — on voit tout le mail */}
+                    <div className="px-3 py-2 max-h-64 overflow-y-auto">
+                      <p className="text-xs text-muted-foreground whitespace-pre-wrap leading-relaxed">{preview.body}</p>
+                    </div>
                     {preview.missing.length > 0 && (
-                      <p className="text-[11px] text-amber-600 flex items-center gap-1 pt-1">
+                      <p className="text-[11px] text-amber-600 flex items-center gap-1 px-3 py-2 border-t border-amber-500/20 bg-amber-500/5">
                         <AlertTriangle className="h-3 w-3 shrink-0" />
                         Variables manquantes : {preview.missing.join(", ")}
                       </p>

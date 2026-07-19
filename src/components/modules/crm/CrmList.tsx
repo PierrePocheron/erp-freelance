@@ -10,6 +10,7 @@ function fmtEur(n: number) {
   return n.toLocaleString("fr-FR", { maximumFractionDigits: 0 }) + " €"
 }
 import { cn } from "@/lib/utils"
+import { CLIENT_SOURCE_LABELS as sourceLabels } from "@/lib/client-source"
 
 const typeConfig = {
   TO_COMPLETE: { label: "À compléter", className: "bg-rose-500/15 text-rose-600 border-rose-500/20" },
@@ -19,14 +20,6 @@ const typeConfig = {
   RECRUITER:   { label: "Recruteur",   className: "bg-sky-500/15 text-sky-600 border-sky-500/20" },
   SELF:        { label: "Perso",       className: "bg-indigo-500/15 text-indigo-600 border-indigo-500/20" },
   INACTIVE:    { label: "Inactif",     className: "bg-muted text-muted-foreground border-border" },
-}
-
-const sourceLabels: Record<string, string> = {
-  WORD_OF_MOUTH: "Bouche à oreille",
-  LINKEDIN: "LinkedIn",
-  WEBSITE: "Site web",
-  INBOUND: "Entrant",
-  OTHER: "Autre",
 }
 
 type Client = {

@@ -229,7 +229,10 @@ enum CompanyType {
 }
 
 enum ClientSource {
+  PROSPECTION
   WORD_OF_MOUTH
+  FAMILY
+  FRIENDS
   LINKEDIN
   WEBSITE
   INBOUND

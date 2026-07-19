@@ -6,10 +6,14 @@ import {
   ArrowLeft, ChevronLeft, ChevronRight, ExternalLink, Phone, PhoneMissed,
   Mail, ThumbsUp, ThumbsDown, CalendarCheck, Trophy, XCircle, Plus,
   Pencil, Trash2, Globe, MapPin, User, Gauge, Check, StickyNote,
+  Send, NotebookPen, AlertTriangle,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { toast } from "sonner"
 import { STATUS_CONFIG, WEBSITE_TYPE_CONFIG } from "./status-config"
+import { SendEmailDialog, type EmailTemplateOption, type SendTarget } from "./SendEmailDialog"
+import { PrepareDraftsDialog } from "./PrepareDraftsDialog"
+import { renderTemplate } from "@/lib/email-template"
 import {
   logProspectAction, updateProspectStatus,
   createProspectNote, updateProspectNote, deleteProspectNote,
@@ -29,6 +33,8 @@ type ModeEvent = {
 export type ModeProspect = {
   id: string
   name: string
+  firstName: string | null
+  lastName: string | null
   company: string | null
   email: string | null
   phone: string | null
@@ -88,9 +94,22 @@ const domainAge = (d: Date | string | null) => {
  * actions — la frise réagit immédiatement. Les notes vivent DANS la frise, à
  * leur date de création. Navigation entre prospects strictement manuelle.
  */
-export function ProspectionModeView({ prospects }: { prospects: ModeProspect[] }) {
+export function ProspectionModeView({
+  prospects,
+  templates,
+  emailFromConfigured,
+}: {
+  prospects: ModeProspect[]
+  templates: EmailTemplateOption[]
+  emailFromConfigured: boolean
+}) {
   const [index, setIndex] = useState(0)
   const [isPending, startTransition] = useTransition()
+
+  // Carte email : modèle choisi + dialogs d'envoi/brouillon
+  const [templateId, setTemplateId] = useState("")
+  const [sendOpen, setSendOpen] = useState(false)
+  const [draftsOpen, setDraftsOpen] = useState(false)
 
   // État local de session, initialisé depuis le serveur
   const [statusById, setStatusById] = useState<Record<string, ProspectStatus>>(
@@ -180,6 +199,24 @@ export function ProspectionModeView({ prospects }: { prospects: ModeProspect[] }
     })
   }
 
+  // Après un envoi Resend : reflète localement ce que fait le serveur
+  // (événement EMAIL_SENT + passage TO_CONTACT → CONTACTED), sans re-fetch.
+  function handleEmailSent() {
+    const id = prospect.id
+    const from = statusById[id]
+    const to: ProspectStatus = from === "TO_CONTACT" ? "CONTACTED" : from
+    const local: ModeEvent = {
+      id: `local-${Date.now()}`, kind: "EMAIL_SENT",
+      fromStatus: from !== to ? from : null,
+      toStatus: from !== to ? to : null,
+      note: selectedTemplate ? `Email « ${selectedTemplate.name} »` : null,
+      date: new Date(),
+    }
+    setEventsById((prev) => ({ ...prev, [id]: [local, ...(prev[id] ?? [])] }))
+    if (from !== to) setStatusById((prev) => ({ ...prev, [id]: to }))
+    markHandled(id)
+  }
+
   function openAddNote() {
     setNoteFormOpen(true)
     setEditingNoteId(null)
@@ -229,6 +266,34 @@ export function ProspectionModeView({ prospects }: { prospects: ModeProspect[] }
   const issues = useMemo(
     () => (prospect.seoIssues ?? "").split("\n").map((s) => s.trim()).filter(Boolean),
     [prospect.seoIssues]
+  )
+
+  // Cible d'envoi (les dialogs partagés du tableau attendent un tableau) —
+  // le prospect courant, avec toutes les variables d'enrichissement.
+  const sendTarget: SendTarget = useMemo(() => ({
+    id: prospect.id,
+    email: prospect.email,
+    name: prospect.name,
+    firstName: prospect.firstName,
+    lastName: prospect.lastName,
+    company: prospect.company,
+    websiteUrl: prospect.websiteUrl,
+    city: prospect.city,
+    region: prospect.region,
+    businessDescription: prospect.businessDescription,
+    cms: prospect.cms,
+    seoScore: prospect.seoScore,
+    performanceScore: prospect.performanceScore,
+    seoIssues: prospect.seoIssues,
+    publicationManager: prospect.publicationManager,
+    domainCreatedAt: prospect.domainCreatedAt,
+  }), [prospect])
+
+  const selectedTemplate = templates.find((t) => t.id === templateId) ?? null
+  // Aperçu du sujet rendu + variables manquantes pour ce prospect
+  const preview = useMemo(
+    () => (selectedTemplate ? renderTemplate(selectedTemplate, sendTarget) : null),
+    [selectedTemplate, sendTarget]
   )
 
   return (
@@ -362,6 +427,74 @@ export function ProspectionModeView({ prospects }: { prospects: ModeProspect[] }
               </a>
             </div>
           )}
+
+          {/* Email personnalisé — même circuit contrôlé que le tableau
+              (aperçu par modèle, envoi Resend ou file de brouillons) */}
+          <div className="rounded-xl border border-border/50 bg-card p-5 space-y-3">
+            <div className="flex items-center gap-2">
+              <Mail className="h-4 w-4 text-muted-foreground" />
+              <h2 className="font-semibold text-sm">Email personnalisé</h2>
+            </div>
+
+            {templates.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                Aucun modèle de mail.{" "}
+                <Link href="/prospection/modeles" className="text-primary hover:underline">Créer un modèle →</Link>
+              </p>
+            ) : !prospect.email ? (
+              <p className="text-sm text-muted-foreground flex items-center gap-1.5">
+                <AlertTriangle className="h-3.5 w-3.5 text-amber-500 shrink-0" />
+                Ce prospect n&apos;a pas d&apos;adresse email renseignée.
+              </p>
+            ) : (
+              <>
+                <select
+                  value={templateId}
+                  onChange={(e) => setTemplateId(e.target.value)}
+                  className="w-full h-9 rounded-lg border border-input bg-background px-3 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+                >
+                  <option value="">Choisir un modèle…</option>
+                  {templates.map((t) => (
+                    <option key={t.id} value={t.id}>{t.name}</option>
+                  ))}
+                </select>
+
+                {preview && (
+                  <div className="rounded-lg border border-border/50 bg-muted/30 p-3 space-y-1.5">
+                    <p className="text-xs text-muted-foreground">
+                      <span className="font-medium text-foreground">Objet :</span> {preview.subject}
+                    </p>
+                    <p className="text-xs text-muted-foreground line-clamp-3 whitespace-pre-wrap">{preview.body}</p>
+                    {preview.missing.length > 0 && (
+                      <p className="text-[11px] text-amber-600 flex items-center gap-1 pt-1">
+                        <AlertTriangle className="h-3 w-3 shrink-0" />
+                        Variables manquantes : {preview.missing.join(", ")}
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setSendOpen(true)}
+                    disabled={!templateId}
+                    className="flex-1 inline-flex items-center justify-center gap-1.5 h-9 px-3 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 disabled:opacity-40 transition-opacity"
+                    title={emailFromConfigured ? "Envoyer via Resend après récapitulatif" : "Adresse d'envoi non configurée — préparez un brouillon"}
+                  >
+                    <Send className="h-3.5 w-3.5" /> Envoyer
+                  </button>
+                  <button
+                    onClick={() => setDraftsOpen(true)}
+                    disabled={!templateId}
+                    className="flex-1 inline-flex items-center justify-center gap-1.5 h-9 px-3 rounded-lg border border-input text-sm font-medium hover:bg-muted/50 disabled:opacity-40 transition-colors"
+                    title="Génère un brouillon relisable dans la file — rien n'est envoyé"
+                  >
+                    <NotebookPen className="h-3.5 w-3.5" /> Brouillon
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
         </div>
 
         {/* ── Colonne process : actions rapides puis frise ── */}
@@ -495,6 +628,25 @@ export function ProspectionModeView({ prospects }: { prospects: ModeProspect[] }
           </div>
         </div>
       </div>
+
+      {/* Dialogs partagés avec le tableau — circuit d'envoi contrôlé */}
+      <SendEmailDialog
+        open={sendOpen}
+        onOpenChange={setSendOpen}
+        templates={templates}
+        targets={[sendTarget]}
+        emailFromConfigured={emailFromConfigured}
+        onSent={handleEmailSent}
+        initialTemplateId={templateId}
+      />
+      <PrepareDraftsDialog
+        open={draftsOpen}
+        onOpenChange={setDraftsOpen}
+        templates={templates}
+        targets={[sendTarget]}
+        onDone={() => setDraftsOpen(false)}
+        initialTemplateId={templateId}
+      />
     </div>
   )
 }

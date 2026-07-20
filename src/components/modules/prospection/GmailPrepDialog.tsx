@@ -3,11 +3,16 @@
 import { useEffect, useMemo, useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
-import { ExternalLink, Copy, Check, SkipForward } from "lucide-react"
+import { ExternalLink, Copy, Check, SkipForward, AlertTriangle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { markProspectsContacted } from "@/actions/prospection"
-import { renderTemplate } from "@/lib/email-template"
+import { renderTemplate, TEMPLATE_VARIABLES } from "@/lib/email-template"
+
+// Libellé lisible d'une clé de variable (ex. "prenom" → "Prénom")
+const VAR_LABEL: Record<string, string> = Object.fromEntries(
+  TEMPLATE_VARIABLES.map((v) => [v.key, v.label])
+)
 import type { EmailTemplateOption, SendTarget } from "./SendEmailDialog"
 import { toast } from "sonner"
 
@@ -120,13 +125,28 @@ export function GmailPrepDialog({
 
             {current && rendered && (
               <>
+                {/* Alerte franche : le modèle utilise des variables vides pour CE
+                    prospect → risque d'envoyer un mail avec des trous. */}
+                {rendered.missing.length > 0 && (
+                  <div className="flex items-start gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2.5">
+                    <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+                    <div className="text-xs text-amber-700 dark:text-amber-400">
+                      <p className="font-semibold">Informations manquantes pour {current.name}</p>
+                      <p className="mt-0.5">
+                        Le modèle utilise{" "}
+                        <span className="font-medium">
+                          {rendered.missing.map((k) => VAR_LABEL[k] ?? k).join(", ")}
+                        </span>{" "}
+                        — vide(s) pour ce prospect. Complétez sa fiche ou adaptez le texte dans Gmail avant d&apos;envoyer.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
                 <div className="rounded-lg border border-border/50 bg-muted/20 p-3 space-y-2">
                   <p className="text-xs text-muted-foreground">
                     <span className="tabular-nums font-medium text-foreground">{index + 1}/{withEmail.length}</span> ·{" "}
                     <span className="font-medium text-foreground">{current.name}</span> &lt;{current.email}&gt;
-                    {rendered.missing.length > 0 && (
-                      <span className="text-amber-600"> · variables vides : {rendered.missing.join(", ")}</span>
-                    )}
                   </p>
                   <p className="text-sm font-medium">{rendered.subject}</p>
                   <p className="text-xs text-muted-foreground whitespace-pre-line max-h-40 overflow-y-auto leading-relaxed">{rendered.body}</p>

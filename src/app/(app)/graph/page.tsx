@@ -93,18 +93,62 @@ export default async function GraphPage() {
     })
   }
 
-  // ── Clients (contacts) ────────────────────────────────────────────────────
+  // ── Hubs Prospection & Perso ──────────────────────────────────────────────
+  // Les prospects (≈230) et les proches n'ont ni société ni parent naturel :
+  // sans hub, ce sont autant de nœuds orphelins qui flottent dans le graphe.
+  const prospectCount = clients.filter(c => c.type === "PROSPECT").length
+  const personalCount = clients.filter(c => c.type === "PERSONAL").length
+
+  if (prospectCount > 0) {
+    nodes.push({
+      id:       "hub-prospection",
+      type:     "SOURCE",
+      label:    "Prospection",
+      parentId: null,
+      // Replié au chargement : un seul nœud central au lieu de ~230 enfants
+      defaultCollapsed: true,
+      meta: {
+        href:     "/prospection",
+        color:    "#fb7185", // rose — identique aux nœuds PROSPECT
+        subtitle: `${prospectCount} prospect${prospectCount > 1 ? "s" : ""}`,
+        details: [{ label: "Prospects", value: String(prospectCount) }],
+      },
+    })
+  }
+  if (personalCount > 0) {
+    nodes.push({
+      id:       "hub-perso",
+      type:     "SOURCE",
+      label:    "Perso",
+      parentId: null,
+      meta: {
+        href:     "/contacts",
+        color:    "#2dd4bf", // teal — identique aux nœuds PERSONAL
+        subtitle: `${personalCount} proche${personalCount > 1 ? "s" : ""}`,
+        details: [{ label: "Contacts perso", value: String(personalCount) }],
+      },
+    })
+  }
+
+  // ── Clients (contacts, prospects, proches) ────────────────────────────────
   for (const c of clients) {
     if (c.type === "SELF") continue
     const nodeId   = `client-${c.id}`
-    const parentId = c.companyId ? `company-${c.companyId}` : null
+    const nodeType = c.type === "PROSPECT" ? "PROSPECT" as const
+      : c.type === "PERSONAL" ? "PERSONAL" as const
+      : "CLIENT" as const
+    // Prospects et proches sont rattachés à leur hub ; les autres à leur société
+    const parentId = nodeType === "PROSPECT" ? "hub-prospection"
+      : nodeType === "PERSONAL" ? "hub-perso"
+      : c.companyId ? `company-${c.companyId}` : null
     const projCount = projects.filter(p => p.clientId === c.id).length
     nodes.push({
       id:         nodeId,
-      type:       "CLIENT",
+      type:       nodeType,
       label:      c.name,
       parentId,
-      incomplete: isContactIncomplete(c),
+      // Un prospect est incomplet par nature : ne pas polluer le filtre « à compléter »
+      incomplete: nodeType === "PROSPECT" ? false : isContactIncomplete(c),
       meta: {
         href:     `/contacts/${c.id}`,
         subtitle: c.email ?? c.city ?? undefined,
@@ -117,6 +161,10 @@ export default async function GraphPage() {
       },
     })
     if (parentId) links.push({ source: parentId, target: nodeId })
+    // Un prospect/proche rattaché à une société garde ce lien en plus du hub
+    if ((nodeType === "PROSPECT" || nodeType === "PERSONAL") && c.companyId) {
+      links.push({ source: `company-${c.companyId}`, target: nodeId })
+    }
   }
 
   // IDs des clients de type SELF — leurs projets remontent à la société parente

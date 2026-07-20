@@ -96,6 +96,12 @@ model UserProfile {
   pdfBackgroundColor  String   @default("#FAF6EE") // fond de page crème
   pdfBankName         String?  // banque du bloc RÈGLEMENT (fallback si le document n'a pas de société émettrice)
 
+  // Dernière synchro Google Agenda réussie (cycle pull+push) — affichée sur l'agenda
+  lastGoogleSyncAt    DateTime?
+  // Seuil de fraîcheur de la synchro auto à l'ouverture (minutes) : pas de
+  // nouvelle synchro si la dernière remonte à moins que ça. 0 = toujours synchroniser.
+  calendarSyncThresholdMin Int @default(30)
+
   // ── Fiscalité / imposition ──────────────────────────────────────────────
   legalStatus          String               @default("AUTO_ENTREPRENEUR") // AUTO_ENTREPRENEUR | EI | EURL | SASU | OTHER
   urssafFrequency      DeclarationFrequency @default(QUARTERLY)
@@ -229,7 +235,10 @@ enum CompanyType {
 }
 
 enum ClientSource {
+  PROSPECTION
   WORD_OF_MOUTH
+  FAMILY
+  FRIENDS
   LINKEDIN
   WEBSITE
   INBOUND
@@ -384,6 +393,8 @@ model Client {
 
   user              User               @relation(fields: [userId], references: [id], onDelete: Cascade)
   interactions      Interaction[]
+  prospectEvents    ProspectEvent[]
+  prospectNotes     ProspectNote[]
   reminders         Reminder[]
   files             ClientFile[]
   projects          Project[]          @relation("ProjectClient")
@@ -427,6 +438,45 @@ model Reminder {
   client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
 }
 
+// ── Mode prospection : frise chronologique des événements d'un prospect ─────
+enum ProspectEventKind {
+  CALL_ANSWERED  // appel — a répondu
+  CALL_NO_ANSWER // appel — pas de réponse
+  EMAIL_SENT     // email envoyé
+  REPLY_POSITIVE // réponse positive
+  REPLY_NEGATIVE // réponse négative
+  MEETING_BOOKED // rendez-vous fixé
+  STATUS_CHANGE  // changement de statut manuel (select, bulk…)
+}
+
+model ProspectEvent {
+  id         String            @id @default(cuid())
+  clientId   String
+  kind       ProspectEventKind
+  fromStatus ProspectStatus?
+  toStatus   ProspectStatus?
+  note       String?
+  date       DateTime          @default(now())
+
+  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@index([clientId])
+}
+
+// Notes libres titrées du mode prospection (CRUD)
+model ProspectNote {
+  id        String   @id @default(cuid())
+  clientId  String
+  title     String
+  content   String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@index([clientId])
+}
+
 model ClientFile {
   id        String         @id @default(cuid())
   clientId  String
@@ -445,6 +495,7 @@ enum ProjectStatus {
   PAUSED
   COMPLETED
   ARCHIVED
+  CANCELLED
 }
 
 // Thème métier du projet — pilote la bannière colorée/motif des cartes et le
@@ -455,6 +506,7 @@ enum ProjectCategory {
   EVENEMENTIEL
   FORMATION
   PROSPECTION
+  PROBLEME
   AUTRE
 }
 
@@ -528,6 +580,7 @@ model Project {
   milestones        Milestone[]
   tasks             Task[]
   journalEntries    JournalEntry[]
+  events            ProjectEvent[]
   deliverables      Deliverable[]
   usefulLinks       UsefulLink[]
   postDev           PostDev?
@@ -678,6 +731,35 @@ model JournalEntry {
   updatedAt DateTime @updatedAt
 
   project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+}
+
+// Événement daté de la frise chronologique d'un projet (rencontre, mail,
+// paiement, acte juridique, note…). Distinct des jalons (Milestone) qui sont
+// des étapes planifiées ; ici c'est un journal d'événements réels horodatés.
+enum ProjectEventKind {
+  NOTE      // note / observation
+  MEETING   // rencontre / visite / audience
+  EMAIL     // mail envoyé ou reçu
+  CALL      // appel
+  PAYMENT   // paiement / virement / facture
+  DELIVERY  // livraison / étape franchie
+  LEGAL     // acte juridique (mise en demeure, ordonnance, conclusions…)
+  OTHER
+}
+
+model ProjectEvent {
+  id          String           @id @default(cuid())
+  projectId   String
+  kind        ProjectEventKind @default(NOTE)
+  title       String
+  description String?
+  date        DateTime         // date de l'événement (ordre chronologique)
+  href        String?          // lien interne optionnel (facture, revenu…) — item cliquable
+  createdAt   DateTime         @default(now())
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
 }
 
 model Deliverable {
@@ -1263,6 +1345,7 @@ model Expense {
   categoryId         String?
   scope              ExpenseScope @default(PERSO)
   label              String
+  merchant           String?      // société / enseigne concernée (Décathlon…) — affichée en préfixe du libellé
   amount             Float
   currency           String       @default("EUR")
   date               DateTime     // date de la dépense / du prélèvement

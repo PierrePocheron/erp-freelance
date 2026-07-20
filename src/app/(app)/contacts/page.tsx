@@ -72,7 +72,7 @@ export default async function CRMPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Contacts</h1>
+          <h1 className="sm:hidden text-2xl font-bold tracking-tight">Contacts</h1>
           <p className="text-sm text-muted-foreground">{clients.length} contact{clients.length !== 1 ? "s" : ""}</p>
         </div>
         <CreateClientDialog userId={userId} />

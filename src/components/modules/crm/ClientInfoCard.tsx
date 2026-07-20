@@ -13,14 +13,7 @@ import { isContactIncomplete } from "@/lib/contact"
 import { CompanyCombobox } from "./CompanyCombobox"
 import { STATUS_CONFIG, PIPELINE_STATUSES, OUTCOME_STATUSES, WEBSITE_TYPE_CONFIG } from "@/components/modules/prospection/status-config"
 import type { ProspectStatus, WebsiteType } from "@/generated/prisma/enums"
-
-const SOURCE_LABELS: Record<string, string> = {
-  WORD_OF_MOUTH: "Bouche à oreille",
-  LINKEDIN: "LinkedIn",
-  WEBSITE: "Site web",
-  INBOUND: "Entrant",
-  OTHER: "Autre",
-}
+import { CLIENT_SOURCE_LABELS as SOURCE_LABELS } from "@/lib/client-source"
 
 const TYPE_OPTIONS = [
   { value: "PROSPECT",  label: "Prospect" },
@@ -209,6 +202,29 @@ export function ClientInfoCard({ client, isOwner = true }: { client: ClientData;
           ))}
         </div>
       </div>
+
+      {/* Raccourci « à compléter » — liste les champs manquants + ouvre l'édition */}
+      {incomplete && !editing && isOwner && (
+        <div className="flex items-start gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2">
+          <AlertCircle className="h-3.5 w-3.5 text-amber-600 shrink-0 mt-0.5" />
+          <div className="flex-1 min-w-0 space-y-1">
+            <p className="text-xs text-amber-700 dark:text-amber-400">
+              À compléter :{" "}
+              {[
+                !client.firstName && "prénom",
+                !client.lastName && "nom",
+                !client.email && !client.phone && "email ou téléphone",
+              ].filter(Boolean).join(", ")}
+            </p>
+          </div>
+          <button
+            onClick={() => setEditing(true)}
+            className="shrink-0 inline-flex items-center gap-1 h-6 px-2 rounded-md bg-amber-500/20 text-amber-700 dark:text-amber-400 text-xs font-medium hover:bg-amber-500/30 transition-colors"
+          >
+            <Pencil className="h-3 w-3" /> Compléter
+          </button>
+        </div>
+      )}
 
       {editing ? (
         /* ── Mode édition ── */

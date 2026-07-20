@@ -1,4 +1,4 @@
-export type NodeType = "SOURCE" | "COMPANY" | "CLIENT" | "PROJECT" | "INVOICE" | "QUOTE" | "REVENUE" | "APPLICATION"
+export type NodeType = "SOURCE" | "COMPANY" | "CLIENT" | "PROSPECT" | "PERSONAL" | "PROJECT" | "INVOICE" | "QUOTE" | "REVENUE" | "APPLICATION"
 
 export type RawNode = {
   id:         string
@@ -8,6 +8,8 @@ export type RawNode = {
   status?:    string
   amount?:    number
   incomplete?: boolean
+  /** Nœud replié au chargement (hubs volumineux, ex. Prospection et ses ~230 enfants) */
+  defaultCollapsed?: boolean
   meta: {
     href?:     string
     subtitle?: string
@@ -27,6 +29,8 @@ export const NODE_RADIUS: Record<NodeType, number> = {
   SOURCE:      28,
   COMPANY:     22,
   CLIENT:      15,
+  PROSPECT:    11,
+  PERSONAL:    14,
   PROJECT:     15,
   INVOICE:     13,
   QUOTE:       13,
@@ -38,6 +42,8 @@ export const NODE_BASE_COLORS: Record<NodeType, string> = {
   SOURCE:      "#e879f9", // fuchsia — override par la couleur de la source
   COMPANY:     "#f59e0b",
   CLIENT:      "#60a5fa",
+  PROSPECT:    "#fb7185", // rose — prospect (démarchage, pas encore client)
+  PERSONAL:    "#2dd4bf", // teal — proche / contact perso
   PROJECT:     "#a78bfa",
   INVOICE:     "#34d399",
   QUOTE:       "#22d3ee",
@@ -90,6 +96,8 @@ export const NODE_TYPE_LABELS: Record<NodeType, string> = {
   SOURCE:      "Source fiscale",
   COMPANY:     "Société",
   CLIENT:      "Contact",
+  PROSPECT:    "Prospect",
+  PERSONAL:    "Perso",
   PROJECT:     "Projet",
   INVOICE:     "Facture",
   QUOTE:       "Devis",

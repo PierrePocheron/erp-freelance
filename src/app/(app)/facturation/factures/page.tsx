@@ -11,8 +11,9 @@ export default async function FacturesListPage() {
       where: { userId },
       orderBy: { createdAt: "desc" },
       include: {
-        client: { select: { name: true, company: true } },
-        project: { select: { name: true } },
+        client: { select: { name: true, company: true, companyId: true } },
+        project: { select: { id: true, name: true, companyId: true } },
+        payments: { select: { amount: true, paidAt: true }, orderBy: { paidAt: "asc" } },
       },
     }),
     prisma.client.findMany({

@@ -163,6 +163,11 @@ export default async function CalendrierPage() {
     }),
   ])
 
+  // Dernière synchro Google réussie + seuil de fraîcheur configuré
+  const syncProfile = googleScope
+    ? await prisma.userProfile.findUnique({ where: { userId }, select: { lastGoogleSyncAt: true, calendarSyncThresholdMin: true } })
+    : null
+
   const now = new Date()
 
   // Index catégories par id pour lookup O(1)
@@ -377,7 +382,7 @@ export default async function CalendrierPage() {
   return (
     <div className="h-full flex flex-col gap-4">
       <div className="shrink-0">
-        <h1 className="text-2xl font-bold tracking-tight">Calendrier</h1>
+        <h1 className="sm:hidden text-2xl font-bold tracking-tight">Calendrier</h1>
         <p className="text-sm text-muted-foreground">
           Tâches, jalons, rappels, factures, entretiens et santé
         </p>
@@ -389,6 +394,8 @@ export default async function CalendrierPage() {
         projects={projectOptions}
         clients={clientOptions}
         hasGoogleCalendar={googleScope}
+        lastGoogleSyncAt={syncProfile?.lastGoogleSyncAt ?? null}
+        syncThresholdMin={syncProfile?.calendarSyncThresholdMin ?? 30}
         className="flex-1 min-h-0"
       />
     </div>

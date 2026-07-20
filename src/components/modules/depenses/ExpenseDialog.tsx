@@ -8,18 +8,22 @@ import { Input } from "@/components/ui/input"
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger,
 } from "@/components/ui/dialog"
-import { createExpense, updateExpense, deleteExpense, createRecurringExpense } from "@/actions/expense"
+import { DatePartsField } from "@/components/ui/date-parts-field"
+import { createExpense, updateExpense, deleteExpense, createRecurringExpense, convertExpenseToRecurring } from "@/actions/expense"
 import { ExpenseCategoryCombobox, type ExpenseCategory } from "./ExpenseCategoryCombobox"
 import { FREQUENCY_LABELS } from "./RecurringExpenseDialog"
 
 export type ExpenseForEdit = {
   id: string
   label: string
+  merchant: string | null
   amount: number
   date: Date | string
   scope: "PRO" | "PERSO"
   categoryId: string | null
   notes: string | null
+  /** Dépense générée depuis une récurrente : sa fréquence se gère sur la récurrente parente */
+  fromRecurring?: boolean
 }
 
 export function ExpenseDialog({
@@ -36,17 +40,23 @@ export function ExpenseDialog({
   const [isDeleting, startDelete] = useTransition()
 
   const [label, setLabel]           = useState(expense?.label ?? "")
+  const [merchant, setMerchant]     = useState(expense?.merchant ?? "")
   const [amount, setAmount]         = useState(expense ? String(expense.amount) : "")
   const [date, setDate]             = useState(() => new Date(expense?.date ?? new Date()).toISOString().slice(0, 10))
   const [scope, setScope]           = useState<"PRO" | "PERSO">(expense?.scope ?? "PERSO")
   const [categoryId, setCategoryId] = useState(expense?.categoryId ?? "")
   const [notes, setNotes]           = useState(expense?.notes ?? "")
-  const [frequency, setFrequency]   = useState<"ONETIME" | "WEEKLY" | "MONTHLY" | "QUARTERLY" | "YEARLY">("MONTHLY")
+  // Création : récurrente par défaut. Édition : une dépense existante est
+  // ponctuelle — choisir une fréquence la convertit en récurrente.
+  const [frequency, setFrequency]   = useState<"ONETIME" | "WEEKLY" | "MONTHLY" | "QUARTERLY" | "YEARLY">(isEdit ? "ONETIME" : "MONTHLY")
   const isRecurring = frequency !== "ONETIME"
+  // La fréquence d'une dépense générée se gère sur sa récurrente parente
+  const showFrequency = !expense?.fromRecurring
   const [dateToConfirm, setDateToConfirm] = useState(false)
 
   function resetForm() {
     setLabel("")
+    setMerchant("")
     setAmount("")
     setDate(new Date().toISOString().slice(0, 10))
     setScope("PERSO")
@@ -64,6 +74,7 @@ export function ExpenseDialog({
 
     const shared = {
       label: label.trim(),
+      merchant: merchant.trim() || null,
       amount: amountNum,
       scope,
       categoryId: categoryId || null,
@@ -71,7 +82,10 @@ export function ExpenseDialog({
     }
 
     startTransition(async () => {
-      if (isEdit) {
+      if (isEdit && isRecurring) {
+        // Une fréquence a été choisie sur une dépense ponctuelle → conversion
+        await convertExpenseToRecurring(expense.id, frequency, { ...shared, date: new Date(`${date}T00:00:00`) })
+      } else if (isEdit) {
         await updateExpense(expense.id, { ...shared, date: new Date(`${date}T00:00:00`) })
       } else if (isRecurring) {
         await createRecurringExpense({
@@ -119,24 +133,27 @@ export function ExpenseDialog({
             <label className="text-xs text-muted-foreground">Libellé</label>
             <Input value={label} onChange={e => setLabel(e.target.value)} placeholder="Courses, essence, forfait mobile…" required />
           </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1">
-              <label className="text-xs text-muted-foreground">Montant (€)</label>
-              <Input type="text" inputMode="decimal" value={amount} onChange={e => setAmount(e.target.value)} placeholder="0.00" required />
-            </div>
-            <div className="space-y-1">
-              <label className="text-xs text-muted-foreground">{!isEdit && isRecurring ? "Prochaine échéance" : "Date"}</label>
-              {!isEdit && isRecurring && dateToConfirm ? (
-                <div className="flex h-9 items-center rounded-md border border-dashed border-amber-500/40 bg-amber-500/5 px-3 text-sm text-amber-700">
-                  À compléter
-                </div>
-              ) : (
-                <Input type="date" value={date} onChange={e => setDate(e.target.value)} required />
-              )}
-            </div>
+          <div className="space-y-1">
+            <label className="text-xs text-muted-foreground">Société / enseigne</label>
+            <Input value={merchant} onChange={e => setMerchant(e.target.value)} placeholder="Décathlon, Sephora…" />
+            <p className="text-[11px] text-muted-foreground">Affichée en préfixe du libellé — sans elle, la dépense reste « à compléter »</p>
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs text-muted-foreground">Montant (€)</label>
+            <Input type="text" inputMode="decimal" value={amount} onChange={e => setAmount(e.target.value)} placeholder="0.00" required />
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs text-muted-foreground">{!isEdit && isRecurring ? "Prochaine échéance" : "Date"}</label>
+            {!isEdit && isRecurring && dateToConfirm ? (
+              <div className="flex h-9 items-center rounded-md border border-dashed border-amber-500/40 bg-amber-500/5 px-3 text-sm text-amber-700">
+                À compléter
+              </div>
+            ) : (
+              <DatePartsField value={date} onChange={setDate} />
+            )}
           </div>
 
-          {!isEdit && (
+          {showFrequency && (
             <div className="space-y-1">
               <label className="text-xs text-muted-foreground">Fréquence</label>
               <select
@@ -147,7 +164,12 @@ export function ExpenseDialog({
                 <option value="ONETIME">Ponctuelle</option>
                 {Object.entries(FREQUENCY_LABELS).filter(([v]) => v !== "CUSTOM").map(([v, l]) => <option key={v} value={v}>{l}</option>)}
               </select>
-              {isRecurring && (
+              {isEdit && isRecurring && (
+                <p className="text-[11px] text-amber-600">
+                  Cette dépense deviendra récurrente — prochaine échéance calculée depuis sa date.
+                </p>
+              )}
+              {!isEdit && isRecurring && (
                 <label className="flex items-center gap-1.5 pt-1 text-[11px] text-muted-foreground cursor-pointer select-none">
                   <input
                     type="checkbox"

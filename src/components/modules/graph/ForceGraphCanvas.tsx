@@ -15,7 +15,7 @@ function fmtAmount(n: number): string {
 
 // Ordre de rendu : les nœuds parents sont peints en dernier → leur hitbox gagne
 const TYPE_Z: Record<NodeType, number> = {
-  REVENUE: 0, INVOICE: 0, QUOTE: 0, APPLICATION: 0, PROJECT: 1, CLIENT: 2, COMPANY: 3, SOURCE: 4,
+  REVENUE: 0, INVOICE: 0, QUOTE: 0, APPLICATION: 0, PROSPECT: 0, PERSONAL: 1, PROJECT: 1, CLIENT: 2, COMPANY: 3, SOURCE: 4,
 }
 
 // ── Icône minimaliste par type ──────────────────────────────────────────────
@@ -58,10 +58,18 @@ function drawNodeIcon(
       ctx.fillRect(cx - s * 0.15, by + bh - s * 0.42, s * 0.30, s * 0.42)
       break
     }
-    case "CLIENT": {
+    case "CLIENT":
+    case "PERSONAL": {
       // Silhouette : tête + épaules
       ctx.beginPath(); ctx.arc(cx, cy - s * 0.28, s * 0.35, 0, 2 * Math.PI); ctx.stroke()
       ctx.beginPath(); ctx.arc(cx, cy + s * 0.95, s * 0.82, Math.PI * 1.18, Math.PI * 1.82); ctx.stroke()
+      break
+    }
+    case "PROSPECT": {
+      // Cible : deux cercles concentriques + point central
+      ctx.beginPath(); ctx.arc(cx, cy, s * 0.72, 0, 2 * Math.PI); ctx.stroke()
+      ctx.beginPath(); ctx.arc(cx, cy, s * 0.38, 0, 2 * Math.PI); ctx.stroke()
+      ctx.beginPath(); ctx.arc(cx, cy, lw * 1.2, 0, 2 * Math.PI); ctx.fill()
       break
     }
     case "PROJECT": {

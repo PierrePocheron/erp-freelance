@@ -8,14 +8,10 @@ import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { STATUS_CONFIG, type JobAppStatus } from "@/components/modules/entretien/status-config"
 import { ClientInfoCard } from "@/components/modules/crm/ClientInfoCard"
+import { ContactActivity } from "@/components/modules/crm/ContactActivity"
 import { ClientTasksSection } from "@/components/modules/crm/ClientTasksSection"
 import { ClientProjectsCard } from "@/components/modules/crm/ClientProjectsCard"
 import { FiscalCategoryCard } from "@/components/modules/crm/FiscalCategoryCard"
-
-const channelLabels: Record<string, string> = {
-  EMAIL: "Email", CALL: "Appel", LINKEDIN: "LinkedIn",
-  MEETING: "Réunion", SMS: "SMS", OTHER: "Autre",
-}
 
 export default async function ClientOverviewPage({
   params,
@@ -36,7 +32,9 @@ export default async function ClientOverviewPage({
     },
     include: {
       _count: { select: { interactions: true, projects: true, invoices: true } },
-      interactions: { orderBy: { date: "desc" }, take: 3 },
+      interactions: { orderBy: { date: "desc" }, select: { id: true, date: true, channel: true, summary: true, response: true } },
+      prospectNotes: { orderBy: { createdAt: "desc" } },
+      prospectEvents: { orderBy: { date: "desc" } },
       reminders: { where: { isDone: false }, orderBy: { dueDate: "asc" } },
       projects: { select: { id: true, name: true, status: true }, take: 5 },
       invoices: { select: { totalHT: true, depositDeducted: true, status: true } },
@@ -48,6 +46,7 @@ export default async function ClientOverviewPage({
           title: true,
           description: true,
           status: true,
+          createdAt: true,
           priority: true,
           importance: true,
           estimatedHours: true,
@@ -128,6 +127,7 @@ export default async function ClientOverviewPage({
       title: true,
       description: true,
       status: true,
+      createdAt: true,
       priority: true,
       importance: true,
       estimatedHours: true,
@@ -246,36 +246,44 @@ export default async function ClientOverviewPage({
           </div>
         )}
 
-        {/* Stats */}
-        <div className="rounded-xl border border-border/50 bg-card p-5 space-y-3">
+        {/* Stats — compact */}
+        <div className="rounded-xl border border-border/50 bg-card p-4 space-y-2">
           <h2 className="font-semibold text-sm">Statistiques</h2>
-          <div className="space-y-2">
-            <div className="flex items-center justify-between text-sm">
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between text-xs">
               <span className="text-muted-foreground">Interactions</span>
               <span className="font-medium">{client._count.interactions}</span>
             </div>
-            <div className="flex items-center justify-between text-sm">
+            <div className="flex items-center justify-between text-xs">
               <span className="text-muted-foreground">Projets</span>
               <span className="font-medium">{allProjects.length}</span>
             </div>
             {totalBilled > 0 && (
-              <div className="flex items-center justify-between text-sm">
+              <div className="flex items-center justify-between text-xs">
                 <span className="text-muted-foreground">Facturé (payé)</span>
                 <span className="font-medium text-emerald-600">{totalBilled.toLocaleString("fr-FR")} €</span>
               </div>
             )}
             {pendingAmount > 0 && (
-              <div className="flex items-center justify-between text-sm">
+              <div className="flex items-center justify-between text-xs">
                 <span className="text-muted-foreground">En attente</span>
                 <span className="font-medium text-amber-600">{pendingAmount.toLocaleString("fr-FR")} €</span>
               </div>
             )}
           </div>
+          {allClientInvoices.length > 0 && (
+            <Link
+              href={`/facturation/factures?client=${client.id}`}
+              className="block text-xs text-primary hover:underline pt-0.5"
+            >
+              Voir la facturation →
+            </Link>
+          )}
         </div>
 
-        {/* Rappels */}
+        {/* Rappels — compact */}
         {client.reminders.length > 0 && (
-          <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-5 space-y-3">
+          <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-4 space-y-2">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Bell className="h-4 w-4 text-amber-600" />
@@ -283,41 +291,38 @@ export default async function ClientOverviewPage({
               </div>
               <Link href={`/contacts/${id}/rappels`} className="text-xs text-primary hover:underline">Voir tout</Link>
             </div>
-            <div className="space-y-2">
+            <div className="space-y-1.5">
               {client.reminders.map((r) => (
-                <div key={r.id} className="text-sm">
-                  <p className={`font-medium ${new Date(r.dueDate) < new Date() ? "text-red-500" : "text-amber-600"}`}>
+                <div key={r.id} className="flex items-baseline justify-between gap-2 text-xs">
+                  <span className="text-muted-foreground truncate">{r.note || "Rappel"}</span>
+                  <span className={`font-medium shrink-0 ${new Date(r.dueDate) < new Date() ? "text-red-500" : "text-amber-600"}`}>
                     {fmt(r.dueDate)}
-                  </p>
-                  {r.note && <p className="text-muted-foreground text-xs">{r.note}</p>}
+                  </span>
                 </div>
               ))}
             </div>
           </div>
         )}
 
-        {/* Dernières interactions */}
-        {client.interactions.length > 0 && (
-          <div className="rounded-xl border border-border/50 bg-card p-5 space-y-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <MessageSquare className="h-4 w-4 text-muted-foreground" />
-                <h2 className="font-semibold text-sm">Dernières interactions</h2>
-              </div>
-              <Link href={`/contacts/${id}/interactions`} className="text-xs text-primary hover:underline">Voir tout</Link>
+        {/* Frise chronologique + actions rapides (interactions, notes, statut) */}
+        <div className="rounded-xl border border-border/50 bg-card p-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <MessageSquare className="h-4 w-4 text-muted-foreground" />
+              <h2 className="font-semibold text-sm">Frise chronologique</h2>
             </div>
-            <div className="space-y-2">
-              {client.interactions.map((i) => (
-                <div key={i.id} className="border-l-2 border-border pl-3">
-                  <p className="text-xs text-muted-foreground">
-                    {channelLabels[i.channel] ?? i.channel} · {fmt(i.date)}
-                  </p>
-                  <p className="text-sm line-clamp-2">{i.summary}</p>
-                </div>
-              ))}
-            </div>
+            <Link href={`/contacts/${id}/interactions`} className="text-xs text-primary hover:underline">Interactions</Link>
           </div>
-        )}
+          <ContactActivity
+            clientId={id}
+            isProspect={client.type === "PROSPECT" || client.prospectStatus === "WON"}
+            currentStatus={client.prospectStatus as never}
+            interactions={client.interactions}
+            events={client.prospectEvents}
+            notes={client.prospectNotes}
+            tasks={allTasks as never}
+          />
+        </div>
 
         {/* Danger zone — propriétaire uniquement */}
         {isOwner && (

@@ -168,7 +168,7 @@ export async function updateProjectContact(projectId: string, contactId: string 
 
 export async function updateProjectStatus(
   projectId: string,
-  status: "ACTIVE" | "PAUSED" | "COMPLETED" | "ARCHIVED"
+  status: "ACTIVE" | "PAUSED" | "COMPLETED" | "ARCHIVED" | "CANCELLED"
 ) {
   const userId = await requireAuth()
   await prisma.project.findFirstOrThrow({ where: { id: projectId, userId } })

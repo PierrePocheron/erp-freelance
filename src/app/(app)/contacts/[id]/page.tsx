@@ -244,26 +244,26 @@ export default async function ClientOverviewPage({
           </div>
         )}
 
-        {/* Stats */}
-        <div className="rounded-xl border border-border/50 bg-card p-5 space-y-3">
+        {/* Stats — compact */}
+        <div className="rounded-xl border border-border/50 bg-card p-4 space-y-2">
           <h2 className="font-semibold text-sm">Statistiques</h2>
-          <div className="space-y-2">
-            <div className="flex items-center justify-between text-sm">
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between text-xs">
               <span className="text-muted-foreground">Interactions</span>
               <span className="font-medium">{client._count.interactions}</span>
             </div>
-            <div className="flex items-center justify-between text-sm">
+            <div className="flex items-center justify-between text-xs">
               <span className="text-muted-foreground">Projets</span>
               <span className="font-medium">{allProjects.length}</span>
             </div>
             {totalBilled > 0 && (
-              <div className="flex items-center justify-between text-sm">
+              <div className="flex items-center justify-between text-xs">
                 <span className="text-muted-foreground">Facturé (payé)</span>
                 <span className="font-medium text-emerald-600">{totalBilled.toLocaleString("fr-FR")} €</span>
               </div>
             )}
             {pendingAmount > 0 && (
-              <div className="flex items-center justify-between text-sm">
+              <div className="flex items-center justify-between text-xs">
                 <span className="text-muted-foreground">En attente</span>
                 <span className="font-medium text-amber-600">{pendingAmount.toLocaleString("fr-FR")} €</span>
               </div>
@@ -272,16 +272,16 @@ export default async function ClientOverviewPage({
           {allClientInvoices.length > 0 && (
             <Link
               href={`/facturation/factures?client=${client.id}`}
-              className="block text-xs text-primary hover:underline pt-1"
+              className="block text-xs text-primary hover:underline pt-0.5"
             >
-              Voir la facturation du client →
+              Voir la facturation →
             </Link>
           )}
         </div>
 
-        {/* Rappels */}
+        {/* Rappels — compact */}
         {client.reminders.length > 0 && (
-          <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-5 space-y-3">
+          <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-4 space-y-2">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Bell className="h-4 w-4 text-amber-600" />
@@ -289,13 +289,13 @@ export default async function ClientOverviewPage({
               </div>
               <Link href={`/contacts/${id}/rappels`} className="text-xs text-primary hover:underline">Voir tout</Link>
             </div>
-            <div className="space-y-2">
+            <div className="space-y-1.5">
               {client.reminders.map((r) => (
-                <div key={r.id} className="text-sm">
-                  <p className={`font-medium ${new Date(r.dueDate) < new Date() ? "text-red-500" : "text-amber-600"}`}>
+                <div key={r.id} className="flex items-baseline justify-between gap-2 text-xs">
+                  <span className="text-muted-foreground truncate">{r.note || "Rappel"}</span>
+                  <span className={`font-medium shrink-0 ${new Date(r.dueDate) < new Date() ? "text-red-500" : "text-amber-600"}`}>
                     {fmt(r.dueDate)}
-                  </p>
-                  {r.note && <p className="text-muted-foreground text-xs">{r.note}</p>}
+                  </span>
                 </div>
               ))}
             </div>

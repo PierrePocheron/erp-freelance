@@ -34,7 +34,7 @@ export function ClientProjectsCard({
   const [open, setOpen] = useState(false)
 
   return (
-    <div className="rounded-xl border border-border/50 bg-card p-5 space-y-3">
+    <div className="rounded-xl border border-border/50 bg-card p-4 space-y-2.5">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <FolderKanban className="h-4 w-4 text-muted-foreground" />

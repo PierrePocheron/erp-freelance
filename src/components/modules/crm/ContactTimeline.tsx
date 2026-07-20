@@ -1,4 +1,5 @@
-import { Phone, PhoneMissed, Mail, ThumbsUp, ThumbsDown, CalendarCheck, StickyNote, MessageSquare, ArrowRight } from "lucide-react"
+import Link from "next/link"
+import { Phone, PhoneMissed, Mail, ThumbsUp, ThumbsDown, CalendarCheck, StickyNote, MessageSquare, ArrowRight, CheckSquare, Square } from "lucide-react"
 import { STATUS_CONFIG } from "@/components/modules/prospection/status-config"
 import type { ProspectStatus, ProspectEventKind } from "@/generated/prisma/enums"
 
@@ -12,6 +13,15 @@ type TimelineEvent = {
   date: Date | string
 }
 type TimelineNote = { id: string; title: string; content: string | null; createdAt: Date | string }
+type TimelineTask = {
+  id: string
+  title: string
+  status: string
+  dueDate: Date | string | null
+  completedAt: Date | string | null
+  createdAt: Date | string
+  project?: { id: string; name: string } | null
+}
 
 const EVENT_CONFIG: Record<ProspectEventKind, { label: string; dot: string; icon: React.ElementType }> = {
   CALL_ANSWERED:  { label: "Appel — a répondu",      dot: "bg-emerald-400", icon: Phone },
@@ -38,30 +48,42 @@ type Item =
   | { type: "event"; date: Date; ev: TimelineEvent }
   | { type: "note"; date: Date; note: TimelineNote }
   | { type: "interaction"; date: Date; it: TimelineInteraction }
+  | { type: "task"; date: Date; task: TimelineTask }
+
+/** Date de référence d'une tâche sur la frise : réalisation si terminée,
+ *  sinon échéance (planifié, éventuellement futur), sinon création. */
+function taskDate(t: TimelineTask): Date {
+  return new Date(t.completedAt ?? t.dueDate ?? t.createdAt)
+}
 
 /**
  * Frise chronologique unifiée d'un contact — reprend le système du mode
  * prospection : mêle les événements de prospection (appels, emails, réponses,
- * changements de statut), les notes titrées et les interactions CRM, triés du
- * plus récent au plus ancien. Purement présentationnel (lecture seule ici).
+ * changements de statut), les notes titrées, les interactions CRM et les
+ * tâches, triés du plus récent au plus ancien. Purement présentationnel.
  */
 export function ContactTimeline({
   interactions,
   events,
   notes,
+  tasks = [],
 }: {
   interactions: TimelineInteraction[]
   events: TimelineEvent[]
   notes: TimelineNote[]
+  tasks?: TimelineTask[]
 }) {
   // Les événements de prospection créent DÉJÀ une interaction CRM jumelle (même
   // horodatage) : on masque l'interaction si un événement partage sa seconde,
   // pour ne pas afficher la ligne en double.
   const eventSeconds = new Set(events.map((e) => Math.floor(new Date(e.date).getTime() / 1000)))
+  // eslint-disable-next-line react-hooks/purity -- comparaison à l'instant courant pour marquer les tâches « à venir »
+  const now = Date.now()
 
   const items: Item[] = [
     ...events.map((ev) => ({ type: "event" as const, date: new Date(ev.date), ev })),
     ...notes.map((note) => ({ type: "note" as const, date: new Date(note.createdAt), note })),
+    ...tasks.map((task) => ({ type: "task" as const, date: taskDate(task), task })),
     ...interactions
       .filter((it) => !eventSeconds.has(Math.floor(new Date(it.date).getTime() / 1000)))
       .map((it) => ({ type: "interaction" as const, date: new Date(it.date), it })),
@@ -80,7 +102,11 @@ export function ContactTimeline({
             <li key={`e-${item.ev.id}`} className="relative">
               <span className={`absolute -left-5 top-1 h-[11px] w-[11px] rounded-full border-2 border-card ${cfg.dot}`} />
               <div className="flex items-baseline justify-between gap-2 flex-wrap">
-                <p className="text-sm font-medium leading-tight">{cfg.label}</p>
+                <p className="text-sm font-medium leading-tight inline-flex items-center gap-1.5">
+                  {cfg.label}
+                  {/* Ces événements viennent du pipeline de prospection */}
+                  <span className="rounded-full bg-muted px-1.5 py-px text-[9px] font-medium uppercase tracking-wide text-muted-foreground">Prospection</span>
+                </p>
                 <p className="text-xs text-muted-foreground">{fmt(item.ev.date)}</p>
               </div>
               {item.ev.fromStatus && item.ev.toStatus && (
@@ -91,6 +117,31 @@ export function ContactTimeline({
                 </p>
               )}
               {item.ev.note && <p className="text-xs text-muted-foreground mt-1">{item.ev.note}</p>}
+            </li>
+          )
+        }
+        if (item.type === "task") {
+          const t = item.task
+          const done = t.status === "DONE"
+          const upcoming = !done && !!t.dueDate && new Date(t.dueDate).getTime() > now
+          const TaskIcon = done ? CheckSquare : Square
+          return (
+            <li key={`t-${t.id}`} className="relative">
+              <span className={`absolute -left-5 top-1 h-[11px] w-[11px] rounded-full border-2 border-card ${done ? "bg-emerald-400" : upcoming ? "bg-blue-400" : "bg-indigo-400"}`} />
+              <div className="flex items-baseline justify-between gap-2 flex-wrap">
+                <p className="text-sm font-medium leading-tight inline-flex items-center gap-1.5">
+                  <TaskIcon className={`h-3.5 w-3.5 ${done ? "text-emerald-500" : "text-indigo-400"}`} />
+                  {t.title}
+                  {done && <span className="rounded-full bg-emerald-500/10 px-1.5 py-px text-[9px] font-medium uppercase tracking-wide text-emerald-600">Fait</span>}
+                  {upcoming && <span className="rounded-full bg-blue-500/10 px-1.5 py-px text-[9px] font-medium uppercase tracking-wide text-blue-600">À venir</span>}
+                </p>
+                <p className="text-xs text-muted-foreground">{fmt(item.date)}</p>
+              </div>
+              {t.project && (
+                <Link href={`/projets/${t.project.id}`} className="text-xs text-muted-foreground hover:text-primary hover:underline mt-0.5 inline-block">
+                  {t.project.name}
+                </Link>
+              )}
             </li>
           )
         }

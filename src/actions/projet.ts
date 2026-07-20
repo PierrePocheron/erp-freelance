@@ -734,6 +734,51 @@ export async function deleteUsefulLink(linkId: string, projectId: string) {
 
 // ── Journal ────────────────────────────────────────────────────────────────
 
+// ── ProjectEvents (frise chronologique) ────────────────────────────────────
+
+type ProjectEventInput = {
+  kind: "NOTE" | "MEETING" | "EMAIL" | "CALL" | "PAYMENT" | "DELIVERY" | "LEGAL" | "OTHER"
+  title: string
+  description?: string | null
+  date: Date
+}
+
+export async function createProjectEvent(projectId: string, data: ProjectEventInput) {
+  const userId = await requireAuth()
+  const proj = await prisma.project.findFirst({ where: { id: projectId, userId }, select: { id: true } })
+  if (!proj) throw new Error("Projet introuvable")
+  const event = await prisma.projectEvent.create({
+    data: {
+      projectId,
+      kind: data.kind,
+      title: data.title.trim(),
+      description: data.description?.trim() || null,
+      date: data.date,
+    },
+  })
+  revalidatePath(`/projets/${projectId}`)
+  return event
+}
+
+export async function updateProjectEvent(eventId: string, data: ProjectEventInput) {
+  const userId = await requireAuth()
+  const { count } = await prisma.projectEvent.updateMany({
+    where: { id: eventId, project: { userId } },
+    data: {
+      kind: data.kind,
+      title: data.title.trim(),
+      description: data.description?.trim() || null,
+      date: data.date,
+    },
+  })
+  if (count === 0) throw new Error("Événement introuvable")
+}
+
+export async function deleteProjectEvent(eventId: string) {
+  const userId = await requireAuth()
+  await prisma.projectEvent.deleteMany({ where: { id: eventId, project: { userId } } })
+}
+
 export async function createJournalEntry(projectId: string, formData: FormData) {
   const userId = await requireAuth()
   const proj = await prisma.project.findFirst({ where: { id: projectId, userId }, select: { id: true } })

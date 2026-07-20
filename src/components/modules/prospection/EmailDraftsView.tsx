@@ -19,6 +19,8 @@ import {
   sendDraftTest,
 } from "@/actions/email-drafts"
 import { residualTemplateVars, isValidEmailAddress } from "@/lib/email-template"
+import { WEBSITE_TYPE_CONFIG } from "./status-config"
+import type { WebsiteType } from "@/generated/prisma/enums"
 
 export type DraftItem = {
   id: string
@@ -29,7 +31,7 @@ export type DraftItem = {
   status: string // EmailDraftStatus
   sentAt: Date | string | null
   createdAt: Date | string
-  client: { name: string; company: string | null; email: string | null }
+  client: { name: string; company: string | null; email: string | null; websiteType: string | null }
   template: { name: string } | null
 }
 
@@ -254,6 +256,7 @@ function DraftCard({ draft, open, onToggle, onChanged }: { draft: DraftItem; ope
   const [isPending, startTransition] = useTransition()
 
   const isReady = draft.status === "READY"
+  const siteType = draft.client.websiteType ? WEBSITE_TYPE_CONFIG[draft.client.websiteType as WebsiteType] : null
   const dirty =
     emailTo !== (draft.emailTo ?? "") || subject !== draft.subject || body !== draft.body
 
@@ -327,6 +330,11 @@ function DraftCard({ draft, open, onToggle, onChanged }: { draft: DraftItem; ope
         {open ? <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" /> : <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />}
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-x-2 gap-y-0.5 flex-wrap">
+            {siteType && (
+              <span className={cn("rounded-full px-1.5 py-0.5 text-[10px] font-medium shrink-0", siteType.cls)}>
+                {siteType.label}
+              </span>
+            )}
             <span className="font-medium text-sm">{draft.client.name}</span>
             {draft.client.company && <span className="text-xs text-muted-foreground">· {draft.client.company}</span>}
             {dirty && <span className="text-[10px] text-amber-600 font-medium">• modifié</span>}

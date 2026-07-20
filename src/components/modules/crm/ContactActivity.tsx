@@ -7,8 +7,11 @@ import { toast } from "sonner"
 import { addInteraction } from "@/actions/crm"
 import { createProspectNote, updateProspectStatus } from "@/actions/prospection"
 import { ContactTimeline } from "./ContactTimeline"
+import { DatePartsField } from "@/components/ui/date-parts-field"
 import { STATUS_CONFIG, ALL_STATUSES } from "@/components/modules/prospection/status-config"
 import type { ProspectStatus, ProspectEventKind } from "@/generated/prisma/enums"
+
+const toDateInput = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`
 
 type TLInteraction = { id: string; date: Date | string; channel: string; summary: string; response: string | null }
 type TLEvent = { id: string; kind: ProspectEventKind; fromStatus: ProspectStatus | null; toStatus: ProspectStatus | null; note: string | null; date: Date | string }
@@ -51,6 +54,13 @@ export function ContactActivity({
   const [noteOpen, setNoteOpen] = useState(false)
   const [noteTitle, setNoteTitle] = useState("")
   const [noteContent, setNoteContent] = useState("")
+  // Formulaire d'interaction : ouvert par un bouton (canal pré-sélectionné),
+  // permet d'ajouter un résumé et de choisir la date (défaut = maintenant).
+  const [interOpen, setInterOpen] = useState(false)
+  const [interChannel, setInterChannel] = useState("CALL")
+  const [interLabel, setInterLabel] = useState("Appel")
+  const [interSummary, setInterSummary] = useState("")
+  const [interDate, setInterDate] = useState(() => toDateInput(new Date()))
 
   function run(fn: () => Promise<unknown>, successMsg: string) {
     startTransition(async () => {
@@ -64,8 +74,22 @@ export function ContactActivity({
     })
   }
 
-  function logInteraction(channel: string, summary: string) {
-    run(() => addInteraction(clientId, { date: new Date().toISOString(), channel, summary }), `${summary} enregistré`)
+  function openInteraction(channel: string, label: string) {
+    setInterChannel(channel)
+    setInterLabel(label)
+    setInterSummary("")
+    setInterDate(toDateInput(new Date()))
+    setNoteOpen(false)
+    setInterOpen(true)
+  }
+
+  function saveInteraction() {
+    // Le résumé par défaut = le libellé du canal si l'utilisateur n'a rien saisi
+    const summary = interSummary.trim() || interLabel
+    run(async () => {
+      await addInteraction(clientId, { date: new Date(`${interDate}T12:00:00`).toISOString(), channel: interChannel, summary })
+      setInterOpen(false)
+    }, `${interLabel} enregistré`)
   }
 
   function changeStatus(status: ProspectStatus) {
@@ -88,10 +112,10 @@ export function ContactActivity({
       {/* ── Barre d'actions rapides ── */}
       <div className="space-y-2">
         <div className="flex flex-wrap gap-1.5">
-          {QUICK_INTERACTIONS.map(({ channel, label, icon: Icon, summary }) => (
+          {QUICK_INTERACTIONS.map(({ channel, label, icon: Icon }) => (
             <button
               key={channel}
-              onClick={() => logInteraction(channel, summary)}
+              onClick={() => openInteraction(channel, label)}
               disabled={isPending}
               className="inline-flex items-center gap-1.5 h-8 px-2.5 rounded-lg border border-input text-xs hover:bg-muted/50 disabled:opacity-50 transition-colors"
             >
@@ -123,6 +147,30 @@ export function ContactActivity({
                 {STATUS_CONFIG[s].label}
               </button>
             ))}
+          </div>
+        )}
+
+        {/* Formulaire d'interaction : résumé + date (défaut = maintenant) */}
+        {interOpen && (
+          <div className="space-y-2 rounded-lg border border-border p-3">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-xs font-medium">{interLabel}</span>
+              <DatePartsField value={interDate} onChange={setInterDate} />
+            </div>
+            <textarea
+              value={interSummary}
+              onChange={(e) => setInterSummary(e.target.value)}
+              placeholder="Que s'est-il dit / passé ? (optionnel)"
+              rows={2}
+              autoFocus
+              className="w-full rounded-lg border border-input bg-transparent px-2.5 py-1.5 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring resize-y"
+            />
+            <div className="flex justify-end gap-2">
+              <button onClick={() => setInterOpen(false)} className="h-8 px-3 rounded-lg text-xs text-muted-foreground hover:text-foreground transition-colors">Annuler</button>
+              <button onClick={saveInteraction} disabled={isPending} className="h-8 px-3.5 rounded-lg bg-primary text-primary-foreground text-xs font-medium hover:opacity-90 disabled:opacity-50 transition-opacity">
+                Enregistrer
+              </button>
+            </div>
           </div>
         )}
 

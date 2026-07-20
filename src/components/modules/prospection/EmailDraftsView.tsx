@@ -58,6 +58,20 @@ export function EmailDraftsView({
   const draftCount = active.length - ready.length
   const sentRecent = useMemo(() => drafts.filter((d) => d.status === "SENT"), [drafts])
 
+  // Repli des cartes : replié par défaut (liste compacte), sauf s'il n'y a
+  // qu'un seul brouillon. L'état vit dans le parent pour piloter tout/rien.
+  const [openIds, setOpenIds] = useState<Set<string>>(
+    () => (active.length === 1 ? new Set(active.map((d) => d.id)) : new Set())
+  )
+  const toggleOpen = (id: string) =>
+    setOpenIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  const allOpen = active.length > 0 && active.every((d) => openIds.has(d.id))
+
   function send() {
     startSending(async () => {
       try {
@@ -135,9 +149,26 @@ export function EmailDraftsView({
           </p>
         </div>
       ) : (
-        <div className="space-y-3">
+        <div className="space-y-2">
+          {active.length > 1 && (
+            <div className="flex justify-end">
+              <button
+                onClick={() => setOpenIds(allOpen ? new Set() : new Set(active.map((d) => d.id)))}
+                className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-lg border border-input text-xs text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
+              >
+                {allOpen ? <ChevronRight className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+                {allOpen ? "Tout replier" : "Tout déplier"}
+              </button>
+            </div>
+          )}
           {active.map((d) => (
-            <DraftCard key={d.id} draft={d} onChanged={() => router.refresh()} />
+            <DraftCard
+              key={d.id}
+              draft={d}
+              open={openIds.has(d.id)}
+              onToggle={() => toggleOpen(d.id)}
+              onChanged={() => router.refresh()}
+            />
           ))}
         </div>
       )}
@@ -215,7 +246,7 @@ export function EmailDraftsView({
  * complet. Toute édition (y compris via « Marquer relu » sur un texte modifié)
  * repasse d'abord par updateEmailDraft — le serveur re-vérifie tout.
  */
-function DraftCard({ draft, onChanged }: { draft: DraftItem; onChanged: () => void }) {
+function DraftCard({ draft, open, onToggle, onChanged }: { draft: DraftItem; open: boolean; onToggle: () => void; onChanged: () => void }) {
   const [emailTo, setEmailTo] = useState(draft.emailTo ?? "")
   const [subject, setSubject] = useState(draft.subject)
   const [body, setBody] = useState(draft.body)
@@ -283,33 +314,51 @@ function DraftCard({ draft, onChanged }: { draft: DraftItem; onChanged: () => vo
   return (
     <div
       className={cn(
-        "rounded-xl border bg-card p-4 space-y-3",
+        "rounded-xl border bg-card",
         isReady ? "border-emerald-500/40" : "border-border/50"
       )}
     >
-      {/* En-tête : prospect + statut */}
-      <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-        <span className="font-medium text-sm">{draft.client.name}</span>
-        {draft.client.company && (
-          <span className="text-xs text-muted-foreground">· {draft.client.company}</span>
+      {/* En-tête cliquable — résumé compact, toujours visible */}
+      <button
+        onClick={onToggle}
+        className="flex w-full items-center gap-2 px-4 py-3 text-left"
+        aria-expanded={open}
+      >
+        {open ? <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" /> : <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />}
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-x-2 gap-y-0.5 flex-wrap">
+            <span className="font-medium text-sm">{draft.client.name}</span>
+            {draft.client.company && <span className="text-xs text-muted-foreground">· {draft.client.company}</span>}
+            {dirty && <span className="text-[10px] text-amber-600 font-medium">• modifié</span>}
+          </div>
+          {/* Aperçu du sujet quand la carte est repliée */}
+          {!open && (
+            <p className="text-xs text-muted-foreground truncate mt-0.5">
+              {emailTo ? `→ ${emailTo} · ` : ""}{subject || "Sans sujet"}
+            </p>
+          )}
+        </div>
+        {showMissingBadge && (
+          <AlertTriangle className="h-4 w-4 text-amber-500 shrink-0" aria-label="Variables manquantes" />
         )}
-        {draft.template && (
-          <span className="text-[10px] text-muted-foreground/70 rounded-full border border-border px-1.5 py-0.5">
-            {draft.template.name}
+        {isReady ? (
+          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 px-2 py-0.5 text-xs font-medium text-emerald-700 dark:text-emerald-400 shrink-0">
+            <CheckCircle2 className="h-3.5 w-3.5" /> <span className="hidden sm:inline">Relu — prêt</span>
+          </span>
+        ) : (
+          <span className="inline-flex items-center gap-1 rounded-full border border-border px-2 py-0.5 text-xs font-medium text-muted-foreground shrink-0">
+            <PenLine className="h-3 w-3" /> <span className="hidden sm:inline">À relire</span>
           </span>
         )}
-        <span className="ml-auto">
-          {isReady ? (
-            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 px-2 py-0.5 text-xs font-medium text-emerald-700 dark:text-emerald-400">
-              <CheckCircle2 className="h-3.5 w-3.5" /> Relu — prêt à envoyer
-            </span>
-          ) : (
-            <span className="inline-flex items-center gap-1 rounded-full border border-border px-2 py-0.5 text-xs font-medium text-muted-foreground">
-              <PenLine className="h-3 w-3" /> À relire
-            </span>
-          )}
+      </button>
+
+      {!open ? null : (
+      <div className="px-4 pb-4 space-y-3 border-t border-border/40 pt-3">
+      {draft.template && (
+        <span className="inline-block text-[10px] text-muted-foreground/70 rounded-full border border-border px-1.5 py-0.5">
+          {draft.template.name}
         </span>
-      </div>
+      )}
 
       {showMissingBadge && (
         <div className="flex items-start gap-1.5 rounded-lg border border-amber-500/30 bg-amber-500/10 px-2.5 py-1.5">
@@ -416,6 +465,8 @@ function DraftCard({ draft, onChanged }: { draft: DraftItem; onChanged: () => vo
 
       {readyBlocked && !isReady && (
         <p className="text-xs text-muted-foreground">{readyBlocked}</p>
+      )}
+      </div>
       )}
     </div>
   )

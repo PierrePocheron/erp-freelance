@@ -6,6 +6,17 @@ import { markLateInvoices } from "@/actions/facturation"
 import { MonthlyRevenueChart } from "@/components/modules/facturation/MonthlyRevenueChart"
 import { FacturationQuickActions } from "@/components/modules/facturation/FacturationQuickActions"
 
+// Helpers d'affichage cohérents avec la liste des factures
+const faNumber = (n: string) => (/^fa/i.test(n.trim()) ? n : `FA${n}`)
+const fmtEur = (n: number) =>
+  n.toLocaleString("fr-FR", { minimumFractionDigits: Number.isInteger(n) ? 0 : 2, maximumFractionDigits: 2 })
+const fmtDay = (d: Date | string) => new Date(d).toLocaleDateString("fr-FR")
+// Montant réglé d'une facture : somme des versements, sinon le net si soldée
+const invoicePaid = (inv: { status: string; totalHT: number; depositDeducted: number; payments: { amount: number }[] }) => {
+  const net = inv.totalHT - inv.depositDeducted
+  return inv.payments.length ? inv.payments.reduce((s, p) => s + p.amount, 0) : inv.status === "PAID" ? net : 0
+}
+
 export default async function FacturationOverviewPage() {
   const session = await auth()
   const userId = session!.user.id
@@ -18,10 +29,16 @@ export default async function FacturationOverviewPage() {
   const yearEnd = new Date(now.getFullYear(), 11, 31, 23, 59, 59)
 
   const [invoicesThisYear, paidInvoicesThisYear, allPending, quotes, profile, quickClients, quickCompanies, quickProjects] = await Promise.all([
+    // Factures de l'année par date d'ÉMISSION (issuedAt), pas createdAt : le
+    // createdAt vaut la date d'insertion en base (aujourd'hui pour un re-seed),
+    // donc toutes les factures y tomberaient dans l'année courante.
     prisma.invoice.findMany({
-      where: { userId, createdAt: { gte: yearStart, lte: yearEnd } },
-      include: { client: { select: { name: true, company: true } } },
-      orderBy: { createdAt: "desc" },
+      where: { userId, issuedAt: { gte: yearStart, lte: yearEnd } },
+      include: {
+        client: { select: { name: true, company: true } },
+        payments: { select: { amount: true } },
+      },
+      orderBy: { issuedAt: "desc" },
     }),
     // Encaissements de l'année : par date de PAIEMENT, pas de création — le
     // createdAt ne veut rien dire (un import ou un re-seed recrée tout à la
@@ -32,7 +49,10 @@ export default async function FacturationOverviewPage() {
     }),
     prisma.invoice.findMany({
       where: { userId, status: { in: ["SENT", "LATE"] } },
-      include: { client: { select: { name: true, company: true } } },
+      include: {
+        client: { select: { name: true, company: true } },
+        payments: { select: { amount: true } },
+      },
       orderBy: { dueDate: "asc" },
     }),
     prisma.quote.findMany({
@@ -162,7 +182,7 @@ export default async function FacturationOverviewPage() {
                 href={`/facturation/factures/${inv.id}`}
                 className="flex items-center gap-3 px-4 py-2.5 border-b border-red-500/10 last:border-0 hover:bg-red-500/10 transition-colors text-sm"
               >
-                <span className="font-mono text-xs text-muted-foreground w-24 shrink-0">{inv.number}</span>
+                <span className="font-mono text-xs text-muted-foreground w-24 shrink-0">{faNumber(inv.number)}</span>
                 <span className="flex-1 text-muted-foreground">{inv.client.company ?? inv.client.name}</span>
                 {inv.dueDate && (
                   <span className="text-xs text-red-500 shrink-0">
@@ -170,8 +190,8 @@ export default async function FacturationOverviewPage() {
                     +{Math.ceil((Date.now() - new Date(inv.dueDate).getTime()) / 86400000)}j
                   </span>
                 )}
-                <span className="font-bold text-red-500 tabular-nums">
-                  {(inv.totalHT - inv.depositDeducted).toLocaleString("fr-FR")} €
+                <span className="font-bold text-red-500 tabular-nums whitespace-nowrap">
+                  {fmtEur(invoicePaid(inv))} / {fmtEur(inv.totalHT - inv.depositDeducted)} €
                 </span>
               </Link>
             ))}
@@ -196,15 +216,16 @@ export default async function FacturationOverviewPage() {
                   <th className="px-4 py-2.5 text-left font-medium">Client</th>
                   <th className="px-4 py-2.5 text-left font-medium">Statut</th>
                   <th className="px-4 py-2.5 text-right font-medium">Montant HT</th>
-                  <th className="px-4 py-2.5 text-left font-medium hidden sm:table-cell">Créée le</th>
-                  <th className="px-4 py-2.5 text-left font-medium hidden sm:table-cell">Échéance</th>
+                  <th className="px-4 py-2.5 text-left font-medium">Payé</th>
+                  <th className="px-4 py-2.5 text-left font-medium hidden sm:table-cell">Émise le</th>
+                  <th className="px-4 py-2.5 text-left font-medium hidden md:table-cell">Échéance</th>
                 </tr>
               </thead>
               <tbody>
                 {recentInvoices.map((inv) => (
                   <tr key={inv.id} className="border-b border-border/50 last:border-0 hover:bg-muted/30 transition-colors">
                     <td className="px-4 py-2.5">
-                      <Link href={`/facturation/factures/${inv.id}`} className="text-primary hover:underline font-mono text-xs">{inv.number}</Link>
+                      <Link href={`/facturation/factures/${inv.id}`} className="text-primary hover:underline font-mono text-xs">{faNumber(inv.number)}</Link>
                     </td>
                     <td className="px-4 py-2.5 text-muted-foreground">
                       {inv.client.company ?? inv.client.name}
@@ -213,13 +234,25 @@ export default async function FacturationOverviewPage() {
                       <InvoiceStatusBadge status={inv.status} />
                     </td>
                     <td className="px-4 py-2.5 text-right font-medium">
-                      {(inv.totalHT - inv.depositDeducted).toLocaleString("fr-FR")} €
+                      {fmtEur(inv.totalHT - inv.depositDeducted)} €
+                    </td>
+                    <td className="px-4 py-2.5 text-xs whitespace-nowrap">
+                      {(() => {
+                        const net = inv.totalHT - inv.depositDeducted
+                        const paid = invoicePaid(inv)
+                        const full = inv.status === "PAID" || (paid > 0 && paid >= net - 0.01)
+                        return (
+                          <span className={`font-medium ${paid <= 0 ? "text-muted-foreground/50" : full ? "text-emerald-600" : "text-amber-600"}`}>
+                            {fmtEur(paid)} <span className="font-normal text-muted-foreground/70">/ {fmtEur(net)} €</span>
+                          </span>
+                        )
+                      })()}
                     </td>
                     <td className="px-4 py-2.5 text-xs text-muted-foreground hidden sm:table-cell">
-                      {new Date(inv.createdAt).toLocaleDateString("fr-FR")}
+                      {inv.issuedAt ? fmtDay(inv.issuedAt) : "—"}
                     </td>
-                    <td className="px-4 py-2.5 text-xs text-muted-foreground hidden sm:table-cell">
-                      {inv.dueDate ? new Date(inv.dueDate).toLocaleDateString("fr-FR") : "—"}
+                    <td className="px-4 py-2.5 text-xs text-muted-foreground hidden md:table-cell">
+                      {inv.dueDate ? fmtDay(inv.dueDate) : "—"}
                     </td>
                   </tr>
                 ))}
@@ -246,7 +279,8 @@ export default async function FacturationOverviewPage() {
                   <th className="px-4 py-2.5 text-left font-medium">Client</th>
                   <th className="px-4 py-2.5 text-left font-medium">Statut</th>
                   <th className="px-4 py-2.5 text-right font-medium">Total HT</th>
-                  <th className="px-4 py-2.5 text-left font-medium hidden sm:table-cell">Créé le</th>
+                  <th className="px-4 py-2.5 text-left font-medium hidden sm:table-cell">Envoyé le</th>
+                  <th className="px-4 py-2.5 text-left font-medium hidden md:table-cell">Échéance</th>
                 </tr>
               </thead>
               <tbody>
@@ -261,9 +295,12 @@ export default async function FacturationOverviewPage() {
                     <td className="px-4 py-2.5">
                       <QuoteStatusBadge status={q.status} />
                     </td>
-                    <td className="px-4 py-2.5 text-right font-medium">{q.totalHT.toLocaleString("fr-FR")} €</td>
+                    <td className="px-4 py-2.5 text-right font-medium">{fmtEur(q.totalHT)} €</td>
                     <td className="px-4 py-2.5 text-xs text-muted-foreground hidden sm:table-cell">
-                      {new Date(q.createdAt).toLocaleDateString("fr-FR")}
+                      {q.sentAt ? fmtDay(q.sentAt) : "—"}
+                    </td>
+                    <td className="px-4 py-2.5 text-xs text-muted-foreground hidden md:table-cell">
+                      {q.expiresAt ? fmtDay(q.expiresAt) : "—"}
                     </td>
                   </tr>
                 ))}

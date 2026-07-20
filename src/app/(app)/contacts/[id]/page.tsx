@@ -8,7 +8,7 @@ import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { STATUS_CONFIG, type JobAppStatus } from "@/components/modules/entretien/status-config"
 import { ClientInfoCard } from "@/components/modules/crm/ClientInfoCard"
-import { ContactTimeline } from "@/components/modules/crm/ContactTimeline"
+import { ContactActivity } from "@/components/modules/crm/ContactActivity"
 import { ClientTasksSection } from "@/components/modules/crm/ClientTasksSection"
 import { ClientProjectsCard } from "@/components/modules/crm/ClientProjectsCard"
 import { FiscalCategoryCard } from "@/components/modules/crm/FiscalCategoryCard"
@@ -46,6 +46,7 @@ export default async function ClientOverviewPage({
           title: true,
           description: true,
           status: true,
+          createdAt: true,
           priority: true,
           importance: true,
           estimatedHours: true,
@@ -126,6 +127,7 @@ export default async function ClientOverviewPage({
       title: true,
       description: true,
       status: true,
+      createdAt: true,
       priority: true,
       importance: true,
       estimatedHours: true,
@@ -302,23 +304,25 @@ export default async function ClientOverviewPage({
           </div>
         )}
 
-        {/* Frise chronologique — interactions, notes et événements de prospection */}
-        {(client.interactions.length > 0 || client.prospectNotes.length > 0 || client.prospectEvents.length > 0) && (
-          <div className="rounded-xl border border-border/50 bg-card p-5 space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <MessageSquare className="h-4 w-4 text-muted-foreground" />
-                <h2 className="font-semibold text-sm">Frise chronologique</h2>
-              </div>
-              <Link href={`/contacts/${id}/interactions`} className="text-xs text-primary hover:underline">Interactions</Link>
+        {/* Frise chronologique + actions rapides (interactions, notes, statut) */}
+        <div className="rounded-xl border border-border/50 bg-card p-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <MessageSquare className="h-4 w-4 text-muted-foreground" />
+              <h2 className="font-semibold text-sm">Frise chronologique</h2>
             </div>
-            <ContactTimeline
-              interactions={client.interactions}
-              events={client.prospectEvents}
-              notes={client.prospectNotes}
-            />
+            <Link href={`/contacts/${id}/interactions`} className="text-xs text-primary hover:underline">Interactions</Link>
           </div>
-        )}
+          <ContactActivity
+            clientId={id}
+            isProspect={client.type === "PROSPECT" || client.prospectStatus === "WON"}
+            currentStatus={client.prospectStatus as never}
+            interactions={client.interactions}
+            events={client.prospectEvents}
+            notes={client.prospectNotes}
+            tasks={allTasks as never}
+          />
+        </div>
 
         {/* Danger zone — propriétaire uniquement */}
         {isOwner && (

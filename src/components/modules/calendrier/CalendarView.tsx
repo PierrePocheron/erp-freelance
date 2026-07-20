@@ -2126,9 +2126,11 @@ function TimedEventContent({ ev, height, color, cfg }: {
   const compact = height < 40
   return (
     <div className="h-full flex flex-col min-w-0 pointer-events-none">
+      {/* Titre seul — pas de préfixe d'heure : l'heure se lit via la colonne des
+          heures à gauche, et sous le titre quand la carte est assez haute. */}
       <p className="text-[11px] font-semibold leading-tight truncate flex items-center gap-1" style={{ color }}>
         {ev.isGoogle && <GoogleMark className="h-2.5 w-2.5 shrink-0" />}
-        <span className="truncate">{compact ? `${timeStr} ${ev.title}` : ev.title}</span>
+        <span className="truncate">{ev.title}</span>
       </p>
       {!compact && (
         <>

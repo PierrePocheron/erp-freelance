@@ -42,47 +42,51 @@ const fmtEur = (n: number) =>
   }) + " €"
 const fmtDay = (d: Date | string) => new Date(d).toLocaleDateString("fr-FR")
 
-/** Récapitulatif des encaissements d'une facture : montant total réglé + date(s)
- *  des versements. Gère les cas exceptionnels (impayé, paiement partiel, plusieurs
- *  versements étalés dans le temps). Vert = soldée, ambre = partiel. */
+/** Récapitulatif des encaissements d'une facture : montant réglé sur le montant
+ *  total, + date(s) des versements. Affiche TOUJOURS « payé / total » (vert =
+ *  soldée, ambre = partiel, gris = rien reçu). Gère les cas exceptionnels :
+ *  impayé, paiement partiel, plusieurs versements étalés, et facture marquée
+ *  payée sans versement détaillé (montant payé = net, date = paidAt). */
 function PaidInfo({
   payments,
   net,
   status,
+  paidAt,
   align = "left",
 }: {
   payments: { amount: number; paidAt: Date | string }[]
   net: number
   status: string
+  paidAt?: Date | string | null
   align?: "left" | "right"
 }) {
-  const paid = payments.reduce((s, p) => s + p.amount, 0)
+  const hasRecords = payments.length > 0
+  const paidFromRecords = payments.reduce((s, p) => s + p.amount, 0)
+  // Facture soldée sans versement détaillé → le montant réglé vaut le net.
+  const paid = hasRecords ? paidFromRecords : status === "PAID" ? net : 0
   const full = status === "PAID" || (paid > 0 && paid >= net - 0.01)
-  const alignCls = align === "right" ? "text-right items-end" : ""
-
-  if (payments.length === 0) {
-    // Aucun versement enregistré : soit soldée sans détail, soit impayée
-    return status === "PAID" ? (
-      <span className="text-emerald-600 text-xs font-medium">Payée</span>
-    ) : (
-      <span className="text-muted-foreground/40 text-xs">Non réglée</span>
-    )
-  }
+  const none = paid <= 0
+  const alignCls = align === "right" ? "items-end text-right" : "items-start"
 
   return (
     <div className={`flex flex-col gap-0.5 ${alignCls}`}>
-      <span className={`text-xs font-medium ${full ? "text-emerald-600" : "text-amber-600"}`}>
-        {fmtEur(paid)}
-        {!full && <span className="text-muted-foreground/70 font-normal"> / {fmtEur(net)}</span>}
+      <span className={`text-xs font-medium ${none ? "text-muted-foreground/50" : full ? "text-emerald-600" : "text-amber-600"}`}>
+        {fmtEur(paid)} <span className="font-normal text-muted-foreground/70">/ {fmtEur(net)}</span>
       </span>
-      <span className="text-[11px] text-muted-foreground leading-tight">
-        {payments.map((p, i) => (
-          <span key={i} className="block">
-            {payments.length > 1 && `${fmtEur(p.amount)} · `}
-            {fmtDay(p.paidAt)}
-          </span>
-        ))}
-      </span>
+      {hasRecords ? (
+        <span className="text-[11px] text-muted-foreground leading-tight">
+          {payments.map((p, i) => (
+            <span key={i} className="block">
+              {payments.length > 1 && `${fmtEur(p.amount)} · `}
+              {fmtDay(p.paidAt)}
+            </span>
+          ))}
+        </span>
+      ) : status === "PAID" && paidAt ? (
+        <span className="text-[11px] text-muted-foreground leading-tight">{fmtDay(paidAt)}</span>
+      ) : none ? (
+        <span className="text-[11px] text-muted-foreground/50 leading-tight">Non réglée</span>
+      ) : null}
     </div>
   )
 }
@@ -520,7 +524,7 @@ export function FacturesListView({
                       {(inv.totalHT - inv.depositDeducted).toLocaleString("fr-FR")} €
                     </td>
                     <td className="px-4 py-3">
-                      <PaidInfo payments={inv.payments} net={inv.totalHT - inv.depositDeducted} status={inv.status} />
+                      <PaidInfo payments={inv.payments} net={inv.totalHT - inv.depositDeducted} status={inv.status} paidAt={inv.paidAt} />
                     </td>
                     <td className="px-4 py-3 text-xs text-muted-foreground hidden md:table-cell">
                       {inv.issuedAt ? fmtDay(inv.issuedAt) : <span className="text-muted-foreground/40">—</span>}
@@ -598,7 +602,7 @@ export function FacturesListView({
                   )}
                   <div className="flex items-center justify-between pt-1">
                     <span className="text-[11px] uppercase tracking-wide text-muted-foreground/70">Payé</span>
-                    <PaidInfo payments={inv.payments} net={amount} status={inv.status} align="right" />
+                    <PaidInfo payments={inv.payments} net={amount} status={inv.status} paidAt={inv.paidAt} align="right" />
                   </div>
                 </div>
               </div>

@@ -95,7 +95,7 @@ export default async function SettingsPage() {
       </>
     ),
     modules: <ModulesPanel />,
-    integrations: <GoogleCalendarSection hasScope={googleCalendarScope} />,
+    integrations: <GoogleCalendarSection hasScope={googleCalendarScope} syncThresholdMin={profile?.calendarSyncThresholdMin ?? 30} />,
     donnees: (
       <>
         <ExportSection stats={exportStats} />

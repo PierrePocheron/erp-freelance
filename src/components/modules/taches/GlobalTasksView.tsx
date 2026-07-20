@@ -676,16 +676,17 @@ export function GlobalTasksView({
       {/* Résultat */}
       <p className="text-xs text-muted-foreground">{filtered.length} tâche{filtered.length !== 1 ? "s" : ""}</p>
 
-      {/* Groupes */}
-      <div className="space-y-3">
-        {clientGroups.length === 0 ? (
-          <div className="rounded-xl border border-dashed border-border py-16 text-center text-sm text-muted-foreground">
-            Aucune tâche pour ces filtres
-          </div>
-        ) : (
-          clientGroups.map((g) => <ClientTaskGroup key={g.key} group={g} />)
-        )}
-      </div>
+      {/* Groupes — 2 colonnes en desktop (multicol équilibré, un groupe n'est
+          jamais coupé entre deux colonnes) pour afficher plus de sociétés d'un coup */}
+      {clientGroups.length === 0 ? (
+        <div className="rounded-xl border border-dashed border-border py-16 text-center text-sm text-muted-foreground">
+          Aucune tâche pour ces filtres
+        </div>
+      ) : (
+        <div className="gap-3 lg:columns-2 [&>*]:mb-3 [&>*]:break-inside-avoid">
+          {clientGroups.map((g) => <ClientTaskGroup key={g.key} group={g} />)}
+        </div>
+      )}
     </div>
   )
 }

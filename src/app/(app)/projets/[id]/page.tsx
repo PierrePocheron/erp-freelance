@@ -170,12 +170,24 @@ export default async function ProjectOverviewPage({
   return (
     <div className="space-y-6">
 
-      {/* Grille uniforme : cartes 1/3 de largeur, 3 par rangée sur desktop */}
-      {/* Ordre visuel via order-* : Tâches → Jalons → Facturation/Revenus → Liens → Suivi → Notes */}
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3 items-start">
+      {/* Bento auto-équilibré (multicol) : les cartes se rangent au plus près
+          sans laisser de trous verticaux entre elles. break-inside-avoid : une
+          carte ne se coupe jamais d'une colonne à l'autre. L'ordre de lecture
+          suit l'ordre du code (les colonnes se remplissent de façon équilibrée). */}
+      <div className="gap-6 lg:columns-2 2xl:columns-3 *:mb-6 *:break-inside-avoid">
+
+        {/* Tâches — liste cochable */}
+        <div>
+          <ProjectTasksCard
+            projectId={id}
+            tasks={sortedTasks.map((t) => ({
+              id: t.id, title: t.title, status: t.status, priority: t.priority, dueDate: t.dueDate,
+            }))}
+          />
+        </div>
 
         {/* Jalons */}
-        <div className="order-2 rounded-xl border border-border/50 bg-card p-5 space-y-3">
+        <div className="rounded-xl border border-border/50 bg-card p-5 space-y-3">
           <div className="flex items-center gap-2 font-semibold text-sm">
             <Flag className="h-4 w-4 text-muted-foreground" />
             Jalons
@@ -221,23 +233,13 @@ export default async function ProjectOverviewPage({
           <MilestoneDialog projectId={id} />
         </div>
 
-        {/* Tâches — liste cochable */}
-        <div className="order-1">
-          <ProjectTasksCard
-            projectId={id}
-            tasks={sortedTasks.map((t) => ({
-              id: t.id, title: t.title, status: t.status, priority: t.priority, dueDate: t.dueDate,
-            }))}
-          />
-        </div>
-
         {/* Liens — liste avec health check + ajout inline */}
-        <div className="order-4">
+        <div>
           <ProjectLinksCard projectId={id} links={project.usefulLinks} />
         </div>
 
         {/* Suivi — temps, budget, livrables, période */}
-        <div className={`order-5 rounded-xl border p-5 space-y-3 ${isOver ? "border-red-500/30 bg-red-500/5" : budgetPct && budgetPct > 80 ? "border-amber-500/30 bg-amber-500/5" : "border-border/50 bg-card"}`}>
+        <div className={`rounded-xl border p-5 space-y-3 ${isOver ? "border-red-500/30 bg-red-500/5" : budgetPct && budgetPct > 80 ? "border-amber-500/30 bg-amber-500/5" : "border-border/50 bg-card"}`}>
           <div className="flex items-center gap-2 font-semibold text-sm">
             <Clock className="h-4 w-4 text-muted-foreground" />
             Suivi
@@ -307,19 +309,8 @@ export default async function ProjectOverviewPage({
           </div>
         </div>
 
-        {/* Frise chronologique — événements, jalons, tâches et notes du projet */}
-        <div className="order-7 lg:col-span-3">
-          <ProjectTimeline
-            projectId={id}
-            events={project.events}
-            milestones={project.milestones}
-            tasks={project.tasks}
-            journal={project.journalEntries}
-          />
-        </div>
-
         {/* Notes rapides */}
-        <div className="order-6 rounded-xl border border-border/50 bg-card p-5 space-y-3">
+        <div className="rounded-xl border border-border/50 bg-card p-5 space-y-3">
           <div className="flex items-center gap-2 font-semibold text-sm">
             <BookOpen className="h-4 w-4 text-muted-foreground" />
             Notes rapides
@@ -342,7 +333,7 @@ export default async function ProjectOverviewPage({
         </div>
 
         {/* Facturation / Revenus */}
-        <div className="order-3">
+        <div>
         {hasBilling ? (
             <div className="rounded-xl border border-border/50 bg-card p-5 space-y-4">
               <Link href={`/facturation/factures?projet=${project.id}`} className="flex items-center gap-2 font-semibold text-sm hover:text-primary transition-colors">
@@ -477,6 +468,15 @@ export default async function ProjectOverviewPage({
           )}
         </div>
       </div>
+
+      {/* Frise chronologique — pleine largeur, sous le bento */}
+      <ProjectTimeline
+        projectId={id}
+        events={project.events}
+        milestones={project.milestones}
+        tasks={project.tasks}
+        journal={project.journalEntries}
+      />
     </div>
   )
 }

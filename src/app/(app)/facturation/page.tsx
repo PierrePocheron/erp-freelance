@@ -38,7 +38,7 @@ export default async function FacturationOverviewPage({
   const yearStart = selectedYear ? new Date(selectedYear, 0, 1) : undefined
   const yearEnd = selectedYear ? new Date(selectedYear, 11, 31, 23, 59, 59) : undefined
 
-  const [scopedInvoices, allPaidInvoices, allPending, quotes, profile, quickClients, quickCompanies, quickProjects] = await Promise.all([
+  const [scopedInvoices, allPaidInvoices, allPending, quotes, emitters, quickClients, quickCompanies, quickProjects] = await Promise.all([
     // Factures affichées : par date d'ÉMISSION (issuedAt), pas createdAt (qui
     // vaut la date d'insertion en base). Toutes années par défaut, sinon
     // bornées à l'année sélectionnée.
@@ -74,7 +74,10 @@ export default async function FacturationOverviewPage({
       take: 5,
       include: { client: { select: { name: true, company: true } } },
     }),
-    prisma.userProfile.findUnique({ where: { userId } }),
+    // Complétude « facturable » : elle vit sur les émetteurs (raison sociale,
+    // SIRET, adresse), pas sur le UserProfile — c'est l'émetteur qui alimente
+    // les factures et devis.
+    prisma.emitterProfile.findMany({ where: { userId }, select: { companyName: true, siret: true, address: true } }),
     prisma.client.findMany({
       where: { userId, type: { not: "SELF" } },
       orderBy: { name: "asc" },
@@ -107,7 +110,8 @@ export default async function FacturationOverviewPage({
     .reduce((s, i) => s + i.totalHT - i.depositDeducted, 0)
 
   const quotesWaiting = quotes.filter((q) => q.status === "SENT").length
-  const profileIncomplete = !profile?.companyName || !profile?.siret || !profile?.address
+  // Incomplet seulement si aucun émetteur n'a raison sociale + SIRET + adresse
+  const profileIncomplete = !emitters.some((e) => e.companyName && e.siret && e.address)
 
   // Revenus mensuels du graphe : toujours l'année civile courante (le graphe a
   // sa propre navigation d'année, indépendante du filtre de la page).
@@ -148,10 +152,10 @@ export default async function FacturationOverviewPage({
         <div className="flex items-center gap-3 rounded-xl border border-amber-500/20 bg-amber-500/8 px-4 py-3 text-sm">
           <Settings className="h-4 w-4 text-amber-500 shrink-0" />
           <span className="text-amber-700 dark:text-amber-400 flex-1">
-            Votre profil est incomplet — certaines informations manqueront sur vos factures et devis.
+            Aucun émetteur complet (raison sociale, SIRET, adresse) — ces informations manqueront sur vos factures et devis.
           </span>
           <Link href="/settings" className="text-amber-700 dark:text-amber-400 font-medium hover:underline shrink-0">
-            Compléter →
+            Configurer un émetteur →
           </Link>
         </div>
       )}

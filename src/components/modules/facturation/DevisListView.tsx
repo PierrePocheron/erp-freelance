@@ -14,10 +14,25 @@ type Quote = {
   status: string
   totalHT: number
   depositPercent: number
+  sentAt: Date | null
+  expiresAt: Date | null
   createdAt: Date
   client: { id: string; name: string; company: string | null; companyId: string | null }
   project: { id: string; name: string; companyId: string | null } | null
   _count: { lines: number }
+}
+
+const fmtDay = (d: Date | string) => new Date(d).toLocaleDateString("fr-FR")
+
+/** Date de référence d'un devis (envoi au client, sinon insertion en base). */
+const quoteRefDate = (q: Quote) => new Date(q.sentAt ?? q.createdAt)
+
+/** Un devis est « expiré » si sa date de validité est passée et qu'il n'a pas
+ *  encore abouti (ni accepté/signé, ni refusé). */
+function isExpired(q: Quote): boolean {
+  if (!q.expiresAt) return false
+  const settled = ["ACCEPTED", "SIGNED", "DEPOSIT_RECEIVED", "IN_PROGRESS", "REJECTED"]
+  return !settled.includes(q.status) && new Date(q.expiresAt) < new Date()
 }
 
 type Company = { id: string; name: string; city: string | null }
@@ -65,7 +80,7 @@ export function DevisListView({
 }) {
   const [view, setView] = useState<"list" | "cards">("list")
   const [q, setQ] = useState("")
-  const { sortCol, sortDir, toggle } = useSortState("createdAt", "desc")
+  const { sortCol, sortDir, toggle } = useSortState("sent", "desc")
 
   // ── Filtres pilotés par l'URL — même mécanique que la liste des factures ──
   const searchParams = useSearchParams()
@@ -115,7 +130,8 @@ export function DevisListView({
         case "project":   return cmp(a.project?.name ?? null, b.project?.name ?? null, sortDir)
         case "status":    return cmp(a.status, b.status, sortDir)
         case "totalHT":   return cmp(a.totalHT, b.totalHT, sortDir)
-        case "createdAt": return cmp(new Date(a.createdAt), new Date(b.createdAt), sortDir)
+        case "sent":      return cmp(quoteRefDate(a), quoteRefDate(b), sortDir)
+        case "expires":   return cmp(a.expiresAt ? new Date(a.expiresAt) : null, b.expiresAt ? new Date(b.expiresAt) : null, sortDir)
         default: return 0
       }
     })
@@ -276,8 +292,9 @@ export function DevisListView({
                 <Th label="Client"   col="client"    sortCol={sortCol} sortDir={sortDir} onSort={toggle} className="px-4 py-3" />
                 <Th label="Projet"   col="project"   sortCol={sortCol} sortDir={sortDir} onSort={toggle} className="px-4 py-3 hidden sm:table-cell" />
                 <Th label="Statut"   col="status"    sortCol={sortCol} sortDir={sortDir} onSort={toggle} className="px-4 py-3" />
-                <Th label="Total HT" col="totalHT"   sortCol={sortCol} sortDir={sortDir} onSort={toggle} className="px-4 py-3" align="right" />
-                <Th label="Date"     col="createdAt" sortCol={sortCol} sortDir={sortDir} onSort={toggle} className="px-4 py-3 hidden sm:table-cell" />
+                <Th label="Total HT"  col="totalHT" sortCol={sortCol} sortDir={sortDir} onSort={toggle} className="px-4 py-3" align="right" />
+                <Th label="Envoyé le" col="sent"    sortCol={sortCol} sortDir={sortDir} onSort={toggle} className="px-4 py-3 hidden sm:table-cell" />
+                <Th label="Échéance"  col="expires" sortCol={sortCol} sortDir={sortDir} onSort={toggle} className="px-4 py-3 hidden md:table-cell" />
               </tr>
             </thead>
             <tbody>
@@ -307,7 +324,15 @@ export function DevisListView({
                     </td>
                     <td className="px-4 py-3 text-right font-medium">{quote.totalHT.toLocaleString("fr-FR")} €</td>
                     <td className="px-4 py-3 text-xs text-muted-foreground hidden sm:table-cell">
-                      {new Date(quote.createdAt).toLocaleDateString("fr-FR")}
+                      {quote.sentAt ? fmtDay(quote.sentAt) : <span className="text-muted-foreground/40">—</span>}
+                    </td>
+                    <td className={`px-4 py-3 text-xs hidden md:table-cell ${isExpired(quote) ? "text-red-500 font-medium" : "text-muted-foreground"}`}>
+                      {quote.expiresAt ? (
+                        <>
+                          {fmtDay(quote.expiresAt)}
+                          {isExpired(quote) && <span className="ml-1 text-[10px] uppercase">expiré</span>}
+                        </>
+                      ) : "—"}
                     </td>
                   </tr>
                 )
@@ -353,9 +378,18 @@ export function DevisListView({
                     </p>
                   )}
                 </div>
-                <div className="flex items-end justify-between pt-1 border-t border-border/50">
-                  <span className="text-xl font-bold tabular-nums">{quote.totalHT.toLocaleString("fr-FR")} €</span>
-                  <span className="text-xs text-muted-foreground">{new Date(quote.createdAt).toLocaleDateString("fr-FR")}</span>
+                <div className="pt-1 border-t border-border/50 space-y-1">
+                  <div className="flex items-end justify-between">
+                    <span className="text-xl font-bold tabular-nums">{quote.totalHT.toLocaleString("fr-FR")} €</span>
+                    <span className="text-xs text-muted-foreground">
+                      {quote.sentAt ? `envoyé le ${fmtDay(quote.sentAt)}` : ""}
+                    </span>
+                  </div>
+                  {quote.expiresAt && (
+                    <p className={`text-xs text-right ${isExpired(quote) ? "text-red-500 font-medium" : "text-muted-foreground"}`}>
+                      échéance {fmtDay(quote.expiresAt)}{isExpired(quote) ? " · expiré" : ""}
+                    </p>
+                  )}
                 </div>
               </div>
             )

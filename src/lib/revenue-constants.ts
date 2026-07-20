@@ -17,6 +17,7 @@ export const PAYMENT_METHOD_LABELS: Record<string, string> = {
   CARTE:        "Carte",
   PAYPAL:       "PayPal",
   CARTE_CADEAU: "Carte cadeau",
+  DEDUCTION:    "Déduction",
   OTHER:        "Autre",
 }
 

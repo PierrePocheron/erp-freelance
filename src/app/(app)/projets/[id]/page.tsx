@@ -95,8 +95,12 @@ export default async function ProjectOverviewPage({
         orderBy: { createdAt: "desc" },
       },
       invoices: {
-        select: { id: true, number: true, status: true, type: true, totalHT: true, depositDeducted: true, dueDate: true },
-        orderBy: { createdAt: "desc" },
+        select: {
+          id: true, number: true, status: true, type: true, totalHT: true, depositDeducted: true,
+          dueDate: true, paidAt: true, issuedAt: true,
+          payments: { select: { amount: true } },
+        },
+        orderBy: { issuedAt: "desc" },
       },
       revenues: {
         select: { id: true, type: true, label: true, amount: true, currency: true, status: true, receivedAt: true, expectedAt: true },
@@ -165,7 +169,10 @@ export default async function ProjectOverviewPage({
   const grandTotal = invoicedTotal + totalRevenue
   const grandReceived = invoicedReceived + receivedRevenue
   const pendingRevenue = totalRevenue - receivedRevenue // non déclaré + pas encore reçu → couleur distincte
-  const fmtEur = (n: number) => n.toLocaleString("fr-FR")
+  const fmtEur = (n: number) =>
+    n.toLocaleString("fr-FR", { minimumFractionDigits: Number.isInteger(n) ? 0 : 2, maximumFractionDigits: 2 })
+  // Numéro affiché avec le préfixe FA (cohérent avec la liste des factures)
+  const faNumber = (n: string) => (/^fa/i.test(n.trim()) ? n : `FA${n}`)
 
   return (
     <div className="space-y-6">
@@ -389,6 +396,11 @@ export default async function ProjectOverviewPage({
                   </p>
                   {project.invoices.map((inv) => {
                     const amount = inv.totalHT - inv.depositDeducted
+                    // Montant réglé : somme des versements, sinon le net si soldée
+                    const paid = inv.payments.length
+                      ? inv.payments.reduce((s, p) => s + p.amount, 0)
+                      : inv.status === "PAID" ? amount : 0
+                    const full = inv.status === "PAID" || (paid > 0 && paid >= amount - 0.01)
                     const isLate = inv.dueDate && inv.status === "SENT" && new Date(inv.dueDate) < new Date()
                     return (
                       <Link
@@ -396,13 +408,13 @@ export default async function ProjectOverviewPage({
                         href={`/facturation/factures/${inv.id}`}
                         className="flex items-center gap-2 text-sm hover:text-primary transition-colors py-0.5"
                       >
-                        <span className="font-mono text-xs text-muted-foreground">{inv.number}</span>
+                        <span className="font-mono text-xs text-muted-foreground">{faNumber(inv.number)}</span>
                         <span className="text-xs text-muted-foreground">{invoiceTypeLabel[inv.type] ?? inv.type}</span>
                         <span className={`rounded-full px-1.5 py-0.5 text-xs font-medium ${invoiceStatusCls[inv.status] ?? ""}`}>
                           {invoiceStatusLabel[inv.status] ?? inv.status}
                         </span>
-                        <span className={`ml-auto text-xs font-medium tabular-nums ${isLate ? "text-red-500" : ""}`}>
-                          {amount.toLocaleString("fr-FR")} €
+                        <span className={`ml-auto text-xs font-medium tabular-nums whitespace-nowrap ${full ? "text-emerald-600" : paid > 0 ? "text-amber-600" : isLate ? "text-red-500" : "text-muted-foreground"}`}>
+                          {fmtEur(paid)} / {fmtEur(amount)} €
                         </span>
                       </Link>
                     )

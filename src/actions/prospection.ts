@@ -276,31 +276,35 @@ export async function deleteProspects(clientIds: string[]) {
 
 // Modèles de départ — {{nom_complet}} = nom du site/de l'entreprise pour les
 // prospects ajoutés via l'ajout rapide (le champ name porte le nom du business).
+// Signature (adresse postale + désinscription RGPD/LCEN) : à mettre dans la
+// signature Gmail de Pierre, PAS dans le corps → Gmail l'ajoute automatiquement.
 const DEFAULT_EMAIL_TEMPLATES = [
   {
-    name: "1er contact — refonte de site",
-    subject: "Votre site {{site}} — quelques pistes d'amélioration",
+    name: "1er contact — offre mensuelle",
+    subject: "Une idée pour améliorer votre site",
+    sortOrder: 0,
     body: `Bonjour,
 
-Je suis tombé sur le site de {{nom_complet}} ({{site}}) en cherchant des entreprises de la région, et j'ai remarqué quelques points qui pourraient vous faire perdre des clients : affichage sur mobile, vitesse de chargement, visibilité sur Google.
+Développeur web indépendant depuis plusieurs années, j'accompagne les PME et TPE dans leurs projets web.
 
-Je suis développeur web indépendant à Lyon et j'aide les petites entreprises à moderniser leur site sans les prix d'agence — souvent en repartant de l'existant.
+Je suis tombé sur votre site ({{site}}) et j'ai des idées concrètes pour le rendre plus moderne, plus rapide et mieux visible sur Google.
 
-Seriez-vous ouvert à un échange de 10 minutes cette semaine ? Je peux vous montrer concrètement ce qui peut être amélioré, sans engagement.
+Je propose une formule tout compris au mois — création, hébergement, maintenance et mises à jour — sans les engagements de plusieurs années qu'on voit souvent ailleurs.
+
+Est-ce que ça vous dirait d'en discuter 15 min, sans engagement ? Je vous montre ce qu'on pourrait faire ensemble.
 
 Bonne journée,
-Pierre — Pedro Dev
-
-PS : si vous ne souhaitez plus recevoir de message de ma part, répondez simplement « stop ».`,
+Pierre — Pedro Dev, développeur web à Lyon`,
   },
   {
-    name: "Relance douce (J+7)",
-    subject: "Re : votre site {{site}}",
+    name: "Relance (J+5)",
+    subject: "Re : votre site",
+    sortOrder: 1,
     body: `Bonjour,
 
-Je me permets une petite relance suite à mon message de la semaine dernière au sujet du site de {{nom_complet}}.
+Je me permets une relance rapide sur mon message concernant votre site ({{site}}).
 
-Je sais que ce n'est pas toujours la priorité du moment — si le sujet vous intéresse mais que le timing est mauvais, dites-le moi simplement et je reviendrai vers vous plus tard.
+Si le sujet vous intéresse mais que le moment est mal choisi (vacances d'été !), dites-le-moi et je reviendrai vers vous en septembre.
 
 Et si vous préférez ne plus être contacté, un simple « stop » suffit.
 
@@ -308,20 +312,19 @@ Bonne journée,
 Pierre — Pedro Dev`,
   },
   {
-    name: "Proposition d'audit gratuit",
-    subject: "Audit gratuit du site de {{nom_complet}}",
+    name: "Audit gratuit",
+    subject: "Un regard gratuit sur votre site",
+    sortOrder: 2,
     body: `Bonjour,
 
-Je propose en ce moment un mini-audit gratuit aux entreprises de la région : je passe en revue votre site ({{site}}) et je vous envoie 3 améliorations concrètes et prioritaires — vitesse, mobile, référencement Google.
+Développeur web indépendant à Lyon, j'accompagne les PME et TPE sur leur présence en ligne.
 
-C'est gratuit, sans engagement, et vous pouvez appliquer les recommandations avec le prestataire de votre choix.
+Je propose en ce moment un mini-audit gratuit : je regarde votre site ({{site}}) et je vous envoie 3 améliorations concrètes et prioritaires (vitesse, mobile, visibilité Google) — sans engagement, à appliquer avec le prestataire de votre choix.
 
-Intéressé ? Répondez simplement à ce mail et je vous envoie l'audit sous 48 h.
+Ça vous intéresse ? Répondez simplement à ce mail et je vous l'envoie sous 48 h.
 
 Bonne journée,
-Pierre — Pedro Dev
-
-PS : pour ne plus recevoir de message de ma part, répondez « stop ».`,
+Pierre — Pedro Dev`,
   },
 ]
 

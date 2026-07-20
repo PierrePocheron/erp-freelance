@@ -578,6 +578,7 @@ model Project {
   milestones        Milestone[]
   tasks             Task[]
   journalEntries    JournalEntry[]
+  events            ProjectEvent[]
   deliverables      Deliverable[]
   usefulLinks       UsefulLink[]
   postDev           PostDev?
@@ -728,6 +729,34 @@ model JournalEntry {
   updatedAt DateTime @updatedAt
 
   project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+}
+
+// Événement daté de la frise chronologique d'un projet (rencontre, mail,
+// paiement, acte juridique, note…). Distinct des jalons (Milestone) qui sont
+// des étapes planifiées ; ici c'est un journal d'événements réels horodatés.
+enum ProjectEventKind {
+  NOTE      // note / observation
+  MEETING   // rencontre / visite / audience
+  EMAIL     // mail envoyé ou reçu
+  CALL      // appel
+  PAYMENT   // paiement / virement / facture
+  DELIVERY  // livraison / étape franchie
+  LEGAL     // acte juridique (mise en demeure, ordonnance, conclusions…)
+  OTHER
+}
+
+model ProjectEvent {
+  id          String           @id @default(cuid())
+  projectId   String
+  kind        ProjectEventKind @default(NOTE)
+  title       String
+  description String?
+  date        DateTime         // date de l'événement (ordre chronologique)
+  createdAt   DateTime         @default(now())
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
 }
 
 model Deliverable {

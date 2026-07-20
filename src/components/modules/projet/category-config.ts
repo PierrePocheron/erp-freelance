@@ -30,6 +30,11 @@ const stripesH: CSSProperties = {
 const stripesV: CSSProperties = {
   backgroundImage: "repeating-linear-gradient(90deg, rgba(255,255,255,.26) 0 4px, transparent 4px 11px)",
 }
+// Chevrons/rayures larges façon « bande d'avertissement » — pour la catégorie
+// Problème (litige, contentieux) : motif distinct des autres, évoque l'alerte.
+const warningStripes: CSSProperties = {
+  backgroundImage: "repeating-linear-gradient(135deg, rgba(255,255,255,.30) 0 7px, transparent 7px 16px)",
+}
 const plain: CSSProperties = {}
 
 export const CATEGORY_CONFIG: Record<ProjectCategory, {
@@ -45,8 +50,9 @@ export const CATEGORY_CONFIG: Record<ProjectCategory, {
   ETUDE:        { label: "Étude marketing",  chipCls: "text-violet-600 border-violet-500/30 bg-violet-500/10",   bannerCls: "bg-violet-500",  pattern: dots       },
   EVENEMENTIEL: { label: "Événementiel",     chipCls: "text-amber-600 border-amber-500/40 bg-amber-500/10",      bannerCls: "bg-amber-500",   pattern: crosshatch },
   FORMATION:    { label: "Formation",        chipCls: "text-teal-600 border-teal-500/30 bg-teal-500/10",         bannerCls: "bg-teal-500",    pattern: stripesH   },
-  PROSPECTION:  { label: "Prospection",      chipCls: "text-sky-600 border-sky-500/30 bg-sky-500/10",            bannerCls: "bg-sky-500",     pattern: stripesV   },
-  AUTRE:        { label: "Autre",            chipCls: "text-slate-500 border-slate-500/30 bg-slate-500/10",      bannerCls: "bg-slate-400",   pattern: plain      },
+  PROSPECTION:  { label: "Prospection",      chipCls: "text-sky-600 border-sky-500/30 bg-sky-500/10",            bannerCls: "bg-sky-500",     pattern: stripesV      },
+  PROBLEME:     { label: "Problème",         chipCls: "text-red-600 border-red-500/30 bg-red-500/10",            bannerCls: "bg-red-400",     pattern: warningStripes },
+  AUTRE:        { label: "Autre",            chipCls: "text-slate-500 border-slate-500/30 bg-slate-500/10",      bannerCls: "bg-slate-400",   pattern: plain         },
 }
 
 export const ALL_CATEGORIES = Object.keys(CATEGORY_CONFIG) as ProjectCategory[]

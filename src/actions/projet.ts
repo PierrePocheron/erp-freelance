@@ -179,7 +179,7 @@ export async function updateProjectStatus(
 
 export async function updateProjectCategory(
   projectId: string,
-  category: "DEV" | "ETUDE" | "EVENEMENTIEL" | "FORMATION" | "PROSPECTION" | "AUTRE"
+  category: "DEV" | "ETUDE" | "EVENEMENTIEL" | "FORMATION" | "PROSPECTION" | "PROBLEME" | "AUTRE"
 ) {
   const userId = await requireAuth()
   await prisma.project.findFirstOrThrow({ where: { id: projectId, userId } })
@@ -741,6 +741,14 @@ type ProjectEventInput = {
   title: string
   description?: string | null
   date: Date
+  href?: string | null
+}
+
+// N'accepte qu'un lien INTERNE (chemin relatif) — pas d'URL externe injectée
+function safeHref(href?: string | null): string | null {
+  const h = href?.trim()
+  if (!h) return null
+  return h.startsWith("/") ? h : null
 }
 
 export async function createProjectEvent(projectId: string, data: ProjectEventInput) {
@@ -754,6 +762,7 @@ export async function createProjectEvent(projectId: string, data: ProjectEventIn
       title: data.title.trim(),
       description: data.description?.trim() || null,
       date: data.date,
+      href: safeHref(data.href),
     },
   })
   revalidatePath(`/projets/${projectId}`)
@@ -769,6 +778,7 @@ export async function updateProjectEvent(eventId: string, data: ProjectEventInpu
       title: data.title.trim(),
       description: data.description?.trim() || null,
       date: data.date,
+      href: safeHref(data.href),
     },
   })
   if (count === 0) throw new Error("Événement introuvable")

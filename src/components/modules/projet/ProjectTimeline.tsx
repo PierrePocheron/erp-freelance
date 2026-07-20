@@ -2,9 +2,10 @@
 
 import { useMemo, useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
+import Link from "next/link"
 import {
   Plus, Pencil, Trash2, StickyNote, Flag, CheckSquare, Square,
-  Handshake, Mail, Phone, Banknote, PackageCheck, Scale, Dot,
+  Handshake, Mail, Phone, Banknote, PackageCheck, Scale, Dot, ExternalLink,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { toast } from "sonner"
@@ -14,7 +15,7 @@ import { createProjectEvent, updateProjectEvent, deleteProjectEvent } from "@/ac
 
 type EventKind = "NOTE" | "MEETING" | "EMAIL" | "CALL" | "PAYMENT" | "DELIVERY" | "LEGAL" | "OTHER"
 
-export type PEvent = { id: string; kind: string; title: string; description: string | null; date: Date | string }
+export type PEvent = { id: string; kind: string; title: string; description: string | null; date: Date | string; href: string | null }
 export type PMilestone = { id: string; name: string; date: Date | string; type: string; status: string; outcome: string | null }
 export type PTask = { id: string; title: string; status: string; dueDate: Date | string | null; completedAt: Date | string | null; createdAt: Date | string }
 export type PJournal = { id: string; content: string; createdAt: Date | string }
@@ -65,6 +66,7 @@ export function ProjectTimeline({
   const [kind, setKind] = useState<EventKind>("NOTE")
   const [title, setTitle] = useState("")
   const [description, setDescription] = useState("")
+  const [href, setHref] = useState("")
   const [date, setDate] = useState(() => toDateInput(new Date()))
 
   const items = useMemo<Item[]>(() => [
@@ -74,21 +76,21 @@ export function ProjectTimeline({
     ...journal.map((j) => ({ type: "journal" as const, date: new Date(j.createdAt), j })),
   ].sort((a, b) => b.date.getTime() - a.date.getTime()), [events, milestones, tasks, journal])
 
-  function openAdd() {
+  function openAdd(k: EventKind = "NOTE") {
     setEditingId(null)
-    setKind("NOTE"); setTitle(""); setDescription(""); setDate(toDateInput(new Date()))
+    setKind(k); setTitle(""); setDescription(""); setHref(""); setDate(toDateInput(new Date()))
     setFormOpen(true)
   }
   function openEdit(ev: PEvent) {
     setEditingId(ev.id)
-    setKind((ev.kind as EventKind) ?? "NOTE"); setTitle(ev.title); setDescription(ev.description ?? ""); setDate(toDateInput(ev.date))
+    setKind((ev.kind as EventKind) ?? "NOTE"); setTitle(ev.title); setDescription(ev.description ?? ""); setHref(ev.href ?? ""); setDate(toDateInput(ev.date))
     setFormOpen(true)
   }
   function cancel() { setFormOpen(false); setEditingId(null) }
 
   function save() {
     if (!title.trim()) return
-    const payload = { kind, title, description, date: new Date(`${date}T12:00:00`) }
+    const payload = { kind, title, description, href, date: new Date(`${date}T12:00:00`) }
     startTransition(async () => {
       try {
         if (editingId) await updateProjectEvent(editingId, payload)
@@ -110,14 +112,27 @@ export function ProjectTimeline({
 
   return (
     <div className="rounded-xl border border-border/50 bg-card p-5 space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-2">
         <h2 className="font-semibold text-sm">Frise chronologique</h2>
-        {!formOpen && (
-          <button onClick={openAdd} className="inline-flex items-center gap-1 h-7 px-2.5 rounded-full border border-input text-xs hover:bg-muted/50 transition-colors">
-            <Plus className="h-3 w-3" /> Événement
-          </button>
-        )}
       </div>
+
+      {/* Boutons rapides : un clic pré-sélectionne le type et ouvre le formulaire */}
+      {!formOpen && (
+        <div className="flex flex-wrap gap-1.5">
+          {KIND_OPTIONS.map((k) => {
+            const Icon = KIND_CONFIG[k].icon
+            return (
+              <button
+                key={k}
+                onClick={() => openAdd(k)}
+                className="inline-flex items-center gap-1.5 h-8 px-2.5 rounded-lg border border-input text-xs hover:bg-muted/50 transition-colors"
+              >
+                <Icon className="h-3.5 w-3.5 text-muted-foreground" /> {KIND_CONFIG[k].label}
+              </button>
+            )
+          })}
+        </div>
+      )}
 
       {/* Formulaire d'ajout / édition d'événement */}
       {formOpen && (
@@ -130,6 +145,7 @@ export function ProjectTimeline({
           </div>
           <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Titre — ex. Audience de mise en état" autoFocus className="w-full h-9 rounded-lg border border-input bg-transparent px-2.5 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring" />
           <textarea value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Détail (optionnel)…" rows={2} className="w-full rounded-lg border border-input bg-transparent px-2.5 py-1.5 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring resize-y" />
+          <input value={href} onChange={(e) => setHref(e.target.value)} placeholder="Lien interne (optionnel) — ex. /facturation/factures/…" className="w-full h-8 rounded-lg border border-input bg-transparent px-2.5 text-xs placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring" />
           <div className="flex justify-end gap-2">
             <button onClick={cancel} className="h-8 px-3 rounded-lg text-xs text-muted-foreground hover:text-foreground transition-colors">Annuler</button>
             <button onClick={save} disabled={isPending || !title.trim()} className="h-8 px-3.5 rounded-lg bg-primary text-primary-foreground text-xs font-medium hover:opacity-90 disabled:opacity-50 transition-opacity">
@@ -152,7 +168,12 @@ export function ProjectTimeline({
                   <div className="group flex items-baseline justify-between gap-2 flex-wrap">
                     <p className="text-sm font-medium leading-tight inline-flex items-center gap-1.5">
                       <Icon className="h-3.5 w-3.5 text-muted-foreground" />
-                      {item.ev.title}
+                      {item.ev.href ? (
+                        <Link href={item.ev.href} className="inline-flex items-center gap-1 hover:text-primary hover:underline transition-colors">
+                          {item.ev.title}
+                          <ExternalLink className="h-3 w-3 opacity-60" />
+                        </Link>
+                      ) : item.ev.title}
                       <span className="rounded-full bg-muted px-1.5 py-px text-[9px] font-medium uppercase tracking-wide text-muted-foreground">{cfg.label}</span>
                     </p>
                     <span className="flex items-center gap-1.5">

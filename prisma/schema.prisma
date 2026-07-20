@@ -505,6 +505,7 @@ enum ProjectCategory {
   EVENEMENTIEL
   FORMATION
   PROSPECTION
+  PROBLEME
   AUTRE
 }
 
@@ -752,6 +753,7 @@ model ProjectEvent {
   title       String
   description String?
   date        DateTime         // date de l'événement (ordre chronologique)
+  href        String?          // lien interne optionnel (facture, revenu…) — item cliquable
   createdAt   DateTime         @default(now())
 
   project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)

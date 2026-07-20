@@ -284,6 +284,18 @@ function evColor(ev: CalendarEvent): string {
   return ev.categoryColor ?? typeConfig[ev.type]?.color ?? "#8b5cf6"
 }
 
+// Petit logo Google « G » — marque les événements provenant de Google Agenda
+function GoogleMark({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 48 48" className={className} role="img" aria-label="Google Agenda">
+      <path fill="#4285F4" d="M45.12 24.5c0-1.56-.14-3.06-.4-4.5H24v8.51h11.84c-.51 2.75-2.06 5.08-4.39 6.64v5.52h7.11c4.16-3.83 6.56-9.47 6.56-16.17z" />
+      <path fill="#34A853" d="M24 46c5.94 0 10.92-1.97 14.56-5.33l-7.11-5.52c-1.97 1.32-4.49 2.1-7.45 2.1-5.73 0-10.58-3.87-12.31-9.07H4.34v5.7C7.96 41.07 15.4 46 24 46z" />
+      <path fill="#FBBC05" d="M11.69 28.18C11.25 26.86 11 25.45 11 24s.25-2.86.69-4.18v-5.7H4.34C2.85 17.09 2 20.45 2 24s.85 6.91 2.34 9.88l7.35-5.7z" />
+      <path fill="#EA4335" d="M24 10.75c3.23 0 6.13 1.11 8.41 3.29l6.31-6.31C34.91 4.18 29.93 2 24 2 15.4 2 7.96 6.93 4.34 14.12l7.35 5.7c1.73-5.2 6.58-9.07 12.31-9.07z" />
+    </svg>
+  )
+}
+
 // Un événement est éditable / déplaçable s'il correspond à une vraie entité
 // modifiable (tâche, jalon, rappel, interaction, événement manuel). Les factures
 // et renouvellements ont des dates contractuelles → lecture seule (navigation).
@@ -1717,6 +1729,7 @@ function MonthView({
                       justMovedId === ev.id && "cal-bar-land",
                     )}
                   >
+                    {ev.isGoogle && <GoogleMark className="h-2.5 w-2.5 shrink-0" />}
                     <span
                       className={`h-1.5 w-1.5 rounded-full shrink-0 ${ev.categoryColor ? "" : typeConfig[ev.type]?.dot ?? ""}`}
                       style={ev.categoryColor ? { backgroundColor: ev.categoryColor } : {}}
@@ -2115,8 +2128,9 @@ function TimedEventContent({ ev, height, color, cfg }: {
   const compact = height < 40
   return (
     <div className="h-full flex flex-col min-w-0 pointer-events-none">
-      <p className="text-[11px] font-semibold leading-tight truncate" style={{ color }}>
-        {compact ? `${timeStr} ${ev.title}` : ev.title}
+      <p className="text-[11px] font-semibold leading-tight truncate flex items-center gap-1" style={{ color }}>
+        {ev.isGoogle && <GoogleMark className="h-2.5 w-2.5 shrink-0" />}
+        <span className="truncate">{compact ? `${timeStr} ${ev.title}` : ev.title}</span>
       </p>
       {!compact && (
         <>
@@ -2169,6 +2183,7 @@ function SpanBar({
         : { backgroundColor: color + "22", color, boxShadow: `inset 3px 0 0 ${color}` }}
     >
       {continuesBefore && <span className="shrink-0 opacity-60">‹</span>}
+      {ev.isGoogle && !continuesBefore && <GoogleMark className="h-2.5 w-2.5 shrink-0" />}
       <span className="truncate">{ev.title}</span>
       {continuesAfter && <span className="ml-auto shrink-0 opacity-60">›</span>}
     </div>
@@ -2207,7 +2222,10 @@ function EventList({
             <div className="flex items-start gap-1.5">
               <span className="mt-0.5 shrink-0">{dotEl}</span>
               <div className="flex-1 min-w-0">
-                <p className="font-medium text-foreground truncate">{ev.title}</p>
+                <p className="font-medium text-foreground truncate flex items-center gap-1">
+                  {ev.isGoogle && <GoogleMark className="h-2.5 w-2.5 shrink-0" />}
+                  <span className="truncate">{ev.title}</span>
+                </p>
                 {timeStr && <p className="text-muted-foreground">{timeStr}</p>}
                 {ev.subtitle && <p className="text-muted-foreground truncate">{ev.subtitle}</p>}
                 <span className={cn("inline-block text-[10px] rounded-full border px-1.5 py-px mt-1 font-medium", cfg.badge)}>{cfg.label}</span>
@@ -2225,7 +2243,10 @@ function EventList({
             ev.isLate ? "border-red-500/30 bg-red-500/5" : "border-border/50 bg-card")}>
             <span className="mt-1 shrink-0">{dotEl}</span>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium leading-snug">{ev.title}</p>
+              <p className="text-sm font-medium leading-snug flex items-center gap-1.5">
+                {ev.isGoogle && <GoogleMark className="h-3 w-3 shrink-0" />}
+                <span className="truncate">{ev.title}</span>
+              </p>
               {timeStr && <p className="text-xs text-muted-foreground mt-px">{timeStr}</p>}
               {ev.subtitle && <p className="text-xs text-muted-foreground mt-px">{ev.subtitle}</p>}
               {ev.description && <p className="text-xs text-muted-foreground/70 mt-px truncate">{ev.description}</p>}

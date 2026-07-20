@@ -96,6 +96,9 @@ model UserProfile {
   pdfBackgroundColor  String   @default("#FAF6EE") // fond de page crème
   pdfBankName         String?  // banque du bloc RÈGLEMENT (fallback si le document n'a pas de société émettrice)
 
+  // Dernière synchro Google Agenda réussie (cycle pull+push) — affichée sur l'agenda
+  lastGoogleSyncAt    DateTime?
+
   // ── Fiscalité / imposition ──────────────────────────────────────────────
   legalStatus          String               @default("AUTO_ENTREPRENEUR") // AUTO_ENTREPRENEUR | EI | EURL | SASU | OTHER
   urssafFrequency      DeclarationFrequency @default(QUARTERLY)

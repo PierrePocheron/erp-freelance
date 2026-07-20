@@ -1001,6 +1001,13 @@ function GoogleIcon({ className }: { className?: string }) {
   )
 }
 
+// « le 20 juil. à 14:30 » — date + heure absolue de la dernière synchro
+function formatLastSync(d: Date): string {
+  const date = d.toLocaleDateString("fr-FR", { day: "numeric", month: "short" })
+  const time = d.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })
+  return `le ${date} à ${time}`
+}
+
 // ── CalendarView (orchestrateur) ──────────────────────────────────────────────
 
 export function CalendarView({
@@ -1009,6 +1016,7 @@ export function CalendarView({
   projects = [],
   clients = [],
   hasGoogleCalendar = false,
+  lastGoogleSyncAt = null,
   className,
 }: {
   events: CalendarEvent[]
@@ -1016,6 +1024,7 @@ export function CalendarView({
   projects?: ProjectOption[]
   clients?: ClientOption[]
   hasGoogleCalendar?: boolean
+  lastGoogleSyncAt?: Date | string | null
   className?: string
 }) {
   const { isActive } = useModules()
@@ -1033,6 +1042,9 @@ export function CalendarView({
   const [syncStatus, setSyncStatus]     = useState<"idle" | "success" | "error" | "noPermission">("idle")
   const [syncCount, setSyncCount]       = useState(0)
   const [syncError, setSyncError]       = useState<string>("")
+  // Dernière synchro réussie : initialisée depuis le serveur, mise à jour en
+  // local à chaque sync OK pour un retour immédiat (sans attendre router.refresh).
+  const [lastSyncAt, setLastSyncAt]     = useState<Date | null>(lastGoogleSyncAt ? new Date(lastGoogleSyncAt) : null)
   // État réel de la connexion (persistant, contrairement à syncStatus qui
   // revient à "idle" après quelques secondes) — reflète si la synchro
   // fonctionnerait maintenant, sans attendre un clic sur "Sync".
@@ -1209,6 +1221,7 @@ export function CalendarView({
         setSyncCount(pull.synced + (push.synced ?? 0))
         setSyncError("")
         setConnectionStatus("connected")
+        setLastSyncAt(new Date())
         router.refresh()
         setTimeout(() => setSyncStatus("idle"), 4000)
       } catch (err) {
@@ -1365,6 +1378,12 @@ export function CalendarView({
                   {connectionStatus === "error" ? "Connexion en erreur — réautorisez"
                     : connectionStatus === "checking" ? "Vérification de la connexion…"
                     : "Google Agenda connecté"}
+                </div>
+                {/* Dernière synchro réussie — la synchro se fait à l'ouverture de l'agenda */}
+                <div className="px-1.5 pb-1 text-[11px] text-muted-foreground">
+                  {isSyncing ? "Synchronisation en cours…"
+                    : lastSyncAt ? `Dernière synchro ${formatLastSync(lastSyncAt)}`
+                    : "Aucune synchro pour l'instant"}
                 </div>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={() => setShowGoogleEvents(v => !v)}>

@@ -6,6 +6,7 @@ import { Calendar, Clock, CheckSquare, BookOpen, FileText, Receipt, Flag, Wallet
 import { createJournalEntry } from "@/actions/projet"
 import { QuickNoteForm } from "@/components/modules/projet/QuickNoteForm"
 import { JournalEntryItem } from "@/components/modules/projet/JournalEntryItem"
+import { ProjectTimeline } from "@/components/modules/projet/ProjectTimeline"
 import { MilestoneDialog, MILESTONE_TYPE_LABELS, MILESTONE_TYPE_COLORS } from "@/components/modules/projet/MilestoneDialog"
 import { MilestoneToggle } from "@/components/modules/projet/MilestoneToggle"
 import { ProjectTasksCard } from "@/components/modules/projet/ProjectTasksCard"
@@ -74,6 +75,8 @@ export default async function ProjectOverviewPage({
           status: true,
           priority: true,
           dueDate: true,
+          completedAt: true,
+          createdAt: true,
           timeEntries: { where: { userId, endedAt: { not: null } }, select: { duration: true } },
           subTasks: {
             select: {
@@ -83,6 +86,7 @@ export default async function ProjectOverviewPage({
         },
       },
       milestones: { orderBy: { date: "asc" } },
+      events: { orderBy: { date: "desc" } },
       deliverables: true,
       journalEntries: { orderBy: { createdAt: "desc" }, take: 8 },
       usefulLinks: { orderBy: { createdAt: "asc" } },
@@ -301,6 +305,17 @@ export default async function ProjectOverviewPage({
               </div>
             )}
           </div>
+        </div>
+
+        {/* Frise chronologique — événements, jalons, tâches et notes du projet */}
+        <div className="order-7 lg:col-span-3">
+          <ProjectTimeline
+            projectId={id}
+            events={project.events}
+            milestones={project.milestones}
+            tasks={project.tasks}
+            journal={project.journalEntries}
+          />
         </div>
 
         {/* Notes rapides */}

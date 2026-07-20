@@ -92,8 +92,9 @@ export default async function ProspectionPage({
         </div>
       </div>
 
-      {/* Stats — cliquables (sauf « Avec email »), elles filtrent le tableau */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+      {/* Stats — cliquables (sauf « Avec email »), elles filtrent le tableau.
+          8 cartes sur une seule ligne en desktop (lg), 4 en tablette, 2 en mobile */}
+      <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4 lg:grid-cols-8">
         <StatTile icon={<TrendingUp className="h-4 w-4 text-amber-500" />} label="Actifs" value={active.length} href="/prospection" active={!validStatus} />
         <StatTile icon={<Send className="h-4 w-4 text-blue-500" />} label="À contacter" value={toContact.length} href="/prospection?statut=TO_CONTACT" active={validStatus === "TO_CONTACT"} />
         <StatTile icon={<MessageSquare className="h-4 w-4 text-sky-500" />} label="Contactés" value={contacted.length} href="/prospection?statut=CONTACTED" active={validStatus === "CONTACTED"} />
@@ -131,19 +132,19 @@ function StatTile({
   const inner = (
     <>
       <div className="flex items-center gap-1.5 text-xs text-muted-foreground">{icon}<span className="truncate">{label}</span></div>
-      <p className={`text-2xl font-bold ${variant === "success" ? "text-emerald-600" : variant === "muted" ? "text-muted-foreground" : ""}`}>
+      <p className={`text-xl font-bold tabular-nums ${variant === "success" ? "text-emerald-600" : variant === "muted" ? "text-muted-foreground" : ""}`}>
         {value}
       </p>
     </>
   )
   // Carte statistique simple (non filtrante) quand aucun href n'est fourni
   if (!href) {
-    return <div className="rounded-xl border border-border/50 bg-card p-4 space-y-1">{inner}</div>
+    return <div className="rounded-xl border border-border/50 bg-card p-3 space-y-0.5">{inner}</div>
   }
   return (
     <Link
       href={href}
-      className={`rounded-xl border bg-card p-4 space-y-1 transition-colors ${
+      className={`rounded-xl border bg-card p-3 space-y-0.5 transition-colors ${
         active ? "border-primary" : "border-border/50 hover:border-border"
       }`}
     >

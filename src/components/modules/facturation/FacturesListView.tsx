@@ -25,6 +25,65 @@ type Invoice = {
   projectId: string | null
   client: { name: string; company: string | null; companyId: string | null }
   project: { id: string; name: string; companyId: string | null } | null
+  payments: { amount: number; paidAt: Date | string }[]
+}
+
+/** Numéro affiché avec le préfixe FA (les anciens numéros « 250701 » n'en
+ *  ont pas en base ; on l'ajoute à l'affichage sans le dupliquer). */
+function displayNumber(number: string): string {
+  return /^fa/i.test(number.trim()) ? number : `FA${number}`
+}
+
+const fmtEur = (n: number) =>
+  n.toLocaleString("fr-FR", {
+    minimumFractionDigits: Number.isInteger(n) ? 0 : 2,
+    maximumFractionDigits: 2,
+  }) + " €"
+const fmtDay = (d: Date | string) => new Date(d).toLocaleDateString("fr-FR")
+
+/** Récapitulatif des encaissements d'une facture : montant total réglé + date(s)
+ *  des versements. Gère les cas exceptionnels (impayé, paiement partiel, plusieurs
+ *  versements étalés dans le temps). Vert = soldée, ambre = partiel. */
+function PaidInfo({
+  payments,
+  net,
+  status,
+  align = "left",
+}: {
+  payments: { amount: number; paidAt: Date | string }[]
+  net: number
+  status: string
+  align?: "left" | "right"
+}) {
+  const paid = payments.reduce((s, p) => s + p.amount, 0)
+  const full = status === "PAID" || (paid > 0 && paid >= net - 0.01)
+  const alignCls = align === "right" ? "text-right items-end" : ""
+
+  if (payments.length === 0) {
+    // Aucun versement enregistré : soit soldée sans détail, soit impayée
+    return status === "PAID" ? (
+      <span className="text-emerald-600 text-xs font-medium">Payée</span>
+    ) : (
+      <span className="text-muted-foreground/40 text-xs">Non réglée</span>
+    )
+  }
+
+  return (
+    <div className={`flex flex-col gap-0.5 ${alignCls}`}>
+      <span className={`text-xs font-medium ${full ? "text-emerald-600" : "text-amber-600"}`}>
+        {fmtEur(paid)}
+        {!full && <span className="text-muted-foreground/70 font-normal"> / {fmtEur(net)}</span>}
+      </span>
+      <span className="text-[11px] text-muted-foreground leading-tight">
+        {payments.map((p, i) => (
+          <span key={i} className="block">
+            {payments.length > 1 && `${fmtEur(p.amount)} · `}
+            {fmtDay(p.paidAt)}
+          </span>
+        ))}
+      </span>
+    </div>
+  )
 }
 
 type Company = { id: string; name: string; city: string | null }
@@ -110,6 +169,13 @@ export function FacturesListView({
     () => (searchParams.get("mois")?.split(",").filter(Boolean) ?? []),
     [searchParams]
   )
+  const yearFilter = searchParams.get("annee")
+
+  // Années présentes dans les factures (pour le filtre par année)
+  const availableYears = useMemo(() => {
+    const set = new Set(invoices.map((inv) => invoiceMonthKey(inv).slice(0, 4)))
+    return [...set].sort((a, b) => b.localeCompare(a))
+  }, [invoices])
 
   const setParam = useCallback((key: string, value: string | null) => {
     const params = new URLSearchParams(window.location.search)
@@ -132,7 +198,7 @@ export function FacturesListView({
   }
 
   const hasFilters =
-    statusFilter !== "ALL" || !!projectFilter || !!clientFilter || !!societeFilter || monthsFilter.length > 0 || q.trim() !== ""
+    statusFilter !== "ALL" || !!projectFilter || !!clientFilter || !!societeFilter || !!yearFilter || monthsFilter.length > 0 || q.trim() !== ""
 
   function resetFilters() {
     setQ("")
@@ -147,6 +213,7 @@ export function FacturesListView({
       if (projectFilter && inv.projectId !== projectFilter) return false
       if (clientFilter && inv.clientId !== clientFilter) return false
       if (societeFilter && inv.client.companyId !== societeFilter && inv.project?.companyId !== societeFilter) return false
+      if (yearFilter && invoiceMonthKey(inv).slice(0, 4) !== yearFilter) return false
       if (monthsFilter.length > 0 && !monthsFilter.includes(invoiceMonthKey(inv))) return false
       if (needle) {
         const haystack = [inv.number, inv.client.name, inv.client.company ?? "", inv.project?.name ?? ""]
@@ -156,7 +223,7 @@ export function FacturesListView({
       }
       return true
     })
-  }, [invoices, statusFilter, projectFilter, clientFilter, societeFilter, monthsFilter, q])
+  }, [invoices, statusFilter, projectFilter, clientFilter, societeFilter, yearFilter, monthsFilter, q])
 
   const sorted = useMemo(() => {
     if (!sortCol) return filtered
@@ -310,6 +377,18 @@ export function FacturesListView({
             ))}
           </select>
 
+          {/* Année — toutes dates par défaut, filtrage optionnel */}
+          <select
+            className="rounded-lg border border-border px-2.5 py-1.5 text-xs bg-background text-foreground"
+            value={yearFilter ?? ""}
+            onChange={(e) => setParam("annee", e.target.value || null)}
+          >
+            <option value="">Toutes les années</option>
+            {availableYears.map((y) => (
+              <option key={y} value={y}>{y}</option>
+            ))}
+          </select>
+
           {/* Statut — select en mobile, boutons en sm+ */}
           <select
             className="sm:hidden rounded-lg border border-border px-2.5 py-1.5 text-xs bg-background text-foreground"
@@ -351,8 +430,11 @@ export function FacturesListView({
         </div>
 
         {/* Chips des filtres contextuels actifs */}
-        {(projectName || clientName || societeName || monthsFilter.length > 0) && (
+        {(projectName || clientName || societeName || yearFilter || monthsFilter.length > 0) && (
           <div className="flex items-center gap-1.5 flex-wrap text-xs">
+            {yearFilter && (
+              <FilterChip label={`Année : ${yearFilter}`} onRemove={() => setParam("annee", null)} />
+            )}
             {projectName && (
               <FilterChip label={`Projet : ${projectName}`} onRemove={() => setParam("projet", null)} />
             )}
@@ -390,8 +472,9 @@ export function FacturesListView({
                 <Th label="Type"      col="type"      sortCol={sortCol} sortDir={sortDir} onSort={toggle} className="px-4 py-3 hidden sm:table-cell" />
                 <Th label="Statut"    col="status"    sortCol={sortCol} sortDir={sortDir} onSort={toggle} className="px-4 py-3" />
                 <Th label="Montant HT" col="amount"  sortCol={sortCol} sortDir={sortDir} onSort={toggle} className="px-4 py-3" align="right" />
+                <th className="px-4 py-3 text-left font-medium text-muted-foreground whitespace-nowrap">Payé</th>
                 <Th label="Créée le"  col="createdAt" sortCol={sortCol} sortDir={sortDir} onSort={toggle} className="px-4 py-3 hidden md:table-cell" />
-                <Th label="Échéance"  col="dueDate"   sortCol={sortCol} sortDir={sortDir} onSort={toggle} className="px-4 py-3 hidden sm:table-cell" />
+                <Th label="Échéance"  col="dueDate"   sortCol={sortCol} sortDir={sortDir} onSort={toggle} className="px-4 py-3 hidden lg:table-cell" />
               </tr>
             </thead>
             <tbody>
@@ -401,7 +484,7 @@ export function FacturesListView({
                 return (
                   <tr key={inv.id} className={`border-b border-border/50 last:border-0 hover:bg-muted/30 transition-colors ${isLate ? "bg-red-500/5" : ""}`}>
                     <td className="px-4 py-3">
-                      <Link href={`/facturation/factures/${inv.id}`} className="text-primary hover:underline font-mono text-xs font-medium">{inv.number}</Link>
+                      <Link href={`/facturation/factures/${inv.id}`} className="text-primary hover:underline font-mono text-xs font-medium">{displayNumber(inv.number)}</Link>
                     </td>
                     <td className="px-4 py-3">
                       <Link href={`/contacts/${inv.clientId}`} className="text-muted-foreground hover:text-primary hover:underline transition-colors">
@@ -424,10 +507,13 @@ export function FacturesListView({
                     <td className="px-4 py-3 text-right font-medium">
                       {(inv.totalHT - inv.depositDeducted).toLocaleString("fr-FR")} €
                     </td>
+                    <td className="px-4 py-3">
+                      <PaidInfo payments={inv.payments} net={inv.totalHT - inv.depositDeducted} status={inv.status} />
+                    </td>
                     <td className="px-4 py-3 text-xs text-muted-foreground hidden md:table-cell">
                       {new Date(inv.createdAt).toLocaleDateString("fr-FR")}
                     </td>
-                    <td className={`px-4 py-3 text-xs hidden sm:table-cell ${isLate ? "text-red-500 font-medium" : "text-muted-foreground"}`}>
+                    <td className={`px-4 py-3 text-xs hidden lg:table-cell ${isLate ? "text-red-500 font-medium" : "text-muted-foreground"}`}>
                       {inv.dueDate ? new Date(inv.dueDate).toLocaleDateString("fr-FR") : "—"}
                     </td>
                   </tr>
@@ -452,10 +538,10 @@ export function FacturesListView({
                 <Link
                   href={`/facturation/factures/${inv.id}`}
                   className="absolute inset-0 rounded-xl"
-                  aria-label={`Facture ${inv.number}`}
+                  aria-label={`Facture ${displayNumber(inv.number)}`}
                 />
                 <div className="flex items-start justify-between gap-2">
-                  <span className="font-mono text-xs font-semibold text-muted-foreground">{inv.number}</span>
+                  <span className="font-mono text-xs font-semibold text-muted-foreground">{displayNumber(inv.number)}</span>
                   <div className="flex gap-1 flex-wrap justify-end">
                     <span className="rounded-full bg-muted text-muted-foreground px-2 py-0.5 text-xs font-medium">
                       {typeLabels[inv.type] ?? inv.type}
@@ -495,6 +581,10 @@ export function FacturesListView({
                       échéance {new Date(inv.dueDate).toLocaleDateString("fr-FR")}
                     </p>
                   )}
+                  <div className="flex items-center justify-between pt-1">
+                    <span className="text-[11px] uppercase tracking-wide text-muted-foreground/70">Payé</span>
+                    <PaidInfo payments={inv.payments} net={amount} status={inv.status} align="right" />
+                  </div>
                 </div>
               </div>
             )

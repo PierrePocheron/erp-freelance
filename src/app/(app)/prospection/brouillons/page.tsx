@@ -27,7 +27,7 @@ export default async function EmailDraftsPage() {
     },
     orderBy: { createdAt: "desc" },
     include: {
-      client: { select: { name: true, company: true, email: true } },
+      client: { select: { name: true, company: true, email: true, websiteType: true } },
       template: { select: { name: true } },
     },
   })

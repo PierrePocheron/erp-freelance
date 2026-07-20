@@ -327,10 +327,11 @@ function EmitterEditorDialog({ emitter, onClose }: { emitter: Emitter | null; on
             <div className="space-y-1.5">
               <Label>Couleur d&apos;accentuation</Label>
               <div className="flex items-center gap-2 flex-wrap">
-                {ACCENT_PRESETS.map((c) => (
+                {/* Une couleur personnalisée hors presets s'affiche comme pastille supplémentaire */}
+                {(ACCENT_PRESETS.some((c) => c.toLowerCase() === accentColor.toLowerCase()) ? ACCENT_PRESETS : [...ACCENT_PRESETS, accentColor]).map((c) => (
                   <button key={c} type="button" title={c} onClick={() => setAccentColor(c)}
                     className="h-7 w-7 rounded-full border-2 transition-all"
-                    style={{ backgroundColor: c, borderColor: accentColor === c ? c : "transparent", boxShadow: accentColor === c ? `0 0 0 2px white, 0 0 0 4px ${c}` : "none" }} />
+                    style={{ backgroundColor: c, borderColor: accentColor.toLowerCase() === c.toLowerCase() ? c : "transparent", boxShadow: accentColor.toLowerCase() === c.toLowerCase() ? `0 0 0 2px white, 0 0 0 4px ${c}` : "none" }} />
                 ))}
                 <label title="Couleur personnalisée" className="h-7 w-7 rounded-full border-2 border-dashed border-border flex items-center justify-center text-muted-foreground hover:border-primary hover:text-primary transition-colors cursor-pointer shrink-0">
                   <Plus className="h-3.5 w-3.5 pointer-events-none" />

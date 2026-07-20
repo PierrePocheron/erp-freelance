@@ -1105,12 +1105,37 @@ export async function syncGooglePush(): Promise<SyncResult> {
       synced++
     }
 
+    // Push = dernière étape d'un cycle de synchro (le client fait pull puis
+    // push) : on horodate ici la dernière synchro réussie, affichée sur l'agenda.
+    await prisma.userProfile.updateMany({ where: { userId }, data: { lastGoogleSyncAt: new Date() } })
+
     revalidatePath("/calendrier")
     return { synced }
   } catch (err) {
     const message = err instanceof Error ? err.message : "Erreur inconnue"
     return { synced: 0, error: message }
   }
+}
+
+/** Enregistre le seuil de fraîcheur de la synchro auto (minutes ; 0 = toujours). */
+export async function setCalendarSyncThreshold(minutes: number): Promise<void> {
+  const session = await auth()
+  const userId = session!.user.id
+  const clamped = Math.min(Math.max(Math.round(minutes), 0), 1440) // 0 min → 24 h
+  await prisma.userProfile.updateMany({ where: { userId }, data: { calendarSyncThresholdMin: clamped } })
+  revalidatePath("/settings")
+  revalidatePath("/calendrier")
+}
+
+/** Date de la dernière synchro Google Agenda réussie (null si jamais). */
+export async function getLastGoogleSyncAt(): Promise<Date | null> {
+  const session = await auth()
+  if (!session) return null
+  const profile = await prisma.userProfile.findUnique({
+    where: { userId: session.user.id },
+    select: { lastGoogleSyncAt: true },
+  })
+  return profile?.lastGoogleSyncAt ?? null
 }
 
 /**

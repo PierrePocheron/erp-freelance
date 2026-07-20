@@ -1246,12 +1246,12 @@ export async function getMonthlyRevenue(year: number): Promise<number[]> {
 
   const invoices = await prisma.invoice.findMany({
     where: { userId, status: "PAID", paidAt: { gte: start, lte: end } },
-    select: { paidAt: true, createdAt: true, totalHT: true, depositDeducted: true },
+    select: { paidAt: true, totalHT: true, depositDeducted: true },
   })
 
   return Array.from({ length: 12 }, (_, m) =>
     invoices
-      .filter((i) => new Date(i.paidAt ?? i.createdAt).getMonth() === m)
+      .filter((i) => i.paidAt && new Date(i.paidAt).getMonth() === m)
       .reduce((s, i) => s + netAmount(i.totalHT, i.depositDeducted), 0)
   )
 }

@@ -60,7 +60,7 @@ export default async function TachesPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">Tâches</h1>
+        <h1 className="sm:hidden text-2xl font-bold tracking-tight">Tâches</h1>
         <p className="text-sm text-muted-foreground mt-1">
           Vue globale de toutes vos tâches — projets, clients et personnelles
         </p>

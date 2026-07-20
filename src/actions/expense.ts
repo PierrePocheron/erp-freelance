@@ -67,6 +67,7 @@ export async function deleteExpenseCategory(categoryId: string) {
 
 export type ExpenseInput = {
   label: string
+  merchant?: string | null
   amount: number
   date: Date
   scope: "PRO" | "PERSO"
@@ -80,6 +81,7 @@ export async function createExpense(data: ExpenseInput) {
     data: {
       userId,
       label: data.label.trim(),
+      merchant: data.merchant?.trim() || null,
       amount: data.amount,
       date: data.date,
       scope: data.scope,
@@ -101,6 +103,7 @@ export async function updateExpense(expenseId: string, data: ExpenseInput) {
     where: { id: expenseId },
     data: {
       label: data.label.trim(),
+      merchant: data.merchant?.trim() || null,
       amount: data.amount,
       date: data.date,
       scope: data.scope,
@@ -116,6 +119,53 @@ export async function deleteExpense(expenseId: string) {
   const userId = await requireAuth()
   await prisma.expense.delete({ where: { id: expenseId, userId } })
   revalidatePath("/depenses")
+  revalidatePath("/calendrier")
+}
+
+/**
+ * Convertit une dépense ponctuelle en récurrente (sens inverse de
+ * convertRecurringToExpense) : la dépense existante devient la première
+ * occurrence matérialisée, et la prochaine échéance part de sa date.
+ */
+export async function convertExpenseToRecurring(
+  expenseId: string,
+  frequency: "WEEKLY" | "MONTHLY" | "QUARTERLY" | "YEARLY",
+  data: ExpenseInput,
+) {
+  const userId = await requireAuth()
+  const existing = await prisma.expense.findFirst({ where: { id: expenseId, userId }, select: { id: true, currency: true } })
+  if (!existing) throw new Error("Dépense introuvable")
+
+  await prisma.$transaction(async (tx) => {
+    const recurring = await tx.recurringExpense.create({
+      data: {
+        userId,
+        label: data.label.trim(),
+        amount: data.amount,
+        currency: existing.currency,
+        scope: data.scope,
+        frequency,
+        nextGenerationDate: advanceByFrequency(data.date, frequency),
+        categoryId: data.categoryId ?? null,
+        notes: data.notes?.trim() || null,
+      },
+    })
+    await tx.expense.update({
+      where: { id: expenseId },
+      data: {
+        label: data.label.trim(),
+        merchant: data.merchant?.trim() || null,
+        amount: data.amount,
+        date: data.date,
+        scope: data.scope,
+        categoryId: data.categoryId ?? null,
+        notes: data.notes?.trim() || null,
+        recurringExpenseId: recurring.id,
+      },
+    })
+  })
+  revalidatePath("/depenses")
+  revalidatePath("/depenses/recurrentes")
   revalidatePath("/calendrier")
 }
 
@@ -228,10 +278,32 @@ export async function confirmRecurringExpenseDate(recurringExpenseId: string, da
 
 export async function toggleRecurringExpenseActive(recurringExpenseId: string, isActive: boolean) {
   const userId = await requireAuth()
-  const existing = await prisma.recurringExpense.findFirst({ where: { id: recurringExpenseId, userId }, select: { id: true } })
+  const existing = await prisma.recurringExpense.findFirst({
+    where: { id: recurringExpenseId, userId },
+    select: { id: true, frequency: true, nextGenerationDate: true },
+  })
   if (!existing) throw new Error("Dépense récurrente introuvable")
 
-  await prisma.recurringExpense.update({ where: { id: recurringExpenseId }, data: { isActive } })
+  // À la RÉACTIVATION, avancer l'échéance jusque dans le futur : les mois
+  // passés en pause n'ont pas été prélevés — sans ça, la génération
+  // automatique rattraperait toutes les occurrences sautées.
+  let nextGenerationDate = existing.nextGenerationDate
+  if (isActive) {
+    const now = new Date()
+    let iterations = 0
+    while (nextGenerationDate.getTime() <= now.getTime()) {
+      const next = advanceByFrequency(nextGenerationDate, existing.frequency)
+      if (next.getTime() === nextGenerationDate.getTime()) break // fréquence inconnue
+      nextGenerationDate = next
+      if (++iterations > MAX_GENERATION_ITERATIONS) break
+    }
+  }
+
+  await prisma.recurringExpense.update({
+    where: { id: recurringExpenseId },
+    data: { isActive, nextGenerationDate },
+  })
+  revalidatePath("/depenses")
   revalidatePath("/depenses/recurrentes")
   revalidatePath("/calendrier")
 }
@@ -314,10 +386,8 @@ export async function generatePendingRecurringExpenses(): Promise<{ generated: n
     }
   }
 
-  if (generated > 0) {
-    revalidatePath("/depenses")
-    revalidatePath("/depenses/recurrentes")
-    revalidatePath("/calendrier")
-  }
+  // Pas de revalidatePath ici : cette fonction est appelée PENDANT le rendu de
+  // la page Dépenses (génération automatique), où Next l'interdit — et les
+  // requêtes de la page s'exécutent de toute façon après la génération.
   return { generated }
 }

@@ -6,6 +6,7 @@ import { Calendar, Clock, CheckSquare, BookOpen, FileText, Receipt, Flag, Wallet
 import { createJournalEntry } from "@/actions/projet"
 import { QuickNoteForm } from "@/components/modules/projet/QuickNoteForm"
 import { JournalEntryItem } from "@/components/modules/projet/JournalEntryItem"
+import { ProjectTimeline } from "@/components/modules/projet/ProjectTimeline"
 import { MilestoneDialog, MILESTONE_TYPE_LABELS, MILESTONE_TYPE_COLORS } from "@/components/modules/projet/MilestoneDialog"
 import { MilestoneToggle } from "@/components/modules/projet/MilestoneToggle"
 import { ProjectTasksCard } from "@/components/modules/projet/ProjectTasksCard"
@@ -74,6 +75,8 @@ export default async function ProjectOverviewPage({
           status: true,
           priority: true,
           dueDate: true,
+          completedAt: true,
+          createdAt: true,
           timeEntries: { where: { userId, endedAt: { not: null } }, select: { duration: true } },
           subTasks: {
             select: {
@@ -83,6 +86,7 @@ export default async function ProjectOverviewPage({
         },
       },
       milestones: { orderBy: { date: "asc" } },
+      events: { orderBy: { date: "desc" } },
       deliverables: true,
       journalEntries: { orderBy: { createdAt: "desc" }, take: 8 },
       usefulLinks: { orderBy: { createdAt: "asc" } },
@@ -91,8 +95,12 @@ export default async function ProjectOverviewPage({
         orderBy: { createdAt: "desc" },
       },
       invoices: {
-        select: { id: true, number: true, status: true, type: true, totalHT: true, depositDeducted: true, dueDate: true },
-        orderBy: { createdAt: "desc" },
+        select: {
+          id: true, number: true, status: true, type: true, totalHT: true, depositDeducted: true,
+          dueDate: true, paidAt: true, issuedAt: true,
+          payments: { select: { amount: true } },
+        },
+        orderBy: { issuedAt: "desc" },
       },
       revenues: {
         select: { id: true, type: true, label: true, amount: true, currency: true, status: true, receivedAt: true, expectedAt: true },
@@ -161,17 +169,32 @@ export default async function ProjectOverviewPage({
   const grandTotal = invoicedTotal + totalRevenue
   const grandReceived = invoicedReceived + receivedRevenue
   const pendingRevenue = totalRevenue - receivedRevenue // non déclaré + pas encore reçu → couleur distincte
-  const fmtEur = (n: number) => n.toLocaleString("fr-FR")
+  const fmtEur = (n: number) =>
+    n.toLocaleString("fr-FR", { minimumFractionDigits: Number.isInteger(n) ? 0 : 2, maximumFractionDigits: 2 })
+  // Numéro affiché avec le préfixe FA (cohérent avec la liste des factures)
+  const faNumber = (n: string) => (/^fa/i.test(n.trim()) ? n : `FA${n}`)
 
   return (
     <div className="space-y-6">
 
-      {/* Grille uniforme : cartes 1/3 de largeur, 3 par rangée sur desktop */}
-      {/* Ordre visuel via order-* : Tâches → Jalons → Facturation/Revenus → Liens → Suivi → Notes */}
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3 items-start">
+      {/* Bento auto-équilibré (multicol) : les cartes se rangent au plus près
+          sans laisser de trous verticaux entre elles. break-inside-avoid : une
+          carte ne se coupe jamais d'une colonne à l'autre. L'ordre de lecture
+          suit l'ordre du code (les colonnes se remplissent de façon équilibrée). */}
+      <div className="gap-6 lg:columns-2 2xl:columns-3 *:mb-6 *:break-inside-avoid">
+
+        {/* Tâches — liste cochable */}
+        <div>
+          <ProjectTasksCard
+            projectId={id}
+            tasks={sortedTasks.map((t) => ({
+              id: t.id, title: t.title, status: t.status, priority: t.priority, dueDate: t.dueDate,
+            }))}
+          />
+        </div>
 
         {/* Jalons */}
-        <div className="order-2 rounded-xl border border-border/50 bg-card p-5 space-y-3">
+        <div className="rounded-xl border border-border/50 bg-card p-5 space-y-3">
           <div className="flex items-center gap-2 font-semibold text-sm">
             <Flag className="h-4 w-4 text-muted-foreground" />
             Jalons
@@ -217,23 +240,13 @@ export default async function ProjectOverviewPage({
           <MilestoneDialog projectId={id} />
         </div>
 
-        {/* Tâches — liste cochable */}
-        <div className="order-1">
-          <ProjectTasksCard
-            projectId={id}
-            tasks={sortedTasks.map((t) => ({
-              id: t.id, title: t.title, status: t.status, priority: t.priority, dueDate: t.dueDate,
-            }))}
-          />
-        </div>
-
         {/* Liens — liste avec health check + ajout inline */}
-        <div className="order-4">
+        <div>
           <ProjectLinksCard projectId={id} links={project.usefulLinks} />
         </div>
 
         {/* Suivi — temps, budget, livrables, période */}
-        <div className={`order-5 rounded-xl border p-5 space-y-3 ${isOver ? "border-red-500/30 bg-red-500/5" : budgetPct && budgetPct > 80 ? "border-amber-500/30 bg-amber-500/5" : "border-border/50 bg-card"}`}>
+        <div className={`rounded-xl border p-5 space-y-3 ${isOver ? "border-red-500/30 bg-red-500/5" : budgetPct && budgetPct > 80 ? "border-amber-500/30 bg-amber-500/5" : "border-border/50 bg-card"}`}>
           <div className="flex items-center gap-2 font-semibold text-sm">
             <Clock className="h-4 w-4 text-muted-foreground" />
             Suivi
@@ -304,7 +317,7 @@ export default async function ProjectOverviewPage({
         </div>
 
         {/* Notes rapides */}
-        <div className="order-6 rounded-xl border border-border/50 bg-card p-5 space-y-3">
+        <div className="rounded-xl border border-border/50 bg-card p-5 space-y-3">
           <div className="flex items-center gap-2 font-semibold text-sm">
             <BookOpen className="h-4 w-4 text-muted-foreground" />
             Notes rapides
@@ -327,10 +340,10 @@ export default async function ProjectOverviewPage({
         </div>
 
         {/* Facturation / Revenus */}
-        <div className="order-3">
+        <div>
         {hasBilling ? (
             <div className="rounded-xl border border-border/50 bg-card p-5 space-y-4">
-              <Link href="/facturation" className="flex items-center gap-2 font-semibold text-sm hover:text-primary transition-colors">
+              <Link href={`/facturation/factures?projet=${project.id}`} className="flex items-center gap-2 font-semibold text-sm hover:text-primary transition-colors">
                 <Receipt className="h-4 w-4 text-muted-foreground" />
                 Facturation{hasRevenue ? " & revenus" : ""} →
               </Link>
@@ -383,6 +396,11 @@ export default async function ProjectOverviewPage({
                   </p>
                   {project.invoices.map((inv) => {
                     const amount = inv.totalHT - inv.depositDeducted
+                    // Montant réglé : somme des versements, sinon le net si soldée
+                    const paid = inv.payments.length
+                      ? inv.payments.reduce((s, p) => s + p.amount, 0)
+                      : inv.status === "PAID" ? amount : 0
+                    const full = inv.status === "PAID" || (paid > 0 && paid >= amount - 0.01)
                     const isLate = inv.dueDate && inv.status === "SENT" && new Date(inv.dueDate) < new Date()
                     return (
                       <Link
@@ -390,13 +408,13 @@ export default async function ProjectOverviewPage({
                         href={`/facturation/factures/${inv.id}`}
                         className="flex items-center gap-2 text-sm hover:text-primary transition-colors py-0.5"
                       >
-                        <span className="font-mono text-xs text-muted-foreground">{inv.number}</span>
+                        <span className="font-mono text-xs text-muted-foreground">{faNumber(inv.number)}</span>
                         <span className="text-xs text-muted-foreground">{invoiceTypeLabel[inv.type] ?? inv.type}</span>
                         <span className={`rounded-full px-1.5 py-0.5 text-xs font-medium ${invoiceStatusCls[inv.status] ?? ""}`}>
                           {invoiceStatusLabel[inv.status] ?? inv.status}
                         </span>
-                        <span className={`ml-auto text-xs font-medium tabular-nums ${isLate ? "text-red-500" : ""}`}>
-                          {amount.toLocaleString("fr-FR")} €
+                        <span className={`ml-auto text-xs font-medium tabular-nums whitespace-nowrap ${full ? "text-emerald-600" : paid > 0 ? "text-amber-600" : isLate ? "text-red-500" : "text-muted-foreground"}`}>
+                          {fmtEur(paid)} / {fmtEur(amount)} €
                         </span>
                       </Link>
                     )
@@ -462,6 +480,15 @@ export default async function ProjectOverviewPage({
           )}
         </div>
       </div>
+
+      {/* Frise chronologique — pleine largeur, sous le bento */}
+      <ProjectTimeline
+        projectId={id}
+        events={project.events}
+        milestones={project.milestones}
+        tasks={project.tasks}
+        journal={project.journalEntries}
+      />
     </div>
   )
 }

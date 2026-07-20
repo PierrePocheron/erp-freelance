@@ -304,7 +304,7 @@ export function HealthView({
         {/* Header */}
         <div className="flex items-start justify-between gap-4 flex-wrap">
           <div>
-            <h1 className="text-2xl font-bold tracking-tight">Santé</h1>
+            <h1 className="sm:hidden text-2xl font-bold tracking-tight">Santé</h1>
             <p className="text-sm text-muted-foreground">Suivi médical personnel</p>
           </div>
           <div className="flex items-center gap-2 flex-wrap">

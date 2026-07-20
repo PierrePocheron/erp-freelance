@@ -6,7 +6,22 @@ import { markLateInvoices } from "@/actions/facturation"
 import { MonthlyRevenueChart } from "@/components/modules/facturation/MonthlyRevenueChart"
 import { FacturationQuickActions } from "@/components/modules/facturation/FacturationQuickActions"
 
-export default async function FacturationOverviewPage() {
+// Helpers d'affichage cohérents avec la liste des factures
+const faNumber = (n: string) => (/^fa/i.test(n.trim()) ? n : `FA${n}`)
+const fmtEur = (n: number) =>
+  n.toLocaleString("fr-FR", { minimumFractionDigits: Number.isInteger(n) ? 0 : 2, maximumFractionDigits: 2 })
+const fmtDay = (d: Date | string) => new Date(d).toLocaleDateString("fr-FR")
+// Montant réglé d'une facture : somme des versements, sinon le net si soldée
+const invoicePaid = (inv: { status: string; totalHT: number; depositDeducted: number; payments: { amount: number }[] }) => {
+  const net = inv.totalHT - inv.depositDeducted
+  return inv.payments.length ? inv.payments.reduce((s, p) => s + p.amount, 0) : inv.status === "PAID" ? net : 0
+}
+
+export default async function FacturationOverviewPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ annee?: string }>
+}) {
   const session = await auth()
   const userId = session!.user.id
 
@@ -14,18 +29,43 @@ export default async function FacturationOverviewPage() {
   await markLateInvoices(userId)
 
   const now = new Date()
-  const yearStart = new Date(now.getFullYear(), 0, 1)
-  const yearEnd = new Date(now.getFullYear(), 11, 31, 23, 59, 59)
+  const currentYear = now.getFullYear()
 
-  const [invoicesThisYear, allPending, quotes, profile, quickClients, quickCompanies, quickProjects] = await Promise.all([
+  // Filtre d'année piloté par l'URL (?annee=YYYY). Absent = toutes années.
+  const sp = await searchParams
+  const parsedYear = sp.annee ? parseInt(sp.annee, 10) : NaN
+  const selectedYear = Number.isFinite(parsedYear) ? parsedYear : null
+  const yearStart = selectedYear ? new Date(selectedYear, 0, 1) : undefined
+  const yearEnd = selectedYear ? new Date(selectedYear, 11, 31, 23, 59, 59) : undefined
+
+  const [scopedInvoices, allPaidInvoices, allPending, quotes, emitters, quickClients, quickCompanies, quickProjects] = await Promise.all([
+    // Factures affichées : par date d'ÉMISSION (issuedAt), pas createdAt (qui
+    // vaut la date d'insertion en base). Toutes années par défaut, sinon
+    // bornées à l'année sélectionnée.
     prisma.invoice.findMany({
-      where: { userId, createdAt: { gte: yearStart, lte: yearEnd } },
-      include: { client: { select: { name: true, company: true } } },
-      orderBy: { createdAt: "desc" },
+      where: {
+        userId,
+        issuedAt: selectedYear ? { gte: yearStart, lte: yearEnd } : { not: null },
+      },
+      include: {
+        client: { select: { name: true, company: true } },
+        payments: { select: { amount: true } },
+      },
+      orderBy: { issuedAt: "desc" },
+      take: 8,
+    }),
+    // Toutes les factures encaissées (par date de PAIEMENT) : sert au KPI
+    // « Encaissé » (filtré par année en JS) et au graphe mensuel.
+    prisma.invoice.findMany({
+      where: { userId, status: "PAID", paidAt: { not: null } },
+      select: { paidAt: true, totalHT: true, depositDeducted: true },
     }),
     prisma.invoice.findMany({
       where: { userId, status: { in: ["SENT", "LATE"] } },
-      include: { client: { select: { name: true, company: true } } },
+      include: {
+        client: { select: { name: true, company: true } },
+        payments: { select: { amount: true } },
+      },
       orderBy: { dueDate: "asc" },
     }),
     prisma.quote.findMany({
@@ -34,7 +74,10 @@ export default async function FacturationOverviewPage() {
       take: 5,
       include: { client: { select: { name: true, company: true } } },
     }),
-    prisma.userProfile.findUnique({ where: { userId } }),
+    // Complétude « facturable » : elle vit sur les émetteurs (raison sociale,
+    // SIRET, adresse), pas sur le UserProfile — c'est l'émetteur qui alimente
+    // les factures et devis.
+    prisma.emitterProfile.findMany({ where: { userId }, select: { companyName: true, siret: true, address: true } }),
     prisma.client.findMany({
       where: { userId, type: { not: "SELF" } },
       orderBy: { name: "asc" },
@@ -52,9 +95,11 @@ export default async function FacturationOverviewPage() {
     }),
   ])
 
-  const paidThisYear = invoicesThisYear
-    .filter((i) => i.status === "PAID")
-    .reduce((s, i) => s + i.totalHT - i.depositDeducted, 0)
+  // Encaissé sur le périmètre choisi (toutes années, ou l'année sélectionnée)
+  const paidInScope = allPaidInvoices.filter(
+    (i) => !selectedYear || (i.paidAt != null && new Date(i.paidAt).getFullYear() === selectedYear)
+  )
+  const paidThisYear = paidInScope.reduce((s, i) => s + i.totalHT - i.depositDeducted, 0)
 
   const totalPending = allPending
     .filter((i) => i.status === "SENT")
@@ -65,29 +110,34 @@ export default async function FacturationOverviewPage() {
     .reduce((s, i) => s + i.totalHT - i.depositDeducted, 0)
 
   const quotesWaiting = quotes.filter((q) => q.status === "SENT").length
-  const profileIncomplete = !profile?.companyName || !profile?.siret || !profile?.address
+  // Incomplet seulement si aucun émetteur n'a raison sociale + SIRET + adresse
+  const profileIncomplete = !emitters.some((e) => e.companyName && e.siret && e.address)
 
-  // Revenus mensuels (factures payées cette année)
-  const monthlyRevenue = Array.from({ length: 12 }, (_, m) => {
-    const total = invoicesThisYear
-      .filter((i) => {
-        if (i.status !== "PAID") return false
-        const d = new Date(i.paidAt ?? i.createdAt)
-        return d.getMonth() === m
-      })
+  // Revenus mensuels du graphe : toujours l'année civile courante (le graphe a
+  // sa propre navigation d'année, indépendante du filtre de la page).
+  const monthlyRevenue = Array.from({ length: 12 }, (_, m) =>
+    allPaidInvoices
+      .filter((i) => i.paidAt && new Date(i.paidAt).getFullYear() === currentYear && new Date(i.paidAt).getMonth() === m)
       .reduce((s, i) => s + i.totalHT - i.depositDeducted, 0)
-    return total
-  })
+  )
 
   const currentMonth = now.getMonth()
-  const recentInvoices = invoicesThisYear.slice(0, 8)
+  const recentInvoices = scopedInvoices
 
   return (
     <div className="space-y-8">
       <div className="flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">Facturation</h1>
-          <p className="text-sm text-muted-foreground">{"Vue d'ensemble"} {now.getFullYear()}</p>
+        <div className="space-y-2">
+          <h1 className="sm:hidden text-2xl font-bold tracking-tight">Facturation</h1>
+          <p className="text-sm text-muted-foreground">
+            {"Vue d'ensemble"} {selectedYear ? `— ${selectedYear}` : "— toutes années"}
+          </p>
+          {/* Sélecteur de période : toutes années par défaut, ou une année */}
+          <div className="inline-flex rounded-lg border border-border overflow-hidden text-xs">
+            <YearTab label="Tout" href="/facturation" active={!selectedYear} />
+            <YearTab label={String(currentYear)} href={`/facturation?annee=${currentYear}`} active={selectedYear === currentYear} />
+            <YearTab label={String(currentYear - 1)} href={`/facturation?annee=${currentYear - 1}`} active={selectedYear === currentYear - 1} />
+          </div>
         </div>
         <FacturationQuickActions
           userId={userId}
@@ -102,10 +152,10 @@ export default async function FacturationOverviewPage() {
         <div className="flex items-center gap-3 rounded-xl border border-amber-500/20 bg-amber-500/8 px-4 py-3 text-sm">
           <Settings className="h-4 w-4 text-amber-500 shrink-0" />
           <span className="text-amber-700 dark:text-amber-400 flex-1">
-            Votre profil est incomplet — certaines informations manqueront sur vos factures et devis.
+            Aucun émetteur complet (raison sociale, SIRET, adresse) — ces informations manqueront sur vos factures et devis.
           </span>
           <Link href="/settings" className="text-amber-700 dark:text-amber-400 font-medium hover:underline shrink-0">
-            Compléter →
+            Configurer un émetteur →
           </Link>
         </div>
       )}
@@ -115,8 +165,8 @@ export default async function FacturationOverviewPage() {
         <KPI
           icon={<CheckCircle2 className="h-4 w-4 text-emerald-500" />}
           label="Encaissé"
-          value={`${paidThisYear.toLocaleString("fr-FR")} €`}
-          sub={`en ${now.getFullYear()}`}
+          value={`${fmtEur(paidThisYear)} €`}
+          sub={selectedYear ? `en ${selectedYear}` : "toutes années"}
         />
         <KPI
           icon={<Clock className="h-4 w-4 text-blue-500" />}
@@ -161,7 +211,7 @@ export default async function FacturationOverviewPage() {
                 href={`/facturation/factures/${inv.id}`}
                 className="flex items-center gap-3 px-4 py-2.5 border-b border-red-500/10 last:border-0 hover:bg-red-500/10 transition-colors text-sm"
               >
-                <span className="font-mono text-xs text-muted-foreground w-24 shrink-0">{inv.number}</span>
+                <span className="font-mono text-xs text-muted-foreground w-24 shrink-0">{faNumber(inv.number)}</span>
                 <span className="flex-1 text-muted-foreground">{inv.client.company ?? inv.client.name}</span>
                 {inv.dueDate && (
                   <span className="text-xs text-red-500 shrink-0">
@@ -169,8 +219,8 @@ export default async function FacturationOverviewPage() {
                     +{Math.ceil((Date.now() - new Date(inv.dueDate).getTime()) / 86400000)}j
                   </span>
                 )}
-                <span className="font-bold text-red-500 tabular-nums">
-                  {(inv.totalHT - inv.depositDeducted).toLocaleString("fr-FR")} €
+                <span className="font-bold text-red-500 tabular-nums whitespace-nowrap">
+                  {fmtEur(invoicePaid(inv))} / {fmtEur(inv.totalHT - inv.depositDeducted)} €
                 </span>
               </Link>
             ))}
@@ -181,11 +231,13 @@ export default async function FacturationOverviewPage() {
       {/* Dernières factures */}
       <div className="space-y-3">
         <div className="flex items-center justify-between">
-          <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">Factures {now.getFullYear()}</h2>
-          <Link href="/facturation/factures" className="text-xs text-primary hover:underline">Voir tout →</Link>
+          <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">
+            {selectedYear ? `Factures ${selectedYear}` : "Dernières factures"}
+          </h2>
+          <Link href={selectedYear ? `/facturation/factures?annee=${selectedYear}` : "/facturation/factures"} className="text-xs text-primary hover:underline">Voir tout →</Link>
         </div>
         {recentInvoices.length === 0 ? (
-          <p className="text-sm text-muted-foreground">Aucune facture cette année</p>
+          <p className="text-sm text-muted-foreground">{selectedYear ? `Aucune facture émise en ${selectedYear}` : "Aucune facture"}</p>
         ) : (
           <div className="rounded-xl border border-border/50 bg-card overflow-x-auto">
             <table className="w-full text-sm">
@@ -195,15 +247,16 @@ export default async function FacturationOverviewPage() {
                   <th className="px-4 py-2.5 text-left font-medium">Client</th>
                   <th className="px-4 py-2.5 text-left font-medium">Statut</th>
                   <th className="px-4 py-2.5 text-right font-medium">Montant HT</th>
-                  <th className="px-4 py-2.5 text-left font-medium hidden sm:table-cell">Créée le</th>
-                  <th className="px-4 py-2.5 text-left font-medium hidden sm:table-cell">Échéance</th>
+                  <th className="px-4 py-2.5 text-left font-medium">Payé</th>
+                  <th className="px-4 py-2.5 text-left font-medium hidden sm:table-cell">Émise le</th>
+                  <th className="px-4 py-2.5 text-left font-medium hidden md:table-cell">Échéance</th>
                 </tr>
               </thead>
               <tbody>
                 {recentInvoices.map((inv) => (
                   <tr key={inv.id} className="border-b border-border/50 last:border-0 hover:bg-muted/30 transition-colors">
                     <td className="px-4 py-2.5">
-                      <Link href={`/facturation/factures/${inv.id}`} className="text-primary hover:underline font-mono text-xs">{inv.number}</Link>
+                      <Link href={`/facturation/factures/${inv.id}`} className="text-primary hover:underline font-mono text-xs">{faNumber(inv.number)}</Link>
                     </td>
                     <td className="px-4 py-2.5 text-muted-foreground">
                       {inv.client.company ?? inv.client.name}
@@ -212,13 +265,25 @@ export default async function FacturationOverviewPage() {
                       <InvoiceStatusBadge status={inv.status} />
                     </td>
                     <td className="px-4 py-2.5 text-right font-medium">
-                      {(inv.totalHT - inv.depositDeducted).toLocaleString("fr-FR")} €
+                      {fmtEur(inv.totalHT - inv.depositDeducted)} €
+                    </td>
+                    <td className="px-4 py-2.5 text-xs whitespace-nowrap">
+                      {(() => {
+                        const net = inv.totalHT - inv.depositDeducted
+                        const paid = invoicePaid(inv)
+                        const full = inv.status === "PAID" || (paid > 0 && paid >= net - 0.01)
+                        return (
+                          <span className={`font-medium ${paid <= 0 ? "text-muted-foreground/50" : full ? "text-emerald-600" : "text-amber-600"}`}>
+                            {fmtEur(paid)} <span className="font-normal text-muted-foreground/70">/ {fmtEur(net)} €</span>
+                          </span>
+                        )
+                      })()}
                     </td>
                     <td className="px-4 py-2.5 text-xs text-muted-foreground hidden sm:table-cell">
-                      {new Date(inv.createdAt).toLocaleDateString("fr-FR")}
+                      {inv.issuedAt ? fmtDay(inv.issuedAt) : "—"}
                     </td>
-                    <td className="px-4 py-2.5 text-xs text-muted-foreground hidden sm:table-cell">
-                      {inv.dueDate ? new Date(inv.dueDate).toLocaleDateString("fr-FR") : "—"}
+                    <td className="px-4 py-2.5 text-xs text-muted-foreground hidden md:table-cell">
+                      {inv.dueDate ? fmtDay(inv.dueDate) : "—"}
                     </td>
                   </tr>
                 ))}
@@ -245,7 +310,8 @@ export default async function FacturationOverviewPage() {
                   <th className="px-4 py-2.5 text-left font-medium">Client</th>
                   <th className="px-4 py-2.5 text-left font-medium">Statut</th>
                   <th className="px-4 py-2.5 text-right font-medium">Total HT</th>
-                  <th className="px-4 py-2.5 text-left font-medium hidden sm:table-cell">Créé le</th>
+                  <th className="px-4 py-2.5 text-left font-medium hidden sm:table-cell">Envoyé le</th>
+                  <th className="px-4 py-2.5 text-left font-medium hidden md:table-cell">Échéance</th>
                 </tr>
               </thead>
               <tbody>
@@ -260,9 +326,12 @@ export default async function FacturationOverviewPage() {
                     <td className="px-4 py-2.5">
                       <QuoteStatusBadge status={q.status} />
                     </td>
-                    <td className="px-4 py-2.5 text-right font-medium">{q.totalHT.toLocaleString("fr-FR")} €</td>
+                    <td className="px-4 py-2.5 text-right font-medium">{fmtEur(q.totalHT)} €</td>
                     <td className="px-4 py-2.5 text-xs text-muted-foreground hidden sm:table-cell">
-                      {new Date(q.createdAt).toLocaleDateString("fr-FR")}
+                      {q.sentAt ? fmtDay(q.sentAt) : "—"}
+                    </td>
+                    <td className="px-4 py-2.5 text-xs text-muted-foreground hidden md:table-cell">
+                      {q.expiresAt ? fmtDay(q.expiresAt) : "—"}
                     </td>
                   </tr>
                 ))}
@@ -272,6 +341,19 @@ export default async function FacturationOverviewPage() {
         )}
       </div>
     </div>
+  )
+}
+
+function YearTab({ label, href, active }: { label: string; href: string; active: boolean }) {
+  return (
+    <Link
+      href={href}
+      className={`px-3 py-1.5 border-r last:border-r-0 border-border transition-colors ${
+        active ? "bg-accent font-medium text-foreground" : "text-muted-foreground hover:bg-muted/50"
+      }`}
+    >
+      {label}
+    </Link>
   )
 }
 

@@ -23,6 +23,7 @@ const statusConfig = {
   PAUSED:    { label: "En pause",   cls: "bg-amber-500/15 text-amber-600 border-amber-500/20"       },
   COMPLETED: { label: "Terminé",    cls: "bg-blue-500/15 text-blue-600 border-blue-500/20"          },
   ARCHIVED:  { label: "Archivé",    cls: "bg-muted text-muted-foreground border-border"             },
+  CANCELLED: { label: "Annulé",     cls: "bg-red-500/15 text-red-600 border-red-500/20 line-through" },
 }
 
 type Project = {
@@ -86,6 +87,7 @@ export function ProjetsListView({
     { value: "PAUSED",    label: "En pause"  },
     { value: "COMPLETED", label: "Terminés"  },
     { value: "ARCHIVED",  label: "Archivés"  },
+    { value: "CANCELLED", label: "Annulés"   },
   ]
 
   const filtered = projects.filter((p) => {
@@ -118,7 +120,7 @@ export function ProjetsListView({
     <div className="space-y-8">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Projets</h1>
+          <h1 className="sm:hidden text-2xl font-bold tracking-tight">Projets</h1>
           <p className="text-sm text-muted-foreground">
             {filtered.length}{filtered.length !== projects.length ? `/${projects.length}` : ""} projet{projects.length !== 1 ? "s" : ""}
           </p>
@@ -174,10 +176,10 @@ export function ProjetsListView({
                 ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/20"
                 : "text-muted-foreground border-border hover:bg-muted/50 hover:text-foreground"
             )}
-            title="Afficher la facturation"
+            title="Afficher la facturation et les revenus"
           >
             <TrendingUp className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">Facturation</span>
+            <span className="hidden sm:inline">Facturation & revenus</span>
           </button>
 
           {/* Vue */}
@@ -282,7 +284,7 @@ export function ProjetsListView({
                 <Th label="Priorité"    col="priority" sortCol={sortCol} sortDir={sortDir} onSort={toggle} className="px-4 py-3" />
                 <Th label="Statut"      col="status"   sortCol={sortCol} sortDir={sortDir} onSort={toggle} className="px-4 py-3" />
                 <th className="px-4 py-3 text-left font-medium text-xs text-muted-foreground hidden md:table-cell">Tâches</th>
-                {showBilling && <th className="px-4 py-3 text-left font-medium text-xs text-muted-foreground hidden md:table-cell">Facturation</th>}
+                {showBilling && <th className="px-4 py-3 text-left font-medium text-xs text-muted-foreground hidden md:table-cell">Facturation / Revenus</th>}
                 <Th label="Fin estimée" col="endDate"  sortCol={sortCol} sortDir={sortDir} onSort={toggle} className="px-4 py-3 hidden lg:table-cell" />
               </tr>
             </thead>

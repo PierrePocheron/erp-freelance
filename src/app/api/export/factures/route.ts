@@ -3,7 +3,14 @@ import { prisma } from "@/lib/prisma"
 import { NextRequest } from "next/server"
 import type { InvoiceStatus } from "@/generated/prisma/enums"
 
-const VALID_STATUSES: InvoiceStatus[] = ["DRAFT", "SENT", "PAID", "LATE"]
+const VALID_STATUSES: InvoiceStatus[] = ["DRAFT", "ISSUED", "SENT", "PAID", "LATE", "CANCELLED"]
+
+/** Même sémantique de mois que la liste des factures : encaissement (paidAt),
+ *  sinon date d'émission, en dernier recours date de création. */
+function invoiceMonthKey(inv: { paidAt: Date | null; issuedAt: Date | null; createdAt: Date }): string {
+  const d = new Date(inv.paidAt ?? inv.issuedAt ?? inv.createdAt)
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`
+}
 
 export async function GET(req: NextRequest) {
   const session = await auth()
@@ -16,8 +23,24 @@ export async function GET(req: NextRequest) {
     ? (statusParam as InvoiceStatus)
     : undefined
 
+  // Filtres alignés sur ceux de la liste (?projet= ?client= ?societe= ?mois= ?q=)
+  // pour que « Exporter en CSV » exporte exactement ce que le tableau affiche.
+  const projet = searchParams.get("projet")
+  const clientId = searchParams.get("client")
+  const societe = searchParams.get("societe")
+  const mois = searchParams.get("mois")?.split(",").filter(Boolean) ?? []
+  const q = searchParams.get("q")?.trim().toLowerCase() ?? ""
+
   const invoices = await prisma.invoice.findMany({
-    where: { userId, ...(status ? { status } : {}) },
+    where: {
+      userId,
+      ...(status ? { status } : {}),
+      ...(projet ? { projectId: projet } : {}),
+      ...(clientId ? { clientId } : {}),
+      ...(societe
+        ? { OR: [{ client: { companyId: societe } }, { project: { companyId: societe } }] }
+        : {}),
+    },
     include: {
       client: { select: { name: true, company: true } },
       project: { select: { name: true } },
@@ -25,18 +48,29 @@ export async function GET(req: NextRequest) {
     orderBy: { createdAt: "desc" },
   })
 
+  const filtered = invoices.filter((inv) => {
+    if (mois.length > 0 && !mois.includes(invoiceMonthKey(inv))) return false
+    if (q) {
+      const haystack = [inv.number, inv.client.name, inv.client.company ?? "", inv.project?.name ?? ""]
+        .join(" ")
+        .toLowerCase()
+      if (!haystack.includes(q)) return false
+    }
+    return true
+  })
+
   const typeLabels: Record<string, string> = {
     DEPOSIT: "Acompte", FINAL: "Solde", RECURRING: "Récurrent", STANDALONE: "Standard",
   }
   const statusLabels: Record<string, string> = {
-    DRAFT: "Brouillon", SENT: "Envoyée", PAID: "Payée", LATE: "En retard",
+    DRAFT: "Brouillon", ISSUED: "Émise", SENT: "Envoyée", PAID: "Payée", LATE: "En retard", CANCELLED: "Annulée",
   }
 
   const rows: string[] = [
     "Numéro;Client;Projet;Type;Statut;Total HT;Acompte déduit;Net à payer;Échéance;Date création",
   ]
 
-  for (const inv of invoices) {
+  for (const inv of filtered) {
     const client = inv.client.company ?? inv.client.name
     const project = inv.project?.name ?? ""
     const net = inv.totalHT - inv.depositDeducted

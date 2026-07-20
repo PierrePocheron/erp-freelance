@@ -79,12 +79,14 @@ function getDescendants(nodeId: string, allNodes: RawNode[]): Set<string> {
 
 // ── Type filter toggles ───────────────────────────────────────────────────────
 
-const ALL_TYPES: NodeType[] = ["SOURCE", "COMPANY", "CLIENT", "PROJECT", "INVOICE", "QUOTE", "REVENUE", "APPLICATION"]
+const ALL_TYPES: NodeType[] = ["SOURCE", "COMPANY", "CLIENT", "PROSPECT", "PERSONAL", "PROJECT", "INVOICE", "QUOTE", "REVENUE", "APPLICATION"]
 
 const TYPE_DOT: Record<NodeType, string> = {
   SOURCE:      NODE_BASE_COLORS.SOURCE,
   COMPANY:     NODE_BASE_COLORS.COMPANY,
   CLIENT:      NODE_BASE_COLORS.CLIENT,
+  PROSPECT:    NODE_BASE_COLORS.PROSPECT,
+  PERSONAL:    NODE_BASE_COLORS.PERSONAL,
   PROJECT:     NODE_BASE_COLORS.PROJECT,
   INVOICE:     NODE_BASE_COLORS.INVOICE,
   QUOTE:       NODE_BASE_COLORS.QUOTE,
@@ -107,7 +109,10 @@ export function GraphView({ rawNodes, rawLinks }: { rawNodes: RawNode[]; rawLink
   const [isPending, startTransition] = useTransition()
 
   const [size, setSize]             = useState({ w: 800, h: 600 })
-  const [collapsedIds, setCollapsed] = useState<Set<string>>(new Set())
+  // Certains hubs volumineux (Prospection ≈ 230 enfants) démarrent repliés
+  const [collapsedIds, setCollapsed] = useState<Set<string>>(
+    () => new Set(rawNodes.filter(n => n.defaultCollapsed).map(n => n.id))
+  )
   const [hiddenTypes, setHidden]    = useState<Set<NodeType>>(new Set())
   const [selected, setSelected]     = useState<RawNode | null>(null)
   const [activeFilter, setActiveFilter]       = useState<"pending" | "incomplete" | null>(null)

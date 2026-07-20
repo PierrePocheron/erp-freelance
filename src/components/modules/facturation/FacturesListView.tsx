@@ -19,6 +19,7 @@ type Invoice = {
   depositDeducted: number
   dueDate: Date | null
   issuedAt: Date | null
+  sentAt: Date | null
   paidAt: Date | null
   createdAt: Date
   clientId: string
@@ -125,6 +126,14 @@ function invoiceMonthKey(inv: Invoice): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`
 }
 
+/** Date de référence d'une facture pour le tri et le filtre par année :
+ *  émission (soumission) en priorité, puis envoi, puis createdAt en dernier
+ *  recours. createdAt ne reflète que l'insertion en base (import / re-seed) et
+ *  ne doit jamais servir à ordonner ou classer les factures par année. */
+function invoiceRefDate(inv: Invoice): Date {
+  return new Date(inv.issuedAt ?? inv.sentAt ?? inv.createdAt)
+}
+
 function monthKeyLabel(key: string): string {
   const [y, m] = key.split("-").map(Number)
   return new Date(y, m - 1, 1).toLocaleDateString("fr-FR", { month: "long", year: "numeric" })
@@ -147,7 +156,7 @@ export function FacturesListView({
 }) {
   const [view, setView] = useState<"list" | "cards">("list")
   const [q, setQ] = useState("")
-  const { sortCol, sortDir, toggle } = useSortState("createdAt", "desc")
+  const { sortCol, sortDir, toggle } = useSortState("issued", "desc")
 
   // Date de référence figée au premier rendu (règle react-hooks/purity)
   const [now] = useState(() => new Date())
@@ -171,9 +180,10 @@ export function FacturesListView({
   )
   const yearFilter = searchParams.get("annee")
 
-  // Années présentes dans les factures (pour le filtre par année)
+  // Années présentes dans les factures (pour le filtre par année) — basées sur
+  // la date d'émission de la facture, pas sur createdAt.
   const availableYears = useMemo(() => {
-    const set = new Set(invoices.map((inv) => invoiceMonthKey(inv).slice(0, 4)))
+    const set = new Set(invoices.map((inv) => String(invoiceRefDate(inv).getFullYear())))
     return [...set].sort((a, b) => b.localeCompare(a))
   }, [invoices])
 
@@ -213,7 +223,7 @@ export function FacturesListView({
       if (projectFilter && inv.projectId !== projectFilter) return false
       if (clientFilter && inv.clientId !== clientFilter) return false
       if (societeFilter && inv.client.companyId !== societeFilter && inv.project?.companyId !== societeFilter) return false
-      if (yearFilter && invoiceMonthKey(inv).slice(0, 4) !== yearFilter) return false
+      if (yearFilter && String(invoiceRefDate(inv).getFullYear()) !== yearFilter) return false
       if (monthsFilter.length > 0 && !monthsFilter.includes(invoiceMonthKey(inv))) return false
       if (needle) {
         const haystack = [inv.number, inv.client.name, inv.client.company ?? "", inv.project?.name ?? ""]
@@ -235,7 +245,8 @@ export function FacturesListView({
         case "type":    return cmp(a.type, b.type, sortDir)
         case "status":  return cmp(a.status, b.status, sortDir)
         case "amount":  return cmp(a.totalHT - a.depositDeducted, b.totalHT - b.depositDeducted, sortDir)
-        case "createdAt": return cmp(new Date(a.createdAt), new Date(b.createdAt), sortDir)
+        case "issued":  return cmp(invoiceRefDate(a), invoiceRefDate(b), sortDir)
+        case "sent":    return cmp(a.sentAt ? new Date(a.sentAt) : null, b.sentAt ? new Date(b.sentAt) : null, sortDir)
         case "dueDate": return cmp(a.dueDate ? new Date(a.dueDate) : null, b.dueDate ? new Date(b.dueDate) : null, sortDir)
         default: return 0
       }
@@ -473,7 +484,8 @@ export function FacturesListView({
                 <Th label="Statut"    col="status"    sortCol={sortCol} sortDir={sortDir} onSort={toggle} className="px-4 py-3" />
                 <Th label="Montant HT" col="amount"  sortCol={sortCol} sortDir={sortDir} onSort={toggle} className="px-4 py-3" align="right" />
                 <th className="px-4 py-3 text-left font-medium text-muted-foreground whitespace-nowrap">Payé</th>
-                <Th label="Créée le"  col="createdAt" sortCol={sortCol} sortDir={sortDir} onSort={toggle} className="px-4 py-3 hidden md:table-cell" />
+                <Th label="Émise le"  col="issued"    sortCol={sortCol} sortDir={sortDir} onSort={toggle} className="px-4 py-3 hidden md:table-cell" />
+                <Th label="Envoyée"   col="sent"      sortCol={sortCol} sortDir={sortDir} onSort={toggle} className="px-4 py-3 hidden xl:table-cell" />
                 <Th label="Échéance"  col="dueDate"   sortCol={sortCol} sortDir={sortDir} onSort={toggle} className="px-4 py-3 hidden lg:table-cell" />
               </tr>
             </thead>
@@ -511,10 +523,13 @@ export function FacturesListView({
                       <PaidInfo payments={inv.payments} net={inv.totalHT - inv.depositDeducted} status={inv.status} />
                     </td>
                     <td className="px-4 py-3 text-xs text-muted-foreground hidden md:table-cell">
-                      {new Date(inv.createdAt).toLocaleDateString("fr-FR")}
+                      {inv.issuedAt ? fmtDay(inv.issuedAt) : <span className="text-muted-foreground/40">—</span>}
+                    </td>
+                    <td className="px-4 py-3 text-xs text-muted-foreground hidden xl:table-cell">
+                      {inv.sentAt ? fmtDay(inv.sentAt) : <span className="text-muted-foreground/40">—</span>}
                     </td>
                     <td className={`px-4 py-3 text-xs hidden lg:table-cell ${isLate ? "text-red-500 font-medium" : "text-muted-foreground"}`}>
-                      {inv.dueDate ? new Date(inv.dueDate).toLocaleDateString("fr-FR") : "—"}
+                      {inv.dueDate ? fmtDay(inv.dueDate) : "—"}
                     </td>
                   </tr>
                 )
@@ -573,7 +588,7 @@ export function FacturesListView({
                       {amount.toLocaleString("fr-FR")} €
                     </span>
                     <span className="text-xs text-muted-foreground">
-                      créée le {new Date(inv.createdAt).toLocaleDateString("fr-FR")}
+                      {inv.issuedAt ? `émise le ${fmtDay(inv.issuedAt)}` : inv.sentAt ? `envoyée le ${fmtDay(inv.sentAt)}` : ""}
                     </span>
                   </div>
                   {inv.dueDate && (

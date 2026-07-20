@@ -1,9 +1,36 @@
 "use client"
 
+import { useState, useTransition } from "react"
 import { signIn } from "next-auth/react"
-import { Calendar, Check, ExternalLink } from "lucide-react"
+import { Calendar, Check, ExternalLink, RefreshCw } from "lucide-react"
+import { toast } from "sonner"
+import { setCalendarSyncThreshold } from "@/actions/calendar"
 
-export function GoogleCalendarSection({ hasScope }: { hasScope: boolean }) {
+// Options du seuil de fraîcheur de la synchro auto à l'ouverture de l'agenda
+const THRESHOLD_OPTIONS = [
+  { value: 0,   label: "À chaque ouverture" },
+  { value: 15,  label: "Au plus une fois / 15 min" },
+  { value: 30,  label: "Au plus une fois / 30 min" },
+  { value: 60,  label: "Au plus une fois / heure" },
+  { value: 180, label: "Au plus une fois / 3 h" },
+]
+
+export function GoogleCalendarSection({ hasScope, syncThresholdMin = 30 }: { hasScope: boolean; syncThresholdMin?: number }) {
+  const [threshold, setThreshold] = useState(syncThresholdMin)
+  const [isSaving, startSave] = useTransition()
+
+  function changeThreshold(v: number) {
+    setThreshold(v)
+    startSave(async () => {
+      try {
+        await setCalendarSyncThreshold(v)
+        toast.success("Fréquence de synchronisation enregistrée")
+      } catch {
+        toast.error("Erreur lors de l'enregistrement")
+      }
+    })
+  }
+
   function handleConnect() {
     // Le compte Google est déjà connecté (seul provider de connexion).
     // On demande uniquement l'autorisation incrémentale d'accès à l'agenda.
@@ -43,6 +70,27 @@ export function GoogleCalendarSection({ hasScope }: { hasScope: boolean }) {
             via le bouton <strong>Sync Google</strong>. Les événements créés dans l&apos;ERP
             sont automatiquement poussés dans un agenda dédié <strong>ERP Freelance</strong>.
           </p>
+          {/* Fréquence de synchro auto (seuil de fraîcheur à l'ouverture) */}
+          <div className="rounded-lg border border-border/50 p-3 space-y-1.5">
+            <div className="flex items-center gap-1.5 text-xs font-medium">
+              <RefreshCw className="h-3.5 w-3.5 text-muted-foreground" />
+              Synchronisation automatique à l&apos;ouverture
+            </div>
+            <p className="text-[11px] text-muted-foreground">
+              L&apos;agenda se synchronise quand vous l&apos;ouvrez. Pour éviter trop d&apos;appels si vous y revenez souvent, on ne relance pas si la dernière synchro est récente.
+            </p>
+            <select
+              value={threshold}
+              onChange={(e) => changeThreshold(Number(e.target.value))}
+              disabled={isSaving}
+              className="w-full h-9 rounded-lg border border-input bg-background px-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-ring disabled:opacity-60"
+            >
+              {THRESHOLD_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>{o.label}</option>
+              ))}
+            </select>
+          </div>
+
           <button
             type="button"
             onClick={handleConnect}

@@ -1013,11 +1013,6 @@ function GoogleIcon({ className }: { className?: string }) {
   )
 }
 
-// Seuil de fraîcheur de la synchro auto : pas de nouvelle synchro à l'ouverture
-// de l'agenda si la dernière remonte à moins de 30 min (évite les appels Google
-// répétés quand on revient plusieurs fois sur le calendrier dans un court laps).
-const SYNC_FRESHNESS_MS = 30 * 60 * 1000
-
 // « le 20 juil. à 14:30 » — date + heure absolue de la dernière synchro
 function formatLastSync(d: Date): string {
   const date = d.toLocaleDateString("fr-FR", { day: "numeric", month: "short" })
@@ -1034,6 +1029,7 @@ export function CalendarView({
   clients = [],
   hasGoogleCalendar = false,
   lastGoogleSyncAt = null,
+  syncThresholdMin = 30,
   className,
 }: {
   events: CalendarEvent[]
@@ -1042,6 +1038,7 @@ export function CalendarView({
   clients?: ClientOption[]
   hasGoogleCalendar?: boolean
   lastGoogleSyncAt?: Date | string | null
+  syncThresholdMin?: number
   className?: string
 }) {
   const { isActive } = useModules()
@@ -1173,11 +1170,12 @@ export function CalendarView({
         if (cancelled) return
         const ok = res.status === "connected"
         setConnectionStatus(ok ? "connected" : "error")
-        // Seuil de fraîcheur : ne re-synchronise pas si une synchro a réussi il y
-        // a moins de SYNC_FRESHNESS_MS (30 min). Évite un appel Google à chaque
-        // ouverture de l'agenda dans une même session. Le bouton manuel, lui,
-        // synchronise toujours (appel direct à handleSync).
-        const fresh = lastSyncAt && Date.now() - lastSyncAt.getTime() < SYNC_FRESHNESS_MS
+        // Seuil de fraîcheur configurable (Réglages → Agenda) : ne re-synchronise
+        // pas si une synchro a réussi il y a moins de `syncThresholdMin` minutes
+        // (0 = toujours). Évite un appel Google à chaque ouverture dans une même
+        // session. Le bouton manuel, lui, synchronise toujours (appel direct).
+        const thresholdMs = syncThresholdMin * 60 * 1000
+        const fresh = thresholdMs > 0 && lastSyncAt && Date.now() - lastSyncAt.getTime() < thresholdMs
         if (ok && !fresh) handleSync()
       })
       .catch(() => { if (!cancelled) setConnectionStatus("error") })

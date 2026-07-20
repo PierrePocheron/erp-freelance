@@ -98,6 +98,9 @@ model UserProfile {
 
   // Dernière synchro Google Agenda réussie (cycle pull+push) — affichée sur l'agenda
   lastGoogleSyncAt    DateTime?
+  // Seuil de fraîcheur de la synchro auto à l'ouverture (minutes) : pas de
+  // nouvelle synchro si la dernière remonte à moins que ça. 0 = toujours synchroniser.
+  calendarSyncThresholdMin Int @default(30)
 
   // ── Fiscalité / imposition ──────────────────────────────────────────────
   legalStatus          String               @default("AUTO_ENTREPRENEUR") // AUTO_ENTREPRENEUR | EI | EURL | SASU | OTHER

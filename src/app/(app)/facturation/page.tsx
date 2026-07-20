@@ -17,7 +17,11 @@ const invoicePaid = (inv: { status: string; totalHT: number; depositDeducted: nu
   return inv.payments.length ? inv.payments.reduce((s, p) => s + p.amount, 0) : inv.status === "PAID" ? net : 0
 }
 
-export default async function FacturationOverviewPage() {
+export default async function FacturationOverviewPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ annee?: string }>
+}) {
   const session = await auth()
   const userId = session!.user.id
 
@@ -25,26 +29,35 @@ export default async function FacturationOverviewPage() {
   await markLateInvoices(userId)
 
   const now = new Date()
-  const yearStart = new Date(now.getFullYear(), 0, 1)
-  const yearEnd = new Date(now.getFullYear(), 11, 31, 23, 59, 59)
+  const currentYear = now.getFullYear()
 
-  const [invoicesThisYear, paidInvoicesThisYear, allPending, quotes, profile, quickClients, quickCompanies, quickProjects] = await Promise.all([
-    // Factures de l'année par date d'ÉMISSION (issuedAt), pas createdAt : le
-    // createdAt vaut la date d'insertion en base (aujourd'hui pour un re-seed),
-    // donc toutes les factures y tomberaient dans l'année courante.
+  // Filtre d'année piloté par l'URL (?annee=YYYY). Absent = toutes années.
+  const sp = await searchParams
+  const parsedYear = sp.annee ? parseInt(sp.annee, 10) : NaN
+  const selectedYear = Number.isFinite(parsedYear) ? parsedYear : null
+  const yearStart = selectedYear ? new Date(selectedYear, 0, 1) : undefined
+  const yearEnd = selectedYear ? new Date(selectedYear, 11, 31, 23, 59, 59) : undefined
+
+  const [scopedInvoices, allPaidInvoices, allPending, quotes, profile, quickClients, quickCompanies, quickProjects] = await Promise.all([
+    // Factures affichées : par date d'ÉMISSION (issuedAt), pas createdAt (qui
+    // vaut la date d'insertion en base). Toutes années par défaut, sinon
+    // bornées à l'année sélectionnée.
     prisma.invoice.findMany({
-      where: { userId, issuedAt: { gte: yearStart, lte: yearEnd } },
+      where: {
+        userId,
+        issuedAt: selectedYear ? { gte: yearStart, lte: yearEnd } : { not: null },
+      },
       include: {
         client: { select: { name: true, company: true } },
         payments: { select: { amount: true } },
       },
       orderBy: { issuedAt: "desc" },
+      take: 8,
     }),
-    // Encaissements de l'année : par date de PAIEMENT, pas de création — le
-    // createdAt ne veut rien dire (un import ou un re-seed recrée tout à la
-    // date du jour) et une facture payée une autre année sortirait du cadre.
+    // Toutes les factures encaissées (par date de PAIEMENT) : sert au KPI
+    // « Encaissé » (filtré par année en JS) et au graphe mensuel.
     prisma.invoice.findMany({
-      where: { userId, status: "PAID", paidAt: { gte: yearStart, lte: yearEnd } },
+      where: { userId, status: "PAID", paidAt: { not: null } },
       select: { paidAt: true, totalHT: true, depositDeducted: true },
     }),
     prisma.invoice.findMany({
@@ -79,8 +92,11 @@ export default async function FacturationOverviewPage() {
     }),
   ])
 
-  const paidThisYear = paidInvoicesThisYear
-    .reduce((s, i) => s + i.totalHT - i.depositDeducted, 0)
+  // Encaissé sur le périmètre choisi (toutes années, ou l'année sélectionnée)
+  const paidInScope = allPaidInvoices.filter(
+    (i) => !selectedYear || (i.paidAt != null && new Date(i.paidAt).getFullYear() === selectedYear)
+  )
+  const paidThisYear = paidInScope.reduce((s, i) => s + i.totalHT - i.depositDeducted, 0)
 
   const totalPending = allPending
     .filter((i) => i.status === "SENT")
@@ -93,22 +109,31 @@ export default async function FacturationOverviewPage() {
   const quotesWaiting = quotes.filter((q) => q.status === "SENT").length
   const profileIncomplete = !profile?.companyName || !profile?.siret || !profile?.address
 
-  // Revenus mensuels (factures payées cette année, mois de paidAt)
+  // Revenus mensuels du graphe : toujours l'année civile courante (le graphe a
+  // sa propre navigation d'année, indépendante du filtre de la page).
   const monthlyRevenue = Array.from({ length: 12 }, (_, m) =>
-    paidInvoicesThisYear
-      .filter((i) => i.paidAt && new Date(i.paidAt).getMonth() === m)
+    allPaidInvoices
+      .filter((i) => i.paidAt && new Date(i.paidAt).getFullYear() === currentYear && new Date(i.paidAt).getMonth() === m)
       .reduce((s, i) => s + i.totalHT - i.depositDeducted, 0)
   )
 
   const currentMonth = now.getMonth()
-  const recentInvoices = invoicesThisYear.slice(0, 8)
+  const recentInvoices = scopedInvoices
 
   return (
     <div className="space-y-8">
       <div className="flex items-start justify-between gap-4">
-        <div>
+        <div className="space-y-2">
           <h1 className="sm:hidden text-2xl font-bold tracking-tight">Facturation</h1>
-          <p className="text-sm text-muted-foreground">{"Vue d'ensemble"} {now.getFullYear()}</p>
+          <p className="text-sm text-muted-foreground">
+            {"Vue d'ensemble"} {selectedYear ? `— ${selectedYear}` : "— toutes années"}
+          </p>
+          {/* Sélecteur de période : toutes années par défaut, ou une année */}
+          <div className="inline-flex rounded-lg border border-border overflow-hidden text-xs">
+            <YearTab label="Tout" href="/facturation" active={!selectedYear} />
+            <YearTab label={String(currentYear)} href={`/facturation?annee=${currentYear}`} active={selectedYear === currentYear} />
+            <YearTab label={String(currentYear - 1)} href={`/facturation?annee=${currentYear - 1}`} active={selectedYear === currentYear - 1} />
+          </div>
         </div>
         <FacturationQuickActions
           userId={userId}
@@ -136,8 +161,8 @@ export default async function FacturationOverviewPage() {
         <KPI
           icon={<CheckCircle2 className="h-4 w-4 text-emerald-500" />}
           label="Encaissé"
-          value={`${paidThisYear.toLocaleString("fr-FR")} €`}
-          sub={`en ${now.getFullYear()}`}
+          value={`${fmtEur(paidThisYear)} €`}
+          sub={selectedYear ? `en ${selectedYear}` : "toutes années"}
         />
         <KPI
           icon={<Clock className="h-4 w-4 text-blue-500" />}
@@ -202,11 +227,13 @@ export default async function FacturationOverviewPage() {
       {/* Dernières factures */}
       <div className="space-y-3">
         <div className="flex items-center justify-between">
-          <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">Factures {now.getFullYear()}</h2>
-          <Link href="/facturation/factures" className="text-xs text-primary hover:underline">Voir tout →</Link>
+          <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">
+            {selectedYear ? `Factures ${selectedYear}` : "Dernières factures"}
+          </h2>
+          <Link href={selectedYear ? `/facturation/factures?annee=${selectedYear}` : "/facturation/factures"} className="text-xs text-primary hover:underline">Voir tout →</Link>
         </div>
         {recentInvoices.length === 0 ? (
-          <p className="text-sm text-muted-foreground">Aucune facture cette année</p>
+          <p className="text-sm text-muted-foreground">{selectedYear ? `Aucune facture émise en ${selectedYear}` : "Aucune facture"}</p>
         ) : (
           <div className="rounded-xl border border-border/50 bg-card overflow-x-auto">
             <table className="w-full text-sm">
@@ -310,6 +337,19 @@ export default async function FacturationOverviewPage() {
         )}
       </div>
     </div>
+  )
+}
+
+function YearTab({ label, href, active }: { label: string; href: string; active: boolean }) {
+  return (
+    <Link
+      href={href}
+      className={`px-3 py-1.5 border-r last:border-r-0 border-border transition-colors ${
+        active ? "bg-accent font-medium text-foreground" : "text-muted-foreground hover:bg-muted/50"
+      }`}
+    >
+      {label}
+    </Link>
   )
 }
 

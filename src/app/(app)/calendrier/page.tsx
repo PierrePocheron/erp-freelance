@@ -163,6 +163,11 @@ export default async function CalendrierPage() {
     }),
   ])
 
+  // Dernière synchro Google réussie — affichée dans le menu de l'agenda
+  const syncProfile = googleScope
+    ? await prisma.userProfile.findUnique({ where: { userId }, select: { lastGoogleSyncAt: true } })
+    : null
+
   const now = new Date()
 
   // Index catégories par id pour lookup O(1)
@@ -389,6 +394,7 @@ export default async function CalendrierPage() {
         projects={projectOptions}
         clients={clientOptions}
         hasGoogleCalendar={googleScope}
+        lastGoogleSyncAt={syncProfile?.lastGoogleSyncAt ?? null}
         className="flex-1 min-h-0"
       />
     </div>

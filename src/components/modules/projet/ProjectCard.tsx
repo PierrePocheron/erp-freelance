@@ -15,6 +15,7 @@ const statusConfig = {
   PAUSED:    { label: "En pause",   className: "bg-amber-500/15 text-amber-600 border-amber-500/20"       },
   COMPLETED: { label: "Terminé",    className: "bg-blue-500/15 text-blue-600 border-blue-500/20"          },
   ARCHIVED:  { label: "Archivé",    className: "bg-muted text-muted-foreground border-border"             },
+  CANCELLED: { label: "Annulé",     className: "bg-red-500/15 text-red-600 border-red-500/20 line-through" },
 }
 
 type Props = {

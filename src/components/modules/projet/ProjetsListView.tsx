@@ -23,6 +23,7 @@ const statusConfig = {
   PAUSED:    { label: "En pause",   cls: "bg-amber-500/15 text-amber-600 border-amber-500/20"       },
   COMPLETED: { label: "Terminé",    cls: "bg-blue-500/15 text-blue-600 border-blue-500/20"          },
   ARCHIVED:  { label: "Archivé",    cls: "bg-muted text-muted-foreground border-border"             },
+  CANCELLED: { label: "Annulé",     cls: "bg-red-500/15 text-red-600 border-red-500/20 line-through" },
 }
 
 type Project = {
@@ -86,6 +87,7 @@ export function ProjetsListView({
     { value: "PAUSED",    label: "En pause"  },
     { value: "COMPLETED", label: "Terminés"  },
     { value: "ARCHIVED",  label: "Archivés"  },
+    { value: "CANCELLED", label: "Annulés"   },
   ]
 
   const filtered = projects.filter((p) => {

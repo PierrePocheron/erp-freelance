@@ -15,6 +15,7 @@ const statusOptions = [
   { value: "PAUSED", label: "En pause", cls: "bg-amber-500/15 text-amber-600 border-amber-500/20" },
   { value: "COMPLETED", label: "Terminé", cls: "bg-blue-500/15 text-blue-600 border-blue-500/20" },
   { value: "ARCHIVED", label: "Archivé", cls: "bg-muted text-muted-foreground border-border" },
+  { value: "CANCELLED", label: "Annulé", cls: "bg-red-500/15 text-red-600 border-red-500/20 line-through" },
 ]
 
 export function ProjectStatusEdit({
@@ -32,7 +33,7 @@ export function ProjectStatusEdit({
   function pick(next: string) {
     if (next === value) { setOpen(false); return }
     startTransition(async () => {
-      await updateProjectStatus(projectId, next as "ACTIVE" | "PAUSED" | "COMPLETED" | "ARCHIVED")
+      await updateProjectStatus(projectId, next as "ACTIVE" | "PAUSED" | "COMPLETED" | "ARCHIVED" | "CANCELLED")
       toast.success("Statut mis à jour")
       setOpen(false)
     })

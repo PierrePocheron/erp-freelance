@@ -9,7 +9,7 @@ ERP personnel de Pierre (Next.js 16 App Router, Prisma 7 + PostgreSQL/Neon). Pou
 - **Le repo est PUBLIC — jamais de données personnelles réelles dans les fichiers versionnés NI dans les corps de commit** : pas d'IBAN, SIRET, adresse, téléphone, montants de factures ou noms de clients réels. Scripts/tests/previews utilisent des valeurs factices. (Incident du 14/07/2026 : le vrai IBAN a fuité via scripts/preview-pdf.ts, purgé par filter-branch + force-push le 16/07.)
 
 - **Branche `dev` uniquement.** Ne jamais committer/pousser sur `main` directement — `main` ne reçoit que des merges de release explicites (voir "Release" plus bas).
-- **Ne jamais pousser vers `origin` sans instruction explicite**, même sur `dev`.
+- **Sur `dev` : pousser automatiquement vers `origin` après chaque commit** (demande de Pierre, 20/07/2026 — remplace l'ancienne règle "ne jamais pousser sans instruction"). Ne jamais pousser une autre branche que `dev` sans instruction, et jamais sur `main`.
 - **Jamais de `Co-Authored-By`** dans les commits ni les PR (instruction globale de Pierre, voir `~/.claude/CLAUDE.md`).
 - **Ne jamais lancer `prisma migrate dev`.** Il n'y a pas de base de dev séparée : `DATABASE_URL` dans `.env.local` pointe directement sur **Neon en production**. Voir workflow migrations ci-dessous.
 - **Ne pas lancer de serveur de preview** (`preview_start`/`preview_*`) pour vérifier une modif UI. Pierre teste toujours lui-même en local dans son navigateur — faire `tsc --noEmit` + décrire ce qui est à vérifier visuellement, puis s'arrêter là.

@@ -64,6 +64,14 @@ const EVENT_CONFIG: Record<ProspectEventKind, { label: string; dot: string }> = 
   STATUS_CHANGE:  { label: "Statut modifié",         dot: "bg-slate-400" },
 }
 
+// Température du prospect à l'issue d'un appel où il a répondu
+const CALL_TEMP = {
+  HOT:  { label: "Chaud", emoji: "🔥", cls: "bg-red-500/15 text-red-600 border-red-500/40" },
+  WARM: { label: "Tiède", emoji: "🙂", cls: "bg-amber-500/15 text-amber-600 border-amber-500/40" },
+  COLD: { label: "Froid", emoji: "❄️", cls: "bg-blue-500/15 text-blue-600 border-blue-500/40" },
+} as const
+type CallTemp = keyof typeof CALL_TEMP
+
 const QUICK_ACTIONS: { kind: Exclude<ProspectEventKind, "STATUS_CHANGE">; label: string; icon: React.ElementType }[] = [
   { kind: "CALL_ANSWERED",  label: "Appel — a répondu",  icon: Phone },
   { kind: "CALL_NO_ANSWER", label: "Pas de réponse",     icon: PhoneMissed },
@@ -97,10 +105,12 @@ const domainAge = (d: Date | string | null) => {
 export function ProspectionModeView({
   prospects,
   templates,
+  callTemplates,
   emailFromConfigured,
 }: {
   prospects: ModeProspect[]
   templates: EmailTemplateOption[]
+  callTemplates: { id: string; name: string; script: string }[]
   emailFromConfigured: boolean
 }) {
   // Liste FIGÉE au montage : la session reste sur les X prospects choisis au
@@ -116,6 +126,13 @@ export function ProspectionModeView({
   const [templateId, setTemplateId] = useState("")
   const [sendOpen, setSendOpen] = useState(false)
   const [draftsOpen, setDraftsOpen] = useState(false)
+
+  // Carte script d'appel : modèle d'appel choisi (affiché pour lecture pendant
+  // l'appel) + formulaire « a répondu » (température du prospect + note).
+  const [callTemplateId, setCallTemplateId] = useState("")
+  const [callFormOpen, setCallFormOpen] = useState(false)
+  const [callTemp, setCallTemp] = useState<"HOT" | "WARM" | "COLD" | null>(null)
+  const [callNote, setCallNote] = useState("")
 
   // État local de session, initialisé depuis le serveur
   const [statusById, setStatusById] = useState<Record<string, ProspectStatus>>(
@@ -154,6 +171,7 @@ export function ProspectionModeView({
     setEditingNoteId(null)
     setNoteTitle("")
     setNoteContent("")
+    setCallFormOpen(false)
   }, [])
 
   const goPrev = useCallback(() => { setIndex((i) => Math.max(0, i - 1)); closeNoteForm() }, [closeNoteForm])
@@ -175,10 +193,10 @@ export function ProspectionModeView({
     setHandled((prev) => new Set(prev).add(id))
   }
 
-  function runAction(kind: Exclude<ProspectEventKind, "STATUS_CHANGE">) {
+  function runAction(kind: Exclude<ProspectEventKind, "STATUS_CHANGE">, note?: string) {
     const id = prospect.id
     startTransition(async () => {
-      const { status: newStatus, event } = await logProspectAction(id, kind)
+      const { status: newStatus, event } = await logProspectAction(id, kind, note)
       setStatusById((prev) => ({ ...prev, [id]: newStatus }))
       setEventsById((prev) => ({ ...prev, [id]: [event as ModeEvent, ...(prev[id] ?? [])] }))
       markHandled(id)
@@ -223,11 +241,39 @@ export function ProspectionModeView({
     markHandled(id)
   }
 
+  // ── Appel : script sélectionné + formulaire « a répondu » ──────────────────
+  const selectedCall = callTemplates.find((t) => t.id === callTemplateId) ?? null
+
+  function openCallForm() {
+    setCallFormOpen(true)
+    setCallTemp(null)
+    setCallNote("")
+    setNoteFormOpen(false)
+  }
+  function closeCallForm() {
+    setCallFormOpen(false)
+    setCallTemp(null)
+    setCallNote("")
+  }
+  // Enregistre l'appel « a répondu » : compose la note (script utilisé +
+  // température + précision libre) et la loggue comme événement CALL_ANSWERED.
+  function submitCall() {
+    if (!callTemp) return
+    const parts: string[] = []
+    if (selectedCall) parts.push(`Script « ${selectedCall.name} »`)
+    parts.push(`${CALL_TEMP[callTemp].emoji} Client ${CALL_TEMP[callTemp].label.toLowerCase()}`)
+    let note = parts.join(" · ")
+    if (callNote.trim()) note += ` — ${callNote.trim()}`
+    runAction("CALL_ANSWERED", note)
+    closeCallForm()
+  }
+
   function openAddNote() {
     setNoteFormOpen(true)
     setEditingNoteId(null)
     setNoteTitle("")
     setNoteContent("")
+    setCallFormOpen(false)
   }
 
   function openEditNote(note: ModeNote) {
@@ -510,6 +556,41 @@ export function ProspectionModeView({
               </>
             )}
           </div>
+
+          {/* Script d'appel — modèle choisi, affiché pour lecture pendant l'appel */}
+          <div className="rounded-xl border border-border/50 bg-card p-5 space-y-3">
+            <div className="flex items-center gap-2">
+              <Phone className="h-4 w-4 text-muted-foreground" />
+              <h2 className="font-semibold text-sm">Script d&apos;appel</h2>
+            </div>
+            {callTemplates.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                Aucun script d&apos;appel.{" "}
+                <Link href="/prospection/appels" className="text-primary hover:underline">Créer un script →</Link>
+              </p>
+            ) : (
+              <>
+                <div className="relative">
+                  <select
+                    value={callTemplateId}
+                    onChange={(e) => setCallTemplateId(e.target.value)}
+                    className="w-full h-9 appearance-none rounded-lg border border-input bg-background pl-3 pr-9 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+                  >
+                    <option value="">Choisir un script…</option>
+                    {callTemplates.map((t) => (
+                      <option key={t.id} value={t.id}>{t.name}</option>
+                    ))}
+                  </select>
+                  <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+                </div>
+                {selectedCall && (
+                  <div className="rounded-lg border border-border/50 bg-muted/30 px-3 py-2 max-h-72 overflow-y-auto">
+                    <p className="text-xs text-muted-foreground whitespace-pre-wrap leading-relaxed">{selectedCall.script}</p>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
         </div>
 
         {/* ── Colonne process : actions rapides puis frise ── */}
@@ -522,8 +603,8 @@ export function ProspectionModeView({
               {QUICK_ACTIONS.map(({ kind, label, icon: Icon }) => (
                 <button
                   key={kind}
-                  onClick={() => runAction(kind)}
-                  disabled={isPending}
+                  onClick={() => (kind === "CALL_ANSWERED" ? openCallForm() : runAction(kind))}
+                  disabled={isPending || (kind === "CALL_ANSWERED" && callFormOpen)}
                   className="flex items-center gap-2 h-10 px-3 rounded-lg border border-input text-sm hover:bg-muted/50 disabled:opacity-50 transition-colors text-left"
                 >
                   <Icon className="h-4 w-4 shrink-0 text-muted-foreground" />
@@ -584,6 +665,55 @@ export function ProspectionModeView({
                     className="h-8 px-3.5 rounded-lg bg-primary text-primary-foreground text-xs font-medium hover:opacity-90 disabled:opacity-50 transition-opacity"
                   >
                     {isSavingNote ? "Enregistrement…" : editingNoteId ? "Enregistrer" : "Ajouter"}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Formulaire « Appel — a répondu » : quel script + température */}
+            {callFormOpen && (
+              <div className="space-y-2.5 rounded-lg border border-border p-3">
+                <p className="text-xs font-medium flex items-center gap-1.5">
+                  <Phone className="h-3.5 w-3.5 text-emerald-500" /> Appel — a répondu
+                </p>
+                {selectedCall ? (
+                  <p className="text-[11px] text-muted-foreground">Script utilisé : « {selectedCall.name} »</p>
+                ) : (
+                  <p className="text-[11px] text-muted-foreground/70">Aucun script sélectionné (choisissez-en un dans « Script d&apos;appel »).</p>
+                )}
+                <div className="space-y-1">
+                  <p className="text-[11px] text-muted-foreground">Le client était :</p>
+                  <div className="flex gap-1.5">
+                    {(Object.keys(CALL_TEMP) as CallTemp[]).map((t) => (
+                      <button
+                        key={t}
+                        type="button"
+                        onClick={() => setCallTemp(t)}
+                        className={cn(
+                          "flex-1 rounded-lg border px-2 py-1.5 text-xs font-medium transition-colors",
+                          callTemp === t ? cn(CALL_TEMP[t].cls, "ring-1 ring-foreground/20") : "border-input text-muted-foreground hover:bg-muted/50"
+                        )}
+                      >
+                        {CALL_TEMP[t].emoji} {CALL_TEMP[t].label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <textarea
+                  value={callNote}
+                  onChange={(e) => setCallNote(e.target.value)}
+                  placeholder="Précisions — ex. intéressé, rappeler jeudi ; a déjà un devis ailleurs…"
+                  rows={2}
+                  className="w-full rounded-lg border border-input bg-transparent px-2.5 py-1.5 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring resize-y"
+                />
+                <div className="flex justify-end gap-2">
+                  <button onClick={closeCallForm} className="h-8 px-3 rounded-lg text-xs text-muted-foreground hover:text-foreground transition-colors">Annuler</button>
+                  <button
+                    onClick={submitCall}
+                    disabled={isPending || !callTemp}
+                    className="h-8 px-3.5 rounded-lg bg-primary text-primary-foreground text-xs font-medium hover:opacity-90 disabled:opacity-50 transition-opacity"
+                  >
+                    Enregistrer l&apos;appel
                   </button>
                 </div>
               </div>

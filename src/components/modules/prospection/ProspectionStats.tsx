@@ -40,6 +40,16 @@ export function ProspectionStats({ counts }: { counts: Counts }) {
   // Bascule : recliquer la carte active repasse à « tous »
   const toggle = (s: ProspectStatus) => setStatus(current === s ? null : s)
 
+  // Filtre secondaire « avec email / téléphone » — même mécanique URL (?avec=)
+  const avec = searchParams.get("avec") // "email" | "phone" | null
+  const toggleAvec = useCallback((v: "email" | "phone") => {
+    const params = new URLSearchParams(window.location.search)
+    if (params.get("avec") === v) params.delete("avec")
+    else params.set("avec", v)
+    const qs = params.toString()
+    window.history.replaceState(null, "", qs ? `?${qs}` : window.location.pathname)
+  }, [])
+
   return (
     <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4 lg:grid-cols-9">
       <Tile icon={<TrendingUp className="h-4 w-4 text-amber-500" />}     label="Actifs"        value={counts.active}       active={!current}                  onClick={() => setStatus(null)} />
@@ -49,8 +59,8 @@ export function ProspectionStats({ counts }: { counts: Counts }) {
       <Tile icon={<MessagesSquare className="h-4 w-4 text-violet-500" />} label="En discussion" value={counts.inDiscussion} active={current === "IN_DISCUSSION"} onClick={() => toggle("IN_DISCUSSION")} />
       <Tile icon={<CheckCircle2 className="h-4 w-4 text-emerald-500" />} label="Gagnés"        value={counts.won}          active={current === "WON"}          onClick={() => toggle("WON")}  variant="success" />
       <Tile icon={<XCircle className="h-4 w-4 text-red-400" />}          label="Perdus"        value={counts.lost}         active={current === "LOST"}         onClick={() => toggle("LOST")} variant="muted" />
-      <Tile icon={<AtSign className="h-4 w-4 text-muted-foreground" />}  label="Avec email"    value={counts.withEmail} />
-      <Tile icon={<Phone className="h-4 w-4 text-muted-foreground" />}   label="Avec téléphone" value={counts.withPhone} />
+      <Tile icon={<AtSign className="h-4 w-4 text-muted-foreground" />}  label="Avec email"    value={counts.withEmail} active={avec === "email"} onClick={() => toggleAvec("email")} />
+      <Tile icon={<Phone className="h-4 w-4 text-muted-foreground" />}   label="Avec téléphone" value={counts.withPhone} active={avec === "phone"} onClick={() => toggleAvec("phone")} />
     </div>
   )
 }

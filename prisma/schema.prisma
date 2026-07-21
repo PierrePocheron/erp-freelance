@@ -359,7 +359,9 @@ model Client {
   company       String?
   jobTitle      String? // poste / fonction dans la société
   email         String?
+  personalEmail String?      // email perso/direct, en plus de l'email générique de contact
   phone         String?
+  phoneType     String?      // "PRO" | "PERSO" — nature du numéro (null = non précisé)
   source         ClientSource  @default(OTHER)
   temperature    Temperature   @default(COLD) // legacy — plus utilisé par le code (cf. ProspectStage)
   prospectStage  ProspectStage @default(IDENTIFIED) // legacy — remplacé par prospectStatus

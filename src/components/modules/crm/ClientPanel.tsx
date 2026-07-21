@@ -7,7 +7,7 @@ import {
   Mail, Phone, ExternalLink, Building2, Globe,
   MessageSquare, Bell, FolderKanban, FileText, Receipt,
   Phone as PhoneIcon, Mail as MailIcon, Video, Users,
-  UserCheck, Archive, AlertCircle,
+  UserCheck, Archive, AlertCircle, Pencil,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { updateClientType, addInteraction, addReminder, updateClientAll } from "@/actions/crm"
@@ -72,7 +72,9 @@ type ClientPanelData = {
   company: string | null
   jobTitle?: string | null
   email: string | null
+  personalEmail: string | null
   phone: string | null
+  phoneType: string | null
   type: string
   source: string
   notes: string | null
@@ -117,12 +119,20 @@ export function ClientPanel({
   const [quickEmail, setQuickEmail] = useState("")
   const [quickPhone, setQuickPhone] = useState("")
 
+  // Éditeur de contact (email de contact, email perso, numéro + type pro/perso)
+  const [contactEditOpen, setContactEditOpen] = useState(false)
+  const [editEmail, setEditEmail] = useState("")
+  const [editPersonalEmail, setEditPersonalEmail] = useState("")
+  const [editPhone, setEditPhone] = useState("")
+  const [editPhoneType, setEditPhoneType] = useState("")
+
   useEffect(() => {
     /* eslint-disable react-hooks/set-state-in-effect */
     setQuickFirstName("")
     setQuickLastName("")
     setQuickEmail("")
     setQuickPhone("")
+    setContactEditOpen(false)
     /* eslint-enable react-hooks/set-state-in-effect */
   }, [client?.id])
 
@@ -139,6 +149,31 @@ export function ClientPanel({
         ...(quickPhone.trim()     ? { phone: quickPhone.trim() }         : {}),
       })
       toast.success("Informations complétées")
+      onRefresh?.()
+      router.refresh()
+    })
+  }
+
+  function openContactEdit() {
+    if (!client) return
+    setEditEmail(client.email ?? "")
+    setEditPersonalEmail(client.personalEmail ?? "")
+    setEditPhone(client.phone ?? "")
+    setEditPhoneType(client.phoneType ?? "")
+    setContactEditOpen(true)
+  }
+  function submitContactEdit(e: React.FormEvent) {
+    e.preventDefault()
+    if (!client) return
+    startQuickTransition(async () => {
+      await updateClientAll(client.id, {
+        email: editEmail.trim() || null,
+        personalEmail: editPersonalEmail.trim() || null,
+        phone: editPhone.trim() || null,
+        phoneType: editPhone.trim() ? (editPhoneType || null) : null,
+      })
+      toast.success("Contact mis à jour")
+      setContactEditOpen(false)
       onRefresh?.()
       router.refresh()
     })
@@ -291,16 +326,39 @@ export function ClientPanel({
 
         {/* Contact */}
         <div className="flex flex-col gap-1">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] uppercase tracking-wide text-muted-foreground/50">Contact</span>
+            <button
+              type="button"
+              onClick={() => (contactEditOpen ? setContactEditOpen(false) : openContactEdit())}
+              className="p-1 -m-1 rounded text-muted-foreground/50 hover:text-foreground transition-colors"
+              title="Ajouter / modifier email, email perso, numéro"
+            >
+              <Pencil className="h-3 w-3" />
+            </button>
+          </div>
           {client.email && (
             <a href={`mailto:${client.email}`} className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors">
               <Mail className="h-3.5 w-3.5 shrink-0" />
-              {client.email}
+              <span className="truncate">{client.email}</span>
+            </a>
+          )}
+          {client.personalEmail && (
+            <a href={`mailto:${client.personalEmail}`} className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors">
+              <Mail className="h-3.5 w-3.5 shrink-0" />
+              <span className="truncate">{client.personalEmail}</span>
+              <span className="rounded-full bg-muted px-1.5 py-0.5 text-[9px] font-medium text-muted-foreground shrink-0">perso</span>
             </a>
           )}
           {client.phone && (
             <a href={`tel:${client.phone}`} className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors">
               <Phone className="h-3.5 w-3.5 shrink-0" />
               {client.phone}
+              {client.phoneType && (
+                <span className="rounded-full bg-muted px-1.5 py-0.5 text-[9px] font-medium text-muted-foreground shrink-0">
+                  {client.phoneType === "PRO" ? "pro" : "perso"}
+                </span>
+              )}
             </a>
           )}
           {client.websiteUrl && (
@@ -312,6 +370,57 @@ export function ClientPanel({
                 return cfg ? <span className={cn("rounded-full px-1.5 py-0.5 text-[10px] font-medium shrink-0", cfg.cls)}>{cfg.label}</span> : null
               })()}
             </a>
+          )}
+
+          {/* Éditeur de contact : email, email perso, numéro + type pro/perso */}
+          {contactEditOpen && (
+            <form onSubmit={submitContactEdit} className="mt-1.5 space-y-1.5 rounded-lg border border-border bg-muted/20 p-2.5">
+              <input
+                type="email"
+                value={editEmail}
+                onChange={(e) => setEditEmail(e.target.value)}
+                placeholder="Email de contact"
+                className="w-full h-8 rounded-md border border-input bg-background px-2 text-xs placeholder:text-muted-foreground/40 focus:outline-none focus:ring-1 focus:ring-ring"
+              />
+              <input
+                type="email"
+                value={editPersonalEmail}
+                onChange={(e) => setEditPersonalEmail(e.target.value)}
+                placeholder="Email perso (direct)"
+                className="w-full h-8 rounded-md border border-input bg-background px-2 text-xs placeholder:text-muted-foreground/40 focus:outline-none focus:ring-1 focus:ring-ring"
+              />
+              <input
+                type="tel"
+                value={editPhone}
+                onChange={(e) => setEditPhone(e.target.value)}
+                placeholder="Numéro de téléphone"
+                className="w-full h-8 rounded-md border border-input bg-background px-2 text-xs placeholder:text-muted-foreground/40 focus:outline-none focus:ring-1 focus:ring-ring"
+              />
+              {editPhone.trim() && (
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[10px] text-muted-foreground">Numéro :</span>
+                  {(["PRO", "PERSO"] as const).map((t) => (
+                    <button
+                      key={t}
+                      type="button"
+                      onClick={() => setEditPhoneType(editPhoneType === t ? "" : t)}
+                      className={cn(
+                        "rounded-full border px-2 py-0.5 text-[10px] font-medium transition-colors",
+                        editPhoneType === t ? "bg-primary text-primary-foreground border-primary" : "border-input text-muted-foreground hover:bg-muted"
+                      )}
+                    >
+                      {t === "PRO" ? "Pro" : "Perso"}
+                    </button>
+                  ))}
+                </div>
+              )}
+              <div className="flex justify-end gap-2 pt-0.5">
+                <button type="button" onClick={() => setContactEditOpen(false)} className="h-7 px-2.5 rounded-md text-[11px] text-muted-foreground hover:text-foreground transition-colors">Annuler</button>
+                <button type="submit" disabled={isSavingQuick} className="h-7 px-3 rounded-md bg-primary text-primary-foreground text-[11px] font-medium hover:opacity-90 disabled:opacity-50 transition-opacity">
+                  {isSavingQuick ? "…" : "Enregistrer"}
+                </button>
+              </div>
+            </form>
           )}
         </div>
 

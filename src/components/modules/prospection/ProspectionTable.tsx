@@ -123,12 +123,16 @@ export function ProspectionTable({
     })
   }
 
-  // Le filtre de statut venant de l'URL, on repart page 1 et on vide la
-  // sélection à chaque changement — pattern React « ajuster l'état au rendu »
-  // (remplace le remount via key, sans effet ni rendu en cascade).
-  const [prevStatus, setPrevStatus] = useState(statusFilter)
-  if (statusFilter !== prevStatus) {
-    setPrevStatus(statusFilter)
+  // Filtre secondaire « avec email / téléphone » (cartes stats), via l'URL.
+  const avec = searchParams.get("avec") // "email" | "phone" | null
+
+  // Les filtres URL (statut + avec) : on repart page 1 et on vide la sélection
+  // à chaque changement — pattern React « ajuster l'état au rendu » (remplace le
+  // remount via key, sans effet ni rendu en cascade).
+  const filterKey = `${statusFilter}|${avec ?? ""}`
+  const [prevFilterKey, setPrevFilterKey] = useState(filterKey)
+  if (filterKey !== prevFilterKey) {
+    setPrevFilterKey(filterKey)
     setPage(1)
     setSelected(new Set())
   }
@@ -140,6 +144,7 @@ export function ProspectionTable({
       .filter((p) => statusFilter === "ALL" || p.prospectStatus === statusFilter)
       .filter((p) => siteTypeFilter === "ALL" || p.websiteType === siteTypeFilter)
       .filter((p) => sourceFilter === "ALL" || p.source === sourceFilter)
+      .filter((p) => (avec === "email" ? !!p.email?.trim() : avec === "phone" ? !!p.phone?.trim() : true))
       .filter((p) =>
         !needle ||
         p.name.toLowerCase().includes(needle) ||
@@ -174,7 +179,7 @@ export function ProspectionTable({
         default:            return 0
       }
     })
-  }, [prospects, statusFilter, siteTypeFilter, sourceFilter, needle, sortCol, sortDir])
+  }, [prospects, statusFilter, avec, siteTypeFilter, sourceFilter, needle, sortCol, sortDir])
 
   const totalPages = pageSize === 0 ? 1 : Math.max(1, Math.ceil(filtered.length / pageSize))
   const safePage = Math.min(page, totalPages)

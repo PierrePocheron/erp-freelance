@@ -288,9 +288,9 @@ export default async function CompanyDetailPage({
         </div>
       )}
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-        {/* ── Colonne principale ── */}
-        <div className="lg:col-span-2 space-y-6">
+      <div className="space-y-6">
+        {/* Contenu principal — pleine largeur (les tableaux ont besoin de place) */}
+        <div className="space-y-6">
 
           {/* Informations */}
           <div className="rounded-xl border border-border/50 bg-card p-5 space-y-4">
@@ -629,8 +629,9 @@ export default async function CompanyDetailPage({
 
         </div>
 
-        {/* ── Colonne droite ── */}
-        <div className="space-y-6">
+        {/* Cartes fiche en bento auto-équilibré (multicol) — fini la colonne
+            latérale étroite qui laissait du vide à côté des tableaux */}
+        <div className="gap-6 lg:columns-2 2xl:columns-3 *:mb-6 *:break-inside-avoid">
 
           {/* Candidatures liées (ESN / RECRUTEMENT) */}
           {linkedApplications.length > 0 && (

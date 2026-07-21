@@ -1,6 +1,7 @@
 "use client"
 
-import { useEffect, useMemo, useRef, useState, useTransition } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react"
+import { useSearchParams } from "next/navigation"
 import { Search, X, Mail, MailPlus, Phone, Trash2, ChevronLeft, ChevronRight, Send, ExternalLink, NotebookPen, Play } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { toast } from "sonner"
@@ -55,17 +56,28 @@ const fmtShort = (d: Date | string) =>
 export function ProspectionTable({
   prospects,
   userId,
-  initialStatus,
   templates,
   emailFromConfigured,
 }: {
   prospects: Prospect[]
   userId: string
-  initialStatus?: ProspectStatus
   templates: EmailTemplateOption[]
   emailFromConfigured: boolean
 }) {
-  const [statusFilter, setStatusFilter] = useState<ProspectStatus | "ALL">(initialStatus ?? "ALL")
+  // Filtre de statut piloté par l'URL (?statut=) en shallow routing : partagé
+  // avec les cartes stats, instantané (pas de rechargement serveur), et les
+  // pills ci-dessous écrivent la même clé — une seule source de vérité.
+  const searchParams = useSearchParams()
+  const rawStatus = searchParams.get("statut")
+  const statusFilter: ProspectStatus | "ALL" =
+    rawStatus && (ALL_STATUSES as string[]).includes(rawStatus) ? (rawStatus as ProspectStatus) : "ALL"
+  const setStatusFilter = useCallback((next: ProspectStatus | "ALL") => {
+    const params = new URLSearchParams(window.location.search)
+    if (next === "ALL") params.delete("statut")
+    else params.set("statut", next)
+    const qs = params.toString()
+    window.history.replaceState(null, "", qs ? `?${qs}` : window.location.pathname)
+  }, [])
   const [search, setSearch] = useState("")
   const [siteTypeFilter, setSiteTypeFilter] = useState<string>("ALL")
   const [sourceFilter, setSourceFilter] = useState<string>("ALL")
@@ -111,6 +123,20 @@ export function ProspectionTable({
     })
   }
 
+  // Filtre secondaire « avec email / téléphone » (cartes stats), via l'URL.
+  const avec = searchParams.get("avec") // "email" | "phone" | null
+
+  // Les filtres URL (statut + avec) : on repart page 1 et on vide la sélection
+  // à chaque changement — pattern React « ajuster l'état au rendu » (remplace le
+  // remount via key, sans effet ni rendu en cascade).
+  const filterKey = `${statusFilter}|${avec ?? ""}`
+  const [prevFilterKey, setPrevFilterKey] = useState(filterKey)
+  if (filterKey !== prevFilterKey) {
+    setPrevFilterKey(filterKey)
+    setPage(1)
+    setSelected(new Set())
+  }
+
   // ── Filtre + tri + pagination (en mémoire) ────────────────────────────────
   const needle = search.trim().toLowerCase()
   const filtered = useMemo(() => {
@@ -118,6 +144,7 @@ export function ProspectionTable({
       .filter((p) => statusFilter === "ALL" || p.prospectStatus === statusFilter)
       .filter((p) => siteTypeFilter === "ALL" || p.websiteType === siteTypeFilter)
       .filter((p) => sourceFilter === "ALL" || p.source === sourceFilter)
+      .filter((p) => (avec === "email" ? !!p.email?.trim() : avec === "phone" ? !!p.phone?.trim() : true))
       .filter((p) =>
         !needle ||
         p.name.toLowerCase().includes(needle) ||
@@ -137,8 +164,10 @@ export function ProspectionTable({
         case "name":        return cmp(a.name, b.name, sortDir)
         case "company":     return cmp(a.company, b.company, sortDir)
         case "email":       return cmp(a.email, b.email, sortDir)
+        case "phone":       return cmp(a.phone, b.phone, sortDir)
         case "status":      return cmp(statusOrder[a.prospectStatus] ?? 99, statusOrder[b.prospectStatus] ?? 99, sortDir)
         case "websiteType": return cmp(a.websiteType, b.websiteType, sortDir)
+        case "seoScore":    return cmp(a.seoScore ?? null, b.seoScore ?? null, sortDir)
         case "region":      return cmp(a.region, b.region, sortDir)
         case "lastContact": return cmp(
           a.interactions[0] ? new Date(a.interactions[0].date) : null,
@@ -150,7 +179,7 @@ export function ProspectionTable({
         default:            return 0
       }
     })
-  }, [prospects, statusFilter, siteTypeFilter, sourceFilter, needle, sortCol, sortDir])
+  }, [prospects, statusFilter, avec, siteTypeFilter, sourceFilter, needle, sortCol, sortDir])
 
   const totalPages = pageSize === 0 ? 1 : Math.max(1, Math.ceil(filtered.length / pageSize))
   const safePage = Math.min(page, totalPages)
@@ -472,8 +501,10 @@ export function ProspectionTable({
               <Th label="Nom"             col="name"        sortCol={sortCol} sortDir={sortDir} onSort={toggle} />
               <Th label="Société"         col="company"     sortCol={sortCol} sortDir={sortDir} onSort={toggle} className="hidden md:table-cell" />
               <Th label="Email"           col="email"       sortCol={sortCol} sortDir={sortDir} onSort={toggle} className="hidden lg:table-cell" />
+              <Th label="Téléphone"       col="phone"       sortCol={sortCol} sortDir={sortDir} onSort={toggle} className="hidden lg:table-cell" />
               <Th label="Statut"          col="status"      sortCol={sortCol} sortDir={sortDir} onSort={toggle} />
               <Th label="Site"            col="websiteType" sortCol={sortCol} sortDir={sortDir} onSort={toggle} className="hidden xl:table-cell" />
+              <Th label="SEO"             col="seoScore"    sortCol={sortCol} sortDir={sortDir} onSort={toggle} className="hidden xl:table-cell" />
               <Th label="Région"          col="region"      sortCol={sortCol} sortDir={sortDir} onSort={toggle} className="hidden xl:table-cell" />
               <Th label="Dernier contact" col="lastContact" sortCol={sortCol} sortDir={sortDir} onSort={toggle} className="hidden md:table-cell" />
               <Th label="Source"          col="source"      sortCol={sortCol} sortDir={sortDir} onSort={toggle} className="hidden lg:table-cell" />
@@ -505,12 +536,22 @@ export function ProspectionTable({
                   <td className="font-medium max-w-[180px] truncate" title={p.name}>{p.name}</td>
                   <td className="hidden md:table-cell text-muted-foreground max-w-[140px] truncate" title={p.company ?? undefined}>{p.company ?? "—"}</td>
                   <td className="hidden lg:table-cell text-muted-foreground max-w-[200px] truncate" title={p.email ?? undefined}>{p.email ?? "—"}</td>
+                  <td className="hidden lg:table-cell text-muted-foreground whitespace-nowrap" title={p.phone ?? undefined}>
+                    {p.phone
+                      ? <a href={`tel:${p.phone}`} onClick={(e) => e.stopPropagation()} className="hover:text-primary transition-colors">{p.phone}</a>
+                      : "—"}
+                  </td>
                   <td onClick={(e) => e.stopPropagation()}>
                     <ProspectStatusSelect clientId={p.id} value={p.prospectStatus} />
                   </td>
                   <td className="hidden xl:table-cell">
                     {siteType
                       ? <span className={cn("rounded-full px-1.5 py-0.5 text-[10px] font-medium whitespace-nowrap", siteType.cls)}>{siteType.label}</span>
+                      : <span className="text-muted-foreground">—</span>}
+                  </td>
+                  <td className="hidden xl:table-cell whitespace-nowrap" title={p.seoScore != null ? `Score SEO ${p.seoScore}/100` : undefined}>
+                    {p.seoScore != null
+                      ? <span className={cn("font-medium tabular-nums", p.seoScore >= 70 ? "text-emerald-600" : p.seoScore >= 40 ? "text-amber-600" : "text-red-500")}>{p.seoScore}</span>
                       : <span className="text-muted-foreground">—</span>}
                   </td>
                   <td className="hidden xl:table-cell text-muted-foreground max-w-[110px] truncate" title={p.region ?? undefined}>{p.region ?? "—"}</td>

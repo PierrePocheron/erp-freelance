@@ -2,20 +2,14 @@ import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import Link from "next/link"
 import { ProspectionTable } from "@/components/modules/prospection/ProspectionTable"
+import { ProspectionStats } from "@/components/modules/prospection/ProspectionStats"
 import { ProspectQuickAdd } from "@/components/modules/prospection/ProspectQuickAdd"
 import { ImportCsvDialog } from "@/components/modules/prospection/ImportCsvDialog"
-import { ALL_STATUSES } from "@/components/modules/prospection/status-config"
 import { prospectionFromAddress } from "@/lib/prospection-email"
 import { StartSessionDialog } from "@/components/modules/prospection/StartSessionDialog"
-import type { ProspectStatus } from "@/generated/prisma/enums"
-import { TrendingUp, Send, CheckCircle2, XCircle, Mail, NotebookPen, MessageSquare, Reply, MessagesSquare, AtSign } from "lucide-react"
+import { Mail, NotebookPen } from "lucide-react"
 
-export default async function ProspectionPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ statut?: string }>
-}) {
-  const { statut: initialStatus } = await searchParams
+export default async function ProspectionPage() {
   const session = await auth()
   const userId = session!.user.id
 
@@ -53,10 +47,7 @@ export default async function ProspectionPage({
   const won          = prospects.filter((p) => p.prospectStatus === "WON")
   const lost         = prospects.filter((p) => p.prospectStatus === "LOST")
   const withEmail    = prospects.filter((p) => p.email?.trim())
-
-  const validStatus = initialStatus && (ALL_STATUSES as string[]).includes(initialStatus)
-    ? (initialStatus as ProspectStatus)
-    : undefined
+  const withPhone    = prospects.filter((p) => p.phone?.trim())
 
   return (
     <div className="space-y-6">
@@ -92,26 +83,28 @@ export default async function ProspectionPage({
         </div>
       </div>
 
-      {/* Stats — cliquables (sauf « Avec email »), elles filtrent le tableau.
-          8 cartes sur une seule ligne en desktop (lg), 4 en tablette, 2 en mobile */}
-      <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4 lg:grid-cols-8">
-        <StatTile icon={<TrendingUp className="h-4 w-4 text-amber-500" />} label="Actifs" value={active.length} href="/prospection" active={!validStatus} />
-        <StatTile icon={<Send className="h-4 w-4 text-blue-500" />} label="À contacter" value={toContact.length} href="/prospection?statut=TO_CONTACT" active={validStatus === "TO_CONTACT"} />
-        <StatTile icon={<MessageSquare className="h-4 w-4 text-sky-500" />} label="Contactés" value={contacted.length} href="/prospection?statut=CONTACTED" active={validStatus === "CONTACTED"} />
-        <StatTile icon={<Reply className="h-4 w-4 text-teal-500" />} label="A répondu" value={replied.length} href="/prospection?statut=REPLIED" active={validStatus === "REPLIED"} />
-        <StatTile icon={<MessagesSquare className="h-4 w-4 text-violet-500" />} label="En discussion" value={inDiscussion.length} href="/prospection?statut=IN_DISCUSSION" active={validStatus === "IN_DISCUSSION"} />
-        <StatTile icon={<CheckCircle2 className="h-4 w-4 text-emerald-500" />} label="Gagnés" value={won.length} href="/prospection?statut=WON" active={validStatus === "WON"} variant="success" />
-        <StatTile icon={<XCircle className="h-4 w-4 text-red-400" />} label="Perdus" value={lost.length} href="/prospection?statut=LOST" active={validStatus === "LOST"} variant="muted" />
-        <StatTile icon={<AtSign className="h-4 w-4 text-muted-foreground" />} label="Avec email" value={withEmail.length} />
-      </div>
+      {/* Stats — les cartes de statut filtrent le tableau instantanément
+          (shallow routing via ?statut=, aucun rechargement). 9 cartes sur une
+          ligne en desktop (lg), 4 en tablette, 2 en mobile. */}
+      <ProspectionStats
+        counts={{
+          active: active.length,
+          toContact: toContact.length,
+          contacted: contacted.length,
+          replied: replied.length,
+          inDiscussion: inDiscussion.length,
+          won: won.length,
+          lost: lost.length,
+          withEmail: withEmail.length,
+          withPhone: withPhone.length,
+        }}
+      />
 
       <ProspectQuickAdd />
 
       <ProspectionTable
-        key={validStatus ?? "all"}
         prospects={prospects}
         userId={userId}
-        initialStatus={validStatus}
         templates={templates}
         emailFromConfigured={prospectionFromAddress() !== null}
       />
@@ -119,36 +112,3 @@ export default async function ProspectionPage({
   )
 }
 
-function StatTile({
-  icon, label, value, href, active, variant,
-}: {
-  icon: React.ReactNode
-  label: string
-  value: number
-  href?: string
-  active?: boolean
-  variant?: "success" | "muted"
-}) {
-  const inner = (
-    <>
-      <div className="flex items-center gap-1.5 text-xs text-muted-foreground">{icon}<span className="truncate">{label}</span></div>
-      <p className={`text-xl font-bold tabular-nums ${variant === "success" ? "text-emerald-600" : variant === "muted" ? "text-muted-foreground" : ""}`}>
-        {value}
-      </p>
-    </>
-  )
-  // Carte statistique simple (non filtrante) quand aucun href n'est fourni
-  if (!href) {
-    return <div className="rounded-xl border border-border/50 bg-card p-3 space-y-0.5">{inner}</div>
-  }
-  return (
-    <Link
-      href={href}
-      className={`rounded-xl border bg-card p-3 space-y-0.5 transition-colors ${
-        active ? "border-primary" : "border-border/50 hover:border-border"
-      }`}
-    >
-      {inner}
-    </Link>
-  )
-}

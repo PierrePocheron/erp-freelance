@@ -1,6 +1,7 @@
 "use client"
 
-import { useEffect, useMemo, useRef, useState, useTransition } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react"
+import { useSearchParams } from "next/navigation"
 import { Search, X, Mail, MailPlus, Phone, Trash2, ChevronLeft, ChevronRight, Send, ExternalLink, NotebookPen, Play } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { toast } from "sonner"
@@ -55,17 +56,28 @@ const fmtShort = (d: Date | string) =>
 export function ProspectionTable({
   prospects,
   userId,
-  initialStatus,
   templates,
   emailFromConfigured,
 }: {
   prospects: Prospect[]
   userId: string
-  initialStatus?: ProspectStatus
   templates: EmailTemplateOption[]
   emailFromConfigured: boolean
 }) {
-  const [statusFilter, setStatusFilter] = useState<ProspectStatus | "ALL">(initialStatus ?? "ALL")
+  // Filtre de statut piloté par l'URL (?statut=) en shallow routing : partagé
+  // avec les cartes stats, instantané (pas de rechargement serveur), et les
+  // pills ci-dessous écrivent la même clé — une seule source de vérité.
+  const searchParams = useSearchParams()
+  const rawStatus = searchParams.get("statut")
+  const statusFilter: ProspectStatus | "ALL" =
+    rawStatus && (ALL_STATUSES as string[]).includes(rawStatus) ? (rawStatus as ProspectStatus) : "ALL"
+  const setStatusFilter = useCallback((next: ProspectStatus | "ALL") => {
+    const params = new URLSearchParams(window.location.search)
+    if (next === "ALL") params.delete("statut")
+    else params.set("statut", next)
+    const qs = params.toString()
+    window.history.replaceState(null, "", qs ? `?${qs}` : window.location.pathname)
+  }, [])
   const [search, setSearch] = useState("")
   const [siteTypeFilter, setSiteTypeFilter] = useState<string>("ALL")
   const [sourceFilter, setSourceFilter] = useState<string>("ALL")
@@ -109,6 +121,16 @@ export function ProspectionTable({
       const data = await getClientPanel(clientId, userId)
       setPanelData(data)
     })
+  }
+
+  // Le filtre de statut venant de l'URL, on repart page 1 et on vide la
+  // sélection à chaque changement — pattern React « ajuster l'état au rendu »
+  // (remplace le remount via key, sans effet ni rendu en cascade).
+  const [prevStatus, setPrevStatus] = useState(statusFilter)
+  if (statusFilter !== prevStatus) {
+    setPrevStatus(statusFilter)
+    setPage(1)
+    setSelected(new Set())
   }
 
   // ── Filtre + tri + pagination (en mémoire) ────────────────────────────────

@@ -22,7 +22,17 @@ export function CallTemplatesView({ templates }: { templates: CallTemplate[] }) 
   const [name, setName] = useState("")
   const [script, setScript] = useState("")
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
+  const [expanded, setExpanded] = useState<Set<string>>(new Set())
   const [isPending, startTransition] = useTransition()
+
+  function toggleExpand(id: string) {
+    setExpanded((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
 
   // Ordre local pour le drag & drop — resynchronisé quand la liste serveur change.
   const [items, setItems] = useState(templates)
@@ -199,7 +209,14 @@ export function CallTemplatesView({ templates }: { templates: CallTemplate[] }) 
                   )}
                 </div>
               </div>
-              <p className="text-xs text-muted-foreground/80 line-clamp-6 whitespace-pre-line leading-relaxed">{t.script}</p>
+              <p className={cn("text-xs text-muted-foreground/80 whitespace-pre-line leading-relaxed", !expanded.has(t.id) && "line-clamp-6")}>{t.script}</p>
+              <button
+                type="button"
+                onClick={() => toggleExpand(t.id)}
+                className="self-start text-[11px] font-medium text-primary hover:underline"
+              >
+                {expanded.has(t.id) ? "Réduire" : "Dérouler le script"}
+              </button>
             </div>
           ))}
         </div>

@@ -162,6 +162,7 @@ export function ProspectionTable({
         case "phone":       return cmp(a.phone, b.phone, sortDir)
         case "status":      return cmp(statusOrder[a.prospectStatus] ?? 99, statusOrder[b.prospectStatus] ?? 99, sortDir)
         case "websiteType": return cmp(a.websiteType, b.websiteType, sortDir)
+        case "seoScore":    return cmp(a.seoScore ?? null, b.seoScore ?? null, sortDir)
         case "region":      return cmp(a.region, b.region, sortDir)
         case "lastContact": return cmp(
           a.interactions[0] ? new Date(a.interactions[0].date) : null,
@@ -498,6 +499,7 @@ export function ProspectionTable({
               <Th label="Téléphone"       col="phone"       sortCol={sortCol} sortDir={sortDir} onSort={toggle} className="hidden lg:table-cell" />
               <Th label="Statut"          col="status"      sortCol={sortCol} sortDir={sortDir} onSort={toggle} />
               <Th label="Site"            col="websiteType" sortCol={sortCol} sortDir={sortDir} onSort={toggle} className="hidden xl:table-cell" />
+              <Th label="SEO"             col="seoScore"    sortCol={sortCol} sortDir={sortDir} onSort={toggle} className="hidden xl:table-cell" />
               <Th label="Région"          col="region"      sortCol={sortCol} sortDir={sortDir} onSort={toggle} className="hidden xl:table-cell" />
               <Th label="Dernier contact" col="lastContact" sortCol={sortCol} sortDir={sortDir} onSort={toggle} className="hidden md:table-cell" />
               <Th label="Source"          col="source"      sortCol={sortCol} sortDir={sortDir} onSort={toggle} className="hidden lg:table-cell" />
@@ -540,6 +542,11 @@ export function ProspectionTable({
                   <td className="hidden xl:table-cell">
                     {siteType
                       ? <span className={cn("rounded-full px-1.5 py-0.5 text-[10px] font-medium whitespace-nowrap", siteType.cls)}>{siteType.label}</span>
+                      : <span className="text-muted-foreground">—</span>}
+                  </td>
+                  <td className="hidden xl:table-cell whitespace-nowrap" title={p.seoScore != null ? `Score SEO ${p.seoScore}/100` : undefined}>
+                    {p.seoScore != null
+                      ? <span className={cn("font-medium tabular-nums", p.seoScore >= 70 ? "text-emerald-600" : p.seoScore >= 40 ? "text-amber-600" : "text-red-500")}>{p.seoScore}</span>
                       : <span className="text-muted-foreground">—</span>}
                   </td>
                   <td className="hidden xl:table-cell text-muted-foreground max-w-[110px] truncate" title={p.region ?? undefined}>{p.region ?? "—"}</td>

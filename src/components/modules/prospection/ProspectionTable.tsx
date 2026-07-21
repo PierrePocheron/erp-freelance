@@ -137,6 +137,7 @@ export function ProspectionTable({
         case "name":        return cmp(a.name, b.name, sortDir)
         case "company":     return cmp(a.company, b.company, sortDir)
         case "email":       return cmp(a.email, b.email, sortDir)
+        case "phone":       return cmp(a.phone, b.phone, sortDir)
         case "status":      return cmp(statusOrder[a.prospectStatus] ?? 99, statusOrder[b.prospectStatus] ?? 99, sortDir)
         case "websiteType": return cmp(a.websiteType, b.websiteType, sortDir)
         case "region":      return cmp(a.region, b.region, sortDir)
@@ -472,6 +473,7 @@ export function ProspectionTable({
               <Th label="Nom"             col="name"        sortCol={sortCol} sortDir={sortDir} onSort={toggle} />
               <Th label="Société"         col="company"     sortCol={sortCol} sortDir={sortDir} onSort={toggle} className="hidden md:table-cell" />
               <Th label="Email"           col="email"       sortCol={sortCol} sortDir={sortDir} onSort={toggle} className="hidden lg:table-cell" />
+              <Th label="Téléphone"       col="phone"       sortCol={sortCol} sortDir={sortDir} onSort={toggle} className="hidden lg:table-cell" />
               <Th label="Statut"          col="status"      sortCol={sortCol} sortDir={sortDir} onSort={toggle} />
               <Th label="Site"            col="websiteType" sortCol={sortCol} sortDir={sortDir} onSort={toggle} className="hidden xl:table-cell" />
               <Th label="Région"          col="region"      sortCol={sortCol} sortDir={sortDir} onSort={toggle} className="hidden xl:table-cell" />
@@ -505,6 +507,11 @@ export function ProspectionTable({
                   <td className="font-medium max-w-[180px] truncate" title={p.name}>{p.name}</td>
                   <td className="hidden md:table-cell text-muted-foreground max-w-[140px] truncate" title={p.company ?? undefined}>{p.company ?? "—"}</td>
                   <td className="hidden lg:table-cell text-muted-foreground max-w-[200px] truncate" title={p.email ?? undefined}>{p.email ?? "—"}</td>
+                  <td className="hidden lg:table-cell text-muted-foreground whitespace-nowrap" title={p.phone ?? undefined}>
+                    {p.phone
+                      ? <a href={`tel:${p.phone}`} onClick={(e) => e.stopPropagation()} className="hover:text-primary transition-colors">{p.phone}</a>
+                      : "—"}
+                  </td>
                   <td onClick={(e) => e.stopPropagation()}>
                     <ProspectStatusSelect clientId={p.id} value={p.prospectStatus} />
                   </td>

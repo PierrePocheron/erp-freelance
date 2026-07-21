@@ -8,7 +8,7 @@ import { ALL_STATUSES } from "@/components/modules/prospection/status-config"
 import { prospectionFromAddress } from "@/lib/prospection-email"
 import { StartSessionDialog } from "@/components/modules/prospection/StartSessionDialog"
 import type { ProspectStatus } from "@/generated/prisma/enums"
-import { TrendingUp, Send, CheckCircle2, XCircle, Mail, NotebookPen, MessageSquare, Reply, MessagesSquare, AtSign } from "lucide-react"
+import { TrendingUp, Send, CheckCircle2, XCircle, Mail, NotebookPen, MessageSquare, Reply, MessagesSquare, AtSign, Phone } from "lucide-react"
 
 export default async function ProspectionPage({
   searchParams,
@@ -53,6 +53,7 @@ export default async function ProspectionPage({
   const won          = prospects.filter((p) => p.prospectStatus === "WON")
   const lost         = prospects.filter((p) => p.prospectStatus === "LOST")
   const withEmail    = prospects.filter((p) => p.email?.trim())
+  const withPhone    = prospects.filter((p) => p.phone?.trim())
 
   const validStatus = initialStatus && (ALL_STATUSES as string[]).includes(initialStatus)
     ? (initialStatus as ProspectStatus)
@@ -92,9 +93,10 @@ export default async function ProspectionPage({
         </div>
       </div>
 
-      {/* Stats — cliquables (sauf « Avec email »), elles filtrent le tableau.
-          8 cartes sur une seule ligne en desktop (lg), 4 en tablette, 2 en mobile */}
-      <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4 lg:grid-cols-8">
+      {/* Stats — cliquables (sauf « Avec email » / « Avec téléphone »), elles
+          filtrent le tableau. 9 cartes sur une seule ligne en desktop (lg),
+          4 en tablette, 2 en mobile */}
+      <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4 lg:grid-cols-9">
         <StatTile icon={<TrendingUp className="h-4 w-4 text-amber-500" />} label="Actifs" value={active.length} href="/prospection" active={!validStatus} />
         <StatTile icon={<Send className="h-4 w-4 text-blue-500" />} label="À contacter" value={toContact.length} href="/prospection?statut=TO_CONTACT" active={validStatus === "TO_CONTACT"} />
         <StatTile icon={<MessageSquare className="h-4 w-4 text-sky-500" />} label="Contactés" value={contacted.length} href="/prospection?statut=CONTACTED" active={validStatus === "CONTACTED"} />
@@ -103,6 +105,7 @@ export default async function ProspectionPage({
         <StatTile icon={<CheckCircle2 className="h-4 w-4 text-emerald-500" />} label="Gagnés" value={won.length} href="/prospection?statut=WON" active={validStatus === "WON"} variant="success" />
         <StatTile icon={<XCircle className="h-4 w-4 text-red-400" />} label="Perdus" value={lost.length} href="/prospection?statut=LOST" active={validStatus === "LOST"} variant="muted" />
         <StatTile icon={<AtSign className="h-4 w-4 text-muted-foreground" />} label="Avec email" value={withEmail.length} />
+        <StatTile icon={<Phone className="h-4 w-4 text-muted-foreground" />} label="Avec téléphone" value={withPhone.length} />
       </div>
 
       <ProspectQuickAdd />

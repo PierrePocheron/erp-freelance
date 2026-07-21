@@ -533,7 +533,23 @@ export function ProspectionTable({
                       className="h-3.5 w-3.5 rounded accent-primary align-middle"
                     />
                   </td>
-                  <td className="font-medium max-w-[180px] truncate" title={p.name}>{p.name}</td>
+                  <td className="max-w-[180px]">
+                    <div className="flex items-center gap-1.5">
+                      <span className="font-medium truncate" title={p.name}>{p.name}</span>
+                      {p.websiteUrl && (
+                        <a
+                          href={p.websiteUrl.startsWith("http") ? p.websiteUrl : `https://${p.websiteUrl}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={(e) => e.stopPropagation()}
+                          title={`Ouvrir le site — ${p.websiteUrl}`}
+                          className="shrink-0 text-muted-foreground hover:text-primary transition-colors"
+                        >
+                          <ExternalLink className="h-3.5 w-3.5" />
+                        </a>
+                      )}
+                    </div>
+                  </td>
                   <td className="hidden md:table-cell text-muted-foreground max-w-[140px] truncate" title={p.company ?? undefined}>{p.company ?? "—"}</td>
                   <td className="hidden lg:table-cell text-muted-foreground max-w-[200px] truncate" title={p.email ?? undefined}>{p.email ?? "—"}</td>
                   <td className="hidden lg:table-cell text-muted-foreground whitespace-nowrap" title={p.phone ?? undefined}>

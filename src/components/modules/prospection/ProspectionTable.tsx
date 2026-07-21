@@ -14,6 +14,8 @@ import { markProspectsContacted, updateProspectsStatusBulk, deleteProspects } fr
 import { renderTemplate } from "@/lib/email-template"
 import { STATUS_CONFIG, ALL_STATUSES, WEBSITE_TYPE_CONFIG, SOURCE_LABELS } from "./status-config"
 import { ProspectStatusSelect } from "./ProspectStatusSelect"
+import { ProspectInterestSelect } from "./ProspectInterestSelect"
+import { INTEREST_LEVELS, INTEREST_ORDER } from "@/lib/prospect-interest"
 import { SendEmailDialog, type EmailTemplateOption } from "./SendEmailDialog"
 import { GmailPrepDialog } from "./GmailPrepDialog"
 import { PrepareDraftsDialog } from "./PrepareDraftsDialog"
@@ -28,6 +30,7 @@ type Prospect = {
   email: string | null
   phone: string | null
   phoneType: string | null
+  interestLevel: number | null
   source: string
   prospectStatus: string
   websiteUrl: string | null
@@ -82,6 +85,7 @@ export function ProspectionTable({
   const [search, setSearch] = useState("")
   const [siteTypeFilter, setSiteTypeFilter] = useState<string>("ALL")
   const [sourceFilter, setSourceFilter] = useState<string>("ALL")
+  const [interestFilter, setInterestFilter] = useState<string>("ALL")
   const [mailTemplateId, setMailTemplateId] = useState("")
   const { sortCol, sortDir, toggle } = useSortState("createdAt", "desc")
 
@@ -145,6 +149,8 @@ export function ProspectionTable({
       .filter((p) => statusFilter === "ALL" || p.prospectStatus === statusFilter)
       .filter((p) => siteTypeFilter === "ALL" || p.websiteType === siteTypeFilter)
       .filter((p) => sourceFilter === "ALL" || p.source === sourceFilter)
+      .filter((p) => interestFilter === "ALL"
+        || (interestFilter === "NONE" ? p.interestLevel == null : p.interestLevel === Number(interestFilter)))
       .filter((p) => (avec === "email" ? !!p.email?.trim() : avec === "phone" ? !!p.phone?.trim() : true))
       .filter((p) =>
         !needle ||
@@ -169,6 +175,7 @@ export function ProspectionTable({
         case "status":      return cmp(statusOrder[a.prospectStatus] ?? 99, statusOrder[b.prospectStatus] ?? 99, sortDir)
         case "websiteType": return cmp(a.websiteType, b.websiteType, sortDir)
         case "seoScore":    return cmp(a.seoScore ?? null, b.seoScore ?? null, sortDir)
+        case "interest":    return cmp(a.interestLevel ?? 99, b.interestLevel ?? 99, sortDir)
         case "region":      return cmp(a.region, b.region, sortDir)
         case "lastContact": return cmp(
           a.interactions[0] ? new Date(a.interactions[0].date) : null,
@@ -180,7 +187,7 @@ export function ProspectionTable({
         default:            return 0
       }
     })
-  }, [prospects, statusFilter, avec, siteTypeFilter, sourceFilter, needle, sortCol, sortDir])
+  }, [prospects, statusFilter, avec, siteTypeFilter, sourceFilter, interestFilter, needle, sortCol, sortDir])
 
   const totalPages = pageSize === 0 ? 1 : Math.max(1, Math.ceil(filtered.length / pageSize))
   const safePage = Math.min(page, totalPages)
@@ -357,6 +364,17 @@ export function ProspectionTable({
             <option key={v} value={v}>{l}</option>
           ))}
         </select>
+        <select
+          value={interestFilter}
+          onChange={(e) => setInterestFilter(e.target.value)}
+          className="h-8 rounded-lg border border-input bg-background px-2 text-xs focus:outline-none focus:ring-1 focus:ring-ring"
+        >
+          <option value="ALL">Intérêt : tous</option>
+          {INTEREST_ORDER.map((lvl) => (
+            <option key={lvl} value={String(lvl)}>{lvl} — {INTEREST_LEVELS[lvl].label}</option>
+          ))}
+          <option value="NONE">Non évalué</option>
+        </select>
         {templates.length > 0 && (
           <div className="flex items-center gap-1.5">
             <MailPlus className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
@@ -504,6 +522,7 @@ export function ProspectionTable({
               <Th label="Email"           col="email"       sortCol={sortCol} sortDir={sortDir} onSort={toggle} className="hidden lg:table-cell" />
               <Th label="Téléphone"       col="phone"       sortCol={sortCol} sortDir={sortDir} onSort={toggle} className="hidden lg:table-cell" />
               <Th label="Statut"          col="status"      sortCol={sortCol} sortDir={sortDir} onSort={toggle} />
+              <Th label="Intérêt"         col="interest"    sortCol={sortCol} sortDir={sortDir} onSort={toggle} className="hidden sm:table-cell" />
               <Th label="Site"            col="websiteType" sortCol={sortCol} sortDir={sortDir} onSort={toggle} className="hidden xl:table-cell" />
               <Th label="SEO"             col="seoScore"    sortCol={sortCol} sortDir={sortDir} onSort={toggle} className="hidden xl:table-cell" />
               <Th label="Région"          col="region"      sortCol={sortCol} sortDir={sortDir} onSort={toggle} className="hidden xl:table-cell" />
@@ -567,6 +586,9 @@ export function ProspectionTable({
                   </td>
                   <td onClick={(e) => e.stopPropagation()}>
                     <ProspectStatusSelect clientId={p.id} value={p.prospectStatus} />
+                  </td>
+                  <td className="hidden sm:table-cell" onClick={(e) => e.stopPropagation()}>
+                    <ProspectInterestSelect clientId={p.id} value={p.interestLevel} />
                   </td>
                   <td className="hidden xl:table-cell">
                     {siteType

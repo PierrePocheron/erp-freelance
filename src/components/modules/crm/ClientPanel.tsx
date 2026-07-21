@@ -7,8 +7,9 @@ import {
   Mail, Phone, ExternalLink, Building2, Globe,
   MessageSquare, Bell, FolderKanban, FileText, Receipt,
   Phone as PhoneIcon, Mail as MailIcon, Video, Users,
-  UserCheck, Archive, AlertCircle, Pencil,
+  UserCheck, Archive, AlertCircle, Pencil, MapPin,
 } from "lucide-react"
+import { ProspectInterestSelect } from "@/components/modules/prospection/ProspectInterestSelect"
 import { cn } from "@/lib/utils"
 import { updateClientType, addInteraction, addReminder, updateClientAll } from "@/actions/crm"
 import { updateProspectStatus } from "@/actions/prospection"
@@ -75,6 +76,10 @@ type ClientPanelData = {
   personalEmail: string | null
   phone: string | null
   phoneType: string | null
+  interestLevel: number | null
+  address: string | null
+  postalCode: string | null
+  city: string | null
   type: string
   source: string
   notes: string | null
@@ -125,6 +130,9 @@ export function ClientPanel({
   const [editPersonalEmail, setEditPersonalEmail] = useState("")
   const [editPhone, setEditPhone] = useState("")
   const [editPhoneType, setEditPhoneType] = useState("")
+  const [editAddress, setEditAddress] = useState("")
+  const [editPostalCode, setEditPostalCode] = useState("")
+  const [editCity, setEditCity] = useState("")
 
   useEffect(() => {
     /* eslint-disable react-hooks/set-state-in-effect */
@@ -160,6 +168,9 @@ export function ClientPanel({
     setEditPersonalEmail(client.personalEmail ?? "")
     setEditPhone(client.phone ?? "")
     setEditPhoneType(client.phoneType ?? "")
+    setEditAddress(client.address ?? "")
+    setEditPostalCode(client.postalCode ?? "")
+    setEditCity(client.city ?? "")
     setContactEditOpen(true)
   }
   function submitContactEdit(e: React.FormEvent) {
@@ -171,6 +182,9 @@ export function ClientPanel({
         personalEmail: editPersonalEmail.trim() || null,
         phone: editPhone.trim() || null,
         phoneType: editPhone.trim() ? (editPhoneType || null) : null,
+        address: editAddress.trim() || null,
+        postalCode: editPostalCode.trim() || null,
+        city: editCity.trim() || null,
       })
       toast.success("Contact mis à jour")
       setContactEditOpen(false)
@@ -332,11 +346,17 @@ export function ClientPanel({
               type="button"
               onClick={() => (contactEditOpen ? setContactEditOpen(false) : openContactEdit())}
               className="p-1 -m-1 rounded text-muted-foreground/50 hover:text-foreground transition-colors"
-              title="Ajouter / modifier email, email perso, numéro"
+              title="Ajouter / modifier email, email perso, numéro, adresse"
             >
               <Pencil className="h-3 w-3" />
             </button>
           </div>
+          {client.type === "PROSPECT" && (
+            <div className="flex items-center gap-2 text-sm">
+              <span className="text-muted-foreground/70 text-xs">Intérêt :</span>
+              <ProspectInterestSelect clientId={client.id} value={client.interestLevel} />
+            </div>
+          )}
           {client.email && (
             <a href={`mailto:${client.email}`} className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors">
               <Mail className="h-3.5 w-3.5 shrink-0" />
@@ -360,6 +380,12 @@ export function ClientPanel({
                 </span>
               )}
             </a>
+          )}
+          {(client.address || client.city) && (
+            <div className="flex items-start gap-2 text-sm text-muted-foreground">
+              <MapPin className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+              <span>{[client.address, [client.postalCode, client.city].filter(Boolean).join(" ")].filter(Boolean).join(", ")}</span>
+            </div>
           )}
           {client.websiteUrl && (
             <a href={client.websiteUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors">
@@ -414,6 +440,29 @@ export function ClientPanel({
                   ))}
                 </div>
               )}
+              <input
+                type="text"
+                value={editAddress}
+                onChange={(e) => setEditAddress(e.target.value)}
+                placeholder="Adresse"
+                className="w-full h-8 rounded-md border border-input bg-background px-2 text-xs placeholder:text-muted-foreground/40 focus:outline-none focus:ring-1 focus:ring-ring"
+              />
+              <div className="flex gap-1.5">
+                <input
+                  type="text"
+                  value={editPostalCode}
+                  onChange={(e) => setEditPostalCode(e.target.value)}
+                  placeholder="CP"
+                  className="w-20 h-8 rounded-md border border-input bg-background px-2 text-xs placeholder:text-muted-foreground/40 focus:outline-none focus:ring-1 focus:ring-ring"
+                />
+                <input
+                  type="text"
+                  value={editCity}
+                  onChange={(e) => setEditCity(e.target.value)}
+                  placeholder="Ville"
+                  className="flex-1 h-8 rounded-md border border-input bg-background px-2 text-xs placeholder:text-muted-foreground/40 focus:outline-none focus:ring-1 focus:ring-ring"
+                />
+              </div>
               <div className="flex justify-end gap-2 pt-0.5">
                 <button type="button" onClick={() => setContactEditOpen(false)} className="h-7 px-2.5 rounded-md text-[11px] text-muted-foreground hover:text-foreground transition-colors">Annuler</button>
                 <button type="submit" disabled={isSavingQuick} className="h-7 px-3 rounded-md bg-primary text-primary-foreground text-[11px] font-medium hover:opacity-90 disabled:opacity-50 transition-opacity">

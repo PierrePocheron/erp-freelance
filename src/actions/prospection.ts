@@ -433,6 +433,19 @@ export async function reorderCallTemplates(orderedIds: string[]) {
   revalidatePath("/prospection/appels")
 }
 
+// ── Niveau d'intérêt / priorité d'un prospect ────────────────────────────────
+
+export async function setProspectInterest(clientId: string, level: number | null) {
+  const userId = await requireAuth()
+  const value = level && [1, 2, 3].includes(level) ? level : null
+  const updated = await prisma.client.updateMany({
+    where: { id: clientId, userId },
+    data: { interestLevel: value },
+  })
+  if (updated.count === 0) throw new Error("Non autorisé")
+  revalidatePath("/prospection")
+}
+
 // ── Envoi en masse (Resend) ──────────────────────────────────────────────────
 
 const RESEND_BATCH_SIZE = 100 // limite de l'API batch Resend

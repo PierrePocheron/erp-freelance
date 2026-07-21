@@ -27,6 +27,7 @@ type Prospect = {
   company: string | null
   email: string | null
   phone: string | null
+  phoneType: string | null
   source: string
   prospectStatus: string
   websiteUrl: string | null
@@ -553,9 +554,16 @@ export function ProspectionTable({
                   <td className="hidden md:table-cell text-muted-foreground max-w-[140px] truncate" title={p.company ?? undefined}>{p.company ?? "—"}</td>
                   <td className="hidden lg:table-cell text-muted-foreground max-w-[200px] truncate" title={p.email ?? undefined}>{p.email ?? "—"}</td>
                   <td className="hidden lg:table-cell text-muted-foreground whitespace-nowrap" title={p.phone ?? undefined}>
-                    {p.phone
-                      ? <a href={`tel:${p.phone}`} onClick={(e) => e.stopPropagation()} className="hover:text-primary transition-colors">{p.phone}</a>
-                      : "—"}
+                    {p.phone ? (
+                      <span className="inline-flex items-center gap-1.5">
+                        <a href={`tel:${p.phone}`} onClick={(e) => e.stopPropagation()} className="hover:text-primary transition-colors">{p.phone}</a>
+                        {p.phoneType && (
+                          <span className="rounded-full bg-muted px-1.5 py-0.5 text-[9px] font-medium text-muted-foreground/80">
+                            {p.phoneType === "PRO" ? "pro" : "perso"}
+                          </span>
+                        )}
+                      </span>
+                    ) : "—"}
                   </td>
                   <td onClick={(e) => e.stopPropagation()}>
                     <ProspectStatusSelect clientId={p.id} value={p.prospectStatus} />

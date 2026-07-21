@@ -6,6 +6,7 @@ import { Plus, Pencil, Trash2, Phone, X, Check, GripVertical } from "lucide-reac
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { createCallTemplate, updateCallTemplate, deleteCallTemplate, reorderCallTemplates } from "@/actions/prospection"
+import { TEMPLATE_VARIABLES } from "@/lib/email-template"
 import { cn } from "@/lib/utils"
 import { toast } from "sonner"
 
@@ -105,14 +106,20 @@ export function CallTemplatesView({ templates }: { templates: CallTemplate[] }) 
 
   return (
     <div className="space-y-4">
-      {/* Aide format */}
-      <div className="rounded-xl border border-border/50 bg-card p-4 space-y-1.5">
+      {/* Aide format + variables */}
+      <div className="rounded-xl border border-border/50 bg-card p-4 space-y-2">
         <p className="text-xs font-medium text-muted-foreground">
           Notez votre déroulé d&apos;appel : ouverture, <strong>phrases clés</strong>, réponses potentielles du prospect et relances.
         </p>
+        <div className="flex flex-wrap gap-1.5">
+          {TEMPLATE_VARIABLES.map((v) => (
+            <code key={v.key} className="rounded bg-muted px-1.5 py-0.5 text-[11px]" title={v.label}>
+              {`{{${v.key}}}`}
+            </code>
+          ))}
+        </div>
         <p className="text-[11px] text-muted-foreground/70">
-          Astuce : gardez l&apos;intrigue — teasez la valeur (« j&apos;ai créé quelque chose pour vous »)
-          sans dévoiler le détail ni les tarifs, à réserver pour le rendez-vous. Utilisez <code className="rounded bg-muted px-1 py-0.5">((nom))</code> pour vous rappeler d&apos;insérer le nom.
+          Les <code className="rounded bg-muted px-1 py-0.5">{`{{variables}}`}</code> sont remplacées par les vraies valeurs du prospect en mode prospection (ex. <code className="rounded bg-muted px-1 py-0.5">{`{{site}}`}</code>). Utilisez <code className="rounded bg-muted px-1 py-0.5">((nom))</code> comme rappel à dire de vive voix. Gardez l&apos;intrigue — teasez la valeur sans dévoiler le détail ni les tarifs.
         </p>
       </div>
 

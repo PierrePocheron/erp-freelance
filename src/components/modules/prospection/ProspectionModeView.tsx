@@ -348,6 +348,12 @@ export function ProspectionModeView({
     [selectedTemplate, sendTarget]
   )
 
+  // Script d'appel rendu avec les variables {{…}} du prospect courant
+  const callPreview = useMemo(
+    () => (selectedCall ? renderTemplate({ subject: "", body: selectedCall.script }, sendTarget) : null),
+    [selectedCall, sendTarget]
+  )
+
   return (
     <div className="space-y-5">
       {/* ── Barre de session : retour, progression (traités), navigation ── */}
@@ -583,9 +589,18 @@ export function ProspectionModeView({
                   </select>
                   <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
                 </div>
-                {selectedCall && (
-                  <div className="rounded-lg border border-border/50 bg-muted/30 px-3 py-2 max-h-72 overflow-y-auto">
-                    <p className="text-xs text-muted-foreground whitespace-pre-wrap leading-relaxed">{selectedCall.script}</p>
+                {selectedCall && callPreview && (
+                  <div className="rounded-lg border border-border/50 bg-muted/30 overflow-hidden">
+                    <div className="px-3 py-2 max-h-72 overflow-y-auto">
+                      {/* Variables {{…}} déjà remplacées par les infos du prospect */}
+                      <p className="text-xs text-muted-foreground whitespace-pre-wrap leading-relaxed">{callPreview.body}</p>
+                    </div>
+                    {callPreview.missing.length > 0 && (
+                      <p className="text-[11px] text-amber-600 flex items-center gap-1 px-3 py-2 border-t border-amber-500/20 bg-amber-500/5">
+                        <AlertTriangle className="h-3 w-3 shrink-0" />
+                        À compléter de vive voix : {callPreview.missing.join(", ")}
+                      </p>
+                    )}
                   </div>
                 )}
               </>

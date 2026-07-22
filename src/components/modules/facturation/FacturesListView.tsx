@@ -518,7 +518,7 @@ export function FacturesListView({
                     </td>
                     <td className="px-4 py-3 text-xs text-muted-foreground hidden sm:table-cell">{typeLabels[inv.type] ?? inv.type}</td>
                     <td className="px-4 py-3">
-                      <span className={`rounded-full border px-2 py-0.5 text-xs font-medium ${status.cls}`}>{status.label}</span>
+                      <span className={`rounded-full border px-2 py-0.5 text-xs font-medium whitespace-nowrap ${status.cls}`}>{status.label}</span>
                     </td>
                     <td className="px-4 py-3 text-right font-medium">
                       {(inv.totalHT - inv.depositDeducted).toLocaleString("fr-FR")} €
@@ -562,10 +562,10 @@ export function FacturesListView({
                 <div className="flex items-start justify-between gap-2">
                   <span className="font-mono text-xs font-semibold text-muted-foreground">{displayNumber(inv.number)}</span>
                   <div className="flex gap-1 flex-wrap justify-end">
-                    <span className="rounded-full bg-muted text-muted-foreground px-2 py-0.5 text-xs font-medium">
+                    <span className="rounded-full bg-muted text-muted-foreground px-2 py-0.5 text-xs font-medium whitespace-nowrap">
                       {typeLabels[inv.type] ?? inv.type}
                     </span>
-                    <span className={`rounded-full border px-2 py-0.5 text-xs font-medium ${status.cls}`}>{status.label}</span>
+                    <span className={`rounded-full border px-2 py-0.5 text-xs font-medium whitespace-nowrap ${status.cls}`}>{status.label}</span>
                   </div>
                 </div>
                 <div>

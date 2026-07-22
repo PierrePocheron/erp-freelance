@@ -214,7 +214,7 @@ function CardItem({ client, showBilling, onClick }: { client: Client; showBillin
           </p>
           {client.email && <p className="text-xs text-muted-foreground truncate">{client.email}</p>}
         </div>
-        <span className={`shrink-0 rounded-full border px-2 py-0.5 text-xs font-medium ${type.className}`}>
+        <span className={`shrink-0 rounded-full border px-2 py-0.5 text-xs font-medium whitespace-nowrap ${type.className}`}>
           {type.label}
         </span>
       </div>
@@ -302,7 +302,7 @@ function ListSection({ items, showBilling, onOpen }: { items: Client[]; showBill
             </div>
 
             {/* Type */}
-            <span className={`shrink-0 hidden sm:inline-flex rounded-full border px-2 py-0.5 text-xs font-medium ${type.className}`}>
+            <span className={`shrink-0 hidden sm:inline-flex rounded-full border px-2 py-0.5 text-xs font-medium whitespace-nowrap ${type.className}`}>
               {type.label}
             </span>
 

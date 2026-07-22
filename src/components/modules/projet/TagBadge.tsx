@@ -3,7 +3,7 @@ type Tag = { id: string; name: string; color: string }
 export function TagBadge({ tag, onRemove }: { tag: Tag; onRemove?: () => void }) {
   return (
     <span
-      className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium"
+      className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium whitespace-nowrap"
       style={{
         backgroundColor: `${tag.color}20`,
         color: tag.color,

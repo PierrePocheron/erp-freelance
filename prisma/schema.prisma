@@ -29,6 +29,7 @@ model User {
   recurringInvoices RecurringInvoice[]
   emailLogs         EmailLog[]
   emailTemplates    EmailTemplate[]
+  callTemplates     CallTemplate[]
   pushSubscriptions PushSubscription[]
   calendarEvents      CalendarEvent[]
   calendarCategories  CalendarCategory[]
@@ -358,7 +359,10 @@ model Client {
   company       String?
   jobTitle      String? // poste / fonction dans la société
   email         String?
+  personalEmail String?      // email perso/direct, en plus de l'email générique de contact
   phone         String?
+  phoneType     String?      // "PRO" | "PERSO" — nature du numéro (null = non précisé)
+  interestLevel Int?         // priorité/intérêt prospection : 1 = site éclaté, 2 = moyen, 3 = ok (null = non évalué)
   source         ClientSource  @default(OTHER)
   temperature    Temperature   @default(COLD) // legacy — plus utilisé par le code (cf. ProspectStage)
   prospectStage  ProspectStage @default(IDENTIFIED) // legacy — remplacé par prospectStatus
@@ -1082,6 +1086,23 @@ model EmailTemplate {
 
   user   User         @relation(fields: [userId], references: [id], onDelete: Cascade)
   drafts EmailDraft[]
+
+  @@index([userId])
+}
+
+/// Modèle de script d'appel de prospection : un dialogue avec phrases clés,
+/// réponses potentielles du prospect et relances — l'équivalent « appel » des
+/// EmailTemplate. `script` est du texte libre (pas d'objet, pas de variables).
+model CallTemplate {
+  id        String   @id @default(cuid())
+  userId    String
+  name      String
+  script    String
+  sortOrder Int      @default(0) // ordre d'affichage personnalisé (drag & drop)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
 }

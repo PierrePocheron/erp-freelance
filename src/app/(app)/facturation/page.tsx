@@ -5,6 +5,7 @@ import { TrendingUp, Clock, AlertCircle, CheckCircle2, Settings } from "lucide-r
 import { markLateInvoices } from "@/actions/facturation"
 import { MonthlyRevenueChart } from "@/components/modules/facturation/MonthlyRevenueChart"
 import { FacturationQuickActions } from "@/components/modules/facturation/FacturationQuickActions"
+import { AmountsPrivacyToggle } from "@/components/ui/amounts-privacy-toggle"
 
 // Helpers d'affichage cohérents avec la liste des factures
 const faNumber = (n: string) => (/^fa/i.test(n.trim()) ? n : `FA${n}`)
@@ -52,7 +53,6 @@ export default async function FacturationOverviewPage({
         payments: { select: { amount: true } },
       },
       orderBy: { issuedAt: "desc" },
-      take: 8,
     }),
     // Toutes les factures encaissées (par date de PAIEMENT) : sert au KPI
     // « Encaissé » (filtré par année en JS) et au graphe mensuel.
@@ -139,12 +139,15 @@ export default async function FacturationOverviewPage({
             <YearTab label={String(currentYear - 1)} href={`/facturation?annee=${currentYear - 1}`} active={selectedYear === currentYear - 1} />
           </div>
         </div>
-        <FacturationQuickActions
-          userId={userId}
-          clients={quickClients}
-          companies={quickCompanies}
-          projects={quickProjects}
-        />
+        <div className="flex items-center gap-2">
+          <AmountsPrivacyToggle />
+          <FacturationQuickActions
+            userId={userId}
+            clients={quickClients}
+            companies={quickCompanies}
+            projects={quickProjects}
+          />
+        </div>
       </div>
 
       {/* Profil incomplet */}
@@ -167,12 +170,14 @@ export default async function FacturationOverviewPage({
           label="Encaissé"
           value={`${fmtEur(paidThisYear)} €`}
           sub={selectedYear ? `en ${selectedYear}` : "toutes années"}
+          sensitive
         />
         <KPI
           icon={<Clock className="h-4 w-4 text-blue-500" />}
           label="En attente"
           value={`${totalPending.toLocaleString("fr-FR")} €`}
           sub={`${allPending.filter((i) => i.status === "SENT").length} facture(s) envoyée(s)`}
+          sensitive
         />
         <KPI
           icon={<AlertCircle className="h-4 w-4 text-red-500" />}
@@ -180,6 +185,7 @@ export default async function FacturationOverviewPage({
           value={`${totalLate.toLocaleString("fr-FR")} €`}
           sub={`${allPending.filter((i) => i.status === "LATE").length} facture(s)`}
           alert={totalLate > 0}
+          sensitive
         />
         <KPI
           icon={<TrendingUp className="h-4 w-4 text-amber-500" />}
@@ -357,11 +363,11 @@ function YearTab({ label, href, active }: { label: string; href: string; active:
   )
 }
 
-function KPI({ icon, label, value, sub, alert }: { icon: React.ReactNode; label: string; value: string; sub: string; alert?: boolean }) {
+function KPI({ icon, label, value, sub, alert, sensitive }: { icon: React.ReactNode; label: string; value: string; sub: string; alert?: boolean; sensitive?: boolean }) {
   return (
     <div className={`rounded-xl border p-4 space-y-1 ${alert ? "border-red-500/20 bg-red-500/5" : "border-border/50 bg-card"}`}>
       <div className="flex items-center gap-2 text-muted-foreground text-xs">{icon}{label}</div>
-      <p className={`text-xl font-bold ${alert ? "text-red-500" : ""}`}>{value}</p>
+      <p className={`text-xl font-bold ${alert ? "text-red-500" : ""} ${sensitive ? "amount-sensitive" : ""}`}>{value}</p>
       <p className="text-xs text-muted-foreground">{sub}</p>
     </div>
   )
@@ -380,7 +386,7 @@ function QuoteStatusBadge({ status }: { status: string }) {
     REJECTED: { label: "Refusé", cls: "bg-red-500/15 text-red-600" },
   }
   const { label, cls } = map[status] ?? { label: status, cls: "" }
-  return <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${cls}`}>{label}</span>
+  return <span className={`rounded-full px-2 py-0.5 text-xs font-medium whitespace-nowrap ${cls}`}>{label}</span>
 }
 
 function InvoiceStatusBadge({ status }: { status: string }) {
@@ -391,5 +397,5 @@ function InvoiceStatusBadge({ status }: { status: string }) {
     LATE: { label: "En retard", cls: "bg-red-500/15 text-red-600" },
   }
   const { label, cls } = map[status] ?? { label: status, cls: "" }
-  return <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${cls}`}>{label}</span>
+  return <span className={`rounded-full px-2 py-0.5 text-xs font-medium whitespace-nowrap ${cls}`}>{label}</span>
 }

@@ -53,7 +53,7 @@ export default async function ProspectionModePage({
     redirect(`/prospection/mode?ids=${matching.map((m) => m.id).join(",")}`)
   }
 
-  const [prospects, templates] = await Promise.all([
+  const [prospects, templates, callTemplates] = await Promise.all([
     prisma.client.findMany({
       where: { userId, id: { in: idList } },
       include: {
@@ -65,6 +65,11 @@ export default async function ProspectionModePage({
       where: { userId },
       orderBy: [{ sortOrder: "asc" }, { updatedAt: "desc" }],
       select: { id: true, name: true, subject: true, body: true },
+    }),
+    prisma.callTemplate.findMany({
+      where: { userId },
+      orderBy: [{ sortOrder: "asc" }, { updatedAt: "desc" }],
+      select: { id: true, name: true, script: true },
     }),
   ])
 
@@ -79,6 +84,7 @@ export default async function ProspectionModePage({
     <ProspectionModeView
       prospects={ordered}
       templates={templates}
+      callTemplates={callTemplates}
       emailFromConfigured={prospectionFromAddress() !== null}
     />
   )

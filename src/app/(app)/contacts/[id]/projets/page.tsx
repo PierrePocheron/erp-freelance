@@ -77,7 +77,7 @@ export default async function ClientProjetsPage({
                       <p className="text-sm font-medium group-hover:text-primary truncate">{p.name}</p>
                       <p className="text-xs text-muted-foreground">{done}/{p.tasks.length} tâches</p>
                     </div>
-                    <span className={`shrink-0 rounded-full border px-2 py-0.5 text-xs font-medium ${status.className}`}>
+                    <span className={`shrink-0 rounded-full border px-2 py-0.5 text-xs font-medium whitespace-nowrap ${status.className}`}>
                       {status.label}
                     </span>
                     <ExternalLink className="h-3.5 w-3.5 text-muted-foreground md:opacity-0 md:group-hover:opacity-100 focus:opacity-100 transition-opacity" />
@@ -179,7 +179,7 @@ function QuoteStatusBadge({ status }: { status: string }) {
     WAITING_DEPOSIT: "Attente acompte", DEPOSIT_RECEIVED: "Acompte reçu",
     ACCEPTED: "Accepté", IN_PROGRESS: "En cours", SIGNED: "Signé", REJECTED: "Refusé",
   }
-  return <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${config[status] ?? "bg-muted text-muted-foreground"}`}>{labels[status] ?? status}</span>
+  return <span className={`rounded-full px-2 py-0.5 text-xs font-medium whitespace-nowrap ${config[status] ?? "bg-muted text-muted-foreground"}`}>{labels[status] ?? status}</span>
 }
 
 function InvoiceStatusBadge({ status }: { status: string }) {
@@ -190,5 +190,5 @@ function InvoiceStatusBadge({ status }: { status: string }) {
     LATE: "bg-red-500/15 text-red-600",
   }
   const labels: Record<string, string> = { DRAFT: "Brouillon", SENT: "Envoyée", PAID: "Payée", LATE: "En retard" }
-  return <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${config[status] ?? ""}`}>{labels[status] ?? status}</span>
+  return <span className={`rounded-full px-2 py-0.5 text-xs font-medium whitespace-nowrap ${config[status] ?? ""}`}>{labels[status] ?? status}</span>
 }

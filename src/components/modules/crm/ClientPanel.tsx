@@ -7,8 +7,9 @@ import {
   Mail, Phone, ExternalLink, Building2, Globe,
   MessageSquare, Bell, FolderKanban, FileText, Receipt,
   Phone as PhoneIcon, Mail as MailIcon, Video, Users,
-  UserCheck, Archive, AlertCircle,
+  UserCheck, Archive, AlertCircle, Pencil, MapPin,
 } from "lucide-react"
+import { ProspectInterestSelect } from "@/components/modules/prospection/ProspectInterestSelect"
 import { cn } from "@/lib/utils"
 import { updateClientType, addInteraction, addReminder, updateClientAll } from "@/actions/crm"
 import { updateProspectStatus } from "@/actions/prospection"
@@ -72,7 +73,13 @@ type ClientPanelData = {
   company: string | null
   jobTitle?: string | null
   email: string | null
+  personalEmail: string | null
   phone: string | null
+  phoneType: string | null
+  interestLevel: number | null
+  address: string | null
+  postalCode: string | null
+  city: string | null
   type: string
   source: string
   notes: string | null
@@ -117,12 +124,23 @@ export function ClientPanel({
   const [quickEmail, setQuickEmail] = useState("")
   const [quickPhone, setQuickPhone] = useState("")
 
+  // Éditeur de contact (email de contact, email perso, numéro + type pro/perso)
+  const [contactEditOpen, setContactEditOpen] = useState(false)
+  const [editEmail, setEditEmail] = useState("")
+  const [editPersonalEmail, setEditPersonalEmail] = useState("")
+  const [editPhone, setEditPhone] = useState("")
+  const [editPhoneType, setEditPhoneType] = useState("")
+  const [editAddress, setEditAddress] = useState("")
+  const [editPostalCode, setEditPostalCode] = useState("")
+  const [editCity, setEditCity] = useState("")
+
   useEffect(() => {
     /* eslint-disable react-hooks/set-state-in-effect */
     setQuickFirstName("")
     setQuickLastName("")
     setQuickEmail("")
     setQuickPhone("")
+    setContactEditOpen(false)
     /* eslint-enable react-hooks/set-state-in-effect */
   }, [client?.id])
 
@@ -139,6 +157,37 @@ export function ClientPanel({
         ...(quickPhone.trim()     ? { phone: quickPhone.trim() }         : {}),
       })
       toast.success("Informations complétées")
+      onRefresh?.()
+      router.refresh()
+    })
+  }
+
+  function openContactEdit() {
+    if (!client) return
+    setEditEmail(client.email ?? "")
+    setEditPersonalEmail(client.personalEmail ?? "")
+    setEditPhone(client.phone ?? "")
+    setEditPhoneType(client.phoneType ?? "")
+    setEditAddress(client.address ?? "")
+    setEditPostalCode(client.postalCode ?? "")
+    setEditCity(client.city ?? "")
+    setContactEditOpen(true)
+  }
+  function submitContactEdit(e: React.FormEvent) {
+    e.preventDefault()
+    if (!client) return
+    startQuickTransition(async () => {
+      await updateClientAll(client.id, {
+        email: editEmail.trim() || null,
+        personalEmail: editPersonalEmail.trim() || null,
+        phone: editPhone.trim() || null,
+        phoneType: editPhone.trim() ? (editPhoneType || null) : null,
+        address: editAddress.trim() || null,
+        postalCode: editPostalCode.trim() || null,
+        city: editCity.trim() || null,
+      })
+      toast.success("Contact mis à jour")
+      setContactEditOpen(false)
       onRefresh?.()
       router.refresh()
     })
@@ -228,7 +277,7 @@ export function ClientPanel({
             <h2 className="text-xl font-bold">{client.name}</h2>
           </div>
           <div className="flex items-center gap-2">
-            <span className={`shrink-0 rounded-full border px-2 py-0.5 text-xs font-medium ${type.className}`}>
+            <span className={`shrink-0 rounded-full border px-2 py-0.5 text-xs font-medium whitespace-nowrap ${type.className}`}>
               {type.label}
             </span>
 
@@ -239,7 +288,7 @@ export function ClientPanel({
                 <div className="relative">
                   <button
                     onClick={() => setStageDropOpen((v) => !v)}
-                    className={cn("rounded-full border px-2 py-0.5 text-xs font-medium transition-opacity hover:opacity-80", statusCfg.cls)}
+                    className={cn("rounded-full border px-2 py-0.5 text-xs font-medium whitespace-nowrap transition-opacity hover:opacity-80", statusCfg.cls)}
                     title="Changer le statut"
                   >
                     {statusCfg.label}
@@ -291,17 +340,52 @@ export function ClientPanel({
 
         {/* Contact */}
         <div className="flex flex-col gap-1">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] uppercase tracking-wide text-muted-foreground/50">Contact</span>
+            <button
+              type="button"
+              onClick={() => (contactEditOpen ? setContactEditOpen(false) : openContactEdit())}
+              className="p-1 -m-1 rounded text-muted-foreground/50 hover:text-foreground transition-colors"
+              title="Ajouter / modifier email, email perso, numéro, adresse"
+            >
+              <Pencil className="h-3 w-3" />
+            </button>
+          </div>
+          {client.type === "PROSPECT" && (
+            <div className="flex items-center gap-2 text-sm">
+              <span className="text-muted-foreground/70 text-xs">Intérêt :</span>
+              <ProspectInterestSelect clientId={client.id} value={client.interestLevel} />
+            </div>
+          )}
           {client.email && (
             <a href={`mailto:${client.email}`} className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors">
               <Mail className="h-3.5 w-3.5 shrink-0" />
-              {client.email}
+              <span className="truncate">{client.email}</span>
+            </a>
+          )}
+          {client.personalEmail && (
+            <a href={`mailto:${client.personalEmail}`} className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors">
+              <Mail className="h-3.5 w-3.5 shrink-0" />
+              <span className="truncate">{client.personalEmail}</span>
+              <span className="rounded-full bg-muted px-1.5 py-0.5 text-[9px] font-medium text-muted-foreground shrink-0">perso</span>
             </a>
           )}
           {client.phone && (
             <a href={`tel:${client.phone}`} className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors">
               <Phone className="h-3.5 w-3.5 shrink-0" />
               {client.phone}
+              {client.phoneType && (
+                <span className="rounded-full bg-muted px-1.5 py-0.5 text-[9px] font-medium text-muted-foreground shrink-0">
+                  {client.phoneType === "PRO" ? "pro" : "perso"}
+                </span>
+              )}
             </a>
+          )}
+          {(client.address || client.city) && (
+            <div className="flex items-start gap-2 text-sm text-muted-foreground">
+              <MapPin className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+              <span>{[client.address, [client.postalCode, client.city].filter(Boolean).join(" ")].filter(Boolean).join(", ")}</span>
+            </div>
           )}
           {client.websiteUrl && (
             <a href={client.websiteUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors">
@@ -312,6 +396,80 @@ export function ClientPanel({
                 return cfg ? <span className={cn("rounded-full px-1.5 py-0.5 text-[10px] font-medium shrink-0", cfg.cls)}>{cfg.label}</span> : null
               })()}
             </a>
+          )}
+
+          {/* Éditeur de contact : email, email perso, numéro + type pro/perso */}
+          {contactEditOpen && (
+            <form onSubmit={submitContactEdit} className="mt-1.5 space-y-1.5 rounded-lg border border-border bg-muted/20 p-2.5">
+              <input
+                type="email"
+                value={editEmail}
+                onChange={(e) => setEditEmail(e.target.value)}
+                placeholder="Email de contact"
+                className="w-full h-8 rounded-md border border-input bg-background px-2 text-xs placeholder:text-muted-foreground/40 focus:outline-none focus:ring-1 focus:ring-ring"
+              />
+              <input
+                type="email"
+                value={editPersonalEmail}
+                onChange={(e) => setEditPersonalEmail(e.target.value)}
+                placeholder="Email perso (direct)"
+                className="w-full h-8 rounded-md border border-input bg-background px-2 text-xs placeholder:text-muted-foreground/40 focus:outline-none focus:ring-1 focus:ring-ring"
+              />
+              <input
+                type="tel"
+                value={editPhone}
+                onChange={(e) => setEditPhone(e.target.value)}
+                placeholder="Numéro de téléphone"
+                className="w-full h-8 rounded-md border border-input bg-background px-2 text-xs placeholder:text-muted-foreground/40 focus:outline-none focus:ring-1 focus:ring-ring"
+              />
+              {editPhone.trim() && (
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[10px] text-muted-foreground">Numéro :</span>
+                  {(["PRO", "PERSO"] as const).map((t) => (
+                    <button
+                      key={t}
+                      type="button"
+                      onClick={() => setEditPhoneType(editPhoneType === t ? "" : t)}
+                      className={cn(
+                        "rounded-full border px-2 py-0.5 text-[10px] font-medium transition-colors",
+                        editPhoneType === t ? "bg-primary text-primary-foreground border-primary" : "border-input text-muted-foreground hover:bg-muted"
+                      )}
+                    >
+                      {t === "PRO" ? "Pro" : "Perso"}
+                    </button>
+                  ))}
+                </div>
+              )}
+              <input
+                type="text"
+                value={editAddress}
+                onChange={(e) => setEditAddress(e.target.value)}
+                placeholder="Adresse"
+                className="w-full h-8 rounded-md border border-input bg-background px-2 text-xs placeholder:text-muted-foreground/40 focus:outline-none focus:ring-1 focus:ring-ring"
+              />
+              <div className="flex gap-1.5">
+                <input
+                  type="text"
+                  value={editPostalCode}
+                  onChange={(e) => setEditPostalCode(e.target.value)}
+                  placeholder="CP"
+                  className="w-20 h-8 rounded-md border border-input bg-background px-2 text-xs placeholder:text-muted-foreground/40 focus:outline-none focus:ring-1 focus:ring-ring"
+                />
+                <input
+                  type="text"
+                  value={editCity}
+                  onChange={(e) => setEditCity(e.target.value)}
+                  placeholder="Ville"
+                  className="flex-1 h-8 rounded-md border border-input bg-background px-2 text-xs placeholder:text-muted-foreground/40 focus:outline-none focus:ring-1 focus:ring-ring"
+                />
+              </div>
+              <div className="flex justify-end gap-2 pt-0.5">
+                <button type="button" onClick={() => setContactEditOpen(false)} className="h-7 px-2.5 rounded-md text-[11px] text-muted-foreground hover:text-foreground transition-colors">Annuler</button>
+                <button type="submit" disabled={isSavingQuick} className="h-7 px-3 rounded-md bg-primary text-primary-foreground text-[11px] font-medium hover:opacity-90 disabled:opacity-50 transition-opacity">
+                  {isSavingQuick ? "…" : "Enregistrer"}
+                </button>
+              </div>
+            </form>
           )}
         </div>
 
@@ -601,7 +759,7 @@ export function ClientPanel({
                     className="flex items-center justify-between rounded-lg border border-border/50 px-3 py-2 hover:bg-muted/50 transition-colors group"
                   >
                     <span className="text-sm font-medium truncate group-hover:text-primary transition-colors">{p.name}</span>
-                    <span className={`shrink-0 ml-2 rounded-full border px-2 py-0.5 text-xs font-medium ${ps.className}`}>
+                    <span className={`shrink-0 ml-2 rounded-full border px-2 py-0.5 text-xs font-medium whitespace-nowrap ${ps.className}`}>
                       {ps.label}
                     </span>
                   </Link>

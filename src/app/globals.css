@@ -154,3 +154,13 @@
 @media (prefers-reduced-motion: reduce) {
   .cal-event-land, .cal-bar-land { animation: none; }
 }
+
+/* Confidentialité des montants — le bouton "Masquer" pose la classe
+   .hide-amounts sur <html> (même mécanisme que le thème .dark), ce qui floute
+   les montants marqués .amount-sensitive (utile pour une capture d'écran). */
+.hide-amounts .amount-sensitive {
+  filter: blur(0.45em) !important;
+  transition: filter 0.15s ease;
+  user-select: none;
+  cursor: default;
+}

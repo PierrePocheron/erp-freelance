@@ -33,6 +33,19 @@ export const viewport: Viewport = {
   ],
 };
 
+// ⚠️ NE PAS RETIRER — sécurité + fonctionnement de la prod en dépendent.
+// La CSP (src/proxy.ts) utilise `script-src 'nonce-…' 'strict-dynamic'` : avec
+// strict-dynamic, le navigateur IGNORE 'self', donc TOUS les scripts (chunks
+// Next + inline d'hydratation) doivent porter le nonce de la requête, sinon ils
+// sont bloqués et RIEN ne s'hydrate (bug prod de juillet 2026 : bouton login
+// inerte, « rien ne se passe »). Or Next ne peut injecter un nonce par-requête
+// que sur une page rendue DYNAMIQUEMENT — une page pré-rendue statiquement
+// (`x-nextjs-prerender`) n'en reçoit aucun. On force donc tout l'app en
+// dynamique pour que la propagation de nonce du middleware prenne effet.
+// Alternative si un jour on veut du statique : basculer la CSP scripts sur
+// 'self' 'unsafe-inline' (moins sûr) et retirer nonce + strict-dynamic.
+export const dynamic = "force-dynamic";
+
 export default function RootLayout({
   children,
 }: Readonly<{

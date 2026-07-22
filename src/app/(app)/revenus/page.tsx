@@ -236,24 +236,28 @@ export default async function RevenuePage() {
               Gérer <ArrowRight className="h-3 w-3" />
             </Link>
           </div>
-          <div className="flex flex-wrap gap-2">
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
             {sourceStats.map(src => (
               <div
                 key={src.id}
-                className="inline-flex items-center gap-2 rounded-lg border border-border/50 px-3 py-2 text-xs"
+                className="rounded-lg border border-border/50 px-3 py-2.5 text-xs space-y-1"
               >
-                <span className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: src.color }} />
-                <span className="font-medium">{src.name}</span>
-                <span className="text-muted-foreground tabular-nums">
-                  {src.count} entrée{src.count !== 1 ? "s" : ""}
-                </span>
-                <span className="text-emerald-600 font-semibold tabular-nums">
-                  · {fmt(src.received)} €
-                </span>
-                {src.pending > 0 && (
-                  <span className="text-amber-600 tabular-nums">
-                    + {fmt(src.pending)} € att.
+                <div className="flex items-center gap-1.5">
+                  <span className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: src.color }} />
+                  <span className="font-medium truncate flex-1">{src.name}</span>
+                  <span className="text-muted-foreground/60 tabular-nums shrink-0">
+                    {src.count} entrée{src.count !== 1 ? "s" : ""}
                   </span>
+                </div>
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-muted-foreground">Validé</span>
+                  <span className="text-emerald-600 font-semibold tabular-nums">{fmt(src.received)} €</span>
+                </div>
+                {src.pending > 0 && (
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-muted-foreground">En attente</span>
+                    <span className="text-amber-600 font-medium tabular-nums">{fmt(src.pending)} €</span>
+                  </div>
                 )}
               </div>
             ))}

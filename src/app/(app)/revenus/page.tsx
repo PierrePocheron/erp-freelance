@@ -1,9 +1,10 @@
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import Link from "next/link"
-import { TrendingUp, Clock, CheckCircle2, Repeat, BarChart2, Wallet, ArrowRight } from "lucide-react"
+import { TrendingUp, Clock, CheckCircle2, Repeat, BarChart2, Wallet, ArrowRight, Infinity as InfinityIcon } from "lucide-react"
 import { REVENUE_TYPE_LABELS, PAYMENT_METHOD_LABELS } from "@/lib/revenue-constants"
 import { RevenueManager } from "@/components/modules/revenus/RevenueManager"
+import { AmountsPrivacyToggle } from "@/components/ui/amounts-privacy-toggle"
 
 const fmt = (n: number) => n.toLocaleString("fr-FR", { minimumFractionDigits: 0, maximumFractionDigits: 0 })
 
@@ -141,6 +142,8 @@ export default async function RevenuePage() {
   const totalPending  = allRevenues.filter(r => r.status === "PENDING").reduce((s, r) => s + r.amount, 0)
   const totalRecvYear = allRevenues.filter(r => r.period?.startsWith(yearPrefix) && r.status === "RECEIVED").length
   const totalRecvMonth= allRevenues.filter(r => r.period === currentPeriod && r.status === "RECEIVED").length
+  const totalAllTime  = allRevenues.filter(r => r.status === "RECEIVED").reduce((s, r) => s + r.amount, 0)
+  const totalRecvAll  = allRevenues.filter(r => r.status === "RECEIVED").length
 
   // ── Répartition par source fiscale (toutes sources) ───────────────────────
   // Collecte toutes les sources présentes dans les données
@@ -168,23 +171,34 @@ export default async function RevenuePage() {
             Vue unifiée — revenus manuels + factures AE encaissées
           </p>
         </div>
-        <Link
-          href="/revenus/recapitulatif"
-          className="flex items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-2 text-sm font-medium hover:bg-accent transition-colors"
-        >
-          <BarChart2 className="h-4 w-4 text-muted-foreground" />
-          Récapitulatif fiscal
-        </Link>
+        <div className="flex items-center gap-2">
+          <AmountsPrivacyToggle />
+          <Link
+            href="/revenus/recapitulatif"
+            className="flex items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-2 text-sm font-medium hover:bg-accent transition-colors"
+          >
+            <BarChart2 className="h-4 w-4 text-muted-foreground" />
+            Récapitulatif fiscal
+          </Link>
+        </div>
       </div>
 
       {/* KPIs */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+        <div className="rounded-xl border border-border/50 bg-card p-4 space-y-1">
+          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <InfinityIcon className="h-4 w-4 text-emerald-700" />
+            Depuis toujours
+          </div>
+          <p className="text-xl font-bold tabular-nums text-emerald-700 amount-sensitive">{fmt(totalAllTime)} €</p>
+          <p className="text-xs text-muted-foreground">{totalRecvAll} entrées encaissées</p>
+        </div>
         <div className="rounded-xl border border-border/50 bg-card p-4 space-y-1">
           <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
             <TrendingUp className="h-4 w-4 text-emerald-600" />
             {currentYear} — encaissé
           </div>
-          <p className="text-xl font-bold tabular-nums text-emerald-600">{fmt(totalYear)} €</p>
+          <p className="text-xl font-bold tabular-nums text-emerald-600 amount-sensitive">{fmt(totalYear)} €</p>
           <p className="text-xs text-muted-foreground">{totalRecvYear} entrées</p>
         </div>
         <div className="rounded-xl border border-border/50 bg-card p-4 space-y-1">
@@ -192,7 +206,7 @@ export default async function RevenuePage() {
             <CheckCircle2 className="h-4 w-4 text-blue-600" />
             Ce mois — encaissé
           </div>
-          <p className="text-xl font-bold tabular-nums text-blue-600">{fmt(totalMonth)} €</p>
+          <p className="text-xl font-bold tabular-nums text-blue-600 amount-sensitive">{fmt(totalMonth)} €</p>
           <p className="text-xs text-muted-foreground">{totalRecvMonth} entrées</p>
         </div>
         {/* Cliquable : filtre le tableau sur les montants en attente + déplie tout */}
@@ -206,7 +220,7 @@ export default async function RevenuePage() {
             <Clock className="h-4 w-4 text-amber-600" />
             En attente
           </div>
-          <p className="text-xl font-bold tabular-nums text-amber-600">{fmt(totalPending)} €</p>
+          <p className="text-xl font-bold tabular-nums text-amber-600 amount-sensitive">{fmt(totalPending)} €</p>
           <p className="text-xs text-muted-foreground">{allRevenues.filter(r => r.status === "PENDING").length} entrées</p>
         </Link>
         <div className="rounded-xl border border-border/50 bg-card p-4 space-y-1">
@@ -215,7 +229,7 @@ export default async function RevenuePage() {
             Récurrents actifs
           </div>
           <p className="text-xl font-bold tabular-nums">{recurringRevenues.filter(r => r.isActive).length}</p>
-          <p className="text-xs text-muted-foreground">
+          <p className="text-xs text-muted-foreground amount-sensitive">
             {fmt(recurringRevenues.filter(r => r.isActive).reduce((s, r) => s + r.amount, 0))} €/mois
           </p>
         </div>
@@ -251,12 +265,12 @@ export default async function RevenuePage() {
                 </div>
                 <div className="flex items-center justify-between gap-3">
                   <span className="text-muted-foreground">Validé</span>
-                  <span className="text-emerald-600 font-semibold tabular-nums">{fmt(src.received)} €</span>
+                  <span className="text-emerald-600 font-semibold tabular-nums amount-sensitive">{fmt(src.received)} €</span>
                 </div>
                 {src.pending > 0 && (
                   <div className="flex items-center justify-between gap-3">
                     <span className="text-muted-foreground">En attente</span>
-                    <span className="text-amber-600 font-medium tabular-nums">{fmt(src.pending)} €</span>
+                    <span className="text-amber-600 font-medium tabular-nums amount-sensitive">{fmt(src.pending)} €</span>
                   </div>
                 )}
               </div>

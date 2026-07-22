@@ -2,7 +2,8 @@
 
 import { useMemo, useState, useTransition } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
-import { TrendingDown, Repeat, Play, Pause, ChevronLeft, ChevronRight } from "lucide-react"
+import { TrendingDown, Repeat, Play, Pause, ChevronLeft, ChevronRight, CalendarClock } from "lucide-react"
+import { AmountsPrivacyToggle } from "@/components/ui/amounts-privacy-toggle"
 import { toggleRecurringExpenseActive } from "@/actions/expense"
 import { getOccurrencesInRange } from "@/lib/dates"
 import { FREQUENCY_LABELS } from "@/lib/expense-constants"
@@ -174,6 +175,11 @@ export function DepensesView({
   const monthlyRecurringTotal = activeRecurring.reduce((s, r) => s + monthlyEquivalent(r.amount, r.frequency), 0)
   const yearlyRecurringTotal = activeRecurring.reduce((s, r) => s + yearlyEquivalent(r.amount, r.frequency), 0)
 
+  // Dépenses à venir ce mois : occurrences récurrentes projetées mais pas encore
+  // matérialisées en dépense réelle (= planifiées, pas encore facturées).
+  const upcomingActive = upcoming.filter(({ r }) => r.isActive)
+  const upcomingTotal = upcomingActive.reduce((s, { r }) => s + r.amount, 0)
+
   const byCategory = new Map<string, DonutSegment>()
   for (const e of filteredMonthItems) {
     const key = e.category?.id ?? "none"
@@ -199,35 +205,48 @@ export function DepensesView({
             Suivi des dépenses pro et perso, par catégorie
           </p>
         </div>
-        <ExpenseDialog categories={categories} />
+        <div className="flex items-center gap-2">
+          <AmountsPrivacyToggle />
+          <ExpenseDialog categories={categories} />
+        </div>
       </div>
 
       {/* Les 5 cartes de stats sur une seule ligne (desktop) : total du mois,
           Pro, Perso, puis estimations mensuelle/annuelle des récurrentes */}
-      <div className={`grid grid-cols-2 gap-4 sm:grid-cols-3 ${activeRecurring.length > 0 ? "lg:grid-cols-5" : ""}`}>
+      <div className={`grid grid-cols-2 gap-4 sm:grid-cols-3 ${activeRecurring.length > 0 ? "lg:grid-cols-6" : ""}`}>
         <div className="rounded-xl border border-border/50 bg-card p-4 space-y-1">
           <div className="flex items-center gap-2 text-muted-foreground text-xs">
             <TrendingDown className="h-3.5 w-3.5 shrink-0" />
             <span className="capitalize truncate">Total — {monthLabel}</span>
           </div>
-          <p className="text-2xl font-bold tabular-nums">{fmt(monthTotal)} €</p>
+          <p className="text-2xl font-bold tabular-nums amount-sensitive">{fmt(monthTotal)} €</p>
         </div>
         <div className="rounded-xl border border-border/50 bg-card p-4 space-y-1">
           <p className="text-xs text-muted-foreground">Pro</p>
-          <p className="text-2xl font-bold tabular-nums">{fmt(proTotal)} €</p>
+          <p className="text-2xl font-bold tabular-nums amount-sensitive">{fmt(proTotal)} €</p>
         </div>
         <div className="rounded-xl border border-border/50 bg-card p-4 space-y-1">
           <p className="text-xs text-muted-foreground">Perso</p>
-          <p className="text-2xl font-bold tabular-nums">{fmt(persoTotal)} €</p>
+          <p className="text-2xl font-bold tabular-nums amount-sensitive">{fmt(persoTotal)} €</p>
         </div>
         {activeRecurring.length > 0 && (
           <>
+            <div className="rounded-xl border border-amber-500/25 bg-amber-500/5 p-4 space-y-1">
+              <div className="flex items-center gap-2 text-muted-foreground text-xs">
+                <CalendarClock className="h-3.5 w-3.5 shrink-0 text-amber-500" />
+                <span className="truncate">À venir ce mois</span>
+              </div>
+              <p className="text-2xl font-bold tabular-nums amount-sensitive text-amber-600">{fmt(upcomingTotal)} €</p>
+              <p className="text-xs text-muted-foreground">
+                {upcomingActive.length} planifiée{upcomingActive.length > 1 ? "s" : ""} · pas encore facturée{upcomingActive.length > 1 ? "s" : ""}
+              </p>
+            </div>
             <div className="rounded-xl border border-border/50 bg-card p-4 space-y-1">
               <div className="flex items-center gap-2 text-muted-foreground text-xs">
                 <Repeat className="h-3.5 w-3.5 shrink-0" />
                 <span className="truncate">Estimation par mois</span>
               </div>
-              <p className="text-2xl font-bold tabular-nums">{fmt(monthlyRecurringTotal)} €</p>
+              <p className="text-2xl font-bold tabular-nums amount-sensitive">{fmt(monthlyRecurringTotal)} €</p>
               <p className="text-xs text-muted-foreground">via les récurrentes actives</p>
             </div>
             <div className="rounded-xl border border-border/50 bg-card p-4 space-y-1">
@@ -235,7 +254,7 @@ export function DepensesView({
                 <Repeat className="h-3.5 w-3.5 shrink-0" />
                 <span className="truncate">Estimation par an</span>
               </div>
-              <p className="text-2xl font-bold tabular-nums">{fmt(yearlyRecurringTotal)} €</p>
+              <p className="text-2xl font-bold tabular-nums amount-sensitive">{fmt(yearlyRecurringTotal)} €</p>
               <p className="text-xs text-muted-foreground">via les récurrentes actives</p>
             </div>
           </>

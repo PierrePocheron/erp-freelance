@@ -15,7 +15,7 @@ function fmtAmount(n: number): string {
 
 // Ordre de rendu : les nœuds parents sont peints en dernier → leur hitbox gagne
 const TYPE_Z: Record<NodeType, number> = {
-  REVENUE: 0, INVOICE: 0, QUOTE: 0, APPLICATION: 0, PROSPECT: 0, PERSONAL: 1, PROJECT: 1, CLIENT: 2, COMPANY: 3, SOURCE: 4,
+  REVENUE: 0, RESALE: 0, INVOICE: 0, QUOTE: 0, APPLICATION: 0, PROSPECT: 0, PERSONAL: 1, PROJECT: 1, CLIENT: 2, COMPANY: 3, SOURCE: 4,
 }
 
 // ── Icône minimaliste par type ──────────────────────────────────────────────
@@ -110,6 +110,12 @@ function drawNodeIcon(
       // Signe €
       ctx.font = `600 ${s * 0.95}px -apple-system, sans-serif`
       ctx.fillText("€", cx, cy + s * 0.07)
+      break
+    }
+    case "RESALE": {
+      // Recyclage — revente d'objets d'occasion
+      ctx.font = `600 ${s * 1.05}px -apple-system, sans-serif`
+      ctx.fillText("♻", cx, cy + s * 0.06)
       break
     }
     case "APPLICATION": {
@@ -390,7 +396,8 @@ export const ForceGraphCanvas = forwardRef<GraphMethods, Props>(function ForceGr
     // ── Coche verte : nœud "terminé" ──────────────────────────────────────
     const isDone = (n.type === "PROJECT" && n.status === "COMPLETED") ||
                    (n.type === "INVOICE"  && n.status === "PAID")      ||
-                   (n.type === "REVENUE"  && n.status === "RECEIVED")
+                   (n.type === "REVENUE"  && n.status === "RECEIVED")  ||
+                   (n.type === "RESALE"   && n.status === "RECEIVED")
     if (isDone) {
       const bx = x + r * 0.70, by = y - r * 0.70
       ctx.beginPath(); ctx.arc(bx, by, 5, 0, 2 * Math.PI)

@@ -269,7 +269,13 @@ export default async function GraphPage() {
   // Recompute nodeIds pour inclure les nœuds ajoutés depuis la dernière mise à jour
   const revenueNodeIds = new Set(nodes.map(n => n.id))
 
+  // Les reventes (source « Reventes ») sont traitées à part (bloc plus bas) :
+  // regroupées par plateforme (Vinted/Leboncoin/Momox) sous la source, au lieu
+  // d'être des revenus libres.
+  const reventesSource = fiscalSources.find(s => s.name === "Reventes") ?? null
+
   for (const rev of revenues) {
+    if (reventesSource && rev.fiscalSourceId === reventesSource.id) continue
     const revNodeId = `revenue-${rev.id}`
 
     // Cherche le premier ancêtre valide : project → company → client
@@ -450,6 +456,50 @@ export default async function GraphPage() {
     }
     for (const clientId of standaloneClientIds) {
       links.push({ source: srcNodeId, target: `client-${clientId}` })
+    }
+  }
+
+  // ── Reventes : source « Reventes » → plateforme (Vinted/Leboncoin/Momox) →
+  // nœud de vente (type RESALE, ♻ teal). Les labels sont « Plateforme — objet ».
+  if (reventesSource) {
+    const srcNodeId = `source-${reventesSource.id}`
+    const platformNodeId = new Map<string, string>() // plateforme → id de nœud
+    for (const rev of revenues) {
+      if (rev.fiscalSourceId !== reventesSource.id) continue
+      const platform = (rev.label.split("—")[0] || "").trim() || "Autre"
+      let platId = platformNodeId.get(platform)
+      if (!platId) {
+        platId = `resale-platform-${platform.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`
+        platformNodeId.set(platform, platId)
+        const platCount = revenues.filter(r => r.fiscalSourceId === reventesSource.id && r.label.startsWith(platform)).length
+        nodes.push({
+          id: platId, type: "COMPANY", label: platform, parentId: srcNodeId,
+          meta: { subtitle: `Revente · ${platCount} vente${platCount > 1 ? "s" : ""}` },
+        })
+        links.push({ source: srcNodeId, target: platId })
+      }
+      const date    = rev.receivedAt ?? rev.expectedAt
+      const dateStr = date ? new Date(date).toLocaleDateString("fr-FR") : "—"
+      // Le préfixe plateforme est déjà porté par le nœud parent → on l'enlève du label
+      const shortLabel = rev.label.includes("—") ? rev.label.split("—").slice(1).join("—").trim() : rev.label
+      nodes.push({
+        id:      `revenue-${rev.id}`,
+        type:    "RESALE",
+        label:   shortLabel,
+        parentId: platId,
+        status:  rev.status ?? undefined,
+        amount:  rev.amount,
+        meta: {
+          href:     "/revenus",
+          subtitle: `${rev.amount.toLocaleString("fr-FR")} €`,
+          details: [
+            { label: "Montant", value: `${rev.amount.toLocaleString("fr-FR", { minimumFractionDigits: 2 })} €` },
+            { label: "Statut",  value: rev.status === "RECEIVED" ? "Reçu" : "En attente" },
+            { label: "Date",    value: dateStr },
+          ],
+        },
+      })
+      links.push({ source: platId, target: `revenue-${rev.id}` })
     }
   }
 

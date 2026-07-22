@@ -425,7 +425,10 @@ export default async function GraphPage() {
         linkedCompanyIds.add(rev.companyId)
       } else if (rev.clientId) {
         const client = clients.find(c => c.id === rev.clientId)
-        if (client?.companyId) {
+        // Ne JAMAIS rattacher via un client SELF (Pierre) : sa société « Perso »
+        // n'est pas une société liée à la source — ça créait un faux lien
+        // Reventes → Perso → projets perso.
+        if (client && client.type !== "SELF" && client.companyId) {
           linkedCompanyIds.add(client.companyId)
         } else if (client && client.type !== "SELF") {
           standaloneClientIds.add(rev.clientId)

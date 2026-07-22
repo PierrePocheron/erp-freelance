@@ -7,8 +7,9 @@ const KEY = "erp-hide-amounts"
 
 /**
  * Bouton pour masquer/afficher les montants des cartes (flou). L'état est posé
- * sur <html> via l'attribut `data-hide-amounts` (cf. globals.css qui floute les
- * éléments `.amount-sensitive`) et persisté en localStorage. Par défaut visible.
+ * sur <html> via la classe `.hide-amounts` (même mécanisme que le thème `.dark` ;
+ * cf. globals.css qui floute les `.amount-sensitive`) et persisté en localStorage.
+ * Par défaut visible.
  * Pratique pour prendre une capture d'écran sans dévoiler les chiffres.
  */
 export function AmountsPrivacyToggle() {
@@ -18,14 +19,14 @@ export function AmountsPrivacyToggle() {
     const v = localStorage.getItem(KEY) === "1"
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setHidden(v)
-    document.documentElement.toggleAttribute("data-hide-amounts", v)
+    document.documentElement.classList.toggle("hide-amounts", v)
   }, [])
 
   function toggle() {
     const next = !hidden
     setHidden(next)
     localStorage.setItem(KEY, next ? "1" : "0")
-    document.documentElement.toggleAttribute("data-hide-amounts", next)
+    document.documentElement.classList.toggle("hide-amounts", next)
   }
 
   return (

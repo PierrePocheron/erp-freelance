@@ -1,4 +1,4 @@
-export type NodeType = "SOURCE" | "COMPANY" | "CLIENT" | "PROSPECT" | "PERSONAL" | "PROJECT" | "INVOICE" | "QUOTE" | "REVENUE" | "APPLICATION"
+export type NodeType = "SOURCE" | "COMPANY" | "CLIENT" | "PROSPECT" | "PERSONAL" | "PROJECT" | "INVOICE" | "QUOTE" | "REVENUE" | "RESALE" | "APPLICATION"
 
 export type RawNode = {
   id:         string
@@ -35,6 +35,7 @@ export const NODE_RADIUS: Record<NodeType, number> = {
   INVOICE:     13,
   QUOTE:       13,
   REVENUE:     11,
+  RESALE:      10,
   APPLICATION: 12,
 }
 
@@ -48,12 +49,18 @@ export const NODE_BASE_COLORS: Record<NodeType, string> = {
   INVOICE:     "#34d399",
   QUOTE:       "#22d3ee",
   REVENUE:     "#fb923c", // orange — revenu reçu ou attendu
+  RESALE:      "#14b8a6", // teal — revente d'objets perso (Vinted/LBC/Momox)
   APPLICATION: "#818cf8", // indigo — candidature / entretien
 }
 
 export const REVENUE_STATUS_COLOR: Record<string, string> = {
   RECEIVED: "#fb923c",  // orange vif   — reçu (= couleur de base)
   PENDING:  "#fed7aa",  // orange pâle  — en attente
+}
+
+export const RESALE_STATUS_COLOR: Record<string, string> = {
+  RECEIVED: "#14b8a6",  // teal vif   — vendu & encaissé (= couleur de base)
+  PENDING:  "#99f6e4",  // teal pâle  — vendu, argent pas encore reçu
 }
 
 // Couleurs de statut : rester dans la famille de teinte du type parent
@@ -102,6 +109,7 @@ export const NODE_TYPE_LABELS: Record<NodeType, string> = {
   INVOICE:     "Facture",
   QUOTE:       "Devis",
   REVENUE:     "Revenu",
+  RESALE:      "Revente",
   APPLICATION: "Candidature",
 }
 
@@ -109,6 +117,7 @@ export function nodeColor(node: RawNode): string {
   if (node.type === "INVOICE"      && node.status) return INVOICE_STATUS_COLOR[node.status]      ?? NODE_BASE_COLORS.INVOICE
   if (node.type === "PROJECT"      && node.status) return PROJECT_STATUS_COLOR[node.status]      ?? NODE_BASE_COLORS.PROJECT
   if (node.type === "REVENUE"      && node.status) return REVENUE_STATUS_COLOR[node.status]      ?? NODE_BASE_COLORS.REVENUE
+  if (node.type === "RESALE"       && node.status) return RESALE_STATUS_COLOR[node.status]       ?? NODE_BASE_COLORS.RESALE
   if (node.type === "APPLICATION"  && node.status) return APPLICATION_STATUS_COLOR[node.status]  ?? NODE_BASE_COLORS.APPLICATION
   return NODE_BASE_COLORS[node.type]
 }

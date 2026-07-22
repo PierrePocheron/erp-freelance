@@ -191,7 +191,7 @@ export default async function ProjectTempsPage({
                       </div>
                     </td>
                     <td className="px-5 py-3">
-                      <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+                      <span className={`rounded-full px-2 py-0.5 text-xs font-medium whitespace-nowrap ${
                         task.status === "DONE" ? "bg-emerald-500/15 text-emerald-600" :
                         task.status === "IN_PROGRESS" ? "bg-amber-500/15 text-amber-600" :
                         "bg-muted text-muted-foreground"

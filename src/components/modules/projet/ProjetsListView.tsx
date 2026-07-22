@@ -318,7 +318,7 @@ export function ProjetsListView({
                     </td>
                     <td className="px-4 py-3 text-muted-foreground hidden sm:table-cell">{clientLabel}</td>
                     <td className="px-4 py-3">
-                      <span className={cn("rounded-full border px-2 py-0.5 text-xs font-medium", priorityCfg.cls)}>
+                      <span className={cn("rounded-full border px-2 py-0.5 text-xs font-medium whitespace-nowrap", priorityCfg.cls)}>
                         {priorityCfg.label}
                       </span>
                     </td>

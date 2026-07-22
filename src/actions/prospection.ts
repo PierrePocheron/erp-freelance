@@ -385,6 +385,67 @@ export async function reorderEmailTemplates(orderedIds: string[]) {
   revalidatePath("/prospection/modeles")
 }
 
+// ── Modèles d'appel (scripts de démarchage téléphonique) ─────────────────────
+
+export async function getCallTemplates() {
+  const userId = await requireAuth()
+  return prisma.callTemplate.findMany({
+    where: { userId },
+    orderBy: [{ sortOrder: "asc" }, { updatedAt: "desc" }],
+  })
+}
+
+export async function createCallTemplate(data: { name: string; script: string }) {
+  const userId = await requireAuth()
+  const name = data.name.trim()
+  if (!name) throw new Error("Le nom du modèle est requis")
+  const template = await prisma.callTemplate.create({
+    data: { userId, name, script: data.script },
+  })
+  revalidatePath("/prospection/appels")
+  return template
+}
+
+export async function updateCallTemplate(templateId: string, data: { name: string; script: string }) {
+  const userId = await requireAuth()
+  const updated = await prisma.callTemplate.updateMany({
+    where: { id: templateId, userId },
+    data: { name: data.name.trim(), script: data.script },
+  })
+  if (updated.count === 0) throw new Error("Non autorisé")
+  revalidatePath("/prospection/appels")
+}
+
+export async function deleteCallTemplate(templateId: string) {
+  const userId = await requireAuth()
+  await prisma.callTemplate.deleteMany({ where: { id: templateId, userId } })
+  revalidatePath("/prospection/appels")
+}
+
+/** Persiste l'ordre d'affichage (drag & drop). Scoped par userId (anti-IDOR). */
+export async function reorderCallTemplates(orderedIds: string[]) {
+  const userId = await requireAuth()
+  await prisma.$transaction(
+    orderedIds.map((id, index) =>
+      prisma.callTemplate.updateMany({ where: { id, userId }, data: { sortOrder: index } })
+    )
+  )
+  revalidatePath("/prospection/appels")
+}
+
+// ── Niveau d'intérêt / priorité d'un prospect ────────────────────────────────
+
+export async function setProspectInterest(clientId: string, level: number | null) {
+  const userId = await requireAuth()
+  const value = level && [1, 2, 3].includes(level) ? level : null
+  const updated = await prisma.client.updateMany({
+    where: { id: clientId, userId },
+    data: { interestLevel: value },
+  })
+  if (updated.count === 0) throw new Error("Non autorisé")
+  revalidatePath("/prospection")
+}
+
 // ── Envoi en masse (Resend) ──────────────────────────────────────────────────
 
 const RESEND_BATCH_SIZE = 100 // limite de l'API batch Resend

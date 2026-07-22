@@ -7,7 +7,7 @@ import { ProspectQuickAdd } from "@/components/modules/prospection/ProspectQuick
 import { ImportCsvDialog } from "@/components/modules/prospection/ImportCsvDialog"
 import { prospectionFromAddress } from "@/lib/prospection-email"
 import { StartSessionDialog } from "@/components/modules/prospection/StartSessionDialog"
-import { Mail, NotebookPen } from "lucide-react"
+import { Mail, NotebookPen, Phone } from "lucide-react"
 
 export default async function ProspectionPage() {
   const session = await auth()
@@ -78,6 +78,13 @@ export default async function ProspectionPage() {
           >
             <Mail className="h-3.5 w-3.5" />
             Modèles de mails
+          </Link>
+          <Link
+            href="/prospection/appels"
+            className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border border-input text-sm text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
+          >
+            <Phone className="h-3.5 w-3.5" />
+            Modèles d&apos;appel
           </Link>
           <ImportCsvDialog />
         </div>

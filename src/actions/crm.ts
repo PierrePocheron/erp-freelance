@@ -301,7 +301,10 @@ export async function updateClientAll(
     companyName?: string | null
     jobTitle?: string | null
     email?: string | null
+    personalEmail?: string | null
     phone?: string | null
+    phoneType?: string | null
+    interestLevel?: number | null
     source?: string
     notes?: string | null
     type?: string
@@ -355,7 +358,11 @@ export async function updateClientAll(
   if ("jobTitle" in data) clean.jobTitle = data.jobTitle?.trim() || null
   // Autres champs du contact.
   if ("email" in data) clean.email = data.email?.trim() || null
+  if ("personalEmail" in data) clean.personalEmail = data.personalEmail?.trim() || null
   if ("phone" in data) clean.phone = data.phone?.trim() || null
+  // Type de numéro : conservé seulement s'il y a un numéro
+  if ("phoneType" in data) clean.phoneType = data.phoneType || null
+  if ("interestLevel" in data) clean.interestLevel = data.interestLevel && [1, 2, 3].includes(data.interestLevel) ? data.interestLevel : null
   if ("source" in data && data.source) clean.source = data.source
   if ("notes" in data) clean.notes = data.notes?.trim() || null
   if ("type" in data && data.type) clean.type = data.type

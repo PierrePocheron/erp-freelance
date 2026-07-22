@@ -79,7 +79,7 @@ function getDescendants(nodeId: string, allNodes: RawNode[]): Set<string> {
 
 // ── Type filter toggles ───────────────────────────────────────────────────────
 
-const ALL_TYPES: NodeType[] = ["SOURCE", "COMPANY", "CLIENT", "PROSPECT", "PERSONAL", "PROJECT", "INVOICE", "QUOTE", "REVENUE", "APPLICATION"]
+const ALL_TYPES: NodeType[] = ["SOURCE", "COMPANY", "CLIENT", "PROSPECT", "PERSONAL", "PROJECT", "INVOICE", "QUOTE", "REVENUE", "RESALE", "APPLICATION"]
 
 const TYPE_DOT: Record<NodeType, string> = {
   SOURCE:      NODE_BASE_COLORS.SOURCE,
@@ -91,6 +91,7 @@ const TYPE_DOT: Record<NodeType, string> = {
   INVOICE:     NODE_BASE_COLORS.INVOICE,
   QUOTE:       NODE_BASE_COLORS.QUOTE,
   REVENUE:     NODE_BASE_COLORS.REVENUE,
+  RESALE:      NODE_BASE_COLORS.RESALE,
   APPLICATION: NODE_BASE_COLORS.APPLICATION,
 }
 
@@ -213,6 +214,7 @@ export function GraphView({ rawNodes, rawLinks }: { rawNodes: RawNode[]; rawLink
       rawNodes.forEach(n => {
         if (n.type === "INVOICE" && (n.status === "SENT" || n.status === "LATE")) seeds.push(n.id)
         if (n.type === "REVENUE" && n.status === "PENDING") seeds.push(n.id)
+        if (n.type === "RESALE" && n.status === "PENDING") seeds.push(n.id)
       })
     } else {
       rawNodes.forEach(n => { if (n.incomplete) seeds.push(n.id) })

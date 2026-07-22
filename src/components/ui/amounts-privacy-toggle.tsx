@@ -15,18 +15,23 @@ const KEY = "erp-hide-amounts"
 export function AmountsPrivacyToggle() {
   const [hidden, setHidden] = useState(false)
 
+  // La classe .hide-amounts est déjà posée sur <html> AVANT hydratation par le
+  // script inline (amounts-init-script). Ici on se contente de synchroniser le
+  // libellé du bouton avec l'état réel — jamais l'inverse.
   useEffect(() => {
-    const v = localStorage.getItem(KEY) === "1"
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    setHidden(v)
-    document.documentElement.classList.toggle("hide-amounts", v)
+    setHidden(document.documentElement.classList.contains("hide-amounts"))
   }, [])
 
   function toggle() {
-    const next = !hidden
-    setHidden(next)
-    localStorage.setItem(KEY, next ? "1" : "0")
+    // Source de vérité = la classe réellement présente sur <html>, jamais l'état
+    // React (qui, au tout premier rendu, vaut `false` alors que la classe peut
+    // déjà être là — c'est ce décalage qui faisait « le bouton ne fait rien /
+    // montants toujours masqués » : `!hidden` ré-ajoutait la classe déjà posée).
+    const next = !document.documentElement.classList.contains("hide-amounts")
     document.documentElement.classList.toggle("hide-amounts", next)
+    localStorage.setItem(KEY, next ? "1" : "0")
+    setHidden(next)
   }
 
   return (

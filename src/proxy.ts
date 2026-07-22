@@ -2,6 +2,7 @@ import NextAuth from "next-auth"
 import { NextResponse } from "next/server"
 import { authConfig } from "@/auth.config"
 import { THEME_INIT_SCRIPT_HASH } from "@/lib/theme-init-script"
+import { AMOUNTS_INIT_SCRIPT_HASH } from "@/lib/amounts-init-script"
 
 const { auth } = NextAuth(authConfig)
 
@@ -19,9 +20,9 @@ export default auth((req) => {
   const nonce = btoa(crypto.randomUUID())
   const csp = [
     "default-src 'self'",
-    // Le hash autorise le script de thème inline statique (hors arbre React,
-    // cf. layout.tsx) — les hashes restent honorés avec 'strict-dynamic'.
-    `script-src 'self' 'nonce-${nonce}' '${THEME_INIT_SCRIPT_HASH}' 'strict-dynamic' 'unsafe-eval'`,
+    // Les hashes autorisent les scripts inline statiques (thème + masquage des
+    // montants, hors arbre React, cf. layout.tsx) — honorés avec 'strict-dynamic'.
+    `script-src 'self' 'nonce-${nonce}' '${THEME_INIT_SCRIPT_HASH}' '${AMOUNTS_INIT_SCRIPT_HASH}' 'strict-dynamic' 'unsafe-eval'`,
     // Service worker (/sw.js, push) — sans cette directive, strict-dynamic
     // le bloquerait (un SW chargé par URL ne porte pas de nonce)
     "worker-src 'self'",

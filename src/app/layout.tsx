@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Poppins } from "next/font/google";
 import { Toaster } from "sonner";
 import { THEME_INIT_SCRIPT } from "@/lib/theme-init-script";
+import { AMOUNTS_INIT_SCRIPT } from "@/lib/amounts-init-script";
 import "./globals.css";
 
 const poppins = Poppins({
@@ -60,6 +61,12 @@ export default function RootLayout({
         <div
           hidden
           dangerouslySetInnerHTML={{ __html: `<script>${THEME_INIT_SCRIPT}</script>` }}
+        />
+        {/* Même mécanisme anti-FOUC pour le masquage des montants : pose
+            .hide-amounts sur <html> avant hydratation (cf. amounts-init-script). */}
+        <div
+          hidden
+          dangerouslySetInnerHTML={{ __html: `<script>${AMOUNTS_INIT_SCRIPT}</script>` }}
         />
         {children}
         <Toaster position="bottom-right" richColors />

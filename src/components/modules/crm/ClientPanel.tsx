@@ -277,7 +277,7 @@ export function ClientPanel({
             <h2 className="text-xl font-bold">{client.name}</h2>
           </div>
           <div className="flex items-center gap-2">
-            <span className={`shrink-0 rounded-full border px-2 py-0.5 text-xs font-medium ${type.className}`}>
+            <span className={`shrink-0 rounded-full border px-2 py-0.5 text-xs font-medium whitespace-nowrap ${type.className}`}>
               {type.label}
             </span>
 
@@ -288,7 +288,7 @@ export function ClientPanel({
                 <div className="relative">
                   <button
                     onClick={() => setStageDropOpen((v) => !v)}
-                    className={cn("rounded-full border px-2 py-0.5 text-xs font-medium transition-opacity hover:opacity-80", statusCfg.cls)}
+                    className={cn("rounded-full border px-2 py-0.5 text-xs font-medium whitespace-nowrap transition-opacity hover:opacity-80", statusCfg.cls)}
                     title="Changer le statut"
                   >
                     {statusCfg.label}
@@ -759,7 +759,7 @@ export function ClientPanel({
                     className="flex items-center justify-between rounded-lg border border-border/50 px-3 py-2 hover:bg-muted/50 transition-colors group"
                   >
                     <span className="text-sm font-medium truncate group-hover:text-primary transition-colors">{p.name}</span>
-                    <span className={`shrink-0 ml-2 rounded-full border px-2 py-0.5 text-xs font-medium ${ps.className}`}>
+                    <span className={`shrink-0 ml-2 rounded-full border px-2 py-0.5 text-xs font-medium whitespace-nowrap ${ps.className}`}>
                       {ps.label}
                     </span>
                   </Link>

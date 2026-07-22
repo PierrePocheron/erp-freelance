@@ -53,7 +53,6 @@ export default async function FacturationOverviewPage({
         payments: { select: { amount: true } },
       },
       orderBy: { issuedAt: "desc" },
-      take: 8,
     }),
     // Toutes les factures encaissées (par date de PAIEMENT) : sert au KPI
     // « Encaissé » (filtré par année en JS) et au graphe mensuel.
@@ -387,7 +386,7 @@ function QuoteStatusBadge({ status }: { status: string }) {
     REJECTED: { label: "Refusé", cls: "bg-red-500/15 text-red-600" },
   }
   const { label, cls } = map[status] ?? { label: status, cls: "" }
-  return <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${cls}`}>{label}</span>
+  return <span className={`rounded-full px-2 py-0.5 text-xs font-medium whitespace-nowrap ${cls}`}>{label}</span>
 }
 
 function InvoiceStatusBadge({ status }: { status: string }) {
@@ -398,5 +397,5 @@ function InvoiceStatusBadge({ status }: { status: string }) {
     LATE: { label: "En retard", cls: "bg-red-500/15 text-red-600" },
   }
   const { label, cls } = map[status] ?? { label: status, cls: "" }
-  return <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${cls}`}>{label}</span>
+  return <span className={`rounded-full px-2 py-0.5 text-xs font-medium whitespace-nowrap ${cls}`}>{label}</span>
 }

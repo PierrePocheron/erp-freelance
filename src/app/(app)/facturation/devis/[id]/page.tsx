@@ -491,7 +491,7 @@ export default async function DevisDetailPage({
               <Link key={inv.id} href={`/facturation/factures/${inv.id}`} className="flex items-center gap-3 text-sm hover:text-primary transition-colors">
                 <span className="font-mono text-xs text-muted-foreground">{inv.number}</span>
                 <span>{inv.type === "DEPOSIT" ? "Acompte" : inv.type === "FINAL" ? "Solde" : inv.type}</span>
-                <span className={`rounded-full px-2 py-0.5 text-xs font-medium ml-auto ${
+                <span className={`rounded-full px-2 py-0.5 text-xs font-medium whitespace-nowrap ml-auto ${
                   inv.status === "PAID" ? "bg-emerald-500/15 text-emerald-600" :
                   inv.status === "SENT" ? "bg-blue-500/15 text-blue-600" :
                   inv.status === "ISSUED" ? "bg-violet-500/15 text-violet-600" :

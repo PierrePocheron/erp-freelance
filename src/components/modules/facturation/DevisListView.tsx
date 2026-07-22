@@ -320,7 +320,7 @@ export function DevisListView({
                       )}
                     </td>
                     <td className="px-4 py-3">
-                      <span className={`rounded-full border px-2 py-0.5 text-xs font-medium ${status.cls}`}>{status.label}</span>
+                      <span className={`rounded-full border px-2 py-0.5 text-xs font-medium whitespace-nowrap ${status.cls}`}>{status.label}</span>
                     </td>
                     <td className="px-4 py-3 text-right font-medium">{quote.totalHT.toLocaleString("fr-FR")} €</td>
                     <td className="px-4 py-3 text-xs text-muted-foreground hidden sm:table-cell">
@@ -358,7 +358,7 @@ export function DevisListView({
                 />
                 <div className="flex items-start justify-between gap-2">
                   <span className="font-mono text-xs font-semibold text-muted-foreground">{quote.number}</span>
-                  <span className={`rounded-full border px-2 py-0.5 text-xs font-medium shrink-0 ${status.cls}`}>{status.label}</span>
+                  <span className={`rounded-full border px-2 py-0.5 text-xs font-medium whitespace-nowrap shrink-0 ${status.cls}`}>{status.label}</span>
                 </div>
                 <div>
                   <Link

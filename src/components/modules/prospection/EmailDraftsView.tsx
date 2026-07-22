@@ -350,11 +350,11 @@ function DraftCard({ draft, open, onToggle, onChanged }: { draft: DraftItem; ope
           <AlertTriangle className="h-4 w-4 text-amber-500 shrink-0" aria-label="Variables manquantes" />
         )}
         {isReady ? (
-          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 px-2 py-0.5 text-xs font-medium text-emerald-700 dark:text-emerald-400 shrink-0">
+          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 px-2 py-0.5 text-xs font-medium whitespace-nowrap text-emerald-700 dark:text-emerald-400 shrink-0">
             <CheckCircle2 className="h-3.5 w-3.5" /> <span className="hidden sm:inline">Relu — prêt</span>
           </span>
         ) : (
-          <span className="inline-flex items-center gap-1 rounded-full border border-border px-2 py-0.5 text-xs font-medium text-muted-foreground shrink-0">
+          <span className="inline-flex items-center gap-1 rounded-full border border-border px-2 py-0.5 text-xs font-medium whitespace-nowrap text-muted-foreground shrink-0">
             <PenLine className="h-3 w-3" /> <span className="hidden sm:inline">À relire</span>
           </span>
         )}

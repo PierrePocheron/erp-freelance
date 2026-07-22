@@ -267,7 +267,7 @@ export function RecurrentesManager({
                     )}
                   </td>
                   <td className="px-4 py-3">
-                    <span className={`rounded-full border px-2 py-0.5 text-xs font-medium ${FREQ_BADGE[row.frequency] ?? FREQ_BADGE.CUSTOM}`}>
+                    <span className={`rounded-full border px-2 py-0.5 text-xs font-medium whitespace-nowrap ${FREQ_BADGE[row.frequency] ?? FREQ_BADGE.CUSTOM}`}>
                       {FREQ_LABELS[row.frequency] ?? row.frequency}
                     </span>
                   </td>
@@ -278,7 +278,7 @@ export function RecurrentesManager({
                     {new Date(row.nextGenerationDate).toLocaleDateString("fr-FR")}
                   </td>
                   <td className="px-4 py-3">
-                    <span className={`rounded-full border px-2 py-0.5 text-xs font-medium ${
+                    <span className={`rounded-full border px-2 py-0.5 text-xs font-medium whitespace-nowrap ${
                       row.isActive
                         ? "bg-emerald-500/15 text-emerald-600 border-emerald-500/20"
                         : "bg-muted text-muted-foreground border-border"

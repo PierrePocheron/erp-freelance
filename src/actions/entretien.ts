@@ -273,3 +273,56 @@ export async function updateApplicationEvent(
   revalidatePath("/entretiens")
   revalidatePath(`/entretiens/${ev.applicationId}`)
 }
+
+// ── FAQ / réponses-types de préparation d'entretien ─────────────────────────────
+
+export async function getInterviewAnswers() {
+  const userId = await requireAuth()
+  return prisma.interviewAnswer.findMany({
+    where: { userId },
+    orderBy: [{ pinned: "desc" }, { sortOrder: "asc" }, { updatedAt: "desc" }],
+  })
+}
+
+type InterviewAnswerInput = { question: string; answer: string; category?: string | null }
+
+export async function createInterviewAnswer(data: InterviewAnswerInput) {
+  const userId = await requireAuth()
+  const question = data.question.trim()
+  const answer = data.answer.trim()
+  if (!question) throw new Error("La question est requise")
+  if (!answer) throw new Error("La réponse est requise")
+  await prisma.interviewAnswer.create({
+    data: { userId, question, answer, category: data.category?.trim() || null },
+  })
+  revalidatePath("/entretiens/faq")
+}
+
+export async function updateInterviewAnswer(id: string, data: InterviewAnswerInput) {
+  const userId = await requireAuth()
+  const updated = await prisma.interviewAnswer.updateMany({
+    where: { id, userId },
+    data: {
+      question: data.question.trim(),
+      answer: data.answer.trim(),
+      category: data.category?.trim() || null,
+    },
+  })
+  if (updated.count === 0) throw new Error("Non autorisé")
+  revalidatePath("/entretiens/faq")
+}
+
+export async function deleteInterviewAnswer(id: string) {
+  const userId = await requireAuth()
+  await prisma.interviewAnswer.deleteMany({ where: { id, userId } })
+  revalidatePath("/entretiens/faq")
+}
+
+/** Épingle / désépingle une réponse (remontée en tête de liste). Scoped userId. */
+export async function toggleInterviewAnswerPinned(id: string) {
+  const userId = await requireAuth()
+  const item = await prisma.interviewAnswer.findFirst({ where: { id, userId }, select: { pinned: true } })
+  if (!item) throw new Error("Non autorisé")
+  await prisma.interviewAnswer.updateMany({ where: { id, userId }, data: { pinned: !item.pinned } })
+  revalidatePath("/entretiens/faq")
+}

@@ -1,8 +1,9 @@
 "use client"
 
 import { useState, useTransition } from "react"
+import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { Plus, ChevronRight, Search, X, Briefcase, Star } from "lucide-react"
+import { Plus, ChevronRight, Search, X, Briefcase, Star, HelpCircle } from "lucide-react"
 import { toast } from "sonner"
 import { cn } from "@/lib/utils"
 import {
@@ -110,12 +111,21 @@ export function EntretienView({
             <h1 className="sm:hidden text-2xl font-bold tracking-tight">Entretiens</h1>
             <p className="text-sm text-muted-foreground">Suivi des candidatures et processus de recrutement</p>
           </div>
-          <button
-            onClick={() => setDialog({ open: true })}
-            className="flex items-center gap-1.5 h-9 px-3 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors"
-          >
-            <Plus className="h-4 w-4" /> Nouvelle candidature
-          </button>
+          <div className="flex items-center gap-2">
+            <Link
+              href="/entretiens/faq"
+              className="flex items-center gap-1.5 h-9 px-3 rounded-lg border border-input text-sm text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
+              title="FAQ & réponses-types d'entretien"
+            >
+              <HelpCircle className="h-4 w-4" /> <span className="hidden sm:inline">FAQ &amp; réponses</span>
+            </Link>
+            <button
+              onClick={() => setDialog({ open: true })}
+              className="flex items-center gap-1.5 h-9 px-3 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors"
+            >
+              <Plus className="h-4 w-4" /> Nouvelle candidature
+            </button>
+          </div>
         </div>
 
         {/* Stats */}

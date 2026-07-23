@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useTransition } from "react"
+import { Fragment, useState, useTransition } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import {
@@ -122,17 +122,19 @@ function PipelineStepper({ status }: { status: string }) {
   const idx = PIPELINE_STATUSES.indexOf(status as JobAppStatus)
   const isOutcome = OUTCOME_STATUSES.includes(status as JobAppStatus)
 
+  const outcomeCfg = isOutcome ? STATUS_CONFIG[status as JobAppStatus] : null
+
   return (
-    <div className="flex items-center gap-0 overflow-x-auto pb-1">
+    // Connecteurs élastiques (flex-1) : le stepper remplit la largeur disponible
+    // sans être coupé ; il ne scrolle qu'en dernier recours (écran très étroit).
+    <div className="flex items-center w-full overflow-x-auto pb-1">
       {PIPELINE_STATUSES.map((s, i) => {
         const cfg = STATUS_CONFIG[s]
         const done = idx >= 0 && i < idx
         const current = s === status
         return (
-          <div key={s} className="flex items-center shrink-0">
-            <div className={cn(
-              "flex flex-col items-center gap-0.5",
-            )}>
+          <Fragment key={s}>
+            <div className="flex flex-col items-center gap-0.5 shrink-0">
               <div className={cn(
                 "h-2 w-2 rounded-full border transition-all",
                 current ? cn(cfg.dot, "ring-2 ring-offset-1 ring-current/40 scale-125 border-transparent") :
@@ -140,31 +142,28 @@ function PipelineStepper({ status }: { status: string }) {
                 "bg-muted border-border/50"
               )} />
               <span className={cn(
-                "text-[9px] font-medium whitespace-nowrap",
+                "text-[9px] font-medium whitespace-nowrap px-0.5",
                 current ? "text-foreground" : done ? "text-muted-foreground" : "text-muted-foreground/40"
               )}>
                 {cfg.short}
               </span>
             </div>
-            {i < PIPELINE_STATUSES.length - 1 && (
+            {(i < PIPELINE_STATUSES.length - 1 || isOutcome) && (
               <div className={cn(
-                "h-px w-6 mx-1 mb-3 transition-all",
+                "h-px flex-1 min-w-[10px] mx-1 mb-3 transition-all",
                 done || current ? "bg-border" : "bg-border/30"
               )} />
             )}
-          </div>
+          </Fragment>
         )
       })}
-      {isOutcome && (
-        <>
-          <div className="h-px w-6 mx-1 mb-3 bg-border/30" />
-          <div className="flex flex-col items-center gap-0.5 shrink-0">
-            <div className={cn("h-2 w-2 rounded-full border-transparent ring-2 ring-offset-1 ring-current/40 scale-125", STATUS_CONFIG[status as JobAppStatus]?.dot)} />
-            <span className="text-[9px] font-medium text-foreground">
-              {STATUS_CONFIG[status as JobAppStatus]?.short}
-            </span>
-          </div>
-        </>
+      {isOutcome && outcomeCfg && (
+        <div className="flex flex-col items-center gap-0.5 shrink-0">
+          <div className={cn("h-2 w-2 rounded-full border-transparent ring-2 ring-offset-1 ring-current/40 scale-125", outcomeCfg.dot)} />
+          <span className="text-[9px] font-medium text-foreground whitespace-nowrap px-0.5">
+            {outcomeCfg.short}
+          </span>
+        </div>
       )}
     </div>
   )

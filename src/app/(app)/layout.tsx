@@ -59,7 +59,9 @@ export default async function AppLayout({
         {/* Header fixe (desktop) : titre du module + cloche + déconnexion —
             il ne défile jamais, comme la sidebar */}
         <AppHeader logoutAction={logout}>
-          <NotificationBell userId={userId} notifications={notifications} />
+          <span data-tour="notifications" className="inline-flex">
+            <NotificationBell userId={userId} notifications={notifications} />
+          </span>
         </AppHeader>
         {/* id consommé par MobileBottomNav : masquage au scroll des boutons
             flottants (c'est ce conteneur qui scrolle, pas window) */}

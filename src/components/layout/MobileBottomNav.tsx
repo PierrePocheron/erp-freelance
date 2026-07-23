@@ -74,6 +74,7 @@ export function MobileBottomNav() {
       {showQuickAdd && (
         <button
           type="button"
+          data-tour="quick-add"
           onClick={() => setQuickAddOpen(true)}
           aria-label="Ajout rapide"
           className={cn(

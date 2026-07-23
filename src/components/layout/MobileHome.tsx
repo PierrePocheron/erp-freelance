@@ -52,6 +52,7 @@ export function MobileHome({ pendingAmount, toConfirmCount, incomplete }: Mobile
       {/* Recherche — ouvre la CommandPalette (mêmes fonctionnalités que ⌘K) */}
       <button
         type="button"
+        data-tour="mobile-search"
         onClick={() => window.dispatchEvent(new CustomEvent(OPEN_COMMAND_PALETTE_EVENT))}
         className="flex w-full items-center gap-3 rounded-xl border border-border/50 bg-card px-4 py-3 text-sm text-muted-foreground transition-colors active:bg-accent"
       >
@@ -64,7 +65,7 @@ export function MobileHome({ pendingAmount, toConfirmCount, incomplete }: Mobile
         <h2 className="px-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
           Modules
         </h2>
-        <div className="grid grid-cols-4 gap-2">
+        <div data-tour="mobile-grid" className="grid grid-cols-4 gap-2">
           {tiles.map(({ href, icon: Icon, label }) => (
             <Link
               key={href}

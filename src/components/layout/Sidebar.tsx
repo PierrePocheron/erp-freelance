@@ -114,13 +114,14 @@ export function Sidebar() {
       </div>
 
       {/* Nav */}
-      <nav className="flex flex-1 flex-col gap-1 px-2 overflow-y-auto min-h-0">
+      <nav data-tour="sidebar" className="flex flex-1 flex-col gap-1 px-2 overflow-y-auto min-h-0">
         {visibleItems.map(({ href, icon: Icon, label }) => {
           const isActive = href === "/" ? pathname === "/" : pathname.startsWith(href)
           return (
             <Link
               key={href}
               href={href}
+              data-tour={href === "/settings" ? "settings" : undefined}
               title={expanded ? undefined : label}
               className={cn(
                 "group flex h-10 items-center gap-3 rounded-xl px-2.5 transition-colors",
@@ -148,6 +149,7 @@ export function Sidebar() {
       {/* Recherche Cmd+K */}
       <div className="px-2 pb-1">
         <button
+          data-tour="search"
           onClick={() => window.dispatchEvent(new CustomEvent(OPEN_COMMAND_PALETTE_EVENT))}
           className={cn(
             "flex h-9 items-center gap-3 rounded-xl px-2.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground w-full",

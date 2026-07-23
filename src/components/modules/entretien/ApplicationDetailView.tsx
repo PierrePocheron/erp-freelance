@@ -15,7 +15,7 @@ import {
   updateApplicationStatus, addApplicationEvent,
   deleteApplicationEvent, cancelApplicationEvent,
   uncancelApplicationEvent, setEventOutcome,
-  updateJobApplication, deleteJobApplication,
+  updateJobApplication, deleteJobApplication, completeNextAction,
 } from "@/actions/entretien"
 import {
   STATUS_CONFIG, PIPELINE_STATUSES, OUTCOME_STATUSES, EVENT_TYPE_CONFIG,
@@ -475,6 +475,13 @@ export function ApplicationDetailView({
     })
   }
 
+  function completeNext() {
+    start(async () => {
+      await completeNextAction(app.id)
+      toast.success("Point validé — ajouté à l'historique")
+    })
+  }
+
   function pickStatus(s: JobAppStatus) {
     setStatusOpen(false)
     start(async () => {
@@ -701,14 +708,24 @@ export function ApplicationDetailView({
               <input value={fNextLabel} onChange={(e) => setFNextLabel(e.target.value)} placeholder="Ex : Entretien technique avec le CTO" className={inputCls} />
             </div>
           ) : app.nextActionAt ? (
-            <div className={cn("rounded-lg border p-2.5 flex items-center gap-2", nextOverdue ? "border-red-500/30 bg-red-500/5" : "border-amber-500/30 bg-amber-500/5")}>
-              <CalendarClock className={cn("h-4 w-4 shrink-0", nextOverdue ? "text-red-500" : "text-amber-600")} />
-              <div>
-                <p className="text-sm font-medium">{app.nextActionLabel ?? "Prochain point"}</p>
-                <p className={cn("text-xs", nextOverdue ? "text-red-500" : "text-amber-600")}>
-                  {fmtDateTime(app.nextActionAt)}{nextOverdue ? " · en retard" : ""}
-                </p>
+            <div className="space-y-2">
+              <div className={cn("rounded-lg border p-2.5 flex items-center gap-2", nextOverdue ? "border-red-500/30 bg-red-500/5" : "border-amber-500/30 bg-amber-500/5")}>
+                <CalendarClock className={cn("h-4 w-4 shrink-0", nextOverdue ? "text-red-500" : "text-amber-600")} />
+                <div>
+                  <p className="text-sm font-medium">{app.nextActionLabel ?? "Prochain point"}</p>
+                  <p className={cn("text-xs", nextOverdue ? "text-red-500" : "text-amber-600")}>
+                    {fmtDateTime(app.nextActionAt)}{nextOverdue ? " · en retard" : ""}
+                  </p>
+                </div>
               </div>
+              <button
+                type="button"
+                onClick={completeNext}
+                className="flex w-full items-center justify-center gap-1.5 h-8 rounded-lg border border-emerald-500/30 bg-emerald-500/5 text-sm font-medium text-emerald-700 dark:text-emerald-400 hover:bg-emerald-500/10 transition-colors"
+                title="Enregistre ce point dans l'historique et l'efface du prochain point"
+              >
+                <Check className="h-3.5 w-3.5" /> Marquer comme fait
+              </button>
             </div>
           ) : (
             <p className="text-xs text-muted-foreground/50 italic">Aucun rendez-vous planifié.</p>
@@ -825,9 +842,9 @@ export function ApplicationDetailView({
           </h2>
           <button
             onClick={() => setShowAddEvent((v) => !v)}
-            className="flex items-center gap-1 text-xs text-primary hover:underline"
+            className="flex items-center gap-1.5 h-8 px-3 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors"
           >
-            <Plus className="h-3 w-3" />
+            <Plus className="h-3.5 w-3.5" />
             Ajouter un point
           </button>
         </div>

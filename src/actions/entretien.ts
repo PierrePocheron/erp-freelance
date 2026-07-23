@@ -191,6 +191,39 @@ export async function addApplicationEvent(
   revalidatePath("/calendrier")
 }
 
+/**
+ * Valide le « prochain point » planifié : l'enregistre dans l'historique comme un
+ * événement passé (titre = libellé du point, date = date prévue), puis efface le
+ * prochain point sur la candidature. En un clic depuis la fiche.
+ */
+export async function completeNextAction(applicationId: string, type: JobEventType = "OTHER") {
+  const userId = await requireAuth()
+  const app = await prisma.jobApplication.findFirst({
+    where: { id: applicationId, userId },
+    select: { nextActionAt: true, nextActionLabel: true },
+  })
+  if (!app) throw new Error("Non autorisé")
+  if (!app.nextActionAt) throw new Error("Aucun prochain point à valider")
+  await prisma.$transaction([
+    prisma.jobApplicationEvent.create({
+      data: {
+        userId,
+        applicationId,
+        date: app.nextActionAt,
+        type,
+        title: app.nextActionLabel?.trim() || "Rendez-vous",
+      },
+    }),
+    prisma.jobApplication.updateMany({
+      where: { id: applicationId, userId },
+      data: { nextActionAt: null, nextActionLabel: null },
+    }),
+  ])
+  revalidatePath("/entretiens")
+  revalidatePath(`/entretiens/${applicationId}`)
+  revalidatePath("/calendrier")
+}
+
 export async function deleteApplicationEvent(id: string) {
   const userId = await requireAuth()
   const ev = await prisma.jobApplicationEvent.findFirst({

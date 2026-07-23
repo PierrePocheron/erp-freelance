@@ -5,7 +5,7 @@ import Link from "next/link"
 import {
   ArrowLeft, Building2, MapPin, Banknote, ExternalLink,
   Mail, Phone, Plus, Check, CalendarClock,
-  Pencil, Trash2, Ban, RotateCcw, FileText,
+  Pencil, Trash2, Ban, RotateCcw, FileText, FileCheck2,
 } from "lucide-react"
 import { LinkedinIcon } from "@/components/ui/linkedin-icon"
 import { toast } from "sonner"
@@ -72,6 +72,8 @@ type DetailApp = {
   appliedAt: Date | string | null
   nextActionAt: Date | string | null
   nextActionLabel: string | null
+  competencyDossierValidated: boolean
+  competencyDossierUrl: string | null
   closedAt: Date | string | null
   createdAt: Date | string
   updatedAt: Date | string
@@ -546,6 +548,30 @@ export function ApplicationDetailView({
             </div>
           </div>
         )}
+
+        {/* Dossier de compétences (parfois demandé après le premier entretien) */}
+        {(app.competencyDossierUrl || app.competencyDossierValidated) && (
+          <div className="rounded-lg border border-border/60 p-2.5 space-y-1.5">
+            <div className="flex items-center gap-2">
+              <FileCheck2 className={cn("h-4 w-4 shrink-0", app.competencyDossierValidated ? "text-emerald-600" : "text-muted-foreground")} />
+              <span className="text-sm font-medium">Dossier de compétences</span>
+              <span className={cn(
+                "ml-auto rounded-full border px-2 py-0.5 text-[11px] font-medium whitespace-nowrap",
+                app.competencyDossierValidated
+                  ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
+                  : "border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-500"
+              )}>
+                {app.competencyDossierValidated ? "Validé" : "À remplir"}
+              </span>
+            </div>
+            {app.competencyDossierUrl && (
+              <a href={app.competencyDossierUrl} target="_blank" rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 text-xs text-primary hover:underline w-fit">
+                <ExternalLink className="h-3 w-3" /> Consulter le dossier
+              </a>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Contact recruteur */}
@@ -754,6 +780,8 @@ export function ApplicationDetailView({
             appliedAt: app.appliedAt,
             nextActionAt: app.nextActionAt,
             nextActionLabel: app.nextActionLabel,
+            competencyDossierValidated: app.competencyDossierValidated,
+            competencyDossierUrl: app.competencyDossierUrl,
             closedAt: app.closedAt,
             createdAt: app.createdAt,
             updatedAt: app.updatedAt,

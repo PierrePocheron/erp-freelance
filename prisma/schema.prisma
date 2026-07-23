@@ -1563,6 +1563,10 @@ model JobApplication {
   nextActionLabel String?                          // libellé du prochain point
   closedAt    DateTime?                           // date de clôture (accepté/refusé/désisté)
 
+  // Dossier de compétences — parfois demandé après le premier entretien
+  competencyDossierValidated Boolean @default(false) // rempli/validé par le candidat
+  competencyDossierUrl       String?                 // lien pour le consulter
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

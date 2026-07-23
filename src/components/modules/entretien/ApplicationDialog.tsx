@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useTransition } from "react"
-import { X, Trash2 } from "lucide-react"
+import { X, Trash2, FileCheck2 } from "lucide-react"
 import { toast } from "sonner"
 import { createJobApplication, updateJobApplication, deleteJobApplication } from "@/actions/entretien"
 import { STATUS_CONFIG, PIPELINE_STATUSES, OUTCOME_STATUSES, EVENT_TYPE_CONFIG, type JobAppStatus } from "./status-config"
@@ -54,6 +54,8 @@ export function ApplicationDialog({
   const [appliedAt,   setAppliedAt]   = useState(toISO(item?.appliedAt))
   const [nextActionAt,    setNextActionAt]    = useState(toISO(item?.nextActionAt))
   const [nextActionLabel, setNextActionLabel] = useState(item?.nextActionLabel || "")
+  const [dossierValidated, setDossierValidated] = useState(item?.competencyDossierValidated ?? false)
+  const [dossierUrl,       setDossierUrl]       = useState(item?.competencyDossierUrl || "")
   const [notes,       setNotes]       = useState(item?.notes || "")
 
   function handleSubmit(e: React.FormEvent) {
@@ -69,6 +71,8 @@ export function ApplicationDialog({
       appliedAt: appliedAt || null,
       nextActionAt: nextActionAt || null,
       nextActionLabel,
+      competencyDossierValidated: dossierValidated,
+      competencyDossierUrl: dossierUrl,
       notes,
     }
     start(async () => {
@@ -271,6 +275,28 @@ export function ApplicationDialog({
               />
             </div>
           )}
+
+          {/* Dossier de compétences — parfois demandé après le premier entretien */}
+          <div className="rounded-lg border border-border/50 bg-muted/20 p-3 space-y-2">
+            <label className="flex items-center gap-2 text-xs font-medium cursor-pointer">
+              <input
+                type="checkbox"
+                checked={dossierValidated}
+                onChange={e => setDossierValidated(e.target.checked)}
+                className="rounded border-input accent-primary"
+              />
+              <FileCheck2 className="h-3.5 w-3.5 text-muted-foreground" />
+              Dossier de compétences validé
+            </label>
+            <div>
+              <label className="text-xs font-medium text-muted-foreground">Lien du dossier</label>
+              <input
+                type="url" value={dossierUrl} onChange={e => setDossierUrl(e.target.value)}
+                placeholder="https://…"
+                className="mt-1 w-full h-9 rounded-lg border border-input bg-background px-3 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+              />
+            </div>
+          </div>
 
           {/* Notes */}
           <div>

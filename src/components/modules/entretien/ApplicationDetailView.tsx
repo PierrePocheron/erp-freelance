@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation"
 import {
   ArrowLeft, Building2, MapPin, Banknote, ExternalLink,
   Mail, Phone, Plus, Check, CalendarClock,
-  Pencil, Trash2, Ban, RotateCcw, FileText, FileCheck2,
+  Pencil, Trash2, Ban, RotateCcw, FileText, FileCheck2, ChevronDown,
 } from "lucide-react"
 import { LinkedinIcon } from "@/components/ui/linkedin-icon"
 import { toast } from "sonner"
@@ -81,6 +81,7 @@ type DetailApp = {
   contact: DetailContact | null
   company: DetailCompany
   events: DetailEvent[]
+  usedAnswers: { id: string; question: string; answer: string; category: string | null }[]
 }
 
 type ListContact = {
@@ -762,6 +763,32 @@ export function ApplicationDetailView({
             </a>
           ) : (
             <p className="text-xs text-muted-foreground/50 italic">Aucun lien renseigné.</p>
+          )}
+        </div>
+
+        {/* Modèles & réponses utilisés sur ce process */}
+        <div className="rounded-xl border border-border/50 bg-card p-4 space-y-2">
+          <div className="flex items-center justify-between gap-2">
+            <h2 className={cardTitleCls}>Modèles &amp; réponses utilisés</h2>
+            <Link href="/entretiens/faq" className="text-xs text-primary hover:underline shrink-0">Gérer</Link>
+          </div>
+          {app.usedAnswers.length === 0 ? (
+            <p className="text-xs text-muted-foreground/50 italic">
+              Aucun modèle rattaché. Reliez vos réponses-types et lettres depuis « Réponses &amp; modèles ».
+            </p>
+          ) : (
+            <div className="space-y-2">
+              {app.usedAnswers.map((qa) => (
+                <details key={qa.id} className="group rounded-lg border border-border/50 p-2.5">
+                  <summary className="flex items-center gap-1.5 cursor-pointer list-none">
+                    <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" />
+                    <span className="text-sm font-medium">{qa.question}</span>
+                    {qa.category && <span className="ml-auto rounded-full border border-border px-2 py-0.5 text-[10px] font-medium text-muted-foreground whitespace-nowrap">{qa.category}</span>}
+                  </summary>
+                  <p className="mt-1.5 pl-5 text-sm text-muted-foreground/90 whitespace-pre-line leading-relaxed">{qa.answer}</p>
+                </details>
+              ))}
+            </div>
           )}
         </div>
 

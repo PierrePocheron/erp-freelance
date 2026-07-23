@@ -37,6 +37,10 @@ export default async function EntretienDetailPage({
         },
         company: { select: { id: true, name: true, city: true, website: true } },
         events: { orderBy: { date: "asc" } },
+        usedAnswers: {
+          select: { id: true, question: true, answer: true, category: true },
+          orderBy: [{ pinned: "desc" }, { updatedAt: "desc" }],
+        },
       },
     }),
     prisma.client.findMany({

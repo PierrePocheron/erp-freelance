@@ -1,16 +1,19 @@
 "use client"
 
 import { useMemo, useState, useTransition } from "react"
+import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { Plus, Pencil, Trash2, X, Check, Search, HelpCircle, Pin, PinOff, ChevronDown } from "lucide-react"
+import { Plus, Pencil, Trash2, X, Check, Search, HelpCircle, Pin, PinOff, ChevronDown, Briefcase } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
   createInterviewAnswer, updateInterviewAnswer, deleteInterviewAnswer, toggleInterviewAnswerPinned,
+  setAnswerApplications,
 } from "@/actions/entretien"
 import { cn } from "@/lib/utils"
 import { toast } from "sonner"
 
+type LinkedApp = { id: string; companyName: string; position: string }
 type InterviewAnswer = {
   id: string
   question: string
@@ -18,9 +21,10 @@ type InterviewAnswer = {
   category: string | null
   pinned: boolean
   updatedAt: Date | string
+  applications: LinkedApp[]
 }
 
-export function InterviewFaqView({ answers }: { answers: InterviewAnswer[] }) {
+export function InterviewFaqView({ answers, applications }: { answers: InterviewAnswer[]; applications: LinkedApp[] }) {
   const router = useRouter()
   const [editingId, setEditingId] = useState<string | "new" | null>(null)
   const [question, setQuestion] = useState("")
@@ -28,6 +32,7 @@ export function InterviewFaqView({ answers }: { answers: InterviewAnswer[] }) {
   const [category, setCategory] = useState("")
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
+  const [linkedAppIds, setLinkedAppIds] = useState<string[]>([]) // candidatures liées (éditeur)
   const [isPending, startTransition] = useTransition()
 
   // Recherche + filtre catégorie
@@ -59,21 +64,27 @@ export function InterviewFaqView({ answers }: { answers: InterviewAnswer[] }) {
   }
 
   function startCreate() {
-    setEditingId("new"); setQuestion(""); setAnswer(""); setCategory("")
+    setEditingId("new"); setQuestion(""); setAnswer(""); setCategory(""); setLinkedAppIds([])
   }
   function startEdit(a: InterviewAnswer) {
     setEditingId(a.id); setQuestion(a.question); setAnswer(a.answer); setCategory(a.category ?? "")
+    setLinkedAppIds(a.applications.map((x) => x.id))
+  }
+  function toggleLinkedApp(id: string) {
+    setLinkedAppIds((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id])
   }
   function save() {
     if (!question.trim() || !answer.trim()) return
     startTransition(async () => {
+      let id: string | null = editingId === "new" ? null : editingId
       if (editingId === "new") {
-        await createInterviewAnswer({ question, answer, category })
+        id = await createInterviewAnswer({ question, answer, category })
         toast.success("Réponse ajoutée")
       } else if (editingId) {
         await updateInterviewAnswer(editingId, { question, answer, category })
         toast.success("Réponse mise à jour")
       }
+      if (id) await setAnswerApplications(id, linkedAppIds)
       setEditingId(null)
       router.refresh()
     })
@@ -143,9 +154,33 @@ export function InterviewFaqView({ answers }: { answers: InterviewAnswer[] }) {
           </div>
           <div className="space-y-1">
             <label className="text-xs text-muted-foreground">Catégorie (optionnel)</label>
-            <Input value={category} onChange={(e) => setCategory(e.target.value)} placeholder="Présentation, Motivation, Technique, Salaire…" list="faq-categories" />
+            <Input value={category} onChange={(e) => setCategory(e.target.value)} placeholder="Présentation, Motivation, Technique, Salaire, Lettre de motivation…" list="faq-categories" />
             <datalist id="faq-categories">{categories.map((c) => <option key={c} value={c} />)}</datalist>
           </div>
+          {applications.length > 0 && (
+            <div className="space-y-1">
+              <label className="text-xs text-muted-foreground">Utilisé pour ces candidatures</label>
+              <div className="flex flex-wrap gap-1.5">
+                {applications.map((app) => {
+                  const on = linkedAppIds.includes(app.id)
+                  return (
+                    <button
+                      key={app.id}
+                      type="button"
+                      onClick={() => toggleLinkedApp(app.id)}
+                      className={cn(
+                        "flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs transition-colors",
+                        on ? "border-primary bg-primary/10 text-foreground" : "border-border text-muted-foreground hover:border-foreground/30"
+                      )}
+                    >
+                      {on && <Check className="h-3 w-3 shrink-0" />}
+                      {app.companyName}{app.position ? ` · ${app.position}` : ""}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          )}
           <div className="flex justify-end gap-2">
             <Button type="button" variant="outline" size="sm" onClick={() => setEditingId(null)} disabled={isPending}>
               <X className="h-3.5 w-3.5" /> Annuler
@@ -228,6 +263,20 @@ export function InterviewFaqView({ answers }: { answers: InterviewAnswer[] }) {
                   <span className="ml-5 inline-block rounded-full border border-border px-2 py-0.5 text-[10px] font-medium text-muted-foreground whitespace-nowrap">
                     {a.category}
                   </span>
+                )}
+                {a.applications.length > 0 && (
+                  <div className="ml-5 flex flex-wrap gap-1 pt-0.5">
+                    {a.applications.map((app) => (
+                      <Link
+                        key={app.id}
+                        href={`/entretiens/${app.id}`}
+                        className="inline-flex items-center gap-1 rounded-full border border-primary/30 bg-primary/5 px-2 py-0.5 text-[10px] font-medium text-primary hover:bg-primary/10 transition-colors whitespace-nowrap"
+                        title="Voir la candidature"
+                      >
+                        <Briefcase className="h-2.5 w-2.5 shrink-0" /> {app.companyName}
+                      </Link>
+                    ))}
+                  </div>
                 )}
               </div>
             )

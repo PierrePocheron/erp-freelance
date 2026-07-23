@@ -1,13 +1,24 @@
 import Link from "next/link"
 import { ChevronLeft } from "lucide-react"
 import type { Metadata } from "next"
+import { auth } from "@/lib/auth"
+import { prisma } from "@/lib/prisma"
 import { getInterviewAnswers } from "@/actions/entretien"
 import { InterviewFaqView } from "@/components/modules/entretien/InterviewFaqView"
 
-export const metadata: Metadata = { title: "FAQ & réponses-types — ERP Freelance" }
+export const metadata: Metadata = { title: "Réponses & modèles — ERP Freelance" }
 
 export default async function InterviewFaqPage() {
-  const answers = await getInterviewAnswers()
+  const session = await auth()
+  const userId = session!.user.id
+  const [answers, applications] = await Promise.all([
+    getInterviewAnswers(),
+    prisma.jobApplication.findMany({
+      where: { userId },
+      orderBy: [{ createdAt: "desc" }],
+      select: { id: true, companyName: true, position: true },
+    }),
+  ])
 
   return (
     <div className="space-y-6">
@@ -18,13 +29,13 @@ export default async function InterviewFaqPage() {
         >
           <ChevronLeft className="h-4 w-4" /> Entretiens
         </Link>
-        <h1 className="text-2xl font-bold tracking-tight">FAQ &amp; réponses-types</h1>
+        <h1 className="text-2xl font-bold tracking-tight">Réponses &amp; modèles</h1>
         <p className="text-sm text-muted-foreground">
-          {answers.length} réponse{answers.length !== 1 ? "s" : ""} préparée{answers.length !== 1 ? "s" : ""} · vos questions fréquentes d&apos;entretien, cherchables par mot-clé
+          {answers.length} fiche{answers.length !== 1 ? "s" : ""} · réponses-types, FAQ et lettres de motivation d&apos;entretien, cherchables par mot-clé
         </p>
       </div>
 
-      <InterviewFaqView answers={answers} />
+      <InterviewFaqView answers={answers} applications={applications} />
     </div>
   )
 }

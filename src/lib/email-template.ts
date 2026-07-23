@@ -120,10 +120,24 @@ export function isValidEmailAddress(email: string | null | undefined): boolean {
   return !!email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())
 }
 
-/** Convertit un corps texte rendu en HTML simple (paragraphes), valeurs échappées. */
+/**
+ * Convertit un corps texte rendu en HTML simple (paragraphes), valeurs échappées.
+ * Gère le gras Markdown : `**texte**` → `<b>texte</b>` (appliqué après échappement,
+ * donc sans risque d'injection — le contenu est déjà neutralisé).
+ */
 export function bodyToHtml(body: string): string {
   return body
     .split(/\n{2,}/)
-    .map((para) => `<p>${escapeHtml(para).replace(/\n/g, "<br />")}</p>`)
+    .map((para) => {
+      const html = escapeHtml(para)
+        .replace(/\*\*(.+?)\*\*/g, "<b>$1</b>")
+        .replace(/\n/g, "<br />")
+      return `<p>${html}</p>`
+    })
     .join("\n")
+}
+
+/** Retire les marqueurs Markdown gras (`**texte**` → `texte`) pour une sortie texte brut. */
+export function stripMarkdown(body: string): string {
+  return body.replace(/\*\*(.+?)\*\*/g, "$1")
 }

@@ -280,18 +280,20 @@ export async function deleteProspects(clientIds: string[]) {
 // signature Gmail de Pierre, PAS dans le corps → Gmail l'ajoute automatiquement.
 const DEFAULT_EMAIL_TEMPLATES = [
   {
-    name: "1er contact — offre mensuelle",
-    subject: "Une idée pour améliorer votre site",
+    name: "1er contact — appel 10 min + démo",
+    subject: "J'ai commencé un nouveau site pour {{societe}}",
     sortOrder: 0,
-    body: `Bonjour,
+    body: `Bonjour {{prenom}},
 
-Développeur web indépendant depuis plusieurs années, j'accompagne les PME et TPE dans leurs projets web.
+Je m'appelle Pierre, développeur web indépendant à Lyon. J'accompagne des TPE et des artisans comme {{societe}} sur leur site internet.
 
-Je suis tombé sur votre site ({{site}}) et j'ai des idées concrètes pour le rendre plus moderne, plus rapide et mieux visible sur Google.
+Je suis tombé sur le vôtre ({{site}}) et, très sincèrement, il m'a donné envie de m'y pencher : j'ai déjà commencé à vous préparer une nouvelle version, plus moderne et plus rapide, histoire de vous montrer concrètement ce que ça pourrait donner.
 
-Je propose une formule tout compris au mois — création, hébergement, maintenance et mises à jour — sans les engagements de plusieurs années qu'on voit souvent ailleurs.
+Est-ce qu'on pourrait s'appeler une dizaine de minutes ? Je vous présente rapidement mon travail et ce que j'ai commencé pour vous, tranquillement.
 
-Est-ce que ça vous dirait d'en discuter 15 min, sans engagement ? Je vous montre ce qu'on pourrait faire ensemble.
+C'est sans aucun engagement — et rassurez-vous, je ne suis pas là pour vous vendre une formule tout compris au mois. L'idée, c'est simplement d'échanger.
+
+Si ça vous dit, répondez-moi avec un créneau qui vous arrange (ou votre numéro) et je vous rappelle.
 
 Bonne journée,
 Pierre — Pedro Dev, développeur web à Lyon`,

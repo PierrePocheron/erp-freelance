@@ -14,14 +14,60 @@ export { MODULE_DEFS, ALL_MODULE_IDS, MODULES_COOKIE, CATEGORY_META, CATEGORY_OR
 
 const DEFAULT_ACTIVE_IDS = MODULE_DEFS.filter(m => m.defaultActive).map(m => m.id)
 
+// ── Scope par utilisateur ────────────────────────────────────────────────────
+// Toutes les clés (localStorage + cookie) sont suffixées par l'id du compte
+// connecté : deux comptes Google sur le même navigateur ont chacun leur propre
+// onboarding, tour guidé et sélection de modules. Le suffixe est posé très tôt,
+// pendant le rendu, par <ModuleScope userId> (cf. (app)/layout.tsx) — donc avant
+// que les effets des composants (Sidebar, OnboardingGate, UiTour…) ne lisent le
+// storage.
+let userScope = ""
+export function setUserScope(userId: string | null | undefined) {
+  userScope = userId ? `:${userId}` : ""
+}
+const scoped = (base: string) => base + userScope
+
+/** Lecture/écriture localStorage scopée par utilisateur (try/catch + SSR-safe). */
+export function readScoped(base: string): string | null {
+  try { const s = window.localStorage; return s.getItem(scoped(base)) } catch { return null }
+}
+export function writeScoped(base: string, value: string) {
+  try { const s = window.localStorage; s.setItem(scoped(base), value) } catch {}
+}
+
+// Migration one-shot : les clés étaient globales avant le scope par compte.
+// Au premier chargement post-mise-à-jour, on recopie les clés héritées vers le
+// scope du PREMIER compte qui se connecte, pour ne pas re-déclencher l'onboarding
+// de l'utilisateur historique. Un 2ᵉ compte, lui, n'aura pas de clés scopées → il
+// obtiendra bien son propre onboarding + tour.
+const SCOPE_MIGRATED_KEY = "erp-scope-migrated"
+export function migrateLegacyKeysOnce(userId: string | null | undefined) {
+  if (typeof window === "undefined" || !userId) return
+  try {
+    const s = window.localStorage
+    if (s.getItem(SCOPE_MIGRATED_KEY)) return
+    const LEGACY_BASES = [
+      "erp-active-modules", "erp-onboarding-done", "erp-seen-modules",
+      "erp-last-seen-version", "erp-ui-tour-seen",
+    ]
+    for (const base of LEGACY_BASES) {
+      const legacy = s.getItem(base)
+      if (legacy !== null && s.getItem(`${base}:${userId}`) === null) {
+        s.setItem(`${base}:${userId}`, legacy)
+      }
+    }
+    s.setItem(SCOPE_MIGRATED_KEY, "1")
+  } catch {}
+}
+
 const ONBOARDING_KEY = "erp-onboarding-done"
 
 /** Vrai si l'utilisateur n'a encore ni terminé l'onboarding ni configuré ses modules. */
 export function readNeedsOnboarding(): boolean {
   if (typeof window === "undefined") return false
   try {
-    return localStorage.getItem(ONBOARDING_KEY) === null
-      && localStorage.getItem(STORAGE_KEY) === null
+    return readScoped(ONBOARDING_KEY) === null
+      && readScoped(STORAGE_KEY) === null
   } catch {
     return false
   }
@@ -33,7 +79,7 @@ const LAST_VERSION_KEY = "erp-last-seen-version"
 function readSeenModuleIds(): Set<ModuleId> | null {
   if (typeof window === "undefined") return null
   try {
-    const raw = localStorage.getItem(SEEN_MODULES_KEY)
+    const raw = readScoped(SEEN_MODULES_KEY)
     if (raw === null) return null
     const parsed = JSON.parse(raw) as ModuleId[]
     return new Set(parsed.filter(id => ALL_MODULE_IDS.includes(id)))
@@ -60,26 +106,26 @@ export function checkNewModules(currentVersion: string): NewModulesInfo | null {
   // Un tout nouvel utilisateur découvre déjà tous les modules via l'écran d'onboarding.
   if (readNeedsOnboarding()) return null
 
-  const storedVersion = localStorage.getItem(LAST_VERSION_KEY)
+  const storedVersion = readScoped(LAST_VERSION_KEY)
   const seen = readSeenModuleIds()
 
   // Première exécution de cette fonctionnalité pour un utilisateur existant : on considère
   // qu'il connaît déjà tous les modules actuels, pour ne pas ressortir rétroactivement
   // ceux qui existaient avant l'ajout de cette annonce.
   if (seen === null) {
-    localStorage.setItem(SEEN_MODULES_KEY, JSON.stringify(ALL_MODULE_IDS))
-    localStorage.setItem(LAST_VERSION_KEY, currentVersion)
+    writeScoped(SEEN_MODULES_KEY, JSON.stringify(ALL_MODULE_IDS))
+    writeScoped(LAST_VERSION_KEY, currentVersion)
     return null
   }
 
   const newIds = ALL_MODULE_IDS.filter(id => !seen.has(id))
   if (newIds.length === 0) {
-    if (storedVersion !== currentVersion) localStorage.setItem(LAST_VERSION_KEY, currentVersion)
+    if (storedVersion !== currentVersion) writeScoped(LAST_VERSION_KEY, currentVersion)
     return null
   }
 
-  localStorage.setItem(SEEN_MODULES_KEY, JSON.stringify(ALL_MODULE_IDS))
-  localStorage.setItem(LAST_VERSION_KEY, currentVersion)
+  writeScoped(SEEN_MODULES_KEY, JSON.stringify(ALL_MODULE_IDS))
+  writeScoped(LAST_VERSION_KEY, currentVersion)
 
   return {
     modules: MODULE_DEFS.filter(m => newIds.includes(m.id)),
@@ -96,11 +142,12 @@ const MODULES_CHANGED_EVENT = "erp-modules-changed"
 
 function writeCookie(ids: ModuleId[]) {
   if (typeof document === "undefined") return
-  document.cookie = `${MODULES_COOKIE}=${encodeURIComponent(JSON.stringify(ids))};path=/;max-age=${COOKIE_MAX_AGE};SameSite=Lax`
+  // Cookie scopé par compte (miroir SSR de la sélection) — cf. getActiveModules(userId).
+  document.cookie = `${scoped(MODULES_COOKIE)}=${encodeURIComponent(JSON.stringify(ids))};path=/;max-age=${COOKIE_MAX_AGE};SameSite=Lax`
 }
 
 function persist(ids: ModuleId[]) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(ids))
+  writeScoped(STORAGE_KEY, JSON.stringify(ids))
   writeCookie(ids)
   window.dispatchEvent(new Event(MODULES_CHANGED_EVENT))
 }
@@ -108,7 +155,7 @@ function persist(ids: ModuleId[]) {
 function readFromStorage(): Set<ModuleId> {
   if (typeof window === "undefined") return new Set(DEFAULT_ACTIVE_IDS)
   try {
-    const raw = localStorage.getItem(STORAGE_KEY)
+    const raw = readScoped(STORAGE_KEY)
     if (!raw) return new Set(DEFAULT_ACTIVE_IDS)  // seuls les modules defaultActive: true
     const parsed = JSON.parse(raw) as ModuleId[]
     return new Set(parsed.filter(id => ALL_MODULE_IDS.includes(id)))
@@ -168,7 +215,7 @@ export function useModules() {
   // Termine l'onboarding : enregistre la sélection + marque l'écran comme vu.
   const completeOnboarding = useCallback((ids: ModuleId[]) => {
     setModules(ids)
-    localStorage.setItem(ONBOARDING_KEY, "true")
+    writeScoped(ONBOARDING_KEY, "true")
   }, [setModules])
 
   return { activeModules, isActive, toggle, enableAll, setModules, completeOnboarding }

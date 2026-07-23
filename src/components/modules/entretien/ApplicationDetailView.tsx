@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import {
   ArrowLeft, Building2, MapPin, Banknote, ExternalLink,
   Mail, Phone, Plus, Check, CalendarClock,
@@ -13,14 +14,14 @@ import { cn } from "@/lib/utils"
 import {
   updateApplicationStatus, addApplicationEvent,
   deleteApplicationEvent, cancelApplicationEvent,
-  uncancelApplicationEvent, setEventOutcome, updateApplicationNotes,
+  uncancelApplicationEvent, setEventOutcome,
+  updateJobApplication, deleteJobApplication,
 } from "@/actions/entretien"
 import {
   STATUS_CONFIG, PIPELINE_STATUSES, OUTCOME_STATUSES, EVENT_TYPE_CONFIG,
   fmtDate, fmtDateTime, type JobAppStatus,
 } from "./status-config"
-import { ApplicationDialog } from "./ApplicationDialog"
-import type { JobEventType } from "@/generated/prisma/enums"
+import type { JobEventType, JobApplicationStatus } from "@/generated/prisma/enums"
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -105,6 +106,14 @@ function salaryLabel(app: DetailApp): string | null {
   if (app.salaryMax) return `jusqu'à ${fmtK(app.salaryMax)} €`
   return app.salaryNote ?? null
 }
+
+const toDateInput = (d: Date | string | null | undefined) =>
+  d ? new Date(d).toISOString().split("T")[0] : ""
+
+// Styles partagés des champs en mode édition
+const inputCls = "w-full h-9 rounded-lg border border-input bg-background px-3 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+const labelCls = "text-xs font-medium text-muted-foreground"
+const cardTitleCls = "text-xs font-semibold text-muted-foreground uppercase tracking-wide"
 
 // ── Pipeline stepper ───────────────────────────────────────────────────────────
 
@@ -377,14 +386,31 @@ export function ApplicationDetailView({
   contacts: ListContact[]
   companies: { id: string; name: string }[]
 }) {
+  const router = useRouter()
   const [, start] = useTransition()
 
   const [statusOpen, setStatusOpen] = useState(false)
-  const [showDialog, setShowDialog] = useState(false)
+  const [editing, setEditing] = useState(false)
+  const [confirmDelete, setConfirmDelete] = useState(false)
 
-  // Édition inline des notes — initialisé lazily au clic pour ne pas dupliquer la prop
-  const [editingNotes, setEditingNotes] = useState(false)
-  const [notesText, setNotesText] = useState("")
+  // Champs éditables inline (mode « Modifier ») — re-seedés à l'entrée en édition.
+  const [fCompany, setFCompany] = useState(app.companyName)
+  const [fCompanyId, setFCompanyId] = useState(app.companyId ?? "")
+  const [fPosition, setFPosition] = useState(app.position)
+  const [fLocation, setFLocation] = useState(app.location ?? "")
+  const [fWorkMode, setFWorkMode] = useState(app.workMode ?? "")
+  const [fSource, setFSource] = useState(app.source ?? "")
+  const [fUrl, setFUrl] = useState(app.url ?? "")
+  const [fSalaryMin, setFSalaryMin] = useState(app.salaryMin?.toString() ?? "")
+  const [fSalaryMax, setFSalaryMax] = useState(app.salaryMax?.toString() ?? "")
+  const [fSalaryNote, setFSalaryNote] = useState(app.salaryNote ?? "")
+  const [fContactId, setFContactId] = useState(app.contactId ?? "")
+  const [fApplied, setFApplied] = useState(toDateInput(app.appliedAt))
+  const [fNextAt, setFNextAt] = useState(toDateInput(app.nextActionAt))
+  const [fNextLabel, setFNextLabel] = useState(app.nextActionLabel ?? "")
+  const [fDossierValidated, setFDossierValidated] = useState(app.competencyDossierValidated)
+  const [fDossierUrl, setFDossierUrl] = useState(app.competencyDossierUrl ?? "")
+  const [fNotes, setFNotes] = useState(app.notes ?? "")
 
   // Add event form
   const [showAddEvent, setShowAddEvent] = useState(false)
@@ -396,6 +422,58 @@ export function ApplicationDetailView({
   const cfg = STATUS_CONFIG[app.status as JobAppStatus] ?? STATUS_CONFIG.WISHLIST
   const salary = salaryLabel(app)
   const nextOverdue = app.nextActionAt && new Date(app.nextActionAt) < new Date()
+
+  function beginEdit() {
+    setFCompany(app.companyName); setFCompanyId(app.companyId ?? "")
+    setFPosition(app.position); setFLocation(app.location ?? ""); setFWorkMode(app.workMode ?? "")
+    setFSource(app.source ?? ""); setFUrl(app.url ?? "")
+    setFSalaryMin(app.salaryMin?.toString() ?? ""); setFSalaryMax(app.salaryMax?.toString() ?? ""); setFSalaryNote(app.salaryNote ?? "")
+    setFContactId(app.contactId ?? "")
+    setFApplied(toDateInput(app.appliedAt)); setFNextAt(toDateInput(app.nextActionAt)); setFNextLabel(app.nextActionLabel ?? "")
+    setFDossierValidated(app.competencyDossierValidated); setFDossierUrl(app.competencyDossierUrl ?? "")
+    setFNotes(app.notes ?? "")
+    setConfirmDelete(false)
+    setEditing(true)
+  }
+
+  // Lie automatiquement companyId si le nom saisi correspond à une société existante.
+  function onCompanyNameChange(value: string) {
+    setFCompany(value)
+    const match = companies.find((c) => c.name.toLowerCase() === value.trim().toLowerCase())
+    setFCompanyId(match?.id ?? "")
+  }
+
+  function saveEdits() {
+    if (!fCompany.trim() || !fPosition.trim()) { toast.error("Entreprise et poste sont requis"); return }
+    start(async () => {
+      await updateJobApplication(app.id, {
+        companyName: fCompany, companyId: fCompanyId || null, position: fPosition,
+        location: fLocation, workMode: fWorkMode,
+        status: app.status as JobApplicationStatus,
+        source: fSource, url: fUrl,
+        salaryMin: fSalaryMin ? parseFloat(fSalaryMin) : null,
+        salaryMax: fSalaryMax ? parseFloat(fSalaryMax) : null,
+        salaryNote: fSalaryNote,
+        contactId: fContactId || null,
+        appliedAt: fApplied || null,
+        nextActionAt: fNextAt || null,
+        nextActionLabel: fNextLabel,
+        competencyDossierValidated: fDossierValidated,
+        competencyDossierUrl: fDossierUrl,
+        notes: fNotes,
+      })
+      setEditing(false)
+      toast.success("Candidature mise à jour")
+    })
+  }
+
+  function handleDelete() {
+    start(async () => {
+      await deleteJobApplication(app.id)
+      toast.success("Candidature supprimée")
+      router.push("/entretiens")
+    })
+  }
 
   function pickStatus(s: JobAppStatus) {
     setStatusOpen(false)
@@ -433,9 +511,9 @@ export function ApplicationDetailView({
 
 
   return (
-    <div className="max-w-2xl mx-auto space-y-6 pb-16">
-      {/* Back */}
-      <div>
+    <div className="space-y-6 pb-16">
+      {/* Retour + barre d'édition */}
+      <div className="flex items-center justify-between gap-3">
         <Link
           href="/entretiens"
           className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
@@ -443,11 +521,52 @@ export function ApplicationDetailView({
           <ArrowLeft className="h-3.5 w-3.5" />
           Retour aux candidatures
         </Link>
+        {editing ? (
+          <div className="flex items-center gap-2">
+            {confirmDelete ? (
+              <>
+                <span className="text-xs text-muted-foreground">Supprimer&nbsp;?</span>
+                <button type="button" onClick={handleDelete} className="text-xs font-medium text-destructive hover:opacity-80">Oui</button>
+                <button type="button" onClick={() => setConfirmDelete(false)} className="text-xs text-muted-foreground hover:text-foreground">Non</button>
+              </>
+            ) : (
+              <button type="button" onClick={() => setConfirmDelete(true)} title="Supprimer la candidature"
+                className="flex h-8 w-8 items-center justify-center rounded-lg text-destructive hover:bg-destructive/10 transition-colors">
+                <Trash2 className="h-4 w-4" />
+              </button>
+            )}
+            <button type="button" onClick={() => setEditing(false)}
+              className="h-8 px-3 rounded-lg border border-input text-sm text-muted-foreground hover:bg-muted/50 transition-colors">
+              Annuler
+            </button>
+            <button type="button" onClick={saveEdits}
+              className="flex items-center gap-1.5 h-8 px-3.5 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors">
+              <Check className="h-4 w-4" /> Enregistrer
+            </button>
+          </div>
+        ) : (
+          <button type="button" onClick={beginEdit}
+            className="flex items-center gap-1.5 h-8 px-3 rounded-lg border border-input text-sm text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors">
+            <Pencil className="h-3.5 w-3.5" /> Modifier
+          </button>
+        )}
       </div>
 
       {/* Header */}
       <div className="rounded-xl border border-border/50 bg-card p-5 space-y-4">
-        <div className="flex items-start justify-between gap-3">
+        {editing ? (
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div>
+              <label className={labelCls}>Entreprise cible *</label>
+              <input value={fCompany} onChange={(e) => onCompanyNameChange(e.target.value)} list="detail-company-suggestions" className={cn(inputCls, "mt-1")} />
+              <datalist id="detail-company-suggestions">{companies.map((c) => <option key={c.id} value={c.name} />)}</datalist>
+            </div>
+            <div>
+              <label className={labelCls}>Poste / mission *</label>
+              <input value={fPosition} onChange={(e) => setFPosition(e.target.value)} className={cn(inputCls, "mt-1")} />
+            </div>
+          </div>
+        ) : (
           <div className="min-w-0 space-y-0.5">
             <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
               <Building2 className="h-3 w-3" />
@@ -461,14 +580,7 @@ export function ApplicationDetailView({
             </p>
             <h1 className="text-xl font-bold leading-tight">{app.position}</h1>
           </div>
-          <button
-            onClick={() => setShowDialog(true)}
-            className="shrink-0 text-muted-foreground hover:text-foreground transition-colors p-1"
-            title="Modifier la candidature"
-          >
-            <Pencil className="h-4 w-4" />
-          </button>
-        </div>
+        )}
 
         {/* Statut */}
         <div className="relative inline-block">
@@ -506,55 +618,109 @@ export function ApplicationDetailView({
         {/* Stepper pipeline */}
         <PipelineStepper status={app.status} />
 
-        {/* Meta */}
-        <div className="flex flex-col gap-1.5 text-sm">
-          {(app.location || app.workMode) && (
-            <div className="flex items-center gap-2 text-muted-foreground">
-              <MapPin className="h-3.5 w-3.5 shrink-0" />
-              {[app.location, app.workMode].filter(Boolean).join(" · ")}
+        {/* Détails */}
+        {editing ? (
+          <div className="space-y-3">
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div>
+                <label className={labelCls}>Lieu</label>
+                <input value={fLocation} onChange={(e) => setFLocation(e.target.value)} placeholder="Ex : Lyon" className={cn(inputCls, "mt-1")} />
+              </div>
+              <div>
+                <label className={labelCls}>Mode</label>
+                <input value={fWorkMode} onChange={(e) => setFWorkMode(e.target.value)} placeholder="Remote / Hybride / Présentiel" className={cn(inputCls, "mt-1")} />
+              </div>
             </div>
-          )}
-          {salary && (
-            <div className="flex items-center gap-2 text-muted-foreground">
-              <Banknote className="h-3.5 w-3.5 shrink-0" /> {salary}
+            <div>
+              <label className={labelCls}>Rémunération (annuel brut €)</label>
+              <div className="mt-1 grid grid-cols-3 gap-2">
+                <input type="number" step="1000" min="0" value={fSalaryMin} onChange={(e) => setFSalaryMin(e.target.value)} placeholder="Min" className={inputCls} />
+                <input type="number" step="1000" min="0" value={fSalaryMax} onChange={(e) => setFSalaryMax(e.target.value)} placeholder="Max" className={inputCls} />
+                <input value={fSalaryNote} onChange={(e) => setFSalaryNote(e.target.value)} placeholder="+ variable…" className={inputCls} />
+              </div>
             </div>
-          )}
-          {app.source && (
-            <p className="text-xs text-muted-foreground">Source : {app.source}</p>
-          )}
-          {app.url && (
-            <a href={app.url} target="_blank" rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 text-xs text-primary hover:underline w-fit">
-              <ExternalLink className="h-3 w-3" /> Voir l&apos;offre
-            </a>
-          )}
-          {app.appliedAt && (
-            <p className="text-xs text-muted-foreground">Candidaté le {fmtDate(app.appliedAt)}</p>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div>
+                <label className={labelCls}>Source</label>
+                <input value={fSource} onChange={(e) => setFSource(e.target.value)} placeholder="LinkedIn, cooptation…" className={cn(inputCls, "mt-1")} />
+              </div>
+              <div>
+                <label className={labelCls}>Recruteur (contact)</label>
+                <select value={fContactId} onChange={(e) => setFContactId(e.target.value)} className={cn(inputCls, "mt-1")}>
+                  <option value="">— Aucun —</option>
+                  {contacts.map((c) => <option key={c.id} value={c.id}>{c.name}{c.company ? ` · ${c.company}` : ""}</option>)}
+                </select>
+              </div>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div>
+                <label className={labelCls}>Lien de l&apos;offre</label>
+                <input type="url" value={fUrl} onChange={(e) => setFUrl(e.target.value)} placeholder="https://…" className={cn(inputCls, "mt-1")} />
+              </div>
+              <div>
+                <label className={labelCls}>Date de candidature</label>
+                <input type="date" value={fApplied} onChange={(e) => setFApplied(e.target.value)} className={cn(inputCls, "mt-1")} />
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-1.5 text-sm">
+            {(app.location || app.workMode) && (
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <MapPin className="h-3.5 w-3.5 shrink-0" />
+                {[app.location, app.workMode].filter(Boolean).join(" · ")}
+              </div>
+            )}
+            {salary && (
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <Banknote className="h-3.5 w-3.5 shrink-0" /> {salary}
+              </div>
+            )}
+            {app.source && <p className="text-xs text-muted-foreground">Source : {app.source}</p>}
+            {app.url && (
+              <a href={app.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs text-primary hover:underline w-fit">
+                <ExternalLink className="h-3 w-3" /> Voir l&apos;offre
+              </a>
+            )}
+            {app.appliedAt && <p className="text-xs text-muted-foreground">Candidaté le {fmtDate(app.appliedAt)}</p>}
+            {!app.location && !app.workMode && !salary && !app.source && !app.url && !app.appliedAt && (
+              <p className="text-xs text-muted-foreground/50 italic">Aucun détail renseigné.</p>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* ── Bento : détails complémentaires (éditables sur place) ── */}
+      <div className="gap-6 lg:columns-2 2xl:columns-3 *:mb-6 *:break-inside-avoid">
+        {/* Prochain point */}
+        <div className="rounded-xl border border-border/50 bg-card p-4 space-y-2">
+          <h2 className={cardTitleCls}>Prochain point</h2>
+          {editing ? (
+            <div className="space-y-2">
+              <input type="date" value={fNextAt} onChange={(e) => setFNextAt(e.target.value)} className={inputCls} />
+              <input value={fNextLabel} onChange={(e) => setFNextLabel(e.target.value)} placeholder="Ex : Entretien technique avec le CTO" className={inputCls} />
+            </div>
+          ) : app.nextActionAt ? (
+            <div className={cn("rounded-lg border p-2.5 flex items-center gap-2", nextOverdue ? "border-red-500/30 bg-red-500/5" : "border-amber-500/30 bg-amber-500/5")}>
+              <CalendarClock className={cn("h-4 w-4 shrink-0", nextOverdue ? "text-red-500" : "text-amber-600")} />
+              <div>
+                <p className="text-sm font-medium">{app.nextActionLabel ?? "Prochain point"}</p>
+                <p className={cn("text-xs", nextOverdue ? "text-red-500" : "text-amber-600")}>
+                  {fmtDateTime(app.nextActionAt)}{nextOverdue ? " · en retard" : ""}
+                </p>
+              </div>
+            </div>
+          ) : (
+            <p className="text-xs text-muted-foreground/50 italic">Aucun rendez-vous planifié.</p>
           )}
         </div>
 
-        {/* Prochain point */}
-        {app.nextActionAt && (
-          <div className={cn(
-            "rounded-lg border p-2.5 flex items-center gap-2",
-            nextOverdue ? "border-red-500/30 bg-red-500/5" : "border-amber-500/30 bg-amber-500/5"
-          )}>
-            <CalendarClock className={cn("h-4 w-4 shrink-0", nextOverdue ? "text-red-500" : "text-amber-600")} />
-            <div>
-              <p className="text-sm font-medium">{app.nextActionLabel ?? "Prochain point"}</p>
-              <p className={cn("text-xs", nextOverdue ? "text-red-500" : "text-amber-600")}>
-                {fmtDateTime(app.nextActionAt)}{nextOverdue ? " · en retard" : ""}
-              </p>
-            </div>
-          </div>
-        )}
-
-        {/* Dossier de compétences (parfois demandé après le premier entretien) */}
-        {(app.competencyDossierUrl || app.competencyDossierValidated) && (
-          <div className="rounded-lg border border-border/60 p-2.5 space-y-1.5">
-            <div className="flex items-center gap-2">
-              <FileCheck2 className={cn("h-4 w-4 shrink-0", app.competencyDossierValidated ? "text-emerald-600" : "text-muted-foreground")} />
-              <span className="text-sm font-medium">Dossier de compétences</span>
+        {/* Dossier de compétences — toujours affiché */}
+        <div className="rounded-xl border border-border/50 bg-card p-4 space-y-2">
+          <div className="flex items-center gap-2">
+            <FileCheck2 className={cn("h-4 w-4 shrink-0", (editing ? fDossierValidated : app.competencyDossierValidated) ? "text-emerald-600" : "text-muted-foreground")} />
+            <h2 className={cardTitleCls}>Dossier de compétences</h2>
+            {!editing && (
               <span className={cn(
                 "ml-auto rounded-full border px-2 py-0.5 text-[11px] font-medium whitespace-nowrap",
                 app.competencyDossierValidated
@@ -563,16 +729,24 @@ export function ApplicationDetailView({
               )}>
                 {app.competencyDossierValidated ? "Validé" : "À remplir"}
               </span>
-            </div>
-            {app.competencyDossierUrl && (
-              <a href={app.competencyDossierUrl} target="_blank" rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 text-xs text-primary hover:underline w-fit">
-                <ExternalLink className="h-3 w-3" /> Consulter le dossier
-              </a>
             )}
           </div>
-        )}
-      </div>
+          {editing ? (
+            <div className="space-y-2">
+              <label className="flex items-center gap-2 text-sm cursor-pointer">
+                <input type="checkbox" checked={fDossierValidated} onChange={(e) => setFDossierValidated(e.target.checked)} className="rounded border-input accent-primary" />
+                Dossier validé
+              </label>
+              <input type="url" value={fDossierUrl} onChange={(e) => setFDossierUrl(e.target.value)} placeholder="Lien du dossier — https://…" className={inputCls} />
+            </div>
+          ) : app.competencyDossierUrl ? (
+            <a href={app.competencyDossierUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs text-primary hover:underline w-fit">
+              <ExternalLink className="h-3 w-3" /> Consulter le dossier
+            </a>
+          ) : (
+            <p className="text-xs text-muted-foreground/50 italic">Aucun lien renseigné.</p>
+          )}
+        </div>
 
       {/* Contact recruteur */}
       {app.contact && (
@@ -624,54 +798,24 @@ export function ApplicationDetailView({
         </div>
       )}
 
-      {/* Notes candidature (éditables inline) */}
-      <div className="rounded-xl border border-border/50 bg-card p-4 space-y-2">
-        <div className="flex items-center justify-between">
-          <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Notes</h2>
-          {!editingNotes && (
-            <button
-              onClick={() => { setNotesText(app.notes ?? ""); setEditingNotes(true) }}
-              className="text-xs text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1"
-            >
-              <Pencil className="h-3 w-3" /> Éditer
-            </button>
-          )}
-        </div>
-        {editingNotes ? (
-          <div className="space-y-2">
+        {/* Notes */}
+        <div className="rounded-xl border border-border/50 bg-card p-4 space-y-2">
+          <h2 className={cardTitleCls}>Notes</h2>
+          {editing ? (
             <textarea
-              autoFocus
-              value={notesText}
-              onChange={(e) => setNotesText(e.target.value)}
+              value={fNotes}
+              onChange={(e) => setFNotes(e.target.value)}
               rows={4}
               placeholder="Contexte, impressions, points d'attention…"
               className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-ring resize-none"
             />
-            <div className="flex justify-end gap-2">
-              <button onClick={() => setEditingNotes(false)}
-                className="text-xs text-muted-foreground hover:text-foreground">
-                Annuler
-              </button>
-              <button
-                onClick={() => {
-                  start(async () => {
-                    await updateApplicationNotes(app.id, notesText)
-                    setEditingNotes(false)
-                    toast.success("Notes mises à jour")
-                  })
-                }}
-                className="rounded-md bg-primary px-3 py-1 text-xs font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
-              >
-                Enregistrer
-              </button>
-            </div>
-          </div>
-        ) : (
-          app.notes
-            ? <p className="text-sm text-muted-foreground leading-relaxed whitespace-pre-line">{app.notes}</p>
-            : <p className="text-xs text-muted-foreground/50 italic">Pas de notes.</p>
-        )}
-      </div>
+          ) : app.notes ? (
+            <p className="text-sm text-muted-foreground leading-relaxed whitespace-pre-line">{app.notes}</p>
+          ) : (
+            <p className="text-xs text-muted-foreground/50 italic">Pas de notes.</p>
+          )}
+        </div>
+      </div>{/* fin Bento */}
 
       {/* Timeline */}
       <div className="space-y-3">
@@ -757,45 +901,6 @@ export function ApplicationDetailView({
         )}
       </div>
 
-      {/* Dialog édition */}
-      {showDialog && (
-        <ApplicationDialog
-          key={app.id}
-          item={{
-            id: app.id,
-            companyName: app.companyName,
-            companyId: app.companyId,
-            position: app.position,
-            location: app.location,
-            workMode: app.workMode,
-            status: app.status,
-            source: app.source,
-            url: app.url,
-            salaryMin: app.salaryMin,
-            salaryMax: app.salaryMax,
-            salaryNote: app.salaryNote,
-            notes: app.notes,
-            priority: app.priority,
-            contactId: app.contactId,
-            appliedAt: app.appliedAt,
-            nextActionAt: app.nextActionAt,
-            nextActionLabel: app.nextActionLabel,
-            competencyDossierValidated: app.competencyDossierValidated,
-            competencyDossierUrl: app.competencyDossierUrl,
-            closedAt: app.closedAt,
-            createdAt: app.createdAt,
-            updatedAt: app.updatedAt,
-            contact: app.contact
-              ? { id: app.contact.id, name: app.contact.name, email: app.contact.email, phone: app.contact.phone, company: app.contact.company }
-              : null,
-            company: app.company ? { id: app.company.id, name: app.company.name } : null,
-            events: [],
-          }}
-          contacts={contacts}
-          companies={companies}
-          onClose={() => setShowDialog(false)}
-        />
-      )}
     </div>
   )
 }

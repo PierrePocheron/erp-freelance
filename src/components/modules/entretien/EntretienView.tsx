@@ -41,6 +41,16 @@ export type CompanyOption = { id: string; name: string }
 
 // ── EntretienView ──────────────────────────────────────────────────────────────
 
+// Date de dernière activité d'une candidature (pour trier du plus récent au plus
+// ancien) : max des dates connues — candidature, prochain point, clôture, mise à
+// jour et événements de la timeline.
+function lastActivity(a: JobApp): number {
+  const times = [a.createdAt, a.updatedAt, a.appliedAt, a.nextActionAt, a.closedAt, ...a.events.map((e) => e.date)]
+    .filter(Boolean)
+    .map((d) => new Date(d as Date | string).getTime())
+  return times.length ? Math.max(...times) : 0
+}
+
 export function EntretienView({
   applications,
   contacts,
@@ -101,6 +111,8 @@ export function EntretienView({
       a.position.toLowerCase().includes(needle) ||
       (a.location ?? "").toLowerCase().includes(needle)
     )
+    // Plus récents d'abord (par dernière activité)
+    .sort((a, b) => lastActivity(b) - lastActivity(a))
 
   return (
     <>

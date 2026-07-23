@@ -115,9 +115,9 @@ export function EntretienView({
             <Link
               href="/entretiens/faq"
               className="flex items-center gap-1.5 h-9 px-3 rounded-lg border border-input text-sm text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
-              title="FAQ & réponses-types d'entretien"
+              title="Réponses-types, FAQ et lettres de motivation"
             >
-              <HelpCircle className="h-4 w-4" /> <span className="hidden sm:inline">FAQ &amp; réponses</span>
+              <HelpCircle className="h-4 w-4" /> <span className="hidden sm:inline">Réponses &amp; modèles</span>
             </Link>
             <button
               onClick={() => setDialog({ open: true })}

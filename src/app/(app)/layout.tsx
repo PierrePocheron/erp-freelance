@@ -9,6 +9,7 @@ import { CommandPalette } from "@/components/layout/CommandPalette"
 import { OnboardingGate } from "@/components/modules/onboarding/OnboardingGate"
 import { NewModulesGate } from "@/components/modules/onboarding/NewModulesGate"
 import { UiTour } from "@/components/modules/onboarding/UiTour"
+import { ModuleScope } from "@/components/layout/ModuleScope"
 import { NotificationBell } from "@/components/modules/notifications/NotificationBell"
 import { ensureSelfClient } from "@/actions/user"
 import { getRunningTimer } from "@/actions/timetracking"
@@ -50,6 +51,8 @@ export default async function AppLayout({
 
   return (
     <div className="flex h-screen overflow-hidden">
+      {/* Scope par compte des clés modules/onboarding — doit être rendu avant le reste */}
+      <ModuleScope userId={userId} />
       <Sidebar />
       <div className="relative flex flex-1 flex-col overflow-hidden">
         <TimerBanner initialTimer={runningTimer} userId={userId} />

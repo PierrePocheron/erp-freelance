@@ -6,7 +6,7 @@ import {
   LayoutGrid, Plus, Home, ListTodo, ChevronLeft, ChevronRight,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { readNeedsOnboarding } from "@/hooks/use-modules"
+import { readNeedsOnboarding, readScoped, writeScoped } from "@/hooks/use-modules"
 
 // Dispatché par OnboardingGate à la fin du premier onboarding — démarre le
 // tour dans la même session, sans attendre un rechargement.
@@ -92,7 +92,7 @@ export function UiTour() {
     // pour laisser la page se peindre). Si l'onboarding est en cours, c'est
     // l'événement START_UI_TOUR_EVENT qui prendra le relais à sa validation.
     let timer: ReturnType<typeof setTimeout> | undefined
-    if (!localStorage.getItem(TOUR_SEEN_KEY) && !readNeedsOnboarding()) {
+    if (!readScoped(TOUR_SEEN_KEY) && !readNeedsOnboarding()) {
       timer = setTimeout(start, 800)
     }
     window.addEventListener(START_UI_TOUR_EVENT, start)
@@ -103,7 +103,7 @@ export function UiTour() {
   }, [])
 
   function close() {
-    localStorage.setItem(TOUR_SEEN_KEY, "1")
+    writeScoped(TOUR_SEEN_KEY, "1")
     setSteps(null)
   }
 

@@ -24,7 +24,7 @@ export default async function DashboardPage() {
   const userId = session!.user.id
   const firstName = session?.user?.name?.split(" ")[0] ?? "vous"
 
-  const enabledModules = await getActiveModules()
+  const enabledModules = await getActiveModules(userId)
   const has = (id: string) => enabledModules.has(id as never)
 
   /* eslint-disable react-hooks/purity */

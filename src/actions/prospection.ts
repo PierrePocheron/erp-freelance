@@ -287,9 +287,9 @@ const DEFAULT_EMAIL_TEMPLATES = [
 
 Je m'appelle Pierre, développeur web indépendant à Lyon. J'accompagne des TPE et des artisans depuis plusieurs années sur leurs projets web et l'amélioration de leur site internet.
 
-Je suis tombé sur le vôtre ({{site}}) et il m'a donné envie de m'y pencher : j'ai déjà commencé à vous préparer une nouvelle version, plus moderne et plus rapide, histoire de vous montrer concrètement ce que ça pourrait donner.
+Je suis tombé sur le vôtre ({{societe}}) et il m'a donné envie de m'y pencher : j'ai déjà commencé à vous préparer une nouvelle version, plus moderne et plus rapide, histoire de vous montrer concrètement ce que ça pourrait donner.
 
-Est-ce qu'on pourrait s'appeler une dizaine de minutes ? Je vous présente rapidement mon travail et ce que j'ai commencé pour vous, tranquillement.
+Est-ce qu'on pourrait **s'appeler une dizaine de minutes** ? Je vous présente rapidement mon travail et ce que j'ai commencé pour vous, tranquillement.
 
 C'est sans aucun engagement et rassurez-vous, je ne suis pas là pour vous vendre quelque chose dont vous n'avez pas besoin. L'idée, c'est simplement d'échanger.
 

@@ -7,7 +7,7 @@ import { ExternalLink, Copy, Check, SkipForward, AlertTriangle } from "lucide-re
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { markProspectsContacted } from "@/actions/prospection"
-import { renderTemplate, TEMPLATE_VARIABLES } from "@/lib/email-template"
+import { renderTemplate, TEMPLATE_VARIABLES, bodyToHtml, stripMarkdown } from "@/lib/email-template"
 
 // Libellé lisible d'une clé de variable (ex. "prenom" → "Prénom")
 const VAR_LABEL: Record<string, string> = Object.fromEntries(
@@ -60,7 +60,8 @@ export function GmailPrepDialog({
       fs: "1",
       to: current.email!,
       su: rendered.subject,
-      body: rendered.body,
+      // Une URL Gmail ne porte que du texte brut → on retire les marqueurs de gras.
+      body: stripMarkdown(rendered.body),
     })
     return `https://mail.google.com/mail/?${params.toString()}`
   }
@@ -68,6 +69,28 @@ export function GmailPrepDialog({
   function copy(text: string, label: string) {
     navigator.clipboard.writeText(text)
     toast.success(`${label} copié`)
+  }
+
+  // Copie enrichie : text/html (gras conservé au collage dans Gmail) + text/plain.
+  async function copyBody() {
+    const html = bodyToHtml(rendered!.body)
+    const plain = stripMarkdown(rendered!.body)
+    try {
+      if (navigator.clipboard && "write" in navigator.clipboard && typeof ClipboardItem !== "undefined") {
+        await navigator.clipboard.write([
+          new ClipboardItem({
+            "text/html": new Blob([html], { type: "text/html" }),
+            "text/plain": new Blob([plain], { type: "text/plain" }),
+          }),
+        ])
+      } else {
+        await navigator.clipboard.writeText(plain)
+      }
+      toast.success("Corps copié — collez dans Gmail, la mise en forme est conservée")
+    } catch {
+      try { await navigator.clipboard.writeText(plain); toast.success("Corps copié") }
+      catch { toast.error("Copie impossible") }
+    }
   }
 
   function advance() {
@@ -149,7 +172,11 @@ export function GmailPrepDialog({
                     <span className="font-medium text-foreground">{current.name}</span> &lt;{current.email}&gt;
                   </p>
                   <p className="text-sm font-medium">{rendered.subject}</p>
-                  <p className="text-xs text-muted-foreground whitespace-pre-line max-h-40 overflow-y-auto leading-relaxed">{rendered.body}</p>
+                  {/* Aperçu avec le gras rendu (le contenu est échappé côté bodyToHtml) */}
+                  <div
+                    className="text-xs text-muted-foreground max-h-40 overflow-y-auto leading-relaxed [&_p]:mb-2 [&_p:last-child]:mb-0 [&_b]:text-foreground [&_b]:font-semibold"
+                    dangerouslySetInnerHTML={{ __html: bodyToHtml(rendered.body) }}
+                  />
                 </div>
 
                 <div className="flex flex-wrap items-center gap-2">
@@ -168,8 +195,9 @@ export function GmailPrepDialog({
                     <Copy className="h-3 w-3" /> Objet
                   </button>
                   <button
-                    onClick={() => copy(rendered.body, "Corps")}
+                    onClick={copyBody}
                     className="inline-flex items-center gap-1.5 h-8 px-2.5 rounded-lg border border-input text-xs hover:bg-muted transition-colors"
+                    title="Copie le corps en conservant la mise en forme (gras) au collage dans Gmail"
                   >
                     <Copy className="h-3 w-3" /> Corps
                   </button>

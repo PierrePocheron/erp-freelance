@@ -1,9 +1,8 @@
 "use client"
 
 import { useState, useTransition } from "react"
-import Link from "next/link"
-import { Sheet, SheetContent } from "@/components/ui/sheet"
-import { Plus, ChevronRight, Search, X, Briefcase, ExternalLink, Star } from "lucide-react"
+import { useRouter } from "next/navigation"
+import { Plus, ChevronRight, Search, X, Briefcase, Star } from "lucide-react"
 import { toast } from "sonner"
 import { cn } from "@/lib/utils"
 import {
@@ -14,7 +13,6 @@ import {
   fmtShort, type JobAppStatus,
 } from "./status-config"
 import { ApplicationDialog } from "./ApplicationDialog"
-import { ApplicationPanel } from "./ApplicationPanel"
 
 export type { JobAppStatus }
 
@@ -62,12 +60,9 @@ export function EntretienView({
   const [quickPosition, setQuickPosition] = useState("")
   const [isAdding, startAdding] = useTransition()
 
-  // Dialog création/édition
+  // Dialog création (l'édition se fait désormais sur la page détail)
   const [dialog, setDialog] = useState<{ open: boolean; item?: JobApp }>({ open: false })
-  // Panneau détail
-  const [panelId, setPanelId] = useState<string | null>(null)
-
-  const panelApp = applications.find((a) => a.id === panelId) ?? null
+  const router = useRouter()
 
   function handleQuickAdd(e: React.FormEvent) {
     e.preventDefault()
@@ -225,7 +220,7 @@ export function EntretienView({
             ) : (
               <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
                 {filtered.map((a) => (
-                  <ApplicationCard key={a.id} app={a} onOpen={() => setPanelId(a.id)} />
+                  <ApplicationCard key={a.id} app={a} onOpen={() => router.push(`/entretiens/${a.id}`)} />
                 ))}
               </div>
             )}
@@ -244,17 +239,6 @@ export function EntretienView({
         />
       )}
 
-      {/* Panneau détail */}
-      <Sheet open={panelId !== null} onOpenChange={(o) => { if (!o) setPanelId(null) }}>
-        <SheetContent side="right" className="w-[460px] sm:max-w-[460px] p-0" showCloseButton>
-          {panelApp && (
-            <ApplicationPanel
-              app={panelApp}
-              onEdit={() => { setDialog({ open: true, item: panelApp }); setPanelId(null) }}
-            />
-          )}
-        </SheetContent>
-      </Sheet>
     </>
   )
 }
@@ -358,14 +342,6 @@ function ApplicationCard({ app, onOpen }: { app: JobApp; onOpen: () => void }) {
             <Star className={cn("h-3 w-3", isPriority && "fill-current")} />
           </button>
           <span className={cn("rounded-full border px-2 py-0.5 text-[10px] font-semibold", cfg.cls)}>{cfg.short}</span>
-          <Link
-            href={`/entretiens/${app.id}`}
-            onClick={(e) => e.stopPropagation()}
-            title="Voir le process complet"
-            className="rounded-md p-0.5 text-muted-foreground/40 hover:text-primary md:opacity-0 md:group-hover:opacity-100 focus:opacity-100 transition-all"
-          >
-            <ExternalLink className="h-3 w-3" />
-          </Link>
         </div>
       </div>
 

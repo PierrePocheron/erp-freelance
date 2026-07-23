@@ -314,7 +314,24 @@ export async function getInterviewAnswers() {
   return prisma.interviewAnswer.findMany({
     where: { userId },
     orderBy: [{ pinned: "desc" }, { sortOrder: "asc" }, { updatedAt: "desc" }],
+    include: { applications: { select: { id: true, companyName: true, position: true } } },
   })
+}
+
+/** Définit les candidatures (processus) où ce modèle/réponse a été utilisé. Scoped userId. */
+export async function setAnswerApplications(answerId: string, applicationIds: string[]) {
+  const userId = await requireAuth()
+  const answer = await prisma.interviewAnswer.findFirst({ where: { id: answerId, userId }, select: { id: true } })
+  if (!answer) throw new Error("Non autorisé")
+  // Ne relie que des candidatures appartenant à l'utilisateur (anti-IDOR).
+  const owned = await prisma.jobApplication.findMany({
+    where: { id: { in: applicationIds }, userId }, select: { id: true },
+  })
+  await prisma.interviewAnswer.update({
+    where: { id: answerId },
+    data: { applications: { set: owned.map((a) => ({ id: a.id })) } },
+  })
+  revalidatePath("/entretiens/faq")
 }
 
 type InterviewAnswerInput = { question: string; answer: string; category?: string | null }
@@ -325,10 +342,11 @@ export async function createInterviewAnswer(data: InterviewAnswerInput) {
   const answer = data.answer.trim()
   if (!question) throw new Error("La question est requise")
   if (!answer) throw new Error("La réponse est requise")
-  await prisma.interviewAnswer.create({
+  const created = await prisma.interviewAnswer.create({
     data: { userId, question, answer, category: data.category?.trim() || null },
   })
   revalidatePath("/entretiens/faq")
+  return created.id
 }
 
 export async function updateInterviewAnswer(id: string, data: InterviewAnswerInput) {

@@ -283,20 +283,19 @@ const DEFAULT_EMAIL_TEMPLATES = [
     name: "1er contact — appel 10 min + démo",
     subject: "J'ai commencé un nouveau site pour {{societe}}",
     sortOrder: 0,
-    body: `Bonjour {{prenom}},
+    body: `Bonjour,
 
-Je m'appelle Pierre, développeur web indépendant à Lyon. J'accompagne des TPE et des artisans comme {{societe}} sur leur site internet.
+Je m'appelle Pierre, développeur web indépendant à Lyon. J'accompagne des TPE et des artisans depuis plusieurs années sur leurs projets web et l'amélioration de leur site internet.
 
-Je suis tombé sur le vôtre ({{site}}) et, très sincèrement, il m'a donné envie de m'y pencher : j'ai déjà commencé à vous préparer une nouvelle version, plus moderne et plus rapide, histoire de vous montrer concrètement ce que ça pourrait donner.
+Je suis tombé sur le vôtre ({{site}}) et il m'a donné envie de m'y pencher : j'ai déjà commencé à vous préparer une nouvelle version, plus moderne et plus rapide, histoire de vous montrer concrètement ce que ça pourrait donner.
 
 Est-ce qu'on pourrait s'appeler une dizaine de minutes ? Je vous présente rapidement mon travail et ce que j'ai commencé pour vous, tranquillement.
 
-C'est sans aucun engagement — et rassurez-vous, je ne suis pas là pour vous vendre une formule tout compris au mois. L'idée, c'est simplement d'échanger.
+C'est sans aucun engagement et rassurez-vous, je ne suis pas là pour vous vendre quelque chose dont vous n'avez pas besoin. L'idée, c'est simplement d'échanger.
 
 Si ça vous dit, répondez-moi avec un créneau qui vous arrange (ou votre numéro) et je vous rappelle.
 
-Bonne journée,
-Pierre — Pedro Dev, développeur web à Lyon`,
+Bonne journée,`,
   },
   {
     name: "Relance (J+5)",

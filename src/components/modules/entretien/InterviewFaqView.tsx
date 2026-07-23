@@ -3,7 +3,7 @@
 import { useMemo, useState, useTransition } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { Plus, Pencil, Trash2, X, Check, Search, HelpCircle, Pin, PinOff, ChevronDown, Briefcase } from "lucide-react"
+import { Plus, Pencil, Trash2, X, Check, Search, HelpCircle, Pin, PinOff, ChevronDown, Briefcase, Copy } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
@@ -33,7 +33,19 @@ export function InterviewFaqView({ answers, applications }: { answers: Interview
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
   const [linkedAppIds, setLinkedAppIds] = useState<string[]>([]) // candidatures liées (éditeur)
+  const [copiedId, setCopiedId] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
+
+  async function copyAnswer(a: InterviewAnswer) {
+    try {
+      await navigator.clipboard.writeText(a.answer)
+      setCopiedId(a.id)
+      toast.success("Contenu copié dans le presse-papier")
+      setTimeout(() => setCopiedId((id) => (id === a.id ? null : id)), 1500)
+    } catch {
+      toast.error("Copie impossible")
+    }
+  }
 
   // Recherche + filtre catégorie
   const [search, setSearch] = useState("")
@@ -225,6 +237,15 @@ export function InterviewFaqView({ answers, applications }: { answers: Interview
                     </div>
                   </button>
                   <div className="flex items-center gap-0.5 shrink-0">
+                    <button
+                      onClick={() => copyAnswer(a)}
+                      title="Copier le contenu"
+                      className="p-1.5 rounded text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors"
+                    >
+                      {copiedId === a.id
+                        ? <Check className="h-3.5 w-3.5 text-emerald-600" />
+                        : <Copy className="h-3.5 w-3.5" />}
+                    </button>
                     <button
                       onClick={() => togglePin(a.id)}
                       title={a.pinned ? "Désépingler" : "Épingler"}

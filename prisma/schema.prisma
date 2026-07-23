@@ -30,6 +30,7 @@ model User {
   emailLogs         EmailLog[]
   emailTemplates    EmailTemplate[]
   callTemplates     CallTemplate[]
+  interviewAnswers  InterviewAnswer[]
   pushSubscriptions PushSubscription[]
   calendarEvents      CalendarEvent[]
   calendarCategories  CalendarCategory[]
@@ -1099,6 +1100,25 @@ model CallTemplate {
   name      String
   script    String
   sortOrder Int      @default(0) // ordre d'affichage personnalisé (drag & drop)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+/// Réponse-type / FAQ de préparation d'entretien : une question fréquente et sa
+/// réponse préparée, cherchables par mots-clés. Équivalent « entretien » des
+/// modèles de prospection (question + réponse libre, catégorie optionnelle).
+model InterviewAnswer {
+  id        String   @id @default(cuid())
+  userId    String
+  question  String
+  answer    String
+  category  String?                  // ex: Présentation, Motivation, Technique, Salaire
+  pinned    Boolean  @default(false)  // épinglée en tête
+  sortOrder Int      @default(0)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

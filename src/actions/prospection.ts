@@ -287,7 +287,7 @@ const DEFAULT_EMAIL_TEMPLATES = [
 
 Je m'appelle Pierre, développeur web indépendant à Lyon. J'accompagne des TPE et des artisans depuis plusieurs années sur leurs projets web et l'amélioration de leur site internet.
 
-Je suis tombé sur le vôtre ({{societe}}) et il m'a donné envie de m'y pencher : j'ai déjà commencé à vous préparer une nouvelle version, plus moderne et plus rapide, histoire de vous montrer concrètement ce que ça pourrait donner.
+Je suis tombé sur le vôtre ({{societe}}) et il m'a donné envie de m'y pencher, j'ai déjà commencé à vous préparer une nouvelle version, plus moderne et plus rapide, ainsi qu'un pré-audit de votre site actuel, histoire de vous montrer concrètement ce que ça pourrait donner.
 
 Beaucoup de commerces paient chaque mois pour un site qui ne leur rapporte pas grand-chose — je trouve ça dommage, et surtout ça peut être bien mieux, pour bien moins cher.
 

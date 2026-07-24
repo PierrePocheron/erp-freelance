@@ -1,16 +1,16 @@
 "use client"
 
-import { useState, useTransition } from "react"
+import { useMemo, useState, useTransition } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { Plus, ChevronRight, Search, X, Briefcase, Star, HelpCircle } from "lucide-react"
+import { Plus, ChevronRight, Search, X, Briefcase, Star, HelpCircle, Check, CalendarClock } from "lucide-react"
 import { toast } from "sonner"
 import { cn } from "@/lib/utils"
 import {
-  createJobApplication, deleteJobApplication, toggleApplicationPriority,
+  createJobApplication, deleteJobApplication, toggleApplicationPriority, completeNextAction,
 } from "@/actions/entretien"
 import {
-  STATUS_CONFIG, PIPELINE_STATUSES, OUTCOME_STATUSES, CLOSED_STATUSES,
+  STATUS_CONFIG, EVENT_TYPE_CONFIG, PIPELINE_STATUSES, OUTCOME_STATUSES, CLOSED_STATUSES,
   fmtShort, type JobAppStatus,
 } from "./status-config"
 import { ApplicationDialog } from "./ApplicationDialog"
@@ -62,7 +62,7 @@ export function EntretienView({
   contacts: JobContact[]
   companies: CompanyOption[]
   initialStatus?: JobAppStatus
-  stats: { active: number; upcoming: number; offers: number; accepted: number }
+  stats: { active: number; upcoming: number }
 }) {
   const [statusFilter, setStatusFilter] = useState<JobAppStatus | "ALL" | "ACTIVE">(initialStatus ?? "ACTIVE")
   const [priorityOnly, setPriorityOnly] = useState(false)
@@ -95,6 +95,28 @@ export function EntretienView({
     ])
   ) as Record<JobAppStatus, number>
   const activeCount = applications.filter((a) => !CLOSED_STATUSES.includes(a.status as JobAppStatus)).length
+
+  // ── Timeline : événements passés récents (3 sem.) + prochains RDV planifiés,
+  // tous entretiens confondus, triés chronologiquement. ──
+  const timeline = useMemo(() => {
+    // eslint-disable-next-line react-hooks/purity -- « maintenant » pour situer passé/futur
+    const now = Date.now()
+    const windowStart = now - 21 * 86_400_000
+    type TL = { appId: string; company: string; position: string; label: string; time: number; type: string; future: boolean }
+    const items: TL[] = []
+    for (const a of applications) {
+      for (const e of a.events) {
+        if (e.cancelledAt) continue
+        const t = new Date(e.date).getTime()
+        if (t >= windowStart) items.push({ appId: a.id, company: a.companyName, position: a.position, label: e.title, time: t, type: e.type, future: t > now })
+      }
+      if (a.nextActionAt) {
+        const t = new Date(a.nextActionAt).getTime()
+        if (t >= windowStart) items.push({ appId: a.id, company: a.companyName, position: a.position, label: a.nextActionLabel ?? "Rendez-vous", time: t, type: "OTHER", future: t > now })
+      }
+    }
+    return items.sort((x, y) => x.time - y.time)
+  }, [applications])
 
   const priorityCount = applications.filter((a) => a.priority > 0).length
   const needle = search.trim().toLowerCase()
@@ -140,13 +162,16 @@ export function EntretienView({
           </div>
         </div>
 
-        {/* Stats */}
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <StatCard label="En cours"        value={stats.active}   onClick={() => setStatusFilter("ACTIVE")} />
-          <StatCard label="RDV à venir"     value={stats.upcoming} accent="amber" />
-          <StatCard label="Offres"          value={stats.offers}   accent="emerald" onClick={() => setStatusFilter("OFFER")} />
-          <StatCard label="Acceptées"       value={stats.accepted} accent="green"   onClick={() => setStatusFilter("ACCEPTED")} />
+        {/* Stats compactes */}
+        <div className="flex flex-wrap gap-2.5">
+          <StatCard label="En cours"    value={stats.active}   onClick={() => setStatusFilter("ACTIVE")} />
+          <StatCard label="RDV à venir" value={stats.upcoming} accent="amber" />
         </div>
+
+        {/* Timeline — passé récent + prochains RDV, tous entretiens */}
+        {timeline.length > 0 && (
+          <Timeline items={timeline} onOpen={(id) => router.push(`/entretiens/${id}`)} />
+        )}
 
         {/* Quick add */}
         <form onSubmit={handleQuickAdd} className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
@@ -274,12 +299,75 @@ function StatCard({
 }) {
   const color = accent === "amber" ? "text-amber-600" : accent === "emerald" ? "text-emerald-600" : accent === "green" ? "text-green-600" : ""
   const inner = (
-    <div className={cn("rounded-xl border border-border/50 bg-card p-4 space-y-1", onClick && "hover:border-border cursor-pointer transition-colors")}>
-      <p className="text-xs text-muted-foreground">{label}</p>
-      <p className={cn("text-2xl font-bold", color)}>{value}</p>
+    <div className={cn("rounded-lg border border-border/50 bg-card px-4 py-2 min-w-[112px]", onClick && "hover:border-border cursor-pointer transition-colors")}>
+      <p className="text-[11px] text-muted-foreground leading-tight">{label}</p>
+      <p className={cn("text-xl font-bold leading-tight", color)}>{value}</p>
     </div>
   )
-  return onClick ? <button onClick={onClick} className="text-left w-full">{inner}</button> : inner
+  return onClick ? <button onClick={onClick} className="text-left">{inner}</button> : inner
+}
+
+/**
+ * Timeline transverse : événements passés récents + prochains RDV de TOUS les
+ * entretiens, sur un rail vertical. Un séparateur « Aujourd'hui » situe où on en
+ * est ; le passé est estompé (fait), le futur en ambre (à venir). Clic → fiche.
+ */
+function Timeline({
+  items,
+  onOpen,
+}: {
+  items: { appId: string; company: string; position: string; label: string; time: number; type: string; future: boolean }[]
+  onOpen: (id: string) => void
+}) {
+  const firstFutureIdx = items.findIndex((i) => i.future)
+  return (
+    <div className="rounded-xl border border-border/50 bg-card overflow-hidden">
+      <div className="flex items-center gap-2 px-4 py-3 border-b border-border/50">
+        <CalendarClock className="h-4 w-4 text-muted-foreground" />
+        <h2 className="text-sm font-semibold">Timeline des entretiens</h2>
+        <span className="text-xs text-muted-foreground">· passé récent &amp; à venir</span>
+      </div>
+      <ol className="relative max-h-80 overflow-y-auto px-4 py-3 space-y-3 before:absolute before:left-[1.30rem] before:top-4 before:bottom-4 before:w-px before:bg-border">
+        {items.map((it, i) => {
+          const cfg = EVENT_TYPE_CONFIG[it.type] ?? EVENT_TYPE_CONFIG.OTHER
+          return (
+            <li key={`${it.appId}-${it.time}-${i}`}>
+              {i === firstFutureIdx && (
+                <div className="relative -ml-4 mb-3 flex items-center gap-2 pl-4">
+                  <span className="h-px flex-1 bg-amber-500/40" />
+                  <span className="text-[10px] font-semibold uppercase tracking-wider text-amber-600">À venir</span>
+                  <span className="h-px flex-1 bg-amber-500/40" />
+                </div>
+              )}
+              <button
+                type="button"
+                onClick={() => onOpen(it.appId)}
+                className="relative flex w-full items-start gap-3 rounded-lg px-1.5 py-1 text-left hover:bg-muted/50 transition-colors"
+              >
+                <span
+                  className={cn(
+                    "mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 border-card text-[11px]",
+                    it.future ? "bg-amber-500/15 ring-1 ring-amber-500/40" : "bg-muted"
+                  )}
+                >
+                  {cfg.icon}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium leading-tight truncate">
+                    {it.company} <span className="text-muted-foreground font-normal">— {it.label}</span>
+                  </p>
+                  <p className={cn("text-xs", it.future ? "text-amber-600 font-medium" : "text-muted-foreground")}>
+                    {fmtShort(new Date(it.time))} · {it.position}
+                  </p>
+                </div>
+                <ChevronRight className="h-4 w-4 text-muted-foreground/40 shrink-0 self-center" />
+              </button>
+            </li>
+          )
+        })}
+      </ol>
+    </div>
+  )
 }
 
 function FilterChip({ active, onClick, label, neutral }: { active: boolean; onClick: () => void; label: string; neutral?: boolean }) {
@@ -337,6 +425,15 @@ function ApplicationCard({ app, onOpen }: { app: JobApp; onOpen: () => void }) {
     startTransition(() => toggleApplicationPriority(app.id))
   }
 
+  // Valide le RDV planifié en un clic : l'archive dans l'historique + efface le point.
+  function markDone(e: React.MouseEvent) {
+    e.stopPropagation()
+    startTransition(async () => {
+      await completeNextAction(app.id)
+      toast.success(`« ${app.companyName} » — rendez-vous marqué fait ✓`)
+    })
+  }
+
   return (
     <div
       role="button"
@@ -381,6 +478,15 @@ function ApplicationCard({ app, onOpen }: { app: JobApp; onOpen: () => void }) {
           <span className="text-muted-foreground">Dernier contact {fmtShort(lastEvent.date)}</span>
         ) : (
           <span className="text-muted-foreground/50 italic">Pas encore de contact</span>
+        )}
+        {app.nextActionAt && (
+          <button
+            onClick={markDone}
+            title="Marquer ce rendez-vous comme fait (l'archive dans l'historique)"
+            className="inline-flex items-center gap-1 rounded-md border border-emerald-500/40 bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-medium text-emerald-700 dark:text-emerald-400 hover:bg-emerald-500/20 transition-colors"
+          >
+            <Check className="h-3 w-3" /> Fait
+          </button>
         )}
         {app.events.length > 0 && !confirmDelete && (
           <span className="ml-auto text-muted-foreground/60 md:opacity-0 md:group-hover:opacity-100 focus:opacity-100 transition-opacity">

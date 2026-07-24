@@ -42,8 +42,6 @@ export default async function EntretiensPage({
 
   const active   = applications.filter((a) => !CLOSED_STATUSES.includes(a.status as JobAppStatus))
   const upcoming = applications.filter((a) => a.nextActionAt && new Date(a.nextActionAt) >= new Date(new Date().setHours(0, 0, 0, 0)))
-  const offers   = applications.filter((a) => a.status === "OFFER" || a.status === "ACCEPTED")
-  const accepted = applications.filter((a) => a.status === "ACCEPTED")
 
   const validStatus = initialStatus && initialStatus in STATUS_CONFIG
     ? (initialStatus as JobAppStatus)
@@ -55,7 +53,7 @@ export default async function EntretiensPage({
       contacts={contacts}
       companies={companies}
       initialStatus={validStatus}
-      stats={{ active: active.length, upcoming: upcoming.length, offers: offers.length, accepted: accepted.length }}
+      stats={{ active: active.length, upcoming: upcoming.length }}
     />
   )
 }

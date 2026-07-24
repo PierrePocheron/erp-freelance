@@ -415,6 +415,7 @@ model Client {
   revenues          Revenue[]          @relation("RevenueClient")
   recurringRevenues RecurringRevenue[] @relation("RecurringRevenueClient")
   jobApplications   JobApplication[]   @relation("RecruiterApplications")
+  jobEventLinks     JobApplicationEvent[] @relation("EventContact")
   emailLogs         EmailLog[]
   emailDrafts       EmailDraft[]
 
@@ -1616,6 +1617,7 @@ model JobApplicationEvent {
   id            String       @id @default(cuid())
   userId        String
   applicationId String
+  contactId     String?                    // interlocuteur de ce point (un recrutement a souvent plusieurs contacts)
   date          DateTime
   type          JobEventType @default(OTHER)
   title         String
@@ -1626,9 +1628,11 @@ model JobApplicationEvent {
   createdAt DateTime @default(now())
 
   application JobApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  contact     Client?        @relation("EventContact", fields: [contactId], references: [id], onDelete: SetNull)
 
   @@index([userId])
   @@index([applicationId])
+  @@index([contactId])
 }
 
 // ─── Fiscalité — déclarations URSSAF (auto-entrepreneur) ─────────────────────

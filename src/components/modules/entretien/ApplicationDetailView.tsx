@@ -5,14 +5,14 @@ import Link from "next/link"
 import { useRouter } from "next/navigation"
 import {
   ArrowLeft, Building2, MapPin, Banknote, ExternalLink,
-  Mail, Phone, Plus, Check, CalendarClock,
+  Mail, Phone, Plus, Check, CalendarClock, User,
   Pencil, Trash2, Ban, RotateCcw, FileText, FileCheck2, ChevronDown,
 } from "lucide-react"
 import { LinkedinIcon } from "@/components/ui/linkedin-icon"
 import { toast } from "sonner"
 import { cn } from "@/lib/utils"
 import {
-  updateApplicationStatus, addApplicationEvent,
+  updateApplicationStatus, addApplicationEvent, updateApplicationEvent,
   deleteApplicationEvent, cancelApplicationEvent,
   uncancelApplicationEvent, setEventOutcome,
   updateJobApplication, deleteJobApplication, completeNextAction,
@@ -35,6 +35,7 @@ type DetailEvent = {
   outcome: string | null
   cancelledAt: Date | string | null
   createdAt: Date | string
+  contact: { id: string; name: string; linkedinUrl: string | null } | null
 }
 
 type DetailContact = {
@@ -90,6 +91,7 @@ type ListContact = {
   email: string | null
   phone: string | null
   company: string | null
+  companyId: string | null
   linkedinUrl: string | null
   type: string | null
 }
@@ -173,12 +175,21 @@ function PipelineStepper({ status }: { status: string }) {
 
 function EventRow({
   ev,
+  contacts,
   onDelete,
 }: {
   ev: DetailEvent
+  contacts: ListContact[]
   onDelete: (id: string) => void
 }) {
   const [, start] = useTransition()
+
+  function handleContactChange(contactId: string) {
+    start(async () => {
+      await updateApplicationEvent(ev.id, { contactId: contactId || null })
+      toast.success(contactId ? "Interlocuteur lié au point" : "Interlocuteur retiré")
+    })
+  }
   const [showOutcomeForm, setShowOutcomeForm] = useState(false)
   const [outcomeText, setOutcomeText] = useState(ev.outcome ?? "")
   const [confirmDelete, setConfirmDelete] = useState(false)
@@ -325,6 +336,29 @@ function EventRow({
         <p className={cn("text-sm font-medium leading-snug", isCancelled && "line-through text-muted-foreground")}>{ev.title}</p>
         {ev.notes && <p className="text-xs text-muted-foreground leading-relaxed">{ev.notes}</p>}
 
+        {/* Interlocuteur lié à ce point (un recrutement a souvent plusieurs contacts) */}
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <User className="h-3 w-3 text-muted-foreground shrink-0" />
+          <select
+            value={ev.contact?.id ?? ""}
+            onChange={(e) => handleContactChange(e.target.value)}
+            className="h-6 max-w-[200px] rounded border border-input bg-background px-1.5 text-[11px] text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+          >
+            <option value="">— Aucun interlocuteur —</option>
+            {contacts.map((c) => <option key={c.id} value={c.id}>{c.name}{c.company ? ` · ${c.company}` : ""}</option>)}
+          </select>
+          {ev.contact && (
+            <Link href={`/contacts/${ev.contact.id}`} className="text-[11px] text-muted-foreground hover:text-foreground underline underline-offset-2 transition-colors">
+              fiche
+            </Link>
+          )}
+          {ev.contact?.linkedinUrl && (
+            <a href={ev.contact.linkedinUrl} target="_blank" rel="noopener noreferrer" className="text-sky-600 hover:text-sky-700 transition-colors" title="LinkedIn">
+              <LinkedinIcon className="h-3.5 w-3.5" />
+            </a>
+          )}
+        </div>
+
         {/* Compte rendu */}
         {ev.outcome && !showOutcomeForm && (
           <div className="flex items-start gap-2 rounded-lg bg-emerald-500/5 border border-emerald-500/15 px-3 py-2">
@@ -418,6 +452,7 @@ export function ApplicationDetailView({
   const [evDate, setEvDate] = useState(() => new Date().toISOString().slice(0, 16))
   const [evTitle, setEvTitle] = useState("")
   const [evNotes, setEvNotes] = useState("")
+  const [evContactId, setEvContactId] = useState(app.contactId ?? "")
 
   const cfg = STATUS_CONFIG[app.status as JobAppStatus] ?? STATUS_CONFIG.WISHLIST
   const salary = salaryLabel(app)
@@ -499,6 +534,7 @@ export function ApplicationDetailView({
         type: evType,
         title: evTitle,
         notes: evNotes || undefined,
+        contactId: evContactId || null,
       })
       setEvTitle(""); setEvNotes(""); setShowAddEvent(false)
       toast.success("Point de contact ajouté")
@@ -515,6 +551,21 @@ export function ApplicationDetailView({
   const sortedEvents = [...app.events].sort((a, b) =>
     new Date(a.date).getTime() - new Date(b.date).getTime()
   )
+
+  // Contacts impliqués dans ce recrutement = tous les contacts de la société +
+  // le contact principal — un recrutement passe souvent par plusieurs personnes.
+  const involved = new Map<string, { id: string; name: string; company: string | null; linkedinUrl: string | null; email: string | null; phone: string | null }>()
+  if (app.companyId) {
+    for (const c of contacts) {
+      if (c.companyId === app.companyId) {
+        involved.set(c.id, { id: c.id, name: c.name, company: c.company, linkedinUrl: c.linkedinUrl, email: c.email, phone: c.phone })
+      }
+    }
+  }
+  if (app.contact && !involved.has(app.contact.id)) {
+    involved.set(app.contact.id, { id: app.contact.id, name: app.contact.name, company: app.contact.company, linkedinUrl: app.contact.linkedinUrl, email: app.contact.email, phone: app.contact.phone })
+  }
+  const involvedContacts = [...involved.values()]
 
 
   return (
@@ -791,53 +842,52 @@ export function ApplicationDetailView({
           )}
         </div>
 
-      {/* Contact recruteur */}
-      {app.contact && (
+      {/* Contacts du recrutement (souvent plusieurs interlocuteurs) */}
+      {involvedContacts.length > 0 && (
         <div className="rounded-xl border border-border/50 bg-card p-4 space-y-3">
-          <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Recruteur</h2>
-          <div className="flex items-start justify-between gap-3">
-            <div className="space-y-0.5 min-w-0">
-              <Link
-                href={`/contacts/${app.contact.id}`}
-                className="font-semibold text-sm hover:text-primary transition-colors"
-              >
-                {app.contact.name}
-              </Link>
-              {app.contact.company && (
-                <p className="text-xs text-muted-foreground">{app.contact.company}</p>
-              )}
-            </div>
-            {app.contact.linkedinUrl && (
-              <a
-                href={app.contact.linkedinUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="shrink-0 rounded-md p-1.5 text-sky-600 hover:bg-sky-500/10 transition-colors"
-                title="Voir sur LinkedIn"
-              >
-                <LinkedinIcon className="h-4 w-4" />
-              </a>
-            )}
+          <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+            Contacts{involvedContacts.length > 1 ? ` (${involvedContacts.length})` : ""}
+          </h2>
+          <div className="divide-y divide-border/30">
+            {involvedContacts.map((c, i) => (
+              <div key={c.id} className={cn("flex items-start justify-between gap-3", i > 0 && "pt-3 mt-3")}>
+                <div className="space-y-0.5 min-w-0">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <Link href={`/contacts/${c.id}`} className="font-semibold text-sm hover:text-primary transition-colors">
+                      {c.name}
+                    </Link>
+                    {c.id === app.contactId && (
+                      <span className="rounded-full bg-primary/10 text-primary text-[9px] font-medium px-1.5 py-0.5">principal</span>
+                    )}
+                  </div>
+                  {c.company && <p className="text-xs text-muted-foreground">{c.company}</p>}
+                  <div className="flex flex-col gap-1 pt-0.5">
+                    {c.email && (
+                      <a href={`mailto:${c.email}`} className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors">
+                        <Mail className="h-3 w-3 shrink-0" /> {c.email}
+                      </a>
+                    )}
+                    {c.phone && (
+                      <a href={`tel:${c.phone}`} className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors">
+                        <Phone className="h-3 w-3 shrink-0" /> {c.phone}
+                      </a>
+                    )}
+                  </div>
+                </div>
+                {c.linkedinUrl && (
+                  <a
+                    href={c.linkedinUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="shrink-0 rounded-md p-1.5 text-sky-600 hover:bg-sky-500/10 transition-colors"
+                    title="Voir sur LinkedIn"
+                  >
+                    <LinkedinIcon className="h-4 w-4" />
+                  </a>
+                )}
+              </div>
+            ))}
           </div>
-          <div className="flex flex-col gap-1.5">
-            {app.contact.email && (
-              <a href={`mailto:${app.contact.email}`}
-                className="flex items-center gap-2 text-xs text-muted-foreground hover:text-foreground transition-colors">
-                <Mail className="h-3.5 w-3.5 shrink-0" /> {app.contact.email}
-              </a>
-            )}
-            {app.contact.phone && (
-              <a href={`tel:${app.contact.phone}`}
-                className="flex items-center gap-2 text-xs text-muted-foreground hover:text-foreground transition-colors">
-                <Phone className="h-3.5 w-3.5 shrink-0" /> {app.contact.phone}
-              </a>
-            )}
-          </div>
-          {app.contact.notes && (
-            <p className="text-xs text-muted-foreground/70 italic leading-relaxed border-t border-border/30 pt-2">
-              {app.contact.notes}
-            </p>
-          )}
         </div>
       )}
 
@@ -909,6 +959,17 @@ export function ApplicationDetailView({
                 className="flex-1 h-8 rounded-md border border-input bg-background px-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
               />
             </div>
+            <div className="flex items-center gap-2">
+              <User className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+              <select
+                value={evContactId}
+                onChange={(e) => setEvContactId(e.target.value)}
+                className="flex-1 h-8 rounded-md border border-input bg-background px-2 text-xs text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+              >
+                <option value="">— Interlocuteur (optionnel) —</option>
+                {contacts.map((c) => <option key={c.id} value={c.id}>{c.name}{c.company ? ` · ${c.company}` : ""}</option>)}
+              </select>
+            </div>
             <textarea
               value={evNotes} onChange={(e) => setEvNotes(e.target.value)}
               placeholder="Notes (optionnel)"
@@ -938,7 +999,7 @@ export function ApplicationDetailView({
             {/* Vertical line — alignée sur le centre des points */}
             <div className="absolute left-[18px] top-5 bottom-5 w-px bg-border/50" />
             {sortedEvents.map((ev) => (
-              <EventRow key={ev.id} ev={ev} onDelete={handleDeleteEvent} />
+              <EventRow key={ev.id} ev={ev} contacts={contacts} onDelete={handleDeleteEvent} />
             ))}
           </div>
         )}

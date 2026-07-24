@@ -3,14 +3,14 @@
 import { Fragment, useMemo, useState, useTransition } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { Plus, ChevronRight, Search, X, Briefcase, Star, HelpCircle, Check, CalendarClock } from "lucide-react"
+import { Plus, Search, X, Briefcase, Star, HelpCircle, Check, CalendarClock } from "lucide-react"
 import { toast } from "sonner"
 import { cn } from "@/lib/utils"
 import {
   createJobApplication, deleteJobApplication, toggleApplicationPriority, completeNextAction,
 } from "@/actions/entretien"
 import {
-  STATUS_CONFIG, EVENT_TYPE_CONFIG, PIPELINE_STATUSES, OUTCOME_STATUSES, CLOSED_STATUSES,
+  STATUS_CONFIG, EVENT_TYPE_CONFIG, CLOSED_STATUSES,
   fmtShort, type JobAppStatus,
 } from "./status-config"
 import { ApplicationDialog } from "./ApplicationDialog"
@@ -88,12 +88,6 @@ export function EntretienView({
     })
   }
 
-  // Comptages par statut
-  const countByStatus = Object.fromEntries(
-    (Object.keys(STATUS_CONFIG) as JobAppStatus[]).map((s) => [
-      s, applications.filter((a) => a.status === s).length,
-    ])
-  ) as Record<JobAppStatus, number>
   const activeCount = applications.filter((a) => !CLOSED_STATUSES.includes(a.status as JobAppStatus)).length
 
   // ── Timeline : événements passés récents (3 sem.) + prochains RDV planifiés,
@@ -227,34 +221,42 @@ export function EntretienView({
               )}
             </div>
 
-            {/* Barre pipeline */}
-            <div className="overflow-x-auto pb-1 -mx-0.5 px-0.5">
-              <div className="flex items-center gap-1.5 min-w-max">
-                <FilterChip active={statusFilter === "ACTIVE"} onClick={() => setStatusFilter("ACTIVE")} label={`En cours (${activeCount})`} neutral />
-                <FilterChip active={statusFilter === "ALL"} onClick={() => setStatusFilter("ALL")} label={`Tout (${applications.length})`} neutral />
-                {priorityCount > 0 && (
-                  <button
-                    onClick={() => setPriorityOnly((v) => !v)}
-                    className={cn(
-                      "flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-medium transition-colors whitespace-nowrap",
-                      priorityOnly
-                        ? "border-amber-500/40 bg-amber-500/15 text-amber-700"
-                        : "border-border text-muted-foreground hover:border-amber-400/40 hover:text-amber-600"
-                    )}
-                  >
-                    <Star className={cn("h-2.5 w-2.5", priorityOnly && "fill-current")} />
-                    Prioritaires ({priorityCount})
-                  </button>
-                )}
-                <ChevronRight className="h-3 w-3 text-muted-foreground/30 shrink-0" />
-                {PIPELINE_STATUSES.map((s) => (
-                  <StatusChip key={s} status={s} count={countByStatus[s]} active={statusFilter === s} onClick={() => setStatusFilter(statusFilter === s ? "ACTIVE" : s)} />
-                ))}
-                <span className="mx-0.5 h-4 w-px bg-border/60 shrink-0" />
-                {OUTCOME_STATUSES.map((s) => (
-                  <StatusChip key={s} status={s} count={countByStatus[s]} active={statusFilter === s} onClick={() => setStatusFilter(statusFilter === s ? "ACTIVE" : s)} />
-                ))}
+            {/* Filtre : toggle En cours / Tout (+ prioritaires) — simple et lisible */}
+            <div className="flex items-center gap-2 flex-wrap">
+              <div className="inline-flex rounded-lg border border-border bg-muted/30 p-0.5">
+                <button
+                  onClick={() => setStatusFilter("ACTIVE")}
+                  className={cn(
+                    "rounded-md px-3 py-1 text-xs font-medium transition-colors",
+                    statusFilter !== "ALL" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  En cours ({activeCount})
+                </button>
+                <button
+                  onClick={() => setStatusFilter("ALL")}
+                  className={cn(
+                    "rounded-md px-3 py-1 text-xs font-medium transition-colors",
+                    statusFilter === "ALL" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  Tout ({applications.length})
+                </button>
               </div>
+              {priorityCount > 0 && (
+                <button
+                  onClick={() => setPriorityOnly((v) => !v)}
+                  className={cn(
+                    "inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs font-medium transition-colors",
+                    priorityOnly
+                      ? "border-amber-500/40 bg-amber-500/15 text-amber-700 dark:text-amber-400"
+                      : "border-border text-muted-foreground hover:border-amber-400/40 hover:text-amber-600"
+                  )}
+                >
+                  <Star className={cn("h-3 w-3", priorityOnly && "fill-current")} />
+                  Prioritaires ({priorityCount})
+                </button>
+              )}
             </div>
 
             {/* Cards */}
@@ -385,43 +387,6 @@ function Timeline({
         })}
       </ol>
     </div>
-  )
-}
-
-function FilterChip({ active, onClick, label, neutral }: { active: boolean; onClick: () => void; label: string; neutral?: boolean }) {
-  return (
-    <button
-      onClick={onClick}
-      className={cn(
-        "rounded-full border px-2.5 py-0.5 text-xs font-medium transition-colors whitespace-nowrap",
-        active
-          ? "bg-foreground text-background border-foreground"
-          : neutral
-            ? "border-border text-muted-foreground hover:border-foreground/30 hover:text-foreground"
-            : "border-border text-muted-foreground"
-      )}
-    >
-      {label}
-    </button>
-  )
-}
-
-function StatusChip({ status, count, active, onClick }: { status: JobAppStatus; count: number; active: boolean; onClick: () => void }) {
-  const cfg = STATUS_CONFIG[status]
-  return (
-    <button
-      onClick={onClick}
-      className={cn(
-        "rounded-full border px-2.5 py-0.5 text-xs font-medium transition-all whitespace-nowrap",
-        active
-          ? cn(cfg.cls, "ring-1 ring-current/40 scale-105")
-          : count > 0
-            ? cn(cfg.cls, "hover:scale-105")
-            : "border-border/40 text-muted-foreground/30"
-      )}
-    >
-      {cfg.label}{count > 0 ? ` (${count})` : ""}
-    </button>
   )
 }
 

@@ -219,9 +219,9 @@ function EventRow({
     <div className={cn(
       "relative pl-8",
     )}>
-      {/* Timeline dot */}
+      {/* Timeline dot — centré sur le trait vertical (left-[18px]) */}
       <div className={cn(
-        "absolute left-2.5 top-3 h-2.5 w-2.5 rounded-full border-2 border-background ring-1 transition-all",
+        "absolute left-3.5 top-3.5 h-2.5 w-2.5 rounded-full border-2 border-background ring-1 transition-all",
         isCancelled ? "bg-muted-foreground/30 ring-muted-foreground/20" :
         isFuture ? "bg-amber-400 ring-amber-400/40" :
         ev.outcome ? "bg-emerald-500 ring-emerald-400/40" :
@@ -935,8 +935,8 @@ export function ApplicationDetailView({
           </p>
         ) : (
           <div className="relative space-y-3">
-            {/* Vertical line */}
-            <div className="absolute left-[19px] top-4 bottom-4 w-px bg-border/50" />
+            {/* Vertical line — alignée sur le centre des points */}
+            <div className="absolute left-[18px] top-5 bottom-5 w-px bg-border/50" />
             {sortedEvents.map((ev) => (
               <EventRow key={ev.id} ev={ev} onDelete={handleDeleteEvent} />
             ))}

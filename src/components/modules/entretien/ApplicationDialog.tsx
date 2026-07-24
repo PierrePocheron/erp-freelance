@@ -125,6 +125,11 @@ export function ApplicationDialog({
               <datalist id="company-suggestions">
                 {companies.map(c => <option key={c.id} value={c.name} />)}
               </datalist>
+              {companyName.trim() && !companyId && (
+                <p className="mt-1 text-[11px] text-emerald-600 dark:text-emerald-400">
+                  ✨ Nouvelle société — elle sera ajoutée à vos sociétés
+                </p>
+              )}
             </div>
             <div>
               <label className="text-xs font-medium text-muted-foreground">Poste / mission *</label>

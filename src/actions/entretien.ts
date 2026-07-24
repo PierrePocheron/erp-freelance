@@ -58,6 +58,28 @@ function buildData(data: ApplicationInput) {
   }
 }
 
+/**
+ * Résout la Company liée à une candidature : réutilise l'id fourni (s'il
+ * appartient à l'utilisateur), sinon une société de même nom, sinon en CRÉE une
+ * nouvelle — pour qu'un entretien saisi avec une société inconnue l'ajoute
+ * automatiquement à la liste des sociétés.
+ */
+async function resolveCompanyId(userId: string, companyName: string, companyId?: string | null): Promise<string | null> {
+  const name = companyName.trim()
+  if (!name) return null
+  if (companyId) {
+    const owned = await prisma.company.findFirst({ where: { id: companyId, userId }, select: { id: true } })
+    if (owned) return owned.id
+  }
+  const existing = await prisma.company.findFirst({
+    where: { userId, name: { equals: name, mode: "insensitive" } },
+    select: { id: true },
+  })
+  if (existing) return existing.id
+  const created = await prisma.company.create({ data: { userId, name } })
+  return created.id
+}
+
 // ── Candidatures ──────────────────────────────────────────────────────────────
 
 type InitialEventInput = {
@@ -71,8 +93,9 @@ export async function createJobApplication(data: ApplicationInput & { initialEve
   const userId = await requireAuth()
   if (!data.companyName.trim()) throw new Error("Le nom de la société est requis")
   if (!data.position.trim()) throw new Error("Le poste est requis")
+  const companyId = await resolveCompanyId(userId, data.companyName, data.companyId)
   const app = await prisma.jobApplication.create({
-    data: { userId, ...buildData(data) },
+    data: { userId, ...buildData({ ...data, companyId }) },
   })
   if (data.initialEvent?.title?.trim()) {
     await prisma.jobApplicationEvent.create({
@@ -87,6 +110,7 @@ export async function createJobApplication(data: ApplicationInput & { initialEve
     })
   }
   revalidatePath("/entretiens")
+  revalidatePath("/societes")
   revalidatePath("/")
   revalidatePath("/calendrier")
   return app
@@ -99,7 +123,8 @@ export async function updateJobApplication(id: string, data: ApplicationInput) {
     where: { id, userId },
     select: { status: true, closedAt: true },
   })
-  const built = buildData(data)
+  const companyId = await resolveCompanyId(userId, data.companyName, data.companyId)
+  const built = buildData({ ...data, companyId })
   // Si déjà clos et reste clos, on garde la date de clôture initiale
   if (existing && CLOSED_STATUSES.includes(existing.status) && CLOSED_STATUSES.includes(built.status) && existing.closedAt) {
     built.closedAt = existing.closedAt
@@ -107,6 +132,7 @@ export async function updateJobApplication(id: string, data: ApplicationInput) {
   await prisma.jobApplication.updateMany({ where: { id, userId }, data: built })
   revalidatePath("/entretiens")
   revalidatePath(`/entretiens/${id}`)
+  revalidatePath("/societes")
   revalidatePath("/")
   revalidatePath("/calendrier")
 }

@@ -303,9 +303,11 @@ export default async function DashboardPage() {
       include: { category: { select: { name: true, color: true } } },
       orderBy: { startDate: "asc" },
     }),
-    // Données à compléter — agrégé pour la mise en avant dashboard
+    // Données à compléter — agrégé pour la mise en avant dashboard.
+    // Les PROSPECT sont exclus : leur complétude se gère sur la page Prospection,
+    // pas dans le bandeau « à compléter » du dashboard (demande de Pierre).
     prisma.client.findMany({
-      where: { userId, type: { not: "SELF" } },
+      where: { userId, type: { notIn: ["SELF", "PROSPECT"] } },
       select: { id: true, name: true, company: true, firstName: true, lastName: true, email: true, phone: true },
     }),
     prisma.company.findMany({

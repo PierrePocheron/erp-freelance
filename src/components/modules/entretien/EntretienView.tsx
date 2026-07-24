@@ -162,16 +162,14 @@ export function EntretienView({
           </div>
         </div>
 
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_340px] items-start">
+        {/* Colonne principale */}
+        <div className="space-y-6 min-w-0">
         {/* Stats compactes */}
         <div className="flex flex-wrap gap-2.5">
           <StatCard label="En cours"    value={stats.active}   onClick={() => setStatusFilter("ACTIVE")} />
           <StatCard label="RDV à venir" value={stats.upcoming} accent="amber" />
         </div>
-
-        {/* Timeline — passé récent + prochains RDV, tous entretiens */}
-        {timeline.length > 0 && (
-          <Timeline items={timeline} onOpen={(id) => router.push(`/entretiens/${id}`)} />
-        )}
 
         {/* Quick add */}
         <form onSubmit={handleQuickAdd} className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
@@ -265,7 +263,7 @@ export function EntretienView({
                 {search ? `Aucun résultat pour « ${search} »` : "Aucune candidature à ce statut."}
               </p>
             ) : (
-              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 2xl:grid-cols-3">
                 {filtered.map((a) => (
                   <ApplicationCard key={a.id} app={a} onOpen={() => router.push(`/entretiens/${a.id}`)} />
                 ))}
@@ -273,6 +271,15 @@ export function EntretienView({
             )}
           </>
         )}
+        </div>
+
+        {/* Timeline — grande carte verticale à droite */}
+        {timeline.length > 0 && (
+          <aside className="lg:sticky lg:top-4">
+            <Timeline items={timeline} onOpen={(id) => router.push(`/entretiens/${id}`)} />
+          </aside>
+        )}
+        </div>
       </div>
 
       {/* Dialog création / édition */}
@@ -327,7 +334,7 @@ function Timeline({
         <h2 className="text-sm font-semibold">Timeline des entretiens</h2>
         <span className="text-xs text-muted-foreground">· passé récent &amp; à venir</span>
       </div>
-      <ol className="relative max-h-80 overflow-y-auto px-4 py-3 space-y-3 before:absolute before:left-[1.30rem] before:top-4 before:bottom-4 before:w-px before:bg-border">
+      <ol className="relative max-h-[calc(100vh-9rem)] overflow-y-auto px-4 py-3 space-y-3 before:absolute before:left-[1.30rem] before:top-4 before:bottom-4 before:w-px before:bg-border">
         {items.map((it, i) => {
           const cfg = EVENT_TYPE_CONFIG[it.type] ?? EVENT_TYPE_CONFIG.OTHER
           return (

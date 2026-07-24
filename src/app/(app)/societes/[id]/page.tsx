@@ -2,6 +2,7 @@ import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { notFound, redirect } from "next/navigation"
 import Link from "next/link"
+import { SetBreadcrumbLabel } from "@/components/layout/BreadcrumbContext"
 import {
   ChevronLeft, Building2, Mail, Phone, Globe, MapPin,
   Users, FolderOpen, Trash2, ExternalLink, Receipt, FileText,
@@ -222,6 +223,7 @@ export default async function CompanyDetailPage({
 
   return (
     <div className="space-y-6">
+      <SetBreadcrumbLabel value={id} label={company.name} />
       {/* En-tête */}
       <div>
         <Link

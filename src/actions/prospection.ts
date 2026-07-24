@@ -296,11 +296,11 @@ Je m'appelle Pierre, développeur web indépendant à Lyon. J'accompagne des TPE
 
 Je suis tombé sur le vôtre ({{societe}}) et il m'a donné envie de m'y pencher, j'ai déjà commencé à vous préparer une nouvelle version, plus moderne et plus rapide, ainsi qu'un pré-audit de votre site actuel, histoire de vous montrer concrètement ce que ça pourrait donner.
 
-Beaucoup de commerces paient chaque mois pour un site qui ne leur rapporte pas grand-chose — je trouve ça dommage, et surtout ça peut être bien mieux, pour bien moins cher.
+Beaucoup de commerces paient chaque mois pour un site qui ne leur rapporte pas grand-chose. Je trouve ça dommage, et surtout ça peut être bien mieux, pour bien moins cher.
 
-Est-ce qu'on pourrait **s'appeler une dizaine de minutes** ? Je vous présente rapidement mon travail et ce que j'ai commencé pour vous, tranquillement.
+Est-ce qu'on pourrait **s'appeler une dizaine de minutes** ? Je vous présente rapidement mon travail et ce que j'ai commencé pour vous.
 
-C'est sans aucun engagement et rassurez-vous, je ne suis pas là pour vous vendre quelque chose dont vous n'avez pas besoin. L'idée, c'est simplement d'échanger.
+C'est sans aucun engagement et rassurez-vous, je ne suis pas là pour vous vendre quelque chose dont vous n'avez pas besoin. L'idée, c'est simplement d'échanger sur comment améliorer votre site et présence sur le web tout en payant moins.
 
 Si ça vous dit, répondez-moi avec un créneau qui vous arrange (ou votre numéro) et je vous rappelle.
 

@@ -7,13 +7,18 @@ import { ProspectQuickAdd } from "@/components/modules/prospection/ProspectQuick
 import { ImportCsvDialog } from "@/components/modules/prospection/ImportCsvDialog"
 import { prospectionFromAddress } from "@/lib/prospection-email"
 import { StartSessionDialog } from "@/components/modules/prospection/StartSessionDialog"
+import { FollowUpsCard } from "@/components/modules/prospection/FollowUpsCard"
 import { Mail, NotebookPen, Phone } from "lucide-react"
+
+const FOLLOWUP_DAYS = 7 // délai avant de proposer une relance
 
 export default async function ProspectionPage() {
   const session = await auth()
   const userId = session!.user.id
+  // eslint-disable-next-line react-hooks/purity -- rendu dynamique (page force-dynamic), la date « maintenant » est voulue
+  const followUpCutoff = new Date(Date.now() - FOLLOWUP_DAYS * 24 * 3600 * 1000)
 
-  const [prospects, templates, pendingDrafts] = await Promise.all([
+  const [prospects, templates, pendingDrafts, followUpCandidates] = await Promise.all([
     prisma.client.findMany({
       // Inclut les gagnés convertis en CLIENT (prospectStatus WON) : ils
       // restent visibles dans le pipeline comme trophées + réversibles.
@@ -37,7 +42,28 @@ export default async function ProspectionPage() {
     }),
     // Badge de la file de brouillons : à relire (DRAFT) + relus non envoyés (READY)
     prisma.emailDraft.count({ where: { userId, status: { in: ["DRAFT", "READY"] } } }),
+    // Candidats à la relance : prospects contactés (sans réponse) ayant reçu au
+    // moins un email — on filtre ensuite en JS sur la date du DERNIER email.
+    prisma.client.findMany({
+      where: {
+        userId, type: "PROSPECT", prospectStatus: "CONTACTED",
+        interactions: { some: { channel: "EMAIL" } },
+      },
+      select: {
+        id: true, name: true, company: true, interestLevel: true,
+        interactions: {
+          where: { channel: "EMAIL" }, orderBy: { date: "desc" }, take: 1,
+          select: { date: true, emailTemplateName: true },
+        },
+      },
+    }),
   ])
+
+  // Relance à faire = dernier email ≥ FOLLOWUP_DAYS jours, plus ancien en tête.
+  const followUpsDue = followUpCandidates
+    .map((p) => ({ id: p.id, name: p.name, company: p.company, interestLevel: p.interestLevel, lastEmail: p.interactions[0] ?? null }))
+    .filter((p) => p.lastEmail && new Date(p.lastEmail.date) <= followUpCutoff)
+    .sort((a, b) => new Date(a.lastEmail!.date).getTime() - new Date(b.lastEmail!.date).getTime())
 
   const active       = prospects.filter((p) => !["WON", "LOST"].includes(p.prospectStatus))
   const toContact    = prospects.filter((p) => p.prospectStatus === "TO_CONTACT")
@@ -89,6 +115,9 @@ export default async function ProspectionPage() {
           <ImportCsvDialog />
         </div>
       </div>
+
+      {/* Rappel des relances à faire (dérivé du dernier email envoyé) */}
+      <FollowUpsCard items={followUpsDue} />
 
       {/* Stats — les cartes de statut filtrent le tableau instantanément
           (shallow routing via ?statut=, aucun rechargement). 9 cartes sur une

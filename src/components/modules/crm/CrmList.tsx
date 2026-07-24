@@ -1,9 +1,7 @@
 "use client"
 
-import { useState, useTransition } from "react"
-import { getClientPanel } from "@/actions/crm"
-import { ClientPanel } from "./ClientPanel"
-import { Sheet, SheetContent } from "@/components/ui/sheet"
+import { useState } from "react"
+import Link from "next/link"
 import { LayoutGrid, List, Search, TrendingUp, AlertCircle } from "lucide-react"
 
 function fmtEur(n: number) {
@@ -38,7 +36,6 @@ type Client = {
 }
 
 type Group = { key: string; label: string; items: Client[] }
-type PanelData = Awaited<ReturnType<typeof getClientPanel>>
 type View = "cards" | "list"
 
 const fmtShort = (d: Date | string) =>
@@ -47,22 +44,10 @@ const fmtShort = (d: Date | string) =>
 const fmtSince = (d: Date | string) =>
   new Date(d).toLocaleDateString("fr-FR", { month: "short", year: "numeric" })
 
-export function CrmList({ groups, userId }: { groups: Group[]; userId: string }) {
-  const [open, setOpen] = useState(false)
-  const [panelData, setPanelData] = useState<PanelData>(null)
-  const [isPending, startTransition] = useTransition()
+export function CrmList({ groups }: { groups: Group[] }) {
   const [view, setView] = useState<View>("cards")
   const [search, setSearch] = useState("")
   const [showBilling, setShowBilling] = useState(false)
-
-  function openClient(clientId: string) {
-    setOpen(true)
-    setPanelData(null)
-    startTransition(async () => {
-      const data = await getClientPanel(clientId, userId)
-      setPanelData(data)
-    })
-  }
 
   const q = search.toLowerCase().trim()
   const filteredGroups = groups.map((g) => ({
@@ -158,34 +143,22 @@ export function CrmList({ groups, userId }: { groups: Group[]; userId: string })
                 {view === "cards" ? (
                   <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
                     {items.map((client) => (
-                      <CardItem key={client.id} client={client} showBilling={showBilling} onClick={() => openClient(client.id)} />
+                      <CardItem key={client.id} client={client} showBilling={showBilling} />
                     ))}
                   </div>
                 ) : (
-                  <ListSection items={items} showBilling={showBilling} onOpen={openClient} />
+                  <ListSection items={items} showBilling={showBilling} />
                 )}
               </section>
             )
           )}
         </div>
       )}
-
-      <Sheet open={open} onOpenChange={setOpen}>
-        <SheetContent side="right" className="w-[460px] sm:max-w-[460px] p-0" showCloseButton={true}>
-          <ClientPanel
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            client={panelData as any}
-            loading={isPending || (open && panelData === null)}
-            userId={userId}
-            onRefresh={() => panelData && openClient(panelData.id)}
-          />
-        </SheetContent>
-      </Sheet>
     </>
   )
 }
 
-function CardItem({ client, showBilling, onClick }: { client: Client; showBilling: boolean; onClick: () => void }) {
+function CardItem({ client, showBilling }: { client: Client; showBilling: boolean }) {
   const type = typeConfig[client.type as keyof typeof typeConfig]
   const lastInteraction = client.interactions[0]
   const nextReminder = client.reminders[0]
@@ -193,9 +166,9 @@ function CardItem({ client, showBilling, onClick }: { client: Client; showBillin
   const billPct = hasBilling ? Math.min(100, (client.billing.totalEncaisse / client.billing.totalFacture) * 100) : 0
 
   return (
-    <button
-      onClick={onClick}
-      className="group rounded-xl border border-border/50 bg-card p-3 hover:border-border hover:shadow-sm transition-all space-y-2 text-left w-full"
+    <Link
+      href={`/contacts/${client.id}`}
+      className="group block rounded-xl border border-border/50 bg-card p-3 hover:border-border hover:shadow-sm transition-all space-y-2 text-left w-full"
     >
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
@@ -263,11 +236,11 @@ function CardItem({ client, showBilling, onClick }: { client: Client; showBillin
           </div>
         </div>
       )}
-    </button>
+    </Link>
   )
 }
 
-function ListSection({ items, showBilling, onOpen }: { items: Client[]; showBilling: boolean; onOpen: (id: string) => void }) {
+function ListSection({ items, showBilling }: { items: Client[]; showBilling: boolean }) {
   return (
     <div className="rounded-xl border border-border/50 bg-card overflow-hidden">
       {items.map((client, i) => {
@@ -278,9 +251,9 @@ function ListSection({ items, showBilling, onOpen }: { items: Client[]; showBill
         const billPct = hasBilling ? Math.min(100, (client.billing.totalEncaisse / client.billing.totalFacture) * 100) : 0
 
         return (
-          <button
+          <Link
             key={client.id}
-            onClick={() => onOpen(client.id)}
+            href={`/contacts/${client.id}`}
             className={cn(
               "w-full flex items-center gap-4 px-4 py-2.5 hover:bg-muted/50 transition-colors text-left",
               i !== 0 && "border-t border-border/50"
@@ -356,7 +329,7 @@ function ListSection({ items, showBilling, onOpen }: { items: Client[]; showBill
                 ? `${client._count.projects} projet${client._count.projects !== 1 ? "s" : ""}`
                 : "—"}
             </span>
-          </button>
+          </Link>
         )
       })}
     </div>

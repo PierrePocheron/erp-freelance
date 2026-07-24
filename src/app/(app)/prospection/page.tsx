@@ -31,7 +31,7 @@ export default async function ProspectionPage() {
       },
     }),
     prisma.emailTemplate.findMany({
-      where: { userId },
+      where: { userId, archivedAt: null }, // les modèles archivés ne sont plus proposés à l'envoi
       orderBy: [{ sortOrder: "asc" }, { updatedAt: "desc" }],
       select: { id: true, name: true, subject: true, body: true },
     }),

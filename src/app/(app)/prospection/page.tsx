@@ -14,7 +14,7 @@ export default async function ProspectionPage() {
   const session = await auth()
   const userId = session!.user.id
 
-  const [prospects, templates, pendingDrafts, followUpCandidates, profile] = await Promise.all([
+  const [prospects, templates, pendingDrafts, followUpCandidates, profile, draftRows] = await Promise.all([
     prisma.client.findMany({
       // Inclut les gagnés convertis en CLIENT (prospectStatus WON) : ils
       // restent visibles dans le pipeline comme trophées + réversibles.
@@ -62,6 +62,11 @@ export default async function ProspectionPage() {
       where: { userId },
       select: { followUpDelayDays: true, followUpTemplateId: true },
     }),
+    // Brouillons (par prospect) — pour l'indicateur visuel dans la liste
+    prisma.emailDraft.findMany({
+      where: { userId, status: { in: ["DRAFT", "READY", "SENT"] } },
+      select: { clientId: true, status: true },
+    }),
   ])
 
   const followUpDelayDays = profile?.followUpDelayDays ?? 7
@@ -75,6 +80,17 @@ export default async function ProspectionPage() {
     .map(({ interactions, ...p }) => ({ ...p, lastEmail: interactions[0] ?? null }))
     .filter((p) => p.lastEmail && new Date(p.lastEmail.date) <= followUpCutoff)
     .sort((a, b) => new Date(a.lastEmail!.date).getTime() - new Date(b.lastEmail!.date).getTime())
+
+  // Meilleur statut de brouillon par prospect (à relire > relu > envoyé)
+  const DRAFT_RANK: Record<string, number> = { DRAFT: 0, READY: 1, SENT: 2 }
+  const draftStatusByClient = new Map<string, "DRAFT" | "READY" | "SENT">()
+  for (const d of draftRows) {
+    const cur = draftStatusByClient.get(d.clientId)
+    if (!cur || DRAFT_RANK[d.status] < DRAFT_RANK[cur]) {
+      draftStatusByClient.set(d.clientId, d.status as "DRAFT" | "READY" | "SENT")
+    }
+  }
+  const prospectsWithDraft = prospects.map((p) => ({ ...p, draftStatus: draftStatusByClient.get(p.id) ?? null }))
 
   const active       = prospects.filter((p) => !["WON", "LOST"].includes(p.prospectStatus))
   const toContact    = prospects.filter((p) => p.prospectStatus === "TO_CONTACT")
@@ -150,7 +166,7 @@ export default async function ProspectionPage() {
       <ProspectQuickAdd />
 
       <ProspectionTable
-        prospects={prospects}
+        prospects={prospectsWithDraft}
         userId={userId}
         templates={templates}
         emailFromConfigured={prospectionFromAddress() !== null}

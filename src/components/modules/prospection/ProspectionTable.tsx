@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react"
 import { useSearchParams } from "next/navigation"
-import { Search, X, Mail, MailPlus, Phone, Trash2, ChevronLeft, ChevronRight, Send, ExternalLink, NotebookPen, Play } from "lucide-react"
+import { Search, X, Mail, MailPlus, Phone, Trash2, ChevronLeft, ChevronRight, Send, ExternalLink, NotebookPen, Play, PenLine, CheckCircle2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { toast } from "sonner"
 import { useSortState, cmp } from "@/hooks/use-sortable"
@@ -47,6 +47,25 @@ type Prospect = {
   createdAt: Date | string
   _count: { interactions: number }
   interactions: { date: Date | string; channel: string }[]
+  // Meilleur statut de brouillon email de ce prospect (indicateur de liste)
+  draftStatus?: "DRAFT" | "READY" | "SENT" | null
+}
+
+// Indicateur visuel « un brouillon existe » à gauche de chaque ligne.
+const DRAFT_INDICATOR: Record<"DRAFT" | "READY" | "SENT", { icon: React.ElementType; cls: string; label: string }> = {
+  DRAFT: { icon: PenLine,      cls: "text-amber-500",           label: "Brouillon à relire" },
+  READY: { icon: CheckCircle2, cls: "text-emerald-500",         label: "Brouillon relu — prêt à envoyer" },
+  SENT:  { icon: Send,         cls: "text-muted-foreground/40", label: "Mail (brouillon) envoyé" },
+}
+
+function DraftIndicator({ status }: { status: "DRAFT" | "READY" | "SENT" }) {
+  const di = DRAFT_INDICATOR[status]
+  const Icon = di.icon
+  return (
+    <span title={di.label} className="shrink-0 inline-flex">
+      <Icon className={cn("h-3.5 w-3.5", di.cls)} aria-label={di.label} />
+    </span>
+  )
 }
 
 type PanelData = Awaited<ReturnType<typeof getClientPanel>>
@@ -555,6 +574,7 @@ export function ProspectionTable({
                   </td>
                   <td className="max-w-[180px]">
                     <div className="flex items-center gap-1.5">
+                      {p.draftStatus && <DraftIndicator status={p.draftStatus} />}
                       <span className="font-medium truncate" title={p.name}>{p.name}</span>
                       {p.websiteUrl && (
                         <a

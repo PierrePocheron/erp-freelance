@@ -17,8 +17,9 @@ export type DashboardJobApp = {
 
 
 /**
- * Widget dashboard du module Entretien : candidatures actives, prochains RDV.
- * Masqué si le module est inactif ou s'il n'y a aucune candidature active.
+ * Widget dashboard du module Entretien : liste TOUS les prochains points
+ * planifiés (RDV à venir ou en retard), tous entretiens confondus. Masqué si le
+ * module est inactif ou s'il n'y a aucun point en cours (rien à afficher).
  */
 export function JobHuntCard({
   applications,
@@ -28,12 +29,12 @@ export function JobHuntCard({
   activeCount: number
 }) {
   const { isActive } = useModules()
-  if (!isActive("entretien") || activeCount === 0) return null
 
   const upcoming = applications
     .filter((a) => a.nextActionAt)
     .sort((a, b) => new Date(a.nextActionAt!).getTime() - new Date(b.nextActionAt!).getTime())
-    .slice(0, 4)
+
+  if (!isActive("entretien") || upcoming.length === 0) return null
 
   const now = new Date()
 

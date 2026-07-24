@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState, useTransition } from "react"
+import { Fragment, useMemo, useState, useTransition } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { Plus, ChevronRight, Search, X, Briefcase, Star, HelpCircle, Check, CalendarClock } from "lucide-react"
@@ -340,34 +340,37 @@ function Timeline({
         )}
         <span className="ml-auto text-xs text-muted-foreground">{items.length} évt{items.length > 1 ? "s" : ""}</span>
       </div>
-      <ol className="relative max-h-[calc(100vh-9rem)] overflow-y-auto p-3 space-y-0.5 before:absolute before:left-[2.375rem] before:top-5 before:bottom-5 before:w-px before:bg-border">
+      {/* Frise : pastille emoji par événement, CENTRÉE sur le trait vertical
+          (le trait traverse chaque pastille comme un nœud). */}
+      <ol className="relative space-y-3 px-4 py-4 max-h-[calc(100vh-9rem)] overflow-y-auto before:absolute before:left-[30px] before:top-7 before:bottom-7 before:w-px before:bg-border">
         {items.map((it, i) => {
           const cfg = EVENT_TYPE_CONFIG[it.type] ?? EVENT_TYPE_CONFIG.OTHER
           const dt = new Date(it.time)
           const hasTime = dt.getHours() !== 0 || dt.getMinutes() !== 0
           return (
-            <li key={`${it.appId}-${it.time}-${i}`}>
+            <Fragment key={`${it.appId}-${it.time}-${i}`}>
               {i === firstFutureIdx && (
-                <div className="flex items-center gap-2 px-1 py-2">
+                <li className="flex items-center gap-2 py-0.5">
                   <span className="h-px flex-1 bg-amber-500/40" />
                   <span className="text-[10px] font-semibold uppercase tracking-wider text-amber-600">À venir</span>
                   <span className="h-px flex-1 bg-amber-500/40" />
-                </div>
+                </li>
               )}
-              <button
-                type="button"
-                onClick={() => onOpen(it.appId)}
-                className="group relative flex w-full items-start gap-3 rounded-lg p-2 text-left hover:bg-muted/60 transition-colors"
-              >
+              <li className="relative flex items-start gap-3">
+                {/* Pastille = nœud sur le trait : border-card + z-10 pour « percer » la ligne */}
                 <span
                   className={cn(
-                    "relative z-10 flex h-7 w-7 shrink-0 items-center justify-center rounded-full border-2 border-card text-sm",
+                    "relative z-10 flex h-7 w-7 shrink-0 items-center justify-center rounded-full border-2 border-card text-sm shadow-sm",
                     it.future ? "bg-amber-500/15 ring-1 ring-amber-500/40" : "bg-muted"
                   )}
                 >
                   {it.future ? "📅" : cfg.icon}
                 </span>
-                <div className="min-w-0 flex-1">
+                <button
+                  type="button"
+                  onClick={() => onOpen(it.appId)}
+                  className="group min-w-0 flex-1 pt-0.5 text-left"
+                >
                   <div className="flex items-baseline justify-between gap-2">
                     <p className="text-sm font-semibold leading-tight truncate group-hover:text-primary transition-colors">{it.company}</p>
                     <span className={cn("shrink-0 text-[11px] tabular-nums", it.future ? "text-amber-600 font-medium" : "text-muted-foreground")}>
@@ -375,9 +378,9 @@ function Timeline({
                     </span>
                   </div>
                   <p className="mt-0.5 text-xs text-muted-foreground leading-snug line-clamp-2">{it.label}</p>
-                </div>
-              </button>
-            </li>
+                </button>
+              </li>
+            </Fragment>
           )
         })}
       </ol>

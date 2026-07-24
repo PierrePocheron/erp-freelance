@@ -2,6 +2,7 @@ import { auth, signOut } from "@/lib/auth"
 import { redirect } from "next/navigation"
 import { Sidebar } from "@/components/layout/Sidebar"
 import { AppHeader } from "@/components/layout/AppHeader"
+import { BreadcrumbProvider } from "@/components/layout/BreadcrumbContext"
 import { MobileBottomNav } from "@/components/layout/MobileBottomNav"
 import { InstallPwaPrompt } from "@/components/layout/InstallPwaPrompt"
 import { TimerBanner } from "@/components/layout/TimerBanner"
@@ -56,16 +57,21 @@ export default async function AppLayout({
       <Sidebar />
       <div className="relative flex flex-1 flex-col overflow-hidden">
         <TimerBanner initialTimer={runningTimer} userId={userId} />
-        {/* Header fixe (desktop) : titre du module + cloche + déconnexion —
-            il ne défile jamais, comme la sidebar */}
-        <AppHeader logoutAction={logout}>
-          <span data-tour="notifications" className="inline-flex">
-            <NotificationBell userId={userId} notifications={notifications} />
-          </span>
-        </AppHeader>
-        {/* id consommé par MobileBottomNav : masquage au scroll des boutons
-            flottants (c'est ce conteneur qui scrolle, pas window) */}
-        <main id="app-main" className="flex-1 overflow-y-auto p-3 sm:p-6 pb-24 sm:pb-6">{children}</main>
+        {/* Provider du fil d'Ariane : enveloppe header ET contenu pour que les
+            pages de détail (children) publient le nom de leur entité et que le
+            header (AppBreadcrumbs) le lise. */}
+        <BreadcrumbProvider>
+          {/* Header fixe (desktop) : fil d'Ariane + cloche + déconnexion —
+              il ne défile jamais, comme la sidebar */}
+          <AppHeader logoutAction={logout}>
+            <span data-tour="notifications" className="inline-flex">
+              <NotificationBell userId={userId} notifications={notifications} />
+            </span>
+          </AppHeader>
+          {/* id consommé par MobileBottomNav : masquage au scroll des boutons
+              flottants (c'est ce conteneur qui scrolle, pas window) */}
+          <main id="app-main" className="flex-1 overflow-y-auto p-3 sm:p-6 pb-24 sm:pb-6">{children}</main>
+        </BreadcrumbProvider>
         {/* Cloche de notifications flottante — mobile uniquement (le header
             desktop porte la sienne) */}
         <div className="absolute top-3 right-4 z-50 sm:hidden">

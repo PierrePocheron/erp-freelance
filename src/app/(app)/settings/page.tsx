@@ -9,6 +9,7 @@ import { DangerZone } from "@/components/modules/settings/DangerZone"
 import { ExportSection } from "@/components/modules/settings/ExportSection"
 import { GoogleCalendarSection } from "@/components/modules/settings/GoogleCalendarSection"
 import { ModulesPanel } from "@/components/modules/settings/ModulesPanel"
+import { ProspectionSettingsPanel } from "@/components/modules/settings/ProspectionSettingsPanel"
 import { hasCalendarScope } from "@/lib/google-calendar"
 import { LogOut } from "lucide-react"
 
@@ -16,7 +17,7 @@ export default async function SettingsPage() {
   const session = await auth()
   const userId = session!.user.id
 
-  const [profile, user, emitters, fiscalSources, conditionsTemplates, exportStats, googleCalendarScope] = await Promise.all([
+  const [profile, user, emitters, fiscalSources, conditionsTemplates, exportStats, googleCalendarScope, emailTemplates] = await Promise.all([
     prisma.userProfile?.findUnique({ where: { userId } }).catch(() => null) ?? null,
     prisma.user.findUnique({ where: { id: userId }, select: { name: true, email: true } }),
     prisma.emitterProfile.findMany({
@@ -56,6 +57,11 @@ export default async function SettingsPage() {
       contacts, prospects, projects, tasks, quotes, invoices, interactions, timeEntries, revenues,
     })),
     hasCalendarScope(userId),
+    prisma.emailTemplate.findMany({
+      where: { userId, archivedAt: null },
+      orderBy: [{ sortOrder: "asc" }, { updatedAt: "desc" }],
+      select: { id: true, name: true },
+    }),
   ])
 
   const taxSettings = {
@@ -95,6 +101,12 @@ export default async function SettingsPage() {
       </>
     ),
     modules: <ModulesPanel />,
+    prospection: (
+      <ProspectionSettingsPanel
+        initial={{ followUpDelayDays: profile?.followUpDelayDays ?? 7, followUpTemplateId: profile?.followUpTemplateId ?? null }}
+        templates={emailTemplates}
+      />
+    ),
     integrations: <GoogleCalendarSection hasScope={googleCalendarScope} syncThresholdMin={profile?.calendarSyncThresholdMin ?? 30} />,
     donnees: (
       <>

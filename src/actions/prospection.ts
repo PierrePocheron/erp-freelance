@@ -381,6 +381,22 @@ export async function deleteEmailTemplate(templateId: string) {
 }
 
 /**
+ * Archive / désarchive un modèle. Un modèle archivé est masqué des sélecteurs
+ * d'envoi mais conservé (l'historique des envois continue de pointer dessus).
+ * À utiliser quand on refond un modèle plutôt que de l'écraser.
+ */
+export async function setEmailTemplateArchived(templateId: string, archived: boolean) {
+  const userId = await requireAuth()
+  const updated = await prisma.emailTemplate.updateMany({
+    where: { id: templateId, userId },
+    data: { archivedAt: archived ? new Date() : null },
+  })
+  if (updated.count === 0) throw new Error("Non autorisé")
+  revalidatePath("/prospection/modeles")
+  revalidatePath("/prospection")
+}
+
+/**
  * Persiste l'ordre d'affichage choisi par l'utilisateur (drag & drop) :
  * chaque modèle reçoit son rang dans `orderedIds`. Scoped par userId
  * (updateMany anti-IDOR) — un id étranger ne matche rien.

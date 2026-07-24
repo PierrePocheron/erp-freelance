@@ -408,7 +408,7 @@ export function ProspectionModeView({
           <div className="rounded-xl border border-border/50 bg-card p-5 space-y-4">
             <div className="flex items-start justify-between gap-3 flex-wrap">
               <div>
-                <h1 className="text-2xl font-bold tracking-tight leading-tight flex items-center gap-2">
+                <h1 className="text-3xl font-bold tracking-tight leading-tight flex items-center gap-2">
                   {prospect.name}
                   {handled.has(prospect.id) && <Check className="h-5 w-5 text-emerald-500" aria-label="Traité pendant cette session" />}
                 </h1>

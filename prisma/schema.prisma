@@ -425,9 +425,12 @@ model Interaction {
   summary   String
   response  String?
   emailUrl  String?            // lien profond vers le mail (Gmail...) pour y accéder en 1 clic
+  emailTemplateId   String?    // modèle d'email utilisé (traçabilité envois/relances)
+  emailTemplateName String?    // snapshot du nom du modèle (survit à archivage/suppression)
   createdAt DateTime           @default(now())
 
-  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  client        Client         @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  emailTemplate EmailTemplate? @relation(fields: [emailTemplateId], references: [id], onDelete: SetNull)
 }
 
 model Reminder {
@@ -1082,11 +1085,13 @@ model EmailTemplate {
   subject   String
   body      String
   sortOrder Int      @default(0) // ordre d'affichage personnalisé (drag & drop)
+  archivedAt DateTime?          // archivé = masqué des sélecteurs, conservé pour l'historique
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  user   User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-  drafts EmailDraft[]
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  drafts       EmailDraft[]
+  interactions Interaction[]
 
   @@index([userId])
 }

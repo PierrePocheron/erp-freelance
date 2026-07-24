@@ -11,7 +11,7 @@ import { Sheet, SheetContent } from "@/components/ui/sheet"
 import { ClientPanel } from "@/components/modules/crm/ClientPanel"
 import { getClientPanel } from "@/actions/crm"
 import { markProspectsContacted, updateProspectsStatusBulk, deleteProspects } from "@/actions/prospection"
-import { renderTemplate } from "@/lib/email-template"
+import { renderTemplate, stripMarkdown } from "@/lib/email-template"
 import { STATUS_CONFIG, ALL_STATUSES, WEBSITE_TYPE_CONFIG, SOURCE_LABELS } from "./status-config"
 import { ProspectStatusSelect } from "./ProspectStatusSelect"
 import { ProspectInterestSelect } from "./ProspectInterestSelect"
@@ -252,7 +252,7 @@ export function ProspectionTable({
       fs: "1",
       to: p.email,
       su: rendered.subject,
-      body: rendered.body,
+      body: stripMarkdown(rendered.body),
     })
     window.open(`https://mail.google.com/mail/?${params.toString()}`, "_blank", "noopener,noreferrer")
     if (rendered.missing.length > 0) toast.warning(`Mail généré pour ${p.name} — variables vides : ${rendered.missing.join(", ")}`)

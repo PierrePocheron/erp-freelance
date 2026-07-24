@@ -167,7 +167,6 @@ export default async function ProspectionPage() {
 
       <ProspectionTable
         prospects={prospectsWithDraft}
-        userId={userId}
         templates={templates}
         emailFromConfigured={prospectionFromAddress() !== null}
       />

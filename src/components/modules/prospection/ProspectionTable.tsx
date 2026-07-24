@@ -1,15 +1,12 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react"
-import { useSearchParams } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { Search, X, Mail, MailPlus, Phone, Trash2, ChevronLeft, ChevronRight, Send, ExternalLink, NotebookPen, Play, PenLine, CheckCircle2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { toast } from "sonner"
 import { useSortState, cmp } from "@/hooks/use-sortable"
 import { Th } from "@/components/ui/sortable-header"
-import { Sheet, SheetContent } from "@/components/ui/sheet"
-import { ClientPanel } from "@/components/modules/crm/ClientPanel"
-import { getClientPanel } from "@/actions/crm"
 import { markProspectsContacted, updateProspectsStatusBulk, deleteProspects } from "@/actions/prospection"
 import { renderTemplate, stripMarkdown } from "@/lib/email-template"
 import { STATUS_CONFIG, ALL_STATUSES, WEBSITE_TYPE_CONFIG, SOURCE_LABELS } from "./status-config"
@@ -68,8 +65,6 @@ function DraftIndicator({ status }: { status: "DRAFT" | "READY" | "SENT" }) {
   )
 }
 
-type PanelData = Awaited<ReturnType<typeof getClientPanel>>
-
 const PAGE_SIZES = [25, 50, 100, 0] // 0 = tous
 const PAGE_SIZE_KEY = "erp-prospection-pagesize"
 
@@ -78,12 +73,10 @@ const fmtShort = (d: Date | string) =>
 
 export function ProspectionTable({
   prospects,
-  userId,
   templates,
   emailFromConfigured,
 }: {
   prospects: Prospect[]
-  userId: string
   templates: EmailTemplateOption[]
   emailFromConfigured: boolean
 }) {
@@ -133,19 +126,7 @@ export function ProspectionTable({
   const [gmailPrepOpen, setGmailPrepOpen] = useState(false)
   const [prepareDraftsOpen, setPrepareDraftsOpen] = useState(false)
 
-  // Panel contact
-  const [panelOpen, setPanelOpen] = useState(false)
-  const [panelData, setPanelData] = useState<PanelData>(null)
-  const [isPanelPending, startPanel] = useTransition()
-
-  function openClient(clientId: string) {
-    setPanelOpen(true)
-    setPanelData(null)
-    startPanel(async () => {
-      const data = await getClientPanel(clientId, userId)
-      setPanelData(data)
-    })
-  }
+  const router = useRouter()
 
   // Filtre secondaire « avec email / téléphone » (cartes stats), via l'URL.
   const avec = searchParams.get("avec") // "email" | "phone" | null
@@ -558,7 +539,7 @@ export function ProspectionTable({
               return (
                 <tr
                   key={p.id}
-                  onClick={() => openClient(p.id)}
+                  onClick={() => router.push(`/contacts/${p.id}`)}
                   className={cn(
                     "group cursor-pointer hover:bg-muted/40 transition-colors [&>td]:px-3 [&>td]:py-2",
                     selected.has(p.id) && "bg-primary/5"
@@ -689,14 +670,6 @@ export function ProspectionTable({
           )}
         </div>
       </div>
-
-      {/* ── Sheet fiche contact ── */}
-      <Sheet open={panelOpen} onOpenChange={setPanelOpen}>
-        <SheetContent side="right" className="w-full sm:w-[460px] sm:max-w-[460px] p-0" showCloseButton>
-          {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-          <ClientPanel client={panelData as any} loading={isPanelPending || (panelOpen && panelData === null)} userId={userId} />
-        </SheetContent>
-      </Sheet>
 
       {/* ── Emailing ── */}
       <SendEmailDialog

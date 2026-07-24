@@ -104,6 +104,10 @@ model UserProfile {
   // nouvelle synchro si la dernière remonte à moins que ça. 0 = toujours synchroniser.
   calendarSyncThresholdMin Int @default(30)
 
+  // ── Prospection ─────────────────────────────────────────────────────────
+  followUpDelayDays  Int     @default(7) // délai (jours) avant de proposer une relance
+  followUpTemplateId String?             // modèle d'email pré-sélectionné pour les relances
+
   // ── Fiscalité / imposition ──────────────────────────────────────────────
   legalStatus          String               @default("AUTO_ENTREPRENEUR") // AUTO_ENTREPRENEUR | EI | EURL | SASU | OTHER
   urssafFrequency      DeclarationFrequency @default(QUARTERLY)

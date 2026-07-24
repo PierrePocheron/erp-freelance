@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react"
 import {
-  User, Building2, Landmark, LayoutGrid, Plug, Database, Search, X,
+  User, Building2, Landmark, LayoutGrid, Plug, Database, Search, X, Send,
 } from "lucide-react"
 
 // ── Catégories (style Réglages Apple) ─────────────────────────────────────────
@@ -10,7 +10,7 @@ import {
 // libellé, la description et les mots-clés (accents ignorés).
 
 export type SectionId =
-  | "profil" | "emetteurs" | "fiscalite" | "modules" | "integrations" | "donnees"
+  | "profil" | "emetteurs" | "fiscalite" | "modules" | "prospection" | "integrations" | "donnees"
 
 type SectionMeta = {
   id:          SectionId
@@ -41,6 +41,11 @@ const SECTIONS: SectionMeta[] = [
     id: "modules", label: "Modules", icon: LayoutGrid, iconBg: "bg-emerald-500",
     description: "Activer ou masquer les modules de l'application",
     keywords: ["modules", "activer", "desactiver", "sante", "graph", "entretiens", "revenus", "calendrier", "onboarding"],
+  },
+  {
+    id: "prospection", label: "Prospection", icon: Send, iconBg: "bg-orange-500",
+    description: "Relances : délai avant relance et modèle par défaut",
+    keywords: ["prospection", "relance", "relances", "email", "mail", "demarchage", "delai", "modele", "rappel", "suivi"],
   },
   {
     id: "integrations", label: "Intégrations", icon: Plug, iconBg: "bg-sky-500",

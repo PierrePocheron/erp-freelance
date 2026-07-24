@@ -162,7 +162,7 @@ export function EntretienView({
           </div>
         </div>
 
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_340px] items-start">
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_420px] items-start">
         {/* Colonne principale */}
         <div className="space-y-6 min-w-0">
         {/* Stats compactes */}
@@ -327,20 +327,28 @@ function Timeline({
   onOpen: (id: string) => void
 }) {
   const firstFutureIdx = items.findIndex((i) => i.future)
+  const futureCount = items.filter((i) => i.future).length
   return (
     <div className="rounded-xl border border-border/50 bg-card overflow-hidden">
       <div className="flex items-center gap-2 px-4 py-3 border-b border-border/50">
         <CalendarClock className="h-4 w-4 text-muted-foreground" />
-        <h2 className="text-sm font-semibold">Timeline des entretiens</h2>
-        <span className="text-xs text-muted-foreground">· passé récent &amp; à venir</span>
+        <h2 className="text-sm font-semibold">Timeline</h2>
+        {futureCount > 0 && (
+          <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-[11px] font-medium text-amber-700 dark:text-amber-400">
+            {futureCount} à venir
+          </span>
+        )}
+        <span className="ml-auto text-xs text-muted-foreground">{items.length} évt{items.length > 1 ? "s" : ""}</span>
       </div>
-      <ol className="relative max-h-[calc(100vh-9rem)] overflow-y-auto px-4 py-3 space-y-3 before:absolute before:left-[1.30rem] before:top-4 before:bottom-4 before:w-px before:bg-border">
+      <ol className="relative max-h-[calc(100vh-9rem)] overflow-y-auto p-3 space-y-0.5 before:absolute before:left-[2.375rem] before:top-5 before:bottom-5 before:w-px before:bg-border">
         {items.map((it, i) => {
           const cfg = EVENT_TYPE_CONFIG[it.type] ?? EVENT_TYPE_CONFIG.OTHER
+          const dt = new Date(it.time)
+          const hasTime = dt.getHours() !== 0 || dt.getMinutes() !== 0
           return (
             <li key={`${it.appId}-${it.time}-${i}`}>
               {i === firstFutureIdx && (
-                <div className="relative -ml-4 mb-3 flex items-center gap-2 pl-4">
+                <div className="flex items-center gap-2 px-1 py-2">
                   <span className="h-px flex-1 bg-amber-500/40" />
                   <span className="text-[10px] font-semibold uppercase tracking-wider text-amber-600">À venir</span>
                   <span className="h-px flex-1 bg-amber-500/40" />
@@ -349,25 +357,25 @@ function Timeline({
               <button
                 type="button"
                 onClick={() => onOpen(it.appId)}
-                className="relative flex w-full items-start gap-3 rounded-lg px-1.5 py-1 text-left hover:bg-muted/50 transition-colors"
+                className="group relative flex w-full items-start gap-3 rounded-lg p-2 text-left hover:bg-muted/60 transition-colors"
               >
                 <span
                   className={cn(
-                    "mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 border-card text-[11px]",
+                    "relative z-10 flex h-7 w-7 shrink-0 items-center justify-center rounded-full border-2 border-card text-sm",
                     it.future ? "bg-amber-500/15 ring-1 ring-amber-500/40" : "bg-muted"
                   )}
                 >
-                  {cfg.icon}
+                  {it.future ? "📅" : cfg.icon}
                 </span>
                 <div className="min-w-0 flex-1">
-                  <p className="text-sm font-medium leading-tight truncate">
-                    {it.company} <span className="text-muted-foreground font-normal">— {it.label}</span>
-                  </p>
-                  <p className={cn("text-xs", it.future ? "text-amber-600 font-medium" : "text-muted-foreground")}>
-                    {fmtShort(new Date(it.time))} · {it.position}
-                  </p>
+                  <div className="flex items-baseline justify-between gap-2">
+                    <p className="text-sm font-semibold leading-tight truncate group-hover:text-primary transition-colors">{it.company}</p>
+                    <span className={cn("shrink-0 text-[11px] tabular-nums", it.future ? "text-amber-600 font-medium" : "text-muted-foreground")}>
+                      {fmtShort(dt)}{hasTime ? ` · ${dt.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}` : ""}
+                    </span>
+                  </div>
+                  <p className="mt-0.5 text-xs text-muted-foreground leading-snug line-clamp-2">{it.label}</p>
                 </div>
-                <ChevronRight className="h-4 w-4 text-muted-foreground/40 shrink-0 self-center" />
               </button>
             </li>
           )

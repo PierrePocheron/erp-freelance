@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma"
 import { notFound } from "next/navigation"
 import type { Metadata } from "next"
 import { ApplicationDetailView } from "@/components/modules/entretien/ApplicationDetailView"
+import { SetBreadcrumbLabel } from "@/components/layout/BreadcrumbContext"
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
   const { id } = await params
@@ -60,5 +61,10 @@ export default async function EntretienDetailPage({
 
   if (!app) notFound()
 
-  return <ApplicationDetailView app={app} contacts={contacts} companies={companies} />
+  return (
+    <>
+      <SetBreadcrumbLabel value={id} label={app.companyName} />
+      <ApplicationDetailView app={app} contacts={contacts} companies={companies} />
+    </>
+  )
 }

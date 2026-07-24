@@ -12,6 +12,7 @@ import { ProjectContactsManager } from "@/components/modules/projet/ProjectConta
 import { addProjectContact, removeProjectContact, updateProjectCompany } from "@/actions/projet"
 import { getOrCreateDefaultTags } from "@/actions/tags"
 import { UserAvatar } from "@/components/ui/user-avatar"
+import { SetBreadcrumbLabel } from "@/components/layout/BreadcrumbContext"
 
 export default async function ProjectLayout({
   children,
@@ -63,6 +64,7 @@ export default async function ProjectLayout({
 
   return (
     <div className="space-y-5">
+      <SetBreadcrumbLabel value={id} label={project.name} />
       <div>
         <Link
           href="/projets"

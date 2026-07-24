@@ -2,6 +2,7 @@ import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { notFound } from "next/navigation"
 import Link from "next/link"
+import { SetBreadcrumbLabel } from "@/components/layout/BreadcrumbContext"
 import { ChevronLeft, Download, Send, CheckCircle2, FileCheck2, Ban, Copy, Landmark } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { LineItemsEditor } from "@/components/modules/facturation/LineItemsEditor"
@@ -74,6 +75,7 @@ export default async function FactureDetailPage({
 
   return (
     <div className="max-w-4xl space-y-6">
+      <SetBreadcrumbLabel value={id} label={invoice.number} />
       <Link href="/facturation/factures" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
         <ChevronLeft className="h-4 w-4" /> Factures
       </Link>

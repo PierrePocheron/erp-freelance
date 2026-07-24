@@ -1,12 +1,13 @@
 "use client"
 
-import { useEffect, useState, useTransition } from "react"
+import { useEffect, useMemo, useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
-import { NotebookPen } from "lucide-react"
+import { NotebookPen, AlertTriangle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { generateEmailDrafts } from "@/actions/email-drafts"
+import { renderTemplate } from "@/lib/email-template"
 import type { EmailTemplateOption, SendTarget } from "./SendEmailDialog"
 import { toast } from "sonner"
 
@@ -42,6 +43,15 @@ export function PrepareDraftsDialog({
 
   const template = templates.find((t) => t.id === templateId) ?? null
   const withoutEmailCount = targets.filter((t) => !t.email?.trim()).length
+
+  // Variables du modèle non renseignées pour chaque prospect — signalées AVANT
+  // la génération (le brouillon est créé quand même, avec les trous à combler).
+  const withMissing = useMemo(() => {
+    if (!template) return []
+    return targets
+      .map((t) => ({ target: t, missing: renderTemplate(template, t).missing }))
+      .filter((r) => r.missing.length > 0)
+  }, [template, targets])
 
   function generate() {
     if (!template) return
@@ -104,6 +114,25 @@ export function PrepareDraftsDialog({
                 {withoutEmailCount} prospect{withoutEmailCount > 1 ? "s" : ""} sans email — brouillon créé
                 quand même, le destinataire sera à renseigner à la relecture.
               </p>
+            )}
+
+            {template && withMissing.length > 0 && (
+              <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 space-y-1">
+                <p className="flex items-center gap-1.5 text-xs font-medium text-amber-700 dark:text-amber-400">
+                  <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+                  {withMissing.length} prospect{withMissing.length > 1 ? "s" : ""} avec des variables non renseignées :
+                </p>
+                <ul className="text-xs text-amber-700/80 dark:text-amber-400/80 max-h-28 overflow-y-auto space-y-0.5">
+                  {withMissing.map((r) => (
+                    <li key={r.target.id} className="truncate">
+                      {r.target.name} — manque {r.missing.map((m) => `{{${m}}}`).join(", ")}
+                    </li>
+                  ))}
+                </ul>
+                <p className="text-[11px] text-amber-700/70 dark:text-amber-400/70">
+                  Le brouillon est créé quand même, avec ces trous signalés à la relecture. Complétez la fiche du prospect pour les combler.
+                </p>
+              </div>
             )}
 
             <div className="flex justify-end gap-2">

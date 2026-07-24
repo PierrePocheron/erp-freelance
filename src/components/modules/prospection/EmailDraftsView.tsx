@@ -52,12 +52,12 @@ export function EmailDraftsView({
 }) {
   const router = useRouter()
   const [confirmOpen, setConfirmOpen] = useState(false)
-  const [sentSectionOpen, setSentSectionOpen] = useState(false)
   const [isSending, startSending] = useTransition()
 
   const active = useMemo(() => drafts.filter((d) => d.status === "DRAFT" || d.status === "READY"), [drafts])
   const ready = useMemo(() => active.filter((d) => d.status === "READY"), [active])
-  const draftCount = active.length - ready.length
+  const toReview = useMemo(() => active.filter((d) => d.status === "DRAFT"), [active])
+  const draftCount = toReview.length
   const sentRecent = useMemo(() => drafts.filter((d) => d.status === "SENT"), [drafts])
 
   // Repli des cartes : replié par défaut (liste compacte), sauf s'il n'y a
@@ -141,8 +141,8 @@ export function EmailDraftsView({
         </div>
       </div>
 
-      {/* ── File active ── */}
-      {active.length === 0 ? (
+      {/* ── Sections repliables : À relire → Relus → Envoyés ── */}
+      {active.length === 0 && sentRecent.length === 0 ? (
         <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border py-10 text-center">
           <Inbox className="h-6 w-6 text-muted-foreground/50 mb-2" />
           <p className="text-sm text-muted-foreground">Aucun brouillon en file</p>
@@ -151,7 +151,7 @@ export function EmailDraftsView({
           </p>
         </div>
       ) : (
-        <div className="space-y-2">
+        <div className="space-y-4">
           {active.length > 1 && (
             <div className="flex justify-end">
               <button
@@ -163,30 +163,24 @@ export function EmailDraftsView({
               </button>
             </div>
           )}
-          {active.map((d) => (
-            <DraftCard
-              key={d.id}
-              draft={d}
-              open={openIds.has(d.id)}
-              onToggle={() => toggleOpen(d.id)}
-              onChanged={() => router.refresh()}
-            />
-          ))}
-        </div>
-      )}
 
-      {/* ── Envoyés récemment (repliée) ── */}
-      {sentRecent.length > 0 && (
-        <div className="rounded-xl border border-border/50 bg-card">
-          <button
-            onClick={() => setSentSectionOpen((v) => !v)}
-            className="flex w-full items-center gap-2 px-4 py-3 min-h-10 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
-          >
-            {sentSectionOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-            Envoyés récemment ({sentRecent.length})
-          </button>
-          {sentSectionOpen && (
-            <div className="divide-y divide-border/40 border-t border-border/40">
+          {/* À relire — toujours en premier, déplié par défaut */}
+          <DraftSection title="À relire" count={toReview.length} icon={PenLine} tone="amber" defaultOpen>
+            {toReview.map((d) => (
+              <DraftCard key={d.id} draft={d} open={openIds.has(d.id)} onToggle={() => toggleOpen(d.id)} onChanged={() => router.refresh()} />
+            ))}
+          </DraftSection>
+
+          {/* Relus — prêts à envoyer */}
+          <DraftSection title="Relus — prêts à envoyer" count={ready.length} icon={CheckCircle2} tone="emerald" defaultOpen>
+            {ready.map((d) => (
+              <DraftCard key={d.id} draft={d} open={openIds.has(d.id)} onToggle={() => toggleOpen(d.id)} onChanged={() => router.refresh()} />
+            ))}
+          </DraftSection>
+
+          {/* Envoyés récemment (7 j) — replié par défaut, avec la date d'envoi */}
+          <DraftSection title="Envoyés récemment" count={sentRecent.length} icon={Send} tone="muted">
+            <div className="divide-y divide-border/40 rounded-lg border border-border/50 overflow-hidden">
               {sentRecent.map((d) => (
                 <div key={d.id} className="px-4 py-2.5 text-sm">
                   <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
@@ -201,7 +195,7 @@ export function EmailDraftsView({
                 </div>
               ))}
             </div>
-          )}
+          </DraftSection>
         </div>
       )}
 
@@ -238,6 +232,37 @@ export function EmailDraftsView({
           </div>
         </DialogContent>
       </Dialog>
+    </div>
+  )
+}
+
+/** Section repliable groupant des brouillons par statut (à relire / relus / envoyés). */
+function DraftSection({
+  title, count, icon: Icon, tone, defaultOpen = false, children,
+}: {
+  title: string
+  count: number
+  icon: React.ElementType
+  tone: "amber" | "emerald" | "muted"
+  defaultOpen?: boolean
+  children: React.ReactNode
+}) {
+  const [open, setOpen] = useState(defaultOpen)
+  if (count === 0) return null
+  const toneCls = tone === "amber" ? "text-amber-600" : tone === "emerald" ? "text-emerald-600" : "text-muted-foreground"
+  return (
+    <div className="space-y-2">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="flex w-full items-center gap-2 text-sm font-semibold text-foreground/90 hover:text-foreground transition-colors"
+        aria-expanded={open}
+      >
+        {open ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
+        <Icon className={cn("h-4 w-4", toneCls)} />
+        <span>{title}</span>
+        <span className="font-normal text-muted-foreground">({count})</span>
+      </button>
+      {open && <div className="space-y-2 pl-0.5">{children}</div>}
     </div>
   )
 }

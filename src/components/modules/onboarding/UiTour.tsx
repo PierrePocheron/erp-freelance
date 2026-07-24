@@ -99,6 +99,7 @@ export function UiTour() {
   const [rect, setRect] = useState<DOMRect | null>(null)
   const [tip, setTip] = useState<{ top: number; left: number } | null>(null)
   const tipRef = useRef<HTMLDivElement>(null)
+  const touchStartX = useRef<number | null>(null)
 
   const start = useCallback(() => {
     const isDesktop = window.matchMedia("(min-width: 640px)").matches
@@ -215,7 +216,21 @@ export function UiTour() {
       {/* Bulle explicative */}
       <div
         ref={tipRef}
-        className="fixed rounded-2xl bg-background border border-border shadow-2xl overflow-hidden transition-[top,left] duration-300 ease-out"
+        onTouchStart={(e) => { touchStartX.current = e.touches[0]?.clientX ?? null }}
+        onTouchEnd={(e) => {
+          const start = touchStartX.current
+          touchStartX.current = null
+          if (start == null) return
+          const dx = (e.changedTouches[0]?.clientX ?? start) - start
+          if (Math.abs(dx) < 45) return // trop court → tap, pas un swipe
+          if (dx < 0) {                 // swipe vers la gauche → suivant / terminer
+            if (isLast) close()
+            else setIndex((i) => i + 1)
+          } else if (index > 0) {       // swipe vers la droite → précédent
+            setIndex((i) => i - 1)
+          }
+        }}
+        className="fixed rounded-2xl bg-background border border-border shadow-2xl overflow-hidden transition-[top,left] duration-300 ease-out touch-pan-y select-none"
         style={{
           width,
           top: tip?.top ?? -9999,

@@ -107,7 +107,7 @@ export function GmailPrepDialog({
   function markSentAndNext() {
     if (!current || !template) return
     startTransition(async () => {
-      await markProspectsContacted([current.id], "EMAIL", `Email "${template.name}" envoyé via Gmail`)
+      await markProspectsContacted([current.id], "EMAIL", `Email "${template.name}" envoyé via Gmail`, { id: template.id, name: template.name })
       setSentCount((c) => c + 1)
       advance()
     })

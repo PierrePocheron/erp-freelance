@@ -125,7 +125,12 @@ export async function updateProspectsStatusBulk(clientIds: string[], status: Pro
  * (canal choisi) sur chacun, et avance le statut TO_CONTACT → CONTACTED
  * (les statuts plus avancés ne sont pas rétrogradés).
  */
-export async function markProspectsContacted(clientIds: string[], channel: InteractionChannel, note?: string) {
+export async function markProspectsContacted(
+  clientIds: string[],
+  channel: InteractionChannel,
+  note?: string,
+  template?: { id: string; name: string } | null,
+) {
   const userId = await requireAuth()
   // Anti-IDOR : ne retient que les ids appartenant réellement à l'utilisateur.
   const owned = await prisma.client.findMany({
@@ -144,6 +149,8 @@ export async function markProspectsContacted(clientIds: string[], channel: Inter
       date: now,
       channel,
       summary: note?.trim() || `${channelLabels[channel] ?? "Contact"} de prospection`,
+      emailTemplateId: template?.id ?? null,
+      emailTemplateName: template?.name ?? null,
     })),
   })
   await prisma.client.updateMany({
@@ -520,6 +527,8 @@ export async function sendProspectionEmails(templateId: string, clientIds: strin
             date: now,
             channel: "EMAIL" as InteractionChannel,
             summary: `Email "${template.name}" envoyé via l'ERP`,
+            emailTemplateId: template.id,
+            emailTemplateName: template.name,
           })),
         })
         await prisma.client.updateMany({
@@ -582,6 +591,7 @@ export async function logProspectAction(
   clientId: string,
   kind: Exclude<ProspectEventKind, "STATUS_CHANGE">,
   note?: string,
+  template?: { id: string; name: string } | null,
 ) {
   const userId = await requireAuth()
   const current = await prisma.client.findFirst({
@@ -616,7 +626,11 @@ export async function logProspectAction(
       },
     })
     await tx.interaction.create({
-      data: { clientId, date: now, channel: interaction.channel, summary: interaction.summary },
+      data: {
+        clientId, date: now, channel: interaction.channel, summary: interaction.summary,
+        emailTemplateId: template?.id ?? null,
+        emailTemplateName: template?.name ?? null,
+      },
     })
     return ev
   })

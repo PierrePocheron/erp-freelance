@@ -195,8 +195,11 @@ export function ProspectionModeView({
 
   function runAction(kind: Exclude<ProspectEventKind, "STATUS_CHANGE">, note?: string) {
     const id = prospect.id
+    // Pour « Email envoyé », on trace le modèle sélectionné dans la carte email.
+    const t = kind === "EMAIL_SENT" ? templates.find((x) => x.id === templateId) : undefined
+    const tmpl = t ? { id: t.id, name: t.name } : null
     startTransition(async () => {
-      const { status: newStatus, event } = await logProspectAction(id, kind, note)
+      const { status: newStatus, event } = await logProspectAction(id, kind, note, tmpl)
       setStatusById((prev) => ({ ...prev, [id]: newStatus }))
       setEventsById((prev) => ({ ...prev, [id]: [event as ModeEvent, ...(prev[id] ?? [])] }))
       markHandled(id)

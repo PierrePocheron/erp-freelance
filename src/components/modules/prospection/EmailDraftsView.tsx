@@ -4,7 +4,7 @@ import { useMemo, useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
 import {
   AlertTriangle, CheckCircle2, ChevronDown, ChevronRight, FlaskConical, PenLine,
-  Send, Undo2, XCircle, Save, Inbox,
+  Send, Undo2, XCircle, Save, Inbox, ExternalLink, Copy,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -17,8 +17,10 @@ import {
   cancelEmailDraft,
   sendReadyDrafts,
   sendDraftTest,
+  markDraftSentManually,
 } from "@/actions/email-drafts"
 import { residualTemplateVars, isValidEmailAddress } from "@/lib/email-template"
+import { gmailComposeUrl, copyEmailBody } from "@/lib/gmail"
 import { WEBSITE_TYPE_CONFIG } from "./status-config"
 import type { WebsiteType } from "@/generated/prisma/enums"
 
@@ -337,6 +339,16 @@ function DraftCard({ draft, open, onToggle, onChanged }: { draft: DraftItem; ope
     run(() => cancelEmailDraft(draft.id), "Brouillon annulé (ne sera pas envoyé)")
   }
 
+  // ── Envoi manuel via Gmail (chemin sans Resend) ──
+  const openGmail = () =>
+    window.open(gmailComposeUrl({ to: emailTo.trim(), subject, body }), "_blank", "noopener,noreferrer")
+  const copyRich = async () => {
+    const ok = await copyEmailBody(body)
+    if (ok) toast.success("Corps copié — collez dans Gmail (Cmd/Ctrl+V), le gras est conservé")
+    else toast.error("Copie impossible")
+  }
+  const markSent = () => run(() => markDraftSentManually(draft.id), `« ${draft.client.name} » marqué envoyé`)
+
   const showMissingBadge = liveResidual.length > 0 || (storedMissing.length > 0 && !dirty)
 
   return (
@@ -462,6 +474,35 @@ function DraftCard({ draft, open, onToggle, onChanged }: { draft: DraftItem; ope
             <Undo2 className="h-3.5 w-3.5" /> Repasser en brouillon
           </Button>
         )}
+        {/* Envoi manuel via Gmail (Resend indisponible avec une adresse @gmail.com) */}
+        <Button
+          variant="outline"
+          onClick={openGmail}
+          disabled={isPending || !emailOk}
+          className="gap-1.5 h-10 sm:h-8"
+          title={emailOk ? "Ouvre Gmail avec ce mail pré-rempli (texte brut)" : "Destinataire vide ou invalide"}
+        >
+          <ExternalLink className="h-3.5 w-3.5" /> Ouvrir dans Gmail
+        </Button>
+        <Button
+          variant="outline"
+          onClick={copyRich}
+          disabled={isPending}
+          className="gap-1.5 h-10 sm:h-8"
+          title="Copie le corps avec le gras conservé — à coller dans Gmail (Cmd/Ctrl+V)"
+        >
+          <Copy className="h-3.5 w-3.5" /> Copier (gras)
+        </Button>
+        <Button
+          variant="outline"
+          onClick={markSent}
+          disabled={isPending || dirty || !emailOk}
+          className="gap-1.5 h-10 sm:h-8"
+          title={dirty ? "Enregistrez d'abord vos modifications" : !emailOk ? "Destinataire vide ou invalide" : "Marquer envoyé (après l'avoir envoyé depuis Gmail)"}
+        >
+          <CheckCircle2 className="h-3.5 w-3.5" /> Marquer envoyé
+        </Button>
+
         {/* Test dans SA boîte (compte connecté) — jamais vers le prospect */}
         <Button
           variant="outline"

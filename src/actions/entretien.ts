@@ -12,6 +12,13 @@ async function requireAuth() {
   return session.user.id
 }
 
+/** Anti-IDOR : ne renvoie l'id de contact que s'il appartient bien à l'utilisateur. */
+async function ownedContactId(userId: string, contactId?: string | null): Promise<string | null> {
+  if (!contactId) return null
+  const c = await prisma.client.findFirst({ where: { id: contactId, userId }, select: { id: true } })
+  return c?.id ?? null
+}
+
 type ApplicationInput = {
   companyName: string
   companyId?: string | null
@@ -194,7 +201,7 @@ export async function toggleApplicationPriority(id: string) {
 
 export async function addApplicationEvent(
   applicationId: string,
-  data: { date: string; type: JobEventType; title: string; notes?: string }
+  data: { date: string; type: JobEventType; title: string; notes?: string; contactId?: string | null }
 ) {
   const userId = await requireAuth()
   const app = await prisma.jobApplication.findFirst({
@@ -206,6 +213,7 @@ export async function addApplicationEvent(
     data: {
       userId,
       applicationId,
+      contactId: await ownedContactId(userId, data.contactId),
       date: new Date(data.date),
       type: data.type,
       title: data.title.trim(),
@@ -222,19 +230,22 @@ export async function addApplicationEvent(
  * événement passé (titre = libellé du point, date = date prévue), puis efface le
  * prochain point sur la candidature. En un clic depuis la fiche.
  */
-export async function completeNextAction(applicationId: string, type: JobEventType = "OTHER") {
+export async function completeNextAction(applicationId: string, type: JobEventType = "OTHER", contactId?: string | null) {
   const userId = await requireAuth()
   const app = await prisma.jobApplication.findFirst({
     where: { id: applicationId, userId },
-    select: { nextActionAt: true, nextActionLabel: true },
+    select: { nextActionAt: true, nextActionLabel: true, contactId: true },
   })
   if (!app) throw new Error("Non autorisé")
   if (!app.nextActionAt) throw new Error("Aucun prochain point à valider")
+  // Par défaut, on attribue le point au contact principal de la candidature.
+  const evContactId = await ownedContactId(userId, contactId ?? app.contactId)
   await prisma.$transaction([
     prisma.jobApplicationEvent.create({
       data: {
         userId,
         applicationId,
+        contactId: evContactId,
         date: app.nextActionAt,
         type,
         title: app.nextActionLabel?.trim() || "Rendez-vous",
@@ -312,7 +323,7 @@ export async function setEventOutcome(id: string, outcome: string) {
 
 export async function updateApplicationEvent(
   id: string,
-  data: { date?: string; type?: JobEventType; title?: string; notes?: string | null }
+  data: { date?: string; type?: JobEventType; title?: string; notes?: string | null; contactId?: string | null }
 ) {
   const userId = await requireAuth()
   const ev = await prisma.jobApplicationEvent.findFirst({
@@ -327,6 +338,7 @@ export async function updateApplicationEvent(
       ...(data.type !== undefined ? { type: data.type } : {}),
       ...(data.title !== undefined ? { title: data.title?.trim() || "" } : {}),
       ...(data.notes !== undefined ? { notes: data.notes?.trim() || null } : {}),
+      ...(data.contactId !== undefined ? { contactId: await ownedContactId(userId, data.contactId) } : {}),
     },
   })
   revalidatePath("/entretiens")

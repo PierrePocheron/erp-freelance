@@ -37,7 +37,10 @@ export default async function EntretienDetailPage({
           },
         },
         company: { select: { id: true, name: true, city: true, website: true } },
-        events: { orderBy: { date: "asc" } },
+        events: {
+          orderBy: { date: "asc" },
+          include: { contact: { select: { id: true, name: true, linkedinUrl: true } } },
+        },
         usedAnswers: {
           select: { id: true, question: true, answer: true, category: true },
           orderBy: [{ pinned: "desc" }, { updatedAt: "desc" }],
@@ -46,7 +49,7 @@ export default async function EntretienDetailPage({
     }),
     prisma.client.findMany({
       where: { userId, type: { not: "SELF" } },
-      select: { id: true, name: true, email: true, phone: true, company: true, linkedinUrl: true, type: true },
+      select: { id: true, name: true, email: true, phone: true, company: true, companyId: true, linkedinUrl: true, type: true },
       orderBy: [{ type: "asc" }, { name: "asc" }],
     }),
     prisma.company.findMany({

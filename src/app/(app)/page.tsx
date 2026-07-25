@@ -861,7 +861,7 @@ export default async function DashboardPage() {
           {has("projets") && <ProdMonitorCard prods={prods} />}
 
           {/* Entretiens — candidatures actives */}
-          {has("entretien") && <JobHuntCard applications={jobAppItems} activeCount={jobAppItems.length} />}
+          {has("entretien") && <JobHuntCard applications={jobAppItems} />}
 
           {/* Pipeline Prospects */}
           {has("prospection") && dashboardProspects.length > 0 && (

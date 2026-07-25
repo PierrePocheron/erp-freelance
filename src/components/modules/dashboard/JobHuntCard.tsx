@@ -23,10 +23,8 @@ export type DashboardJobApp = {
  */
 export function JobHuntCard({
   applications,
-  activeCount,
 }: {
   applications: DashboardJobApp[]   // candidatures actives avec prochain point, triées par date
-  activeCount: number
 }) {
   const { isActive } = useModules()
 
@@ -50,8 +48,8 @@ export function JobHuntCard({
 
       <div className="p-3 space-y-3">
         <Link href="/entretiens" className="flex items-baseline gap-2 px-1 hover:opacity-80 transition-opacity">
-          <span className="text-2xl font-bold">{activeCount}</span>
-          <span className="text-xs text-muted-foreground">candidature{activeCount > 1 ? "s" : ""} en cours</span>
+          <span className="text-2xl font-bold">{upcoming.length}</span>
+          <span className="text-xs text-muted-foreground">entretien{upcoming.length > 1 ? "s" : ""} prévu{upcoming.length > 1 ? "s" : ""}</span>
         </Link>
 
         {upcoming.length > 0 && (

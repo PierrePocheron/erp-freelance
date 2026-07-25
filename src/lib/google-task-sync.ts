@@ -8,6 +8,7 @@
 
 import { prisma } from "@/lib/prisma"
 import { getGoogleAccessToken, getErpCalendarId, pushGoogleEvent, deleteGoogleEvent } from "@/lib/google-calendar"
+import { meetingFormat } from "@/components/modules/entretien/status-config"
 
 function hasTime(d: Date): boolean {
   return d.getHours() !== 0 || d.getMinutes() !== 0
@@ -141,7 +142,7 @@ export async function syncJobApplicationGoogleState(userId: string, applicationI
       where: { id: applicationId, userId },
       select: {
         companyName: true, position: true, location: true,
-        nextActionAt: true, nextActionLabel: true, googleEventId: true,
+        nextActionAt: true, nextActionLabel: true, nextActionFormat: true, googleEventId: true,
       },
     })
     if (!app) return
@@ -161,12 +162,14 @@ export async function syncJobApplicationGoogleState(userId: string, applicationI
 
     const timed = hasTime(app.nextActionAt)
     const end = timed ? new Date(app.nextActionAt.getTime() + 60 * 60 * 1000) : app.nextActionAt
+    const fmt = meetingFormat(app.nextActionFormat)
+    const description = [fmt ? `${fmt.icon} ${fmt.label}` : null, app.location].filter(Boolean).join(" · ") || undefined
     const { id: googleEventId, updated } = await pushGoogleEvent(
       accessToken,
       calendarId,
       {
         summary: `💼 ${app.companyName} — ${app.nextActionLabel ?? app.position}`,
-        description: app.location ?? undefined,
+        description,
         start: app.nextActionAt,
         end,
         allDay: !timed,

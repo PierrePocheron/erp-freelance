@@ -19,6 +19,7 @@ import {
 } from "@/actions/entretien"
 import {
   STATUS_CONFIG, PIPELINE_STATUSES, OUTCOME_STATUSES, EVENT_TYPE_CONFIG,
+  MEETING_FORMATS, meetingFormat,
   fmtDate, fmtDateTime, type JobAppStatus,
 } from "./status-config"
 import type { JobEventType, JobApplicationStatus } from "@/generated/prisma/enums"
@@ -74,6 +75,7 @@ type DetailApp = {
   appliedAt: Date | string | null
   nextActionAt: Date | string | null
   nextActionLabel: string | null
+  nextActionFormat: string | null
   competencyDossierValidated: boolean
   competencyDossierUrl: string | null
   closedAt: Date | string | null
@@ -442,6 +444,7 @@ export function ApplicationDetailView({
   const [fApplied, setFApplied] = useState(toDateInput(app.appliedAt))
   const [fNextAt, setFNextAt] = useState(toDateInput(app.nextActionAt))
   const [fNextLabel, setFNextLabel] = useState(app.nextActionLabel ?? "")
+  const [fNextFormat, setFNextFormat] = useState(app.nextActionFormat ?? "")
   const [fDossierValidated, setFDossierValidated] = useState(app.competencyDossierValidated)
   const [fDossierUrl, setFDossierUrl] = useState(app.competencyDossierUrl ?? "")
   const [fNotes, setFNotes] = useState(app.notes ?? "")
@@ -464,7 +467,7 @@ export function ApplicationDetailView({
     setFSource(app.source ?? ""); setFUrl(app.url ?? "")
     setFSalaryMin(app.salaryMin?.toString() ?? ""); setFSalaryMax(app.salaryMax?.toString() ?? ""); setFSalaryNote(app.salaryNote ?? "")
     setFContactId(app.contactId ?? "")
-    setFApplied(toDateInput(app.appliedAt)); setFNextAt(toDateInput(app.nextActionAt)); setFNextLabel(app.nextActionLabel ?? "")
+    setFApplied(toDateInput(app.appliedAt)); setFNextAt(toDateInput(app.nextActionAt)); setFNextLabel(app.nextActionLabel ?? ""); setFNextFormat(app.nextActionFormat ?? "")
     setFDossierValidated(app.competencyDossierValidated); setFDossierUrl(app.competencyDossierUrl ?? "")
     setFNotes(app.notes ?? "")
     setConfirmDelete(false)
@@ -493,6 +496,7 @@ export function ApplicationDetailView({
         appliedAt: fApplied || null,
         nextActionAt: fNextAt || null,
         nextActionLabel: fNextLabel,
+        nextActionFormat: fNextFormat || null,
         competencyDossierValidated: fDossierValidated,
         competencyDossierUrl: fDossierUrl,
         notes: fNotes,
@@ -756,7 +760,11 @@ export function ApplicationDetailView({
           {editing ? (
             <div className="space-y-2">
               <input type="date" value={fNextAt} onChange={(e) => setFNextAt(e.target.value)} className={inputCls} />
-              <input value={fNextLabel} onChange={(e) => setFNextLabel(e.target.value)} placeholder="Ex : Entretien technique avec le CTO" className={inputCls} />
+              <input value={fNextLabel} onChange={(e) => setFNextLabel(e.target.value)} placeholder="Ex : Entretien technique" className={inputCls} />
+              <select value={fNextFormat} onChange={(e) => setFNextFormat(e.target.value)} className={inputCls}>
+                <option value="">Format — à préciser</option>
+                {MEETING_FORMATS.map((f) => <option key={f.value} value={f.value}>{f.icon} {f.label}</option>)}
+              </select>
             </div>
           ) : app.nextActionAt ? (
             <div className="space-y-2">
@@ -767,6 +775,11 @@ export function ApplicationDetailView({
                   <p className={cn("text-xs", nextOverdue ? "text-red-500" : "text-amber-600")}>
                     {fmtDateTime(app.nextActionAt)}{nextOverdue ? " · en retard" : ""}
                   </p>
+                  {meetingFormat(app.nextActionFormat) && (
+                    <p className="mt-0.5 text-xs text-muted-foreground">
+                      {meetingFormat(app.nextActionFormat)!.icon} {meetingFormat(app.nextActionFormat)!.label}
+                    </p>
+                  )}
                 </div>
               </div>
               <button

@@ -47,3 +47,19 @@ export const EVENT_TYPE_CONFIG: Record<string, { label: string; icon: string }> 
   OFFER:          { label: "Offre",          icon: "🎯" },
   OTHER:          { label: "Autre",          icon: "•"  },
 }
+
+// Format d'un rendez-vous (présentiel / distanciel / visio…) — utile sur tous les process.
+export const MEETING_FORMATS: { value: string; label: string; icon: string }[] = [
+  { value: "PRESENTIEL", label: "Présentiel",          icon: "🏢" },
+  { value: "TELEPHONE",  label: "Téléphonique",        icon: "📞" },
+  { value: "TEAMS",      label: "Visio — Teams",       icon: "🎥" },
+  { value: "ZOOM",       label: "Visio — Zoom",        icon: "🎥" },
+  { value: "MEET",       label: "Visio — Google Meet", icon: "🎥" },
+  { value: "VISIO",      label: "Visio (autre)",       icon: "🎥" },
+  { value: "DISTANCIEL", label: "Distanciel",          icon: "💻" },
+]
+
+/** Config d'un format de RDV depuis sa valeur stockée (ou null si absent/inconnu). */
+export function meetingFormat(value: string | null | undefined) {
+  return value ? MEETING_FORMATS.find((f) => f.value === value) ?? null : null
+}

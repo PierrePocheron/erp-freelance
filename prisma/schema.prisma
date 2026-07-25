@@ -1592,6 +1592,7 @@ model JobApplication {
   appliedAt   DateTime?                           // date de candidature
   nextActionAt    DateTime?                        // prochain point / RDV
   nextActionLabel String?                          // libellé du prochain point
+  nextActionFormat String?                         // format du RDV (présentiel, téléphonique, visio Teams/Zoom/Meet, distanciel…)
   closedAt    DateTime?                           // date de clôture (accepté/refusé/désisté)
 
   // Dossier de compétences — parfois demandé après le premier entretien

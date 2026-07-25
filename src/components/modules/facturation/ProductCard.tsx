@@ -221,7 +221,7 @@ export function ProductCard({ product, userId }: { product: Product; userId: str
         </div>
         <div className="flex items-center gap-3 shrink-0">
           <div className="text-right">
-            <p className="font-bold">{product.unitPrice.toLocaleString("fr-FR", { minimumFractionDigits: 2 })} €</p>
+            <p className="font-bold amount-sensitive">{product.unitPrice.toLocaleString("fr-FR", { minimumFractionDigits: 2 })} €</p>
             <p className="text-xs text-muted-foreground">/ {unitLabels[product.unit] ?? product.unit}</p>
           </div>
           <div className="flex items-center gap-1 md:opacity-0 md:group-hover:opacity-100 focus:opacity-100 transition-opacity">

@@ -112,7 +112,7 @@ export default async function ClientProjetsPage({
                     <td className="px-4 py-2.5">
                       <QuoteStatusBadge status={q.status} />
                     </td>
-                    <td className="px-4 py-2.5 text-right font-medium">{q.totalHT.toLocaleString("fr-FR")} €</td>
+                    <td className="px-4 py-2.5 text-right font-medium amount-sensitive">{q.totalHT.toLocaleString("fr-FR")} €</td>
                     <td className="px-4 py-2.5 text-muted-foreground text-xs">
                       {new Date(q.createdAt).toLocaleDateString("fr-FR")}
                     </td>
@@ -147,7 +147,7 @@ export default async function ClientProjetsPage({
                     <td className="px-4 py-2.5">
                       <InvoiceStatusBadge status={inv.status} />
                     </td>
-                    <td className="px-4 py-2.5 text-right font-medium">{inv.totalHT.toLocaleString("fr-FR")} €</td>
+                    <td className="px-4 py-2.5 text-right font-medium amount-sensitive">{inv.totalHT.toLocaleString("fr-FR")} €</td>
                     <td className="px-4 py-2.5 text-muted-foreground text-xs">
                       {new Date(inv.createdAt).toLocaleDateString("fr-FR")}
                     </td>

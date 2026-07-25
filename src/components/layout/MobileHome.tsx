@@ -116,6 +116,7 @@ export function MobileHome({ pendingAmount, toConfirmCount, incomplete }: Mobile
                 label="En attente de réception"
                 value={`${pendingAmount.toLocaleString("fr-FR")} €`}
                 valueClass="text-amber-600"
+                sensitive
               />
             )}
 
@@ -139,13 +140,14 @@ export function MobileHome({ pendingAmount, toConfirmCount, incomplete }: Mobile
 }
 
 function InfoCard({
-  href, icon, label, value, valueClass,
+  href, icon, label, value, valueClass, sensitive,
 }: {
   href: string
   icon: React.ReactNode
   label: string
   value: string | number
   valueClass?: string
+  sensitive?: boolean
 }) {
   return (
     <Link
@@ -154,7 +156,7 @@ function InfoCard({
     >
       {icon}
       <span className="flex-1 text-sm font-medium">{label}</span>
-      <span className={cn("text-sm font-bold tabular-nums", valueClass)}>{value}</span>
+      <span className={cn("text-sm font-bold tabular-nums", sensitive && "amount-sensitive", valueClass)}>{value}</span>
       <ChevronRight className="h-4 w-4 text-muted-foreground" />
     </Link>
   )

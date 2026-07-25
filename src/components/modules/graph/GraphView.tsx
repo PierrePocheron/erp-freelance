@@ -784,7 +784,7 @@ export function GraphView({ rawNodes, rawLinks }: { rawNodes: RawNode[]; rawLink
               {selected.amount !== undefined && (
                 <div className="rounded-xl border border-border p-3 text-center">
                   <p className="text-xs text-muted-foreground mb-0.5">Montant HT</p>
-                  <p className="text-lg font-bold tabular-nums">
+                  <p className="text-lg font-bold tabular-nums amount-sensitive">
                     {selected.amount.toLocaleString("fr-FR", { minimumFractionDigits: 0 })} €
                   </p>
                 </div>

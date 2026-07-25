@@ -110,7 +110,7 @@ export function PendingIncomeCard({
           <h2 className="text-sm font-semibold">En attente de réception</h2>
           <span className="text-xs text-muted-foreground">({items.length})</span>
         </div>
-        <p className="text-lg font-bold tabular-nums text-amber-600">{eur(grandTotal)}</p>
+        <p className="text-lg font-bold tabular-nums text-amber-600 amount-sensitive">{eur(grandTotal)}</p>
       </div>
 
       <div className="p-2 space-y-0.5">
@@ -153,7 +153,7 @@ export function PendingIncomeCard({
                   {item.subtitle && <p className="text-xs text-muted-foreground truncate">{item.subtitle}</p>}
                 </div>
                 <div className="text-right shrink-0">
-                  <p className={cn("text-sm font-semibold tabular-nums", item.isLate && "text-red-500")}>{eur(item.amount)}</p>
+                  <p className={cn("text-sm font-semibold tabular-nums amount-sensitive", item.isLate && "text-red-500")}>{eur(item.amount)}</p>
                   {item.date && (
                     <p className={cn("text-xs", item.isLate ? "text-red-500" : "text-muted-foreground")}>
                       {item.isLate ? "en retard · " : "prévu "}{fmtDate(item.date)}

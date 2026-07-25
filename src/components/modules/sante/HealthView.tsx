@@ -194,16 +194,16 @@ export function HealthView({
             <span className="text-xs text-muted-foreground block">{fmtShort(c.date)}</span>
             {c.cost != null && (
               <>
-                <span className="text-xs font-medium block">{c.cost.toFixed(0)} € payé</span>
+                <span className="text-xs font-medium block amount-sensitive">{c.cost.toFixed(0)} € payé</span>
                 {settled ? (
                   <span className="text-[10px] text-emerald-600 block">✓ Remboursé</span>
                 ) : (
                   <>
                     {pending > 0 && (
-                      <span className="text-[10px] text-amber-600 block">{pending.toFixed(0)} € attendu</span>
+                      <span className="text-[10px] text-amber-600 block amount-sensitive">{pending.toFixed(0)} € attendu</span>
                     )}
                     {remaining - pending > 0.01 && (
-                      <span className="text-[10px] text-muted-foreground block">
+                      <span className="text-[10px] text-muted-foreground block amount-sensitive">
                         {(remaining - pending).toFixed(0)} € à charge
                       </span>
                     )}
@@ -252,7 +252,7 @@ export function HealthView({
             </span>
           </div>
           <p className={cn(
-            "text-sm font-semibold transition-colors",
+            "text-sm font-semibold transition-colors amount-sensitive",
             isPending ? "text-amber-700 group-hover:text-amber-600" : "text-emerald-700 group-hover:text-emerald-600"
           )}>
             {isPending ? "" : "+"}{r.amount.toFixed(2)} €
@@ -339,12 +339,12 @@ export function HealthView({
           <StatCard
             icon={<Wallet className="h-4 w-4 text-amber-500" />}
             label={`Dépensé ${currentYear}`}
-            value={`${stats.spentThisYear.toFixed(2)} €`}
+            value={<span className="amount-sensitive">{stats.spentThisYear.toFixed(2)} €</span>}
           />
           <StatCard
             icon={<Heart className="h-4 w-4 text-emerald-500" />}
             label={`Remboursé ${currentYear}`}
-            value={`${stats.reimbursedThisYear.toFixed(2)} €`}
+            value={<span className="amount-sensitive">{stats.reimbursedThisYear.toFixed(2)} €</span>}
             positive
           />
           <StatCard
@@ -362,7 +362,7 @@ export function HealthView({
               <div className="flex items-center gap-2">
                 <Clock className="h-4 w-4 text-amber-600" />
                 <div>
-                  <p className="text-sm font-semibold text-amber-700 dark:text-amber-400">
+                  <p className="text-sm font-semibold text-amber-700 dark:text-amber-400 amount-sensitive">
                     {pendingTotal.toFixed(2)} € en attente de remboursement
                   </p>
                   <p className="text-xs text-muted-foreground">
@@ -374,13 +374,13 @@ export function HealthView({
                 {pendingSecu > 0 && (
                   <div className="text-right">
                     <p className="text-muted-foreground">Sécu</p>
-                    <p className="font-semibold text-amber-700 dark:text-amber-400">{pendingSecu.toFixed(2)} €</p>
+                    <p className="font-semibold text-amber-700 dark:text-amber-400 amount-sensitive">{pendingSecu.toFixed(2)} €</p>
                   </div>
                 )}
                 {pendingMutuelle > 0 && (
                   <div className="text-right">
                     <p className="text-muted-foreground">Mutuelle</p>
-                    <p className="font-semibold text-amber-700 dark:text-amber-400">{pendingMutuelle.toFixed(2)} €</p>
+                    <p className="font-semibold text-amber-700 dark:text-amber-400 amount-sensitive">{pendingMutuelle.toFixed(2)} €</p>
                   </div>
                 )}
               </div>
@@ -511,7 +511,7 @@ export function HealthView({
 function StatCard({
   icon, label, value, positive, highlight,
 }: {
-  icon: React.ReactNode; label: string; value: string | number; positive?: boolean; highlight?: boolean
+  icon: React.ReactNode; label: string; value: React.ReactNode; positive?: boolean; highlight?: boolean
 }) {
   return (
     <div className={cn(

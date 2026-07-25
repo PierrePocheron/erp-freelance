@@ -87,8 +87,8 @@ export function InvoicePaymentSection({
       {/* Barre de progression */}
       <div className="space-y-1.5">
         <div className="flex justify-between text-xs text-muted-foreground">
-          <span>{fmtEur(totalPaid)} payé</span>
-          <span>Total dû : {fmtEur(netAmount)}</span>
+          <span><span className="amount-sensitive">{fmtEur(totalPaid)}</span> payé</span>
+          <span>Total dû : <span className="amount-sensitive">{fmtEur(netAmount)}</span></span>
         </div>
         <div className="h-1.5 bg-muted rounded-full overflow-hidden">
           <div
@@ -101,7 +101,7 @@ export function InvoicePaymentSection({
             <CheckCircle2 className="h-3 w-3" /> Intégralement payée
           </p>
         ) : remaining > 0 ? (
-          <p className="text-xs text-muted-foreground">Reste à percevoir : <span className="font-medium text-foreground">{fmtEur(remaining)}</span></p>
+          <p className="text-xs text-muted-foreground">Reste à percevoir : <span className="font-medium text-foreground amount-sensitive">{fmtEur(remaining)}</span></p>
         ) : null}
       </div>
 
@@ -111,7 +111,7 @@ export function InvoicePaymentSection({
           {payments.map((p) => (
             <div key={p.id} className="flex items-center gap-3 py-1.5 text-sm group border-b border-border/40 last:border-0">
               <span className="text-muted-foreground text-xs w-28 shrink-0">{fmtDate(p.paidAt)}</span>
-              <span className="font-medium tabular-nums">{fmtEur(p.amount)}</span>
+              <span className="font-medium tabular-nums amount-sensitive">{fmtEur(p.amount)}</span>
               {p.note
                 ? <span className="text-xs text-muted-foreground flex-1 truncate">{p.note}</span>
                 : <span className="flex-1" />}

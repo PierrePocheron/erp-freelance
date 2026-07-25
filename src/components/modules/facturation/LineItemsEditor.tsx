@@ -152,7 +152,7 @@ function LineForm({
         </div>
         <div className="ml-auto text-sm font-medium text-right">
           <span className="text-muted-foreground text-xs mr-1">Sous-total HT</span>
-          {fmtEur(subtotal)}
+          <span className="amount-sensitive">{fmtEur(subtotal)}</span>
         </div>
       </div>
 
@@ -254,14 +254,14 @@ export function LineItemsEditor({ entityId, entityType, lines, editable = true }
               )}
             </div>
             <div className="col-span-1 text-right text-muted-foreground">{line.quantity}</div>
-            <div className="col-span-2 text-right text-muted-foreground">{fmtEur(line.unitPrice)}</div>
+            <div className="col-span-2 text-right text-muted-foreground amount-sensitive">{fmtEur(line.unitPrice)}</div>
             <div className="col-span-1 text-center">
               <span className="text-xs rounded-full px-1.5 py-0.5 bg-muted text-muted-foreground">
                 {fmtTaxLabel(line.taxRate)}
               </span>
             </div>
             <div className="col-span-2 flex items-center justify-end gap-2">
-              <span className="font-semibold">{fmtEur(line.total)}</span>
+              <span className="font-semibold amount-sensitive">{fmtEur(line.total)}</span>
               {editable && (
                 <>
                   <button
@@ -309,7 +309,7 @@ export function LineItemsEditor({ entityId, entityType, lines, editable = true }
         <div className="space-y-1.5 min-w-56">
           <div className="flex items-center justify-between gap-8 text-sm">
             <span className="text-muted-foreground">Total HT</span>
-            <span className="font-medium">{fmtEur(totalHT)}</span>
+            <span className="font-medium amount-sensitive">{fmtEur(totalHT)}</span>
           </div>
 
           {allZeroTax ? (
@@ -322,12 +322,12 @@ export function LineItemsEditor({ entityId, entityType, lines, editable = true }
                 .map(([rate, amount]) => (
                   <div key={rate} className="flex items-center justify-between gap-8 text-sm">
                     <span className="text-muted-foreground">TVA {fmtTaxLabel(Number(rate))}</span>
-                    <span className="text-muted-foreground">{fmtEur(amount)}</span>
+                    <span className="text-muted-foreground amount-sensitive">{fmtEur(amount)}</span>
                   </div>
                 ))}
               <div className="border-t border-border pt-1.5 flex items-center justify-between gap-8 text-sm">
                 <span className="font-bold">Total TTC</span>
-                <span className="font-bold text-base">{fmtEur(totalTTC)}</span>
+                <span className="font-bold text-base amount-sensitive">{fmtEur(totalTTC)}</span>
               </div>
             </>
           )}
@@ -335,7 +335,7 @@ export function LineItemsEditor({ entityId, entityType, lines, editable = true }
           {allZeroTax && (
             <div className="flex items-center justify-between gap-8 text-sm border-t border-border pt-1.5">
               <span className="font-bold">Total</span>
-              <span className="font-bold text-base">{fmtEur(totalHT)}</span>
+              <span className="font-bold text-base amount-sensitive">{fmtEur(totalHT)}</span>
             </div>
           )}
         </div>

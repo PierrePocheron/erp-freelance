@@ -126,10 +126,10 @@ export function ImpotsView({
 
       {/* Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <StatCard label={`CA déclaré ${year}`}    value={`${fmt(declaredCA)} €`}  icon={Receipt} />
-        <StatCard label="Cotisations payées"      value={`${fmt(paidTotal)} €`}   icon={Wallet} accent="emerald" />
+        <StatCard label={`CA déclaré ${year}`}    value={`${fmt(declaredCA)} €`}  icon={Receipt} sensitive />
+        <StatCard label="Cotisations payées"      value={`${fmt(paidTotal)} €`}   icon={Wallet} accent="emerald" sensitive />
         <StatCard label={`À déclarer (${periodLabel(periodToDeclare).split(" · ")[0]})`}
-                  value={`${fmt(pendingToDeclare)} €`} icon={Clock} accent={pendingToDeclare > 0 ? "amber" : undefined} />
+                  value={`${fmt(pendingToDeclare)} €`} icon={Clock} accent={pendingToDeclare > 0 ? "amber" : undefined} sensitive />
         <StatCard label="Prochaine échéance"      value={fmtDate(nextDue)}        icon={AlertTriangle}
                   accent={nextDue && new Date(nextDue) < new Date() ? "red" : undefined} />
       </div>
@@ -185,9 +185,10 @@ export function ImpotsView({
 
 // ── Stat card ──────────────────────────────────────────────────────────────────
 
-function StatCard({ label, value, icon: Icon, accent }: {
+function StatCard({ label, value, icon: Icon, accent, sensitive }: {
   label: string; value: string; icon: React.ElementType
   accent?: "emerald" | "amber" | "red"
+  sensitive?: boolean
 }) {
   const accentCls =
     accent === "emerald" ? "text-emerald-600 dark:text-emerald-400" :
@@ -199,7 +200,7 @@ function StatCard({ label, value, icon: Icon, accent }: {
         <Icon className="h-3.5 w-3.5" />
         {label}
       </div>
-      <p className={`text-xl font-bold tabular-nums ${accentCls}`}>{value}</p>
+      <p className={`text-xl font-bold tabular-nums ${accentCls}${sensitive ? " amount-sensitive" : ""}`}>{value}</p>
     </div>
   )
 }
@@ -259,14 +260,16 @@ function DeclarationCard({ declaration: d, expanded, onToggle, onPay, rates, vlE
           </div>
           <p className="text-xs text-muted-foreground mt-0.5">
             {d.status === "PAID"
-              ? `Payé ${fmt(d.totalPaid)} € le ${fmtDate(d.paidAt)}`
+              ? <>Payé <span className="amount-sensitive">{fmt(d.totalPaid)} €</span> le {fmtDate(d.paidAt)}</>
               : `Échéance ${fmtDate(d.dueDate)}`}
           </p>
         </div>
         <div className="text-right shrink-0">
-          <p className="font-bold tabular-nums">{fmt(totalCA)} €</p>
+          <p className="font-bold tabular-nums amount-sensitive">{fmt(totalCA)} €</p>
           <p className="text-xs text-muted-foreground tabular-nums">
-            {d.status === "PAID" ? `${fmt(d.totalPaid)} € URSSAF` : `~${fmt(estimate.totalDue)} € estimés`}
+            {d.status === "PAID"
+              ? <><span className="amount-sensitive">{fmt(d.totalPaid)} €</span> URSSAF</>
+              : <>~<span className="amount-sensitive">{fmt(estimate.totalDue)} €</span> estimés</>}
           </p>
         </div>
         {expanded ? <ChevronUp className="h-4 w-4 text-muted-foreground shrink-0" /> : <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />}
@@ -296,7 +299,7 @@ function DeclarationCard({ declaration: d, expanded, onToggle, onPay, rates, vlE
                             </Link>
                           )}
                         </span>
-                        <span className="font-medium tabular-nums shrink-0">{fmt(l.amount)} €</span>
+                        <span className="font-medium tabular-nums shrink-0 amount-sensitive">{fmt(l.amount)} €</span>
                       </div>
                     ))}
                   </div>
@@ -305,7 +308,7 @@ function DeclarationCard({ declaration: d, expanded, onToggle, onPay, rates, vlE
                       Cotisations {rates[cat].cotisations} %{vlEnabled ? ` + VL ${rates[cat].vl} %` : ""}
                     </span>
                     <span className="font-semibold tabular-nums">
-                      {fmt(catTotal)} € → {fmt(est.cotisations + est.vl + est.cfp)} €
+                      <span className="amount-sensitive">{fmt(catTotal)} €</span> → <span className="amount-sensitive">{fmt(est.cotisations + est.vl + est.cfp)} €</span>
                     </span>
                   </div>
                 </div>
@@ -357,11 +360,11 @@ function RecapPill({ label, estimate, actual, highlight }: {
   return (
     <div className={`rounded-lg border p-2.5 ${highlight ? "border-primary/40 bg-primary/5" : "border-border bg-card"}`}>
       <p className="text-[10px] text-muted-foreground uppercase tracking-wide">{label}</p>
-      <p className="text-sm font-bold tabular-nums">
+      <p className="text-sm font-bold tabular-nums amount-sensitive">
         {actual !== null ? `${fmt(actual)} €` : `~${fmt(estimate)} €`}
       </p>
       {actual !== null && actual !== estimate && (
-        <p className="text-[10px] text-muted-foreground tabular-nums">estimé {fmt(estimate)} €</p>
+        <p className="text-[10px] text-muted-foreground tabular-nums">estimé <span className="amount-sensitive">{fmt(estimate)} €</span></p>
       )}
     </div>
   )
@@ -573,12 +576,12 @@ function NewDeclarationDialog({
 
           {/* Estimation */}
           <div className="rounded-lg border border-border bg-muted/40 p-3 space-y-1 text-xs">
-            <Row label={`CA total (${included.length} ligne${included.length > 1 ? "s" : ""})`} value={`${fmt(estimate.totalCA)} €`} bold />
-            <Row label="Cotisations sociales" value={`${fmt(estimate.totalCotisations)} €`} />
-            <Row label="CFP" value={`${fmt(estimate.totalCFP)} €`} />
-            {vlEnabled && <Row label="Versement libératoire" value={`${fmt(estimate.totalVL)} €`} />}
+            <Row label={`CA total (${included.length} ligne${included.length > 1 ? "s" : ""})`} value={`${fmt(estimate.totalCA)} €`} bold sensitive />
+            <Row label="Cotisations sociales" value={`${fmt(estimate.totalCotisations)} €`} sensitive />
+            <Row label="CFP" value={`${fmt(estimate.totalCFP)} €`} sensitive />
+            {vlEnabled && <Row label="Versement libératoire" value={`${fmt(estimate.totalVL)} €`} sensitive />}
             <div className="border-t border-border pt-1">
-              <Row label="Total URSSAF estimé" value={`${fmt(estimate.totalDue)} €`} bold accent />
+              <Row label="Total URSSAF estimé" value={`${fmt(estimate.totalDue)} €`} bold accent sensitive />
             </div>
           </div>
 
@@ -623,7 +626,7 @@ function DeclarationLineRow({ line: l, onToggle, onCategory }: {
           <option key={c} value={c}>{FISCAL_CATEGORY_SHORT[c]}</option>
         ))}
       </select>
-      <span className="text-xs font-semibold tabular-nums shrink-0 w-16 text-right">{fmt(l.amount)} €</span>
+      <span className="text-xs font-semibold tabular-nums shrink-0 w-16 text-right amount-sensitive">{fmt(l.amount)} €</span>
     </div>
   )
 }
@@ -684,7 +687,7 @@ function PayDialog({ declaration: d, rates, vlEnabled, onClose, onSaved }: {
       </div>
       <div className="rounded-lg border border-primary/40 bg-primary/5 p-3 flex items-center justify-between">
         <span className="text-xs font-medium">Total payé</span>
-        <span className="text-sm font-bold tabular-nums">{fmt(total)} €</span>
+        <span className="text-sm font-bold tabular-nums amount-sensitive">{fmt(total)} €</span>
       </div>
 
       {error && <p className="text-xs text-red-600">{error}</p>}
@@ -733,13 +736,13 @@ function Field({ label, value, onChange }: {
   )
 }
 
-function Row({ label, value, bold, accent }: {
-  label: string; value: string; bold?: boolean; accent?: boolean
+function Row({ label, value, bold, accent, sensitive }: {
+  label: string; value: string; bold?: boolean; accent?: boolean; sensitive?: boolean
 }) {
   return (
     <div className="flex items-center justify-between">
       <span className={accent ? "font-semibold" : "text-muted-foreground"}>{label}</span>
-      <span className={`tabular-nums ${bold ? "font-bold" : "font-medium"} ${accent ? "text-primary" : ""}`}>{value}</span>
+      <span className={`tabular-nums ${bold ? "font-bold" : "font-medium"} ${accent ? "text-primary" : ""}${sensitive ? " amount-sensitive" : ""}`}>{value}</span>
     </div>
   )
 }

@@ -451,7 +451,7 @@ export default async function DevisDetailPage({
           <h2 className="font-semibold text-sm">Prestations</h2>
           {quote.depositPercent > 0 && (
             <span className="text-xs text-muted-foreground">
-              Acompte {quote.depositPercent}% · {depositAmount.toLocaleString("fr-FR", { minimumFractionDigits: 2 })} €
+              Acompte {quote.depositPercent}% · <span className="amount-sensitive">{depositAmount.toLocaleString("fr-FR", { minimumFractionDigits: 2 })} €</span>
             </span>
           )}
         </div>
@@ -470,15 +470,15 @@ export default async function DevisDetailPage({
           <div className="space-y-1.5 text-sm max-w-xs ml-auto">
             <div className="flex justify-between">
               <span className="text-muted-foreground">Total HT</span>
-              <span>{totalHT.toLocaleString("fr-FR", { minimumFractionDigits: 2 })} €</span>
+              <span className="amount-sensitive">{totalHT.toLocaleString("fr-FR", { minimumFractionDigits: 2 })} €</span>
             </div>
             <div className="flex justify-between">
               <span className="text-muted-foreground">Total TVA</span>
-              <span>{totalTVA.toLocaleString("fr-FR", { minimumFractionDigits: 2 })} €</span>
+              <span className="amount-sensitive">{totalTVA.toLocaleString("fr-FR", { minimumFractionDigits: 2 })} €</span>
             </div>
             <div className="flex justify-between font-bold border-t border-border pt-1.5">
               <span>Total TTC</span>
-              <span className="text-primary text-base">{totalTTC.toLocaleString("fr-FR", { minimumFractionDigits: 2 })} €</span>
+              <span className="text-primary text-base amount-sensitive">{totalTTC.toLocaleString("fr-FR", { minimumFractionDigits: 2 })} €</span>
             </div>
           </div>
         </div>

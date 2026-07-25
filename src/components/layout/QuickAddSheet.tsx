@@ -554,7 +554,7 @@ function RevenueQuickList() {
               </span>
             )}
           </span>
-          <span className="shrink-0 text-sm font-semibold tabular-nums text-foreground">
+          <span className="shrink-0 text-sm font-semibold tabular-nums text-foreground amount-sensitive">
             {formatEuro(rev.amount)}
           </span>
         </button>

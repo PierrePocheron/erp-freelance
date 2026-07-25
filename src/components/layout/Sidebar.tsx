@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { useEffect, useState } from "react"
+import { useEffect, useLayoutEffect, useRef, useState } from "react"
 import pkg from "../../../package.json"
 import {
   LayoutDashboard,
@@ -58,11 +58,22 @@ export const navItems: NavItem[] = [
 
 const STORAGE_KEY = "erp-sidebar-expanded"
 
+// useLayoutEffect côté serveur émet un warning → variante isomorphe (mesure DOM
+// avant peinture pour éviter tout saut de l'indicateur au montage).
+const useIsoLayoutEffect = typeof window !== "undefined" ? useLayoutEffect : useEffect
+
 export function Sidebar() {
   const pathname = usePathname()
   const [expanded, setExpanded] = useState(false)
   const [mounted, setMounted] = useState(false)
   const { isActive } = useModules()
+
+  const navRef = useRef<HTMLElement>(null)
+  // Indicateur de sélection glissant : position/taille de l'item actif, animées en CSS.
+  const [indicator, setIndicator] = useState<{ top: number; left: number; width: number; height: number } | null>(null)
+
+  // Signature des items visibles → re-mesure quand les modules actifs changent.
+  const visibleKey = navItems.filter((i) => !i.moduleId || isActive(i.moduleId)).map((i) => i.href).join(",")
 
   useEffect(() => {
     const stored = localStorage.getItem(STORAGE_KEY)
@@ -70,6 +81,19 @@ export function Sidebar() {
     if (stored !== null) setExpanded(stored === "true")
     setMounted(true)
   }, [])
+
+  // Mesure l'item actif et positionne l'indicateur (glisse via la transition CSS).
+  useIsoLayoutEffect(() => {
+    const nav = navRef.current
+    if (!nav) return
+    const measure = () => {
+      const el = nav.querySelector<HTMLElement>("[data-active]")
+      setIndicator(el ? { top: el.offsetTop, left: el.offsetLeft, width: el.offsetWidth, height: el.offsetHeight } : null)
+    }
+    measure()
+    window.addEventListener("resize", measure)
+    return () => window.removeEventListener("resize", measure)
+  }, [pathname, expanded, mounted, visibleKey])
 
   function toggle() {
     setExpanded((v) => {
@@ -114,7 +138,15 @@ export function Sidebar() {
       </div>
 
       {/* Nav */}
-      <nav data-tour="sidebar" className="flex flex-1 flex-col gap-1 px-2 overflow-y-auto min-h-0">
+      <nav ref={navRef} data-tour="sidebar" className="relative flex flex-1 flex-col gap-1 px-2 overflow-y-auto min-h-0">
+        {/* Indicateur de sélection : une seule pastille qui glisse jusqu'au module actif */}
+        {indicator && (
+          <div
+            aria-hidden
+            className="pointer-events-none absolute rounded-xl bg-primary transition-[top,left,width,height] duration-300 ease-out motion-reduce:transition-none"
+            style={{ top: indicator.top, left: indicator.left, width: indicator.width, height: indicator.height }}
+          />
+        )}
         {visibleItems.map(({ href, icon: Icon, label }) => {
           const isActive = href === "/" ? pathname === "/" : pathname.startsWith(href)
           return (
@@ -122,12 +154,13 @@ export function Sidebar() {
               key={href}
               href={href}
               data-tour={href === "/settings" ? "settings" : undefined}
+              data-active={isActive || undefined}
               title={expanded ? undefined : label}
               className={cn(
-                "group flex h-10 items-center gap-3 rounded-xl px-2.5 transition-colors",
+                "group relative z-10 flex h-10 items-center gap-3 rounded-xl px-2.5 transition-colors",
                 expanded ? "w-full" : "w-10 justify-center",
                 isActive
-                  ? "bg-primary text-primary-foreground"
+                  ? "text-primary-foreground"
                   : "text-muted-foreground hover:bg-accent hover:text-foreground"
               )}
             >

@@ -4,7 +4,7 @@ import { useState, useTransition } from "react"
 import { X, Trash2, FileCheck2 } from "lucide-react"
 import { toast } from "sonner"
 import { createJobApplication, updateJobApplication, deleteJobApplication } from "@/actions/entretien"
-import { STATUS_CONFIG, PIPELINE_STATUSES, OUTCOME_STATUSES, EVENT_TYPE_CONFIG, type JobAppStatus } from "./status-config"
+import { STATUS_CONFIG, PIPELINE_STATUSES, OUTCOME_STATUSES, EVENT_TYPE_CONFIG, MEETING_FORMATS, type JobAppStatus } from "./status-config"
 import type { JobApp, JobContact, CompanyOption } from "./EntretienView"
 import type { JobEventType } from "@/generated/prisma/enums"
 
@@ -54,6 +54,7 @@ export function ApplicationDialog({
   const [appliedAt,   setAppliedAt]   = useState(toISO(item?.appliedAt))
   const [nextActionAt,    setNextActionAt]    = useState(toISO(item?.nextActionAt))
   const [nextActionLabel, setNextActionLabel] = useState(item?.nextActionLabel || "")
+  const [nextActionFormat, setNextActionFormat] = useState(item?.nextActionFormat || "")
   const [dossierValidated, setDossierValidated] = useState(item?.competencyDossierValidated ?? false)
   const [dossierUrl,       setDossierUrl]       = useState(item?.competencyDossierUrl || "")
   const [notes,       setNotes]       = useState(item?.notes || "")
@@ -71,6 +72,7 @@ export function ApplicationDialog({
       appliedAt: appliedAt || null,
       nextActionAt: nextActionAt || null,
       nextActionLabel,
+      nextActionFormat: nextActionFormat || null,
       competencyDossierValidated: dossierValidated,
       competencyDossierUrl: dossierUrl,
       notes,
@@ -271,13 +273,25 @@ export function ApplicationDialog({
           </div>
 
           {nextActionAt && (
-            <div>
-              <label className="text-xs font-medium text-muted-foreground">Libellé du prochain point</label>
-              <input
-                value={nextActionLabel} onChange={e => setNextActionLabel(e.target.value)}
-                placeholder="Ex : Entretien technique avec le CTO"
-                className="mt-1 w-full h-9 rounded-lg border border-input bg-background px-3 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-              />
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs font-medium text-muted-foreground">Libellé du prochain point</label>
+                <input
+                  value={nextActionLabel} onChange={e => setNextActionLabel(e.target.value)}
+                  placeholder="Ex : Entretien technique"
+                  className="mt-1 w-full h-9 rounded-lg border border-input bg-background px-3 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-muted-foreground">Format</label>
+                <select
+                  value={nextActionFormat} onChange={e => setNextActionFormat(e.target.value)}
+                  className="mt-1 w-full h-9 rounded-lg border border-input bg-background px-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+                >
+                  <option value="">— À préciser —</option>
+                  {MEETING_FORMATS.map(f => <option key={f.value} value={f.value}>{f.icon} {f.label}</option>)}
+                </select>
+              </div>
             </div>
           )}
 

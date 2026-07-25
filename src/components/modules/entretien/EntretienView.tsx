@@ -30,6 +30,7 @@ export type JobApp = {
   url: string | null; salaryMin: number | null; salaryMax: number | null; salaryNote: string | null
   notes: string | null; priority: number; contactId: string | null
   appliedAt: Date | string | null; nextActionAt: Date | string | null; nextActionLabel: string | null
+  nextActionFormat: string | null
   competencyDossierValidated: boolean; competencyDossierUrl: string | null
   closedAt: Date | string | null; createdAt: Date | string; updatedAt: Date | string
   contact: JobContact | null

@@ -37,6 +37,7 @@ type ApplicationInput = {
   appliedAt?: string | null
   nextActionAt?: string | null
   nextActionLabel?: string
+  nextActionFormat?: string | null
   competencyDossierValidated?: boolean
   competencyDossierUrl?: string
 }
@@ -60,6 +61,7 @@ function buildData(data: ApplicationInput) {
     appliedAt: data.appliedAt ? new Date(data.appliedAt) : null,
     nextActionAt: data.nextActionAt ? new Date(data.nextActionAt) : null,
     nextActionLabel: data.nextActionLabel?.trim() || null,
+    nextActionFormat: data.nextActionFormat?.trim() || null,
     competencyDossierValidated: data.competencyDossierValidated ?? false,
     competencyDossierUrl: data.competencyDossierUrl?.trim() || null,
     closedAt: CLOSED_STATUSES.includes(status) ? new Date() : null,

@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma"
 import { auth } from "@/lib/auth"
 import type { JobApplicationStatus, JobEventType } from "@/generated/prisma/enums"
 import { CLOSED_STATUSES } from "@/components/modules/entretien/status-config"
+import { syncJobApplicationGoogleState, removeJobApplicationFromGoogle } from "@/lib/google-task-sync"
 
 async function requireAuth() {
   const session = await auth()
@@ -116,6 +117,7 @@ export async function createJobApplication(data: ApplicationInput & { initialEve
       },
     })
   }
+  await syncJobApplicationGoogleState(userId, app.id)
   revalidatePath("/entretiens")
   revalidatePath("/societes")
   revalidatePath("/")
@@ -137,6 +139,7 @@ export async function updateJobApplication(id: string, data: ApplicationInput) {
     built.closedAt = existing.closedAt
   }
   await prisma.jobApplication.updateMany({ where: { id, userId }, data: built })
+  await syncJobApplicationGoogleState(userId, id)
   revalidatePath("/entretiens")
   revalidatePath(`/entretiens/${id}`)
   revalidatePath("/societes")
@@ -165,6 +168,7 @@ export async function updateApplicationStatus(id: string, status: JobApplication
 
 export async function deleteJobApplication(id: string) {
   const userId = await requireAuth()
+  await removeJobApplicationFromGoogle(userId, id)
   await prisma.jobApplication.deleteMany({ where: { id, userId } })
   revalidatePath("/entretiens")
   revalidatePath("/")
@@ -256,6 +260,7 @@ export async function completeNextAction(applicationId: string, type: JobEventTy
       data: { nextActionAt: null, nextActionLabel: null },
     }),
   ])
+  await syncJobApplicationGoogleState(userId, applicationId)
   revalidatePath("/entretiens")
   revalidatePath(`/entretiens/${applicationId}`)
   revalidatePath("/calendrier")

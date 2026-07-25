@@ -1598,6 +1598,10 @@ model JobApplication {
   competencyDossierValidated Boolean @default(false) // rempli/validé par le candidat
   competencyDossierUrl       String?                 // lien pour le consulter
 
+  // Synchro vers l'agenda Google (push unidirectionnel du prochain point planifié)
+  googleEventId  String?
+  googleSyncedAt DateTime?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

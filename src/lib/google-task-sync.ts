@@ -128,3 +128,74 @@ export async function removeMilestoneFromGoogle(userId: string, milestoneId: str
     // best-effort
   }
 }
+
+/**
+ * Synchronise une candidature/entretien : pousse son PROCHAIN POINT planifié
+ * (nextActionAt) vers l'agenda Google, ou retire l'événement si le point a été
+ * vidé/validé. Événement horaire si l'heure est renseignée (1h par défaut),
+ * sinon journée entière.
+ */
+export async function syncJobApplicationGoogleState(userId: string, applicationId: string): Promise<void> {
+  try {
+    const app = await prisma.jobApplication.findFirst({
+      where: { id: applicationId, userId },
+      select: {
+        companyName: true, position: true, location: true,
+        nextActionAt: true, nextActionLabel: true, googleEventId: true,
+      },
+    })
+    if (!app) return
+
+    const accessToken = await getGoogleAccessToken(userId)
+    if (!accessToken) return
+    const calendarId = await getErpCalendarId(userId, accessToken)
+    if (!calendarId) return
+
+    if (!app.nextActionAt) {
+      if (app.googleEventId) {
+        await deleteGoogleEvent(accessToken, calendarId, app.googleEventId)
+        await prisma.jobApplication.update({ where: { id: applicationId }, data: { googleEventId: null, googleSyncedAt: null } })
+      }
+      return
+    }
+
+    const timed = hasTime(app.nextActionAt)
+    const end = timed ? new Date(app.nextActionAt.getTime() + 60 * 60 * 1000) : app.nextActionAt
+    const { id: googleEventId, updated } = await pushGoogleEvent(
+      accessToken,
+      calendarId,
+      {
+        summary: `💼 ${app.companyName} — ${app.nextActionLabel ?? app.position}`,
+        description: app.location ?? undefined,
+        start: app.nextActionAt,
+        end,
+        allDay: !timed,
+      },
+      app.googleEventId,
+    )
+    await prisma.jobApplication.update({
+      where: { id: applicationId },
+      data: { googleEventId, googleSyncedAt: updated ? new Date(updated) : new Date() },
+    })
+  } catch {
+    // best-effort : un échec Google ne doit jamais casser l'action ERP
+  }
+}
+
+/** À appeler avant suppression d'une candidature pour retirer l'événement Google associé. */
+export async function removeJobApplicationFromGoogle(userId: string, applicationId: string): Promise<void> {
+  try {
+    const app = await prisma.jobApplication.findFirst({
+      where: { id: applicationId, userId },
+      select: { googleEventId: true },
+    })
+    if (!app?.googleEventId) return
+    const accessToken = await getGoogleAccessToken(userId)
+    if (!accessToken) return
+    const calendarId = await getErpCalendarId(userId, accessToken)
+    if (!calendarId) return
+    await deleteGoogleEvent(accessToken, calendarId, app.googleEventId)
+  } catch {
+    // best-effort
+  }
+}

@@ -138,12 +138,14 @@ export function Sidebar() {
       </div>
 
       {/* Nav */}
-      <nav ref={navRef} data-tour="sidebar" className="relative flex flex-1 flex-col gap-1 px-2 overflow-y-auto min-h-0">
-        {/* Indicateur de sélection : une seule pastille qui glisse jusqu'au module actif */}
+      <nav ref={navRef} data-tour="sidebar" className="flex flex-1 flex-col gap-1 px-2 overflow-y-auto min-h-0">
+        {/* Indicateur de sélection : une seule pastille qui glisse jusqu'au module actif.
+            Ancrée à l'<aside> (position:relative parent) via -z-10 → NE change pas le
+            contexte de positionnement des infobulles des items (pas de scroll horizontal). */}
         {indicator && (
           <div
             aria-hidden
-            className="pointer-events-none absolute rounded-xl bg-primary transition-[top,left,width,height] duration-300 ease-out motion-reduce:transition-none"
+            className="pointer-events-none absolute -z-10 rounded-xl bg-primary transition-[top,left,width,height] duration-300 ease-out motion-reduce:transition-none"
             style={{ top: indicator.top, left: indicator.left, width: indicator.width, height: indicator.height }}
           />
         )}
@@ -157,7 +159,7 @@ export function Sidebar() {
               data-active={isActive || undefined}
               title={expanded ? undefined : label}
               className={cn(
-                "group relative z-10 flex h-10 items-center gap-3 rounded-xl px-2.5 transition-colors",
+                "group flex h-10 items-center gap-3 rounded-xl px-2.5 transition-colors",
                 expanded ? "w-full" : "w-10 justify-center",
                 isActive
                   ? "text-primary-foreground"

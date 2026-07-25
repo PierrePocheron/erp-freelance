@@ -735,7 +735,7 @@ export function ApplicationDetailView({
             )}
             {salary && (
               <div className="flex items-center gap-2 text-muted-foreground">
-                <Banknote className="h-3.5 w-3.5 shrink-0" /> {salary}
+                <Banknote className="h-3.5 w-3.5 shrink-0" /> <span className="amount-sensitive">{salary}</span>
               </div>
             )}
             {app.source && <p className="text-xs text-muted-foreground">Source : {app.source}</p>}

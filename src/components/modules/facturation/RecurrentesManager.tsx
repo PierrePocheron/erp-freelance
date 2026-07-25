@@ -272,7 +272,7 @@ export function RecurrentesManager({
                     </span>
                   </td>
                   <td className="px-4 py-3 text-right font-medium tabular-nums">
-                    {row.totalHT > 0 ? fmtEur(row.totalHT) : <span className="text-muted-foreground">—</span>}
+                    {row.totalHT > 0 ? <span className="amount-sensitive">{fmtEur(row.totalHT)}</span> : <span className="text-muted-foreground">—</span>}
                   </td>
                   <td className="px-4 py-3 text-sm text-muted-foreground">
                     {new Date(row.nextGenerationDate).toLocaleDateString("fr-FR")}
@@ -489,14 +489,14 @@ export function RecurrentesManager({
                         </div>
                       </div>
                       <p className="text-right text-xs text-muted-foreground">
-                        Total : <span className="font-medium text-foreground">{fmtEur(line.quantity * line.unitPrice)}</span>
+                        Total : <span className="font-medium text-foreground amount-sensitive">{fmtEur(line.quantity * line.unitPrice)}</span>
                       </p>
                     </div>
                   ))}
 
                   {lines.length > 0 && (
                     <p className="text-right text-sm font-semibold">
-                      Total HT : {fmtEur(totalHT)}
+                      Total HT : <span className="amount-sensitive">{fmtEur(totalHT)}</span>
                     </p>
                   )}
                 </div>

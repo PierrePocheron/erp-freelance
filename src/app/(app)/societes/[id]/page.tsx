@@ -259,6 +259,7 @@ export default async function CompanyDetailPage({
             icon={<TrendingUp className="h-4 w-4 text-emerald-600" />}
             label="CA encaissé"
             value={`${fmt(totalPaid)} €`}
+            sensitive
             sub={`${invoices.filter(i => i.status === "PAID").length} facture${invoices.filter(i => i.status === "PAID").length !== 1 ? "s" : ""} payée${invoices.filter(i => i.status === "PAID").length !== 1 ? "s" : ""}`}
             color="emerald"
           />
@@ -267,6 +268,7 @@ export default async function CompanyDetailPage({
               icon={<Clock className="h-4 w-4 text-blue-600" />}
               label="En attente"
               value={`${fmt(totalPending)} €`}
+              sensitive
               sub={`${invoices.filter(i => i.status === "SENT").length} envoyée${invoices.filter(i => i.status === "SENT").length !== 1 ? "s" : ""}`}
               color="blue"
             />
@@ -276,6 +278,7 @@ export default async function CompanyDetailPage({
               icon={<AlertTriangle className="h-4 w-4 text-red-600" />}
               label="En retard"
               value={`${fmt(totalLate)} €`}
+              sensitive
               sub={`${invoices.filter(i => i.status === "LATE").length} facture${invoices.filter(i => i.status === "LATE").length !== 1 ? "s" : ""}`}
               color="red"
             />
@@ -414,7 +417,7 @@ export default async function CompanyDetailPage({
                           {invoiceStatusLabel[inv.status] ?? inv.status}
                         </span>
                       </td>
-                      <td className="px-5 py-3 text-right font-medium tabular-nums">
+                      <td className="px-5 py-3 text-right font-medium tabular-nums amount-sensitive">
                         {fmt(netAmount(inv))} €
                       </td>
                       <td className="px-5 py-3 text-right text-muted-foreground text-xs hidden md:table-cell">
@@ -478,7 +481,7 @@ export default async function CompanyDetailPage({
                           {quoteStatusLabel[q.status] ?? q.status}
                         </span>
                       </td>
-                      <td className="px-5 py-3 text-right font-medium tabular-nums">
+                      <td className="px-5 py-3 text-right font-medium tabular-nums amount-sensitive">
                         {fmt(q.totalHT)} €
                       </td>
                       <td className="px-5 py-3 text-right text-muted-foreground text-xs hidden md:table-cell">
@@ -681,13 +684,13 @@ export default async function CompanyDetailPage({
                       <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />
                       CA encaissé
                     </span>
-                    <span className="font-semibold text-emerald-600">{fmt(totalPaid)} €</span>
+                    <span className="font-semibold text-emerald-600 amount-sensitive">{fmt(totalPaid)} €</span>
                   </div>
                 )}
                 {totalBilled > 0 && totalBilled !== totalPaid && (
                   <div className="flex items-center justify-between text-sm">
                     <span className="text-muted-foreground">Total émis</span>
-                    <span className="font-medium">{fmt(totalBilled)} €</span>
+                    <span className="font-medium amount-sensitive">{fmt(totalBilled)} €</span>
                   </div>
                 )}
                 {totalPending > 0 && (
@@ -696,7 +699,7 @@ export default async function CompanyDetailPage({
                       <Clock className="h-3.5 w-3.5 text-blue-500" />
                       En attente
                     </span>
-                    <span className="font-medium text-blue-600">{fmt(totalPending)} €</span>
+                    <span className="font-medium text-blue-600 amount-sensitive">{fmt(totalPending)} €</span>
                   </div>
                 )}
                 {totalLate > 0 && (
@@ -705,7 +708,7 @@ export default async function CompanyDetailPage({
                       <AlertTriangle className="h-3.5 w-3.5 text-red-500" />
                       En retard
                     </span>
-                    <span className="font-semibold text-red-600">{fmt(totalLate)} €</span>
+                    <span className="font-semibold text-red-600 amount-sensitive">{fmt(totalLate)} €</span>
                   </div>
                 )}
 
@@ -835,13 +838,14 @@ const FISCAL_BUCKET_LABELS: Record<string, string> = {
 // ── Composant KPI ─────────────────────────────────────────────────────────────
 
 function KpiCard({
-  icon, label, value, sub, color,
+  icon, label, value, sub, color, sensitive,
 }: {
   icon: React.ReactNode
   label: string
   value: string
   sub?: string
   color: "emerald" | "blue" | "red" | "amber" | "muted"
+  sensitive?: boolean
 }) {
   const valueColor = {
     emerald: "text-emerald-600",
@@ -857,7 +861,7 @@ function KpiCard({
         {icon}
         {label}
       </div>
-      <p className={`text-xl font-bold tabular-nums ${valueColor}`}>{value}</p>
+      <p className={`text-xl font-bold tabular-nums ${valueColor}${sensitive ? " amount-sensitive" : ""}`}>{value}</p>
       {sub && <p className="text-xs text-muted-foreground">{sub}</p>}
     </div>
   )

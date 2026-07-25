@@ -300,7 +300,7 @@ export default async function ProjectOverviewPage({
             {hasRevenue && (
               <div className="flex items-center justify-between">
                 <span className="text-muted-foreground flex items-center gap-1.5"><Receipt className="h-3.5 w-3.5" /> Revenus reçus</span>
-                <span className="font-medium tabular-nums">{fmtEur(receivedRevenue)} / {fmtEur(totalRevenue)} €</span>
+                <span className="font-medium tabular-nums amount-sensitive">{fmtEur(receivedRevenue)} / {fmtEur(totalRevenue)} €</span>
               </div>
             )}
             {(project.startDate || project.endDate) && (
@@ -351,7 +351,7 @@ export default async function ProjectOverviewPage({
               {grandTotal > 0 && (
                 <div className="space-y-1">
                   <div className="flex items-baseline justify-between">
-                    <p className="text-lg font-bold">
+                    <p className="text-lg font-bold amount-sensitive">
                       {fmtEur(grandReceived)} <span className="text-xs font-normal text-muted-foreground">/ {fmtEur(grandTotal)} € reçus</span>
                     </p>
                   </div>
@@ -363,7 +363,7 @@ export default async function ProjectOverviewPage({
                     )}
                   </div>
                   {pendingRevenue > 0 && (
-                    <p className="text-xs text-amber-600">dont {fmtEur(pendingRevenue)} € de revenu non déclaré en attente</p>
+                    <p className="text-xs text-amber-600">dont <span className="amount-sensitive">{fmtEur(pendingRevenue)} €</span> de revenu non déclaré en attente</p>
                   )}
                 </div>
               )}
@@ -383,7 +383,7 @@ export default async function ProjectOverviewPage({
                       <span className={`rounded-full px-1.5 py-0.5 text-xs font-medium ${quoteStatusCls[q.status] ?? ""}`}>
                         {quoteStatusLabel[q.status] ?? q.status}
                       </span>
-                      <span className="ml-auto text-xs font-medium tabular-nums">{q.totalHT.toLocaleString("fr-FR")} €</span>
+                      <span className="ml-auto text-xs font-medium tabular-nums amount-sensitive">{q.totalHT.toLocaleString("fr-FR")} €</span>
                     </Link>
                   ))}
                 </div>
@@ -413,7 +413,7 @@ export default async function ProjectOverviewPage({
                         <span className={`rounded-full px-1.5 py-0.5 text-xs font-medium ${invoiceStatusCls[inv.status] ?? ""}`}>
                           {invoiceStatusLabel[inv.status] ?? inv.status}
                         </span>
-                        <span className={`ml-auto text-xs font-medium tabular-nums whitespace-nowrap ${full ? "text-emerald-600" : paid > 0 ? "text-amber-600" : isLate ? "text-red-500" : "text-muted-foreground"}`}>
+                        <span className={`ml-auto text-xs font-medium tabular-nums whitespace-nowrap amount-sensitive ${full ? "text-emerald-600" : paid > 0 ? "text-amber-600" : isLate ? "text-red-500" : "text-muted-foreground"}`}>
                           {fmtEur(paid)} / {fmtEur(amount)} €
                         </span>
                       </Link>
@@ -434,7 +434,7 @@ export default async function ProjectOverviewPage({
                       <span className={`shrink-0 rounded-full px-1.5 py-0.5 text-xs font-medium ${revenueStatusCls[r.status] ?? ""}`}>
                         {revenueStatusLabel[r.status] ?? r.status}
                       </span>
-                      <span className="shrink-0 text-xs font-medium tabular-nums">{r.amount.toLocaleString("fr-FR")} €</span>
+                      <span className="shrink-0 text-xs font-medium tabular-nums amount-sensitive">{r.amount.toLocaleString("fr-FR")} €</span>
                     </div>
                   ))}
                 </div>
@@ -448,7 +448,7 @@ export default async function ProjectOverviewPage({
               </Link>
 
               <div className="space-y-1">
-                <p className="text-lg font-bold">
+                <p className="text-lg font-bold amount-sensitive">
                   {receivedRevenue.toLocaleString("fr-FR")} <span className="text-xs font-normal text-muted-foreground">/ {totalRevenue.toLocaleString("fr-FR")} € reçus</span>
                 </p>
                 <div className="h-1 rounded-full bg-muted overflow-hidden">
@@ -467,7 +467,7 @@ export default async function ProjectOverviewPage({
                     <span className={`shrink-0 rounded-full px-1.5 py-0.5 text-xs font-medium ${revenueStatusCls[r.status] ?? ""}`}>
                       {revenueStatusLabel[r.status] ?? r.status}
                     </span>
-                    <span className="ml-auto shrink-0 text-xs font-medium tabular-nums">{r.amount.toLocaleString("fr-FR")} €</span>
+                    <span className="ml-auto shrink-0 text-xs font-medium tabular-nums amount-sensitive">{r.amount.toLocaleString("fr-FR")} €</span>
                   </div>
                 ))}
               </div>

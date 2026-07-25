@@ -291,7 +291,7 @@ export function FiscalSummary({
 
         <div className="ml-auto flex items-center gap-2">
           <span className="text-sm text-muted-foreground">Total {year}</span>
-          <span className="text-lg font-bold tabular-nums">{fmt(grandTotal)} €</span>
+          <span className="text-lg font-bold tabular-nums amount-sensitive">{fmt(grandTotal)} €</span>
           <Button variant="outline" size="sm" onClick={handleExport} className="gap-1.5">
             <FileDown className="h-3.5 w-3.5" />
             Copier
@@ -332,7 +332,7 @@ export function FiscalSummary({
                 </span>
               </div>
               <div className="ml-auto text-right">
-                <p className="text-lg font-bold tabular-nums">{fmt(grid.yearTotal)} €</p>
+                <p className="text-lg font-bold tabular-nums amount-sensitive">{fmt(grid.yearTotal)} €</p>
                 <p className="text-xs text-muted-foreground">total {year}</p>
               </div>
             </div>
@@ -357,14 +357,14 @@ export function FiscalSummary({
                         {grid.months.map((m, mi) => (
                           <td
                             key={mi}
-                            className={`px-2 py-3 text-center tabular-nums text-xs ${
+                            className={`px-2 py-3 text-center tabular-nums text-xs amount-sensitive ${
                               m.total > 0 ? "font-semibold" : "text-muted-foreground/40"
                             }`}
                           >
                             {m.total > 0 ? fmt(m.total) : "—"}
                           </td>
                         ))}
-                        <td className="px-3 py-3 text-right font-bold tabular-nums text-sm">
+                        <td className="px-3 py-3 text-right font-bold tabular-nums text-sm amount-sensitive">
                           {fmt(grid.yearTotal)} €
                         </td>
                       </tr>
@@ -392,7 +392,7 @@ export function FiscalSummary({
                               {m.details.map((d, i) => (
                                 <div key={i} className="flex justify-between text-xs">
                                   <span className="text-muted-foreground truncate max-w-xs">{d.label}</span>
-                                  <span className="tabular-nums font-medium ml-4 shrink-0">{fmt(d.amount)} €</span>
+                                  <span className="tabular-nums font-medium ml-4 shrink-0 amount-sensitive">{fmt(d.amount)} €</span>
                                 </div>
                               ))}
                             </div>
@@ -474,11 +474,11 @@ export function FiscalSummary({
                         </span>
                       </td>
                       {grid.months.map((m, mi) => (
-                        <td key={mi} className="px-2 py-2.5 text-center text-xs tabular-nums hidden xl:table-cell">
+                        <td key={mi} className="px-2 py-2.5 text-center text-xs tabular-nums hidden xl:table-cell amount-sensitive">
                           {m.total > 0 ? fmt(m.total) : <span className="text-muted-foreground/30">—</span>}
                         </td>
                       ))}
-                      <td className="px-5 py-2.5 text-right font-bold tabular-nums">
+                      <td className="px-5 py-2.5 text-right font-bold tabular-nums amount-sensitive">
                         {fmt(grid.yearTotal)} €
                       </td>
                     </tr>
@@ -489,12 +489,12 @@ export function FiscalSummary({
                   {Array.from({ length: 12 }, (_, mi) => {
                     const monthTotal = [...grids.values()].reduce((s, g) => s + g.months[mi].total, 0)
                     return (
-                      <td key={mi} className="px-2 py-2.5 text-center text-xs tabular-nums hidden xl:table-cell">
+                      <td key={mi} className="px-2 py-2.5 text-center text-xs tabular-nums hidden xl:table-cell amount-sensitive">
                         {monthTotal > 0 ? fmt(monthTotal) : <span className="text-muted-foreground/30">—</span>}
                       </td>
                     )
                   })}
-                  <td className="px-5 py-2.5 text-right tabular-nums">{fmt(grandTotal)} €</td>
+                  <td className="px-5 py-2.5 text-right tabular-nums amount-sensitive">{fmt(grandTotal)} €</td>
                 </tr>
               </tbody>
             </table>
@@ -538,7 +538,7 @@ function ClientGroupRow({ group }: { group: { clientKey: string; clientName: str
             <p className="text-xs text-muted-foreground">{group.lines.length} entrée{group.lines.length > 1 ? "s" : ""}</p>
           </div>
         </div>
-        <span className="font-bold tabular-nums text-sm shrink-0">{fmt(group.total)} €</span>
+        <span className="font-bold tabular-nums text-sm shrink-0 amount-sensitive">{fmt(group.total)} €</span>
       </button>
 
       {open && (
@@ -575,12 +575,12 @@ function ClientGroupRow({ group }: { group: { clientKey: string; clientName: str
                   </span>
                 </div>
               </div>
-              <span className="tabular-nums font-semibold text-sm shrink-0">{fmt(line.amount)} €</span>
+              <span className="tabular-nums font-semibold text-sm shrink-0 amount-sensitive">{fmt(line.amount)} €</span>
             </div>
           ))}
           <div className="flex justify-end px-8 py-2.5 bg-muted/30">
             <span className="text-xs text-muted-foreground mr-2">Sous-total {displayName}</span>
-            <span className="text-sm font-bold tabular-nums">{fmt(group.total)} €</span>
+            <span className="text-sm font-bold tabular-nums amount-sensitive">{fmt(group.total)} €</span>
           </div>
         </div>
       )}

@@ -530,7 +530,7 @@ export default async function DashboardPage() {
       {/* KPI row */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
         {has("projets")     && <KPICard href="/projets"              icon={<Code2 className="h-4 w-4" />}     label="Projets actifs"  value={activeProjects}                                        color="indigo" />}
-        {has("facturation") && <KPICard href="/facturation/factures" icon={<TrendingUp className="h-4 w-4" />} label="En attente"       value={`${totalPending.toLocaleString("fr-FR")} €`}           color="blue"  />}
+        {has("facturation") && <KPICard href="/facturation/factures" icon={<TrendingUp className="h-4 w-4" />} label="En attente"       value={<span className="amount-sensitive">{totalPending.toLocaleString("fr-FR")} €</span>} color="blue"  />}
         {has("facturation") && <KPICard href="/facturation/factures" icon={<AlertCircle className="h-4 w-4" />} label="En retard"       value={lateInvoices}                                          color={lateInvoices > 0 ? "red" : "muted"} />}
         {has("facturation") && <KPICard href="/facturation/devis"    icon={<Clock className="h-4 w-4" />}      label="Devis envoyés"   value={pendingQuotes}                                         color="amber" />}
         {has("contacts")    && <KPICard href="/contacts"             icon={<Bell className="h-4 w-4" />}       label="Rappels"         value={upcomingReminders.length}                              color={upcomingReminders.some(r => new Date(r.dueDate) < new Date()) ? "red" : "muted"} />}
@@ -548,20 +548,20 @@ export default async function DashboardPage() {
               <Link href="/facturation/factures" className="group flex items-center gap-1.5 text-xs">
                 <Receipt className="h-3.5 w-3.5 text-violet-500 shrink-0" />
                 <span className="text-muted-foreground group-hover:text-foreground transition-colors">AE</span>
-                <span className="font-semibold tabular-nums text-violet-600">{encaisseAE.toLocaleString("fr-FR")} €</span>
+                <span className="font-semibold tabular-nums text-violet-600 amount-sensitive">{encaisseAE.toLocaleString("fr-FR")} €</span>
               </Link>
             )}
             {has("revenus") && (
               <Link href="/revenus" className="group flex items-center gap-1.5 text-xs">
                 <Wallet className="h-3.5 w-3.5 text-teal-500 shrink-0" />
                 <span className="text-muted-foreground group-hover:text-foreground transition-colors">Autres</span>
-                <span className="font-semibold tabular-nums text-teal-600">{encaisseAutres.toLocaleString("fr-FR")} €</span>
+                <span className="font-semibold tabular-nums text-teal-600 amount-sensitive">{encaisseAutres.toLocaleString("fr-FR")} €</span>
               </Link>
             )}
             <span className="ml-auto flex items-center gap-1.5 text-xs shrink-0">
               <TrendingUp className="h-3.5 w-3.5 text-emerald-500" />
               <span className="text-muted-foreground">Total</span>
-              <span className="font-bold tabular-nums text-emerald-600">{encaisseTotal.toLocaleString("fr-FR")} €</span>
+              <span className="font-bold tabular-nums text-emerald-600 amount-sensitive">{encaisseTotal.toLocaleString("fr-FR")} €</span>
             </span>
           </div>
         )}
@@ -1029,7 +1029,7 @@ function KPICard({
   href: string
   icon: React.ReactNode
   label: string
-  value: string | number
+  value: React.ReactNode
   color: "indigo" | "blue" | "amber" | "red" | "emerald" | "muted"
 }) {
   const colorMap = {

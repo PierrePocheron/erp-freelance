@@ -38,8 +38,8 @@ export function BillingBar({
         <div className="space-y-1">
           <div className="flex items-center gap-1.5 text-xs">
             <TrendingUp className="h-3 w-3 text-muted-foreground shrink-0" />
-            <span className="font-medium">{fmtEur(totalEncaisse)}</span>
-            <span className="text-muted-foreground">/ {fmtEur(totalFacture)}</span>
+            <span className="font-medium amount-sensitive">{fmtEur(totalEncaisse)}</span>
+            <span className="text-muted-foreground">/ <span className="amount-sensitive">{fmtEur(totalFacture)}</span></span>
           </div>
           <div className="h-1 w-20 rounded-full bg-muted overflow-hidden">
             <div
@@ -53,8 +53,8 @@ export function BillingBar({
         <div className="space-y-1">
           <div className="flex items-center gap-1.5 text-xs">
             <Wallet className="h-3 w-3 text-teal-500 shrink-0" />
-            <span className="font-medium">{fmtEur(revenuRecu)}</span>
-            <span className="text-muted-foreground">/ {fmtEur(totalRevenu)}</span>
+            <span className="font-medium amount-sensitive">{fmtEur(revenuRecu)}</span>
+            <span className="text-muted-foreground">/ <span className="amount-sensitive">{fmtEur(totalRevenu)}</span></span>
           </div>
           <div className="h-1 w-20 rounded-full bg-muted overflow-hidden">
             <div

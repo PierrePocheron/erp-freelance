@@ -202,7 +202,7 @@ export default async function ProjectPostDevPage({
                           <p className="text-xs mt-0.5 text-muted-foreground">
                             Acheté le {new Date(r.purchasedAt).toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" })}
                             {r.periodMonths ? ` · ${r.periodMonths < 12 ? `${r.periodMonths} mois` : `${r.periodMonths / 12} an${r.periodMonths / 12 > 1 ? "s" : ""}`}` : ""}
-                            {r.amount ? ` · ${r.amount.toLocaleString("fr-FR")} € HT` : ""}
+                            {r.amount ? <> · <span className="amount-sensitive">{`${r.amount.toLocaleString("fr-FR")} € HT`}</span></> : ""}
                           </p>
                         )}
                       </div>

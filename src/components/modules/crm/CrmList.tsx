@@ -221,8 +221,8 @@ function CardItem({ client, showBilling }: { client: Client; showBilling: boolea
             <span className="text-muted-foreground">Facturation</span>
             {hasBilling ? (
               <span>
-                <span className="font-medium">{fmtEur(client.billing.totalEncaisse)}</span>
-                <span className="text-muted-foreground"> / {fmtEur(client.billing.totalFacture)}</span>
+                <span className="font-medium amount-sensitive">{fmtEur(client.billing.totalEncaisse)}</span>
+                <span className="text-muted-foreground amount-sensitive"> / {fmtEur(client.billing.totalFacture)}</span>
               </span>
             ) : (
               <span className="text-muted-foreground">Aucune facture</span>
@@ -285,8 +285,8 @@ function ListSection({ items, showBilling }: { items: Client[]; showBilling: boo
                 {hasBilling ? (
                   <>
                     <span className="text-xs">
-                      <span className="font-medium">{fmtEur(client.billing.totalEncaisse)}</span>
-                      <span className="text-muted-foreground"> / {fmtEur(client.billing.totalFacture)}</span>
+                      <span className="font-medium amount-sensitive">{fmtEur(client.billing.totalEncaisse)}</span>
+                      <span className="text-muted-foreground amount-sensitive"> / {fmtEur(client.billing.totalFacture)}</span>
                     </span>
                     <div className="h-1 w-24 rounded-full bg-muted overflow-hidden">
                       <div

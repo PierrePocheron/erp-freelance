@@ -917,9 +917,9 @@ export function RevenueManager({
                       </div>
                       <div className="flex items-center gap-3">
                         {yearReceived < yearTotal && (
-                          <span className="text-xs text-amber-600">{fmt(yearTotal - yearReceived)} € en attente</span>
+                          <span className="text-xs text-amber-600 amount-sensitive">{fmt(yearTotal - yearReceived)} € en attente</span>
                         )}
-                        <span className="font-semibold text-sm tabular-nums text-emerald-600">{fmt(yearReceived)} € reçus</span>
+                        <span className="font-semibold text-sm tabular-nums text-emerald-600 amount-sensitive">{fmt(yearReceived)} € reçus</span>
                       </div>
                     </div>
 
@@ -959,9 +959,9 @@ export function RevenueManager({
                           </button>
                         )}
                         {receivedP < totalP && (
-                          <span className="text-xs text-amber-600">{fmt(totalP - receivedP)} € en attente</span>
+                          <span className="text-xs text-amber-600 amount-sensitive">{fmt(totalP - receivedP)} € en attente</span>
                         )}
-                        <span className="font-semibold text-sm tabular-nums text-emerald-600">{fmt(receivedP)} € reçus</span>
+                        <span className="font-semibold text-sm tabular-nums text-emerald-600 amount-sensitive">{fmt(receivedP)} € reçus</span>
                       </div>
                     </div>
 
@@ -1077,7 +1077,7 @@ export function RevenueManager({
                                 </td>
 
                                 {/* Montant */}
-                                <td className="px-5 py-3 text-right font-semibold tabular-nums">
+                                <td className="px-5 py-3 text-right font-semibold tabular-nums amount-sensitive">
                                   {fmt(r.amount)} €
                                 </td>
 
@@ -1289,7 +1289,7 @@ export function RevenueManager({
                       <td className="px-5 py-3 hidden sm:table-cell">
                         <span className="text-xs text-muted-foreground">{revenueTypeLabels[rec.type] ?? rec.type}</span>
                       </td>
-                      <td className="px-5 py-3 text-right font-semibold tabular-nums">{fmt(rec.amount)} €</td>
+                      <td className="px-5 py-3 text-right font-semibold tabular-nums amount-sensitive">{fmt(rec.amount)} €</td>
                       <td className="px-5 py-3 text-center text-muted-foreground hidden md:table-cell">{rec.dayOfMonth}</td>
                       <td className="px-5 py-3 text-center text-muted-foreground hidden md:table-cell">{rec._count.revenues}</td>
                       <td className="px-5 py-3 text-center">
@@ -1343,7 +1343,7 @@ export function RevenueManager({
           <span className="text-sm font-semibold text-foreground whitespace-nowrap">
             {selectedIds.size} sélectionné{selectedIds.size > 1 ? "s" : ""}
           </span>
-          <span className="text-xs text-muted-foreground whitespace-nowrap">
+          <span className="text-xs text-muted-foreground whitespace-nowrap amount-sensitive">
             · {fmt(selectedTotal)} €
           </span>
           <div className="w-px h-5 bg-border shrink-0" />

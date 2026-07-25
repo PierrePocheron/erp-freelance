@@ -91,8 +91,18 @@ export function Sidebar() {
       setIndicator(el ? { top: el.offsetTop, left: el.offsetLeft, width: el.offsetWidth, height: el.offsetHeight } : null)
     }
     measure()
+    // La largeur/hauteur de la pastille ne sont PAS animées en CSS (cf. transition-[top,left]).
+    // Pendant l'ouverture/fermeture du volet, l'<aside> anime sa largeur : un ResizeObserver
+    // re-mesure l'item actif à chaque frame → la pastille épouse l'item en temps réel.
+    // Sans ça, la mesure synchrone du montage tombait à t=0 de la transition de largeur et
+    // figeait la pastille sur la largeur repliée (bug « pastille icône seule » au chargement).
+    const ro = new ResizeObserver(measure)
+    ro.observe(nav)
     window.addEventListener("resize", measure)
-    return () => window.removeEventListener("resize", measure)
+    return () => {
+      ro.disconnect()
+      window.removeEventListener("resize", measure)
+    }
   }, [pathname, expanded, mounted, visibleKey])
 
   function toggle() {
@@ -145,7 +155,7 @@ export function Sidebar() {
         {indicator && (
           <div
             aria-hidden
-            className="pointer-events-none absolute -z-10 rounded-xl bg-primary transition-[top,left,width,height] duration-300 ease-out motion-reduce:transition-none"
+            className="pointer-events-none absolute -z-10 rounded-xl bg-primary transition-[top,left] duration-300 ease-out motion-reduce:transition-none"
             style={{ top: indicator.top, left: indicator.left, width: indicator.width, height: indicator.height }}
           />
         )}

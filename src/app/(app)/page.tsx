@@ -15,6 +15,7 @@ import { ConfirmEventsCard } from "@/components/modules/dashboard/ConfirmEventsC
 import { InProgressTasksCard } from "@/components/modules/dashboard/InProgressTasksCard"
 import { IncompleteDataSheet } from "@/components/modules/dashboard/IncompleteDataSheet"
 import { MobileHome } from "@/components/layout/MobileHome"
+import { AmountsPrivacyToggle } from "@/components/ui/amounts-privacy-toggle"
 import { getActiveModules } from "@/lib/modules-server"
 import { isContactIncomplete } from "@/lib/contact"
 import { STATUS_CONFIG, PIPELINE_STATUSES } from "@/components/modules/prospection/status-config"
@@ -517,11 +518,14 @@ export default async function DashboardPage() {
 
     {/* Dashboard complet — desktop uniquement */}
     <div className="hidden sm:block space-y-8">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">{greeting}, {firstName} 👋</h1>
-        <p className="text-muted-foreground text-sm">
-          {new Date().toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
-        </p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">{greeting}, {firstName} 👋</h1>
+          <p className="text-muted-foreground text-sm">
+            {new Date().toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
+          </p>
+        </div>
+        <AmountsPrivacyToggle />
       </div>
 
       {/* Raccourcis */}

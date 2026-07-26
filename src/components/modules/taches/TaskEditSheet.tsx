@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useTransition } from "react"
+import { useState, useEffect, useTransition, useId } from "react"
 import { Loader2 } from "lucide-react"
 import { updateTaskFields } from "@/actions/projet"
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetFooter } from "@/components/ui/sheet"
@@ -39,6 +39,7 @@ export function TaskEditSheet({ task, open, onOpenChange }: {
   const [priority, setPriority] = useState(task.priority)
   const [importance, setImportance] = useState(task.importance)
   const [estimatedHours, setEstimatedHours] = useState(task.estimatedHours?.toString() ?? "")
+  const fieldId = useId()
 
   useEffect(() => {
     if (!open) return
@@ -75,8 +76,9 @@ export function TaskEditSheet({ task, open, onOpenChange }: {
 
         <div className="flex-1 overflow-y-auto px-6 py-4 space-y-5">
           <div className="space-y-1.5">
-            <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Titre</label>
+            <label htmlFor={`${fieldId}-title`} className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Titre</label>
             <input
+              id={`${fieldId}-title`}
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && handleSave()}
@@ -85,8 +87,9 @@ export function TaskEditSheet({ task, open, onOpenChange }: {
           </div>
 
           <div className="space-y-1.5">
-            <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Description</label>
+            <label htmlFor={`${fieldId}-description`} className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Description</label>
             <textarea
+              id={`${fieldId}-description`}
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               rows={3}
@@ -97,8 +100,9 @@ export function TaskEditSheet({ task, open, onOpenChange }: {
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1.5">
-              <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Échéance</label>
+              <label htmlFor={`${fieldId}-dueDate`} className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Échéance</label>
               <input
+                id={`${fieldId}-dueDate`}
                 type="date"
                 value={dueDate}
                 onChange={(e) => setDueDate(e.target.value)}
@@ -106,8 +110,9 @@ export function TaskEditSheet({ task, open, onOpenChange }: {
               />
             </div>
             <div className="space-y-1.5">
-              <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Heures est.</label>
+              <label htmlFor={`${fieldId}-hours`} className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Heures est.</label>
               <input
+                id={`${fieldId}-hours`}
                 type="number"
                 min="0"
                 step="0.5"

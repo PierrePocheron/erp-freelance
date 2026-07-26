@@ -871,10 +871,10 @@ export default async function DashboardPage() {
           {has("prospection") && dashboardProspects.length > 0 && (
             <div className="rounded-xl border border-border/50 bg-card overflow-hidden">
               <div className="flex items-center justify-between px-4 py-3 border-b border-border/50">
-                <div className="flex items-center gap-2 text-sm font-semibold">
+                <h2 className="flex items-center gap-2 text-sm font-semibold">
                   <span className="text-muted-foreground"><Target className="h-4 w-4" /></span>
                   Prospection
-                </div>
+                </h2>
                 <Link href="/prospection" className="text-xs text-primary hover:underline">Voir tout →</Link>
               </div>
               <div className="p-3 space-y-3">
@@ -1065,10 +1065,10 @@ function Section({
   return (
     <div className="rounded-xl border border-border/50 bg-card overflow-hidden">
       <div className="flex items-center justify-between px-4 py-3 border-b border-border/50">
-        <div className="flex items-center gap-2 text-sm font-semibold">
+        <h2 className="flex items-center gap-2 text-sm font-semibold">
           <span className="text-muted-foreground">{icon}</span>
           {title}
-        </div>
+        </h2>
         <Link href={href} className="text-xs text-primary hover:underline">Voir tout →</Link>
       </div>
       <div className="p-2">{children}</div>

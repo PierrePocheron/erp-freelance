@@ -193,7 +193,7 @@ export function TimePicker({
         <span className="truncate">{value || placeholder}</span>
         {clearable && value && (
           <span
-            role="button" tabIndex={-1} aria-label="Effacer l'heure"
+            aria-hidden="true"
             onClick={e => { e.stopPropagation(); onChange("") }}
             className="ml-auto flex h-4 w-4 items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-foreground">
             <X className="h-3 w-3" />

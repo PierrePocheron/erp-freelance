@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { cloneElement, isValidElement, useEffect, useId, useMemo, useState } from "react"
 import { saveProfile, type ProfileData } from "@/actions/settings"
 import { type NumberFormat, FORMAT_OPTIONS, buildNumberPreview } from "@/lib/number-format"
 import { Input } from "@/components/ui/input"
@@ -356,15 +356,17 @@ export function SettingsForm({ userId, profile, userName, userEmail, conditionsT
             <><Loader2 className="h-4 w-4 animate-spin mr-2" />Enregistrement…</>
           ) : "Enregistrer les modifications"}
         </Button>
-        {status === "saved" && (
-          <span className="flex items-center gap-1.5 text-sm text-emerald-600 font-medium">
-            <CheckCircle2 className="h-4 w-4" />
-            Modifications enregistrées
-          </span>
-        )}
-        {status === "error" && (
-          <span className="text-sm text-red-500">Une erreur est survenue, réessayez.</span>
-        )}
+        <div role="status" aria-live="polite">
+          {status === "saved" && (
+            <span className="flex items-center gap-1.5 text-sm text-emerald-600 font-medium">
+              <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
+              Modifications enregistrées
+            </span>
+          )}
+          {status === "error" && (
+            <span className="text-sm text-red-500">Une erreur est survenue, réessayez.</span>
+          )}
+        </div>
       </div>
 
       {/* Barre flottante : modifications non enregistrées */}
@@ -426,6 +428,8 @@ function ColorSwatches({
           key={c}
           type="button"
           title={c}
+          aria-pressed={sameColor(value, c)}
+          aria-label={`Couleur ${c}${sameColor(value, c) ? ", sélectionnée" : ""}`}
           onClick={() => onSelect(c)}
           className={`h-7 w-7 rounded-full ${borderCls} transition-all`}
           style={swatchStyle(c, sameColor(value, c))}
@@ -438,6 +442,8 @@ function ColorSwatches({
             <button
               type="button"
               title={c}
+              aria-pressed={selected}
+              aria-label={`Couleur ${c}${selected ? ", sélectionnée" : ""}`}
               onClick={() => onSelect(c)}
               className={`h-7 w-7 rounded-full ${borderCls} transition-all`}
               style={swatchStyle(c, selected)}
@@ -459,6 +465,8 @@ function ColorSwatches({
         <button
           type="button"
           title={`${value} — sera ajoutée à votre palette à l'enregistrement`}
+          aria-pressed={true}
+          aria-label={`Couleur ${value}, sélectionnée`}
           onClick={() => onSelect(value)}
           className={`h-7 w-7 rounded-full ${borderCls} transition-all`}
           style={swatchStyle(value, true)}
@@ -496,10 +504,20 @@ function Section({ icon, title, description, children }: {
 }
 
 function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
+  const autoId = useId()
+  // Associe le <label> à son champ : on injecte un id sur le contrôle enfant
+  // (Input/select) et on le référence via htmlFor — sans rien changer au rendu.
+  const controlId =
+    isValidElement(children) && (children.props as { id?: string }).id
+      ? (children.props as { id?: string }).id!
+      : autoId
+  const control = isValidElement(children)
+    ? cloneElement(children as React.ReactElement<{ id?: string }>, { id: controlId })
+    : children
   return (
     <div className="space-y-1">
-      <label className="text-xs text-muted-foreground font-medium">{label}</label>
-      {children}
+      <label htmlFor={controlId} className="text-xs text-muted-foreground font-medium">{label}</label>
+      {control}
       {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
     </div>
   )

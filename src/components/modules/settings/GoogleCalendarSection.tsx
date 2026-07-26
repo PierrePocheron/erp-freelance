@@ -83,6 +83,7 @@ export function GoogleCalendarSection({ hasScope, syncThresholdMin = 30 }: { has
               value={threshold}
               onChange={(e) => changeThreshold(Number(e.target.value))}
               disabled={isSaving}
+              aria-label="Fréquence de synchronisation automatique"
               className="w-full h-9 rounded-lg border border-input bg-background px-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-ring disabled:opacity-60"
             >
               {THRESHOLD_OPTIONS.map((o) => (

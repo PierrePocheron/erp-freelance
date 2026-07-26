@@ -400,6 +400,7 @@ export function GraphView({ rawNodes, rawLinks }: { rawNodes: RawNode[]; rawLink
         "[background-size:26px_26px]",
       ].join(" ")}
     >
+      <h1 className="sr-only">Graphe des relations</h1>
 
       {/* ── Canvas ─────────────────────────────────────────────────────────── */}
       <div ref={containerRef} className="flex-1 h-full">
@@ -440,6 +441,7 @@ export function GraphView({ rawNodes, rawLinks }: { rawNodes: RawNode[]; rawLink
               <input
                 ref={searchInputRef}
                 type="text"
+                aria-label="Rechercher un nœud"
                 placeholder="Rechercher…"
                 value={searchQuery}
                 onChange={e => {
@@ -452,8 +454,8 @@ export function GraphView({ rawNodes, rawLinks }: { rawNodes: RawNode[]; rawLink
                 className="bg-transparent text-xs outline-none flex-1 min-w-0 placeholder:text-muted-foreground/50"
               />
               {searchQuery ? (
-                <button onMouseDown={clearSearch} className="text-muted-foreground hover:text-foreground shrink-0">
-                  <X className="h-3 w-3" />
+                <button onMouseDown={clearSearch} aria-label="Effacer la recherche" className="text-muted-foreground hover:text-foreground shrink-0">
+                  <X className="h-3 w-3" aria-hidden="true" />
                 </button>
               ) : (
                 <kbd className="text-[10px] text-muted-foreground/40 bg-muted/60 border border-border/50 px-1 py-0.5 rounded font-mono leading-none shrink-0">/</kbd>
@@ -597,16 +599,17 @@ export function GraphView({ rawNodes, rawLinks }: { rawNodes: RawNode[]; rawLink
                     {NODE_TYPE_LABELS[selected.type]}
                   </span>
                 </div>
-                <h3 className="font-semibold text-sm leading-tight">{selected.label}</h3>
+                <h2 className="font-semibold text-sm leading-tight">{selected.label}</h2>
                 {selected.meta.subtitle && (
                   <p className="text-xs text-muted-foreground mt-0.5 truncate">{selected.meta.subtitle}</p>
                 )}
               </div>
               <button
                 onClick={() => setSelected(null)}
+                aria-label="Fermer le panneau"
                 className="shrink-0 text-muted-foreground hover:text-foreground"
               >
-                <X className="h-4 w-4" />
+                <X className="h-4 w-4" aria-hidden="true" />
               </button>
             </div>
 
@@ -671,6 +674,7 @@ export function GraphView({ rawNodes, rawLinks }: { rawNodes: RawNode[]; rawLink
                       <select
                         value={assignParent}
                         onChange={e => setAssignParent(e.target.value)}
+                        aria-label="Affecter à une société ou un contact"
                         className="w-full rounded-lg border border-input bg-background px-2.5 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-primary"
                       >
                         <option value="">— Choisir une société ou un contact…</option>
@@ -715,6 +719,7 @@ export function GraphView({ rawNodes, rawLinks }: { rawNodes: RawNode[]; rawLink
                       <input
                         type="url"
                         value={quickWebsite}
+                        aria-label="Site web"
                         onChange={e => setQuickWebsite(e.target.value)}
                         onKeyDown={e => e.key === "Enter" && handleQuickSaveCompany()}
                         placeholder="https://exemple.com"
@@ -739,6 +744,7 @@ export function GraphView({ rawNodes, rawLinks }: { rawNodes: RawNode[]; rawLink
                         <input
                           type="text"
                           value={quickFirstName}
+                          aria-label="Prénom"
                           onChange={e => setQuickFirstName(e.target.value)}
                           placeholder="Prénom"
                           className="w-full rounded-lg border border-input bg-background px-2.5 py-1.5 text-xs placeholder:text-muted-foreground/40 focus:outline-none focus:ring-1 focus:ring-primary"
@@ -746,6 +752,7 @@ export function GraphView({ rawNodes, rawLinks }: { rawNodes: RawNode[]; rawLink
                         <input
                           type="text"
                           value={quickLastName}
+                          aria-label="Nom"
                           onChange={e => setQuickLastName(e.target.value)}
                           placeholder="Nom"
                           className="w-full rounded-lg border border-input bg-background px-2.5 py-1.5 text-xs placeholder:text-muted-foreground/40 focus:outline-none focus:ring-1 focus:ring-primary"
@@ -754,6 +761,7 @@ export function GraphView({ rawNodes, rawLinks }: { rawNodes: RawNode[]; rawLink
                       <input
                         type="email"
                         value={quickEmail}
+                        aria-label="Adresse e-mail"
                         onChange={e => setQuickEmail(e.target.value)}
                         placeholder="email@exemple.com"
                         className="w-full rounded-lg border border-input bg-background px-2.5 py-1.5 text-xs placeholder:text-muted-foreground/40 focus:outline-none focus:ring-1 focus:ring-primary"
@@ -761,6 +769,7 @@ export function GraphView({ rawNodes, rawLinks }: { rawNodes: RawNode[]; rawLink
                       <input
                         type="tel"
                         value={quickPhone}
+                        aria-label="Téléphone"
                         onChange={e => setQuickPhone(e.target.value)}
                         onKeyDown={e => e.key === "Enter" && handleQuickSaveClient()}
                         placeholder="+33 6 …"

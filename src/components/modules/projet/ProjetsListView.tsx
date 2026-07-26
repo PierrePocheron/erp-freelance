@@ -128,6 +128,7 @@ export function ProjetsListView({
         <div className="flex items-center gap-2 flex-wrap">
           {/* Status filters — select on mobile, buttons on sm+ */}
           <select
+            aria-label="Filtrer par statut"
             className="sm:hidden rounded-lg border border-border px-2.5 py-1.5 text-xs bg-background text-foreground"
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
@@ -160,6 +161,7 @@ export function ProjetsListView({
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
             <input
               type="search"
+              aria-label="Rechercher un projet"
               placeholder="Rechercher..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}

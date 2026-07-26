@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useTransition, useEffect } from "react"
+import { useState, useTransition, useEffect, useId } from "react"
 import {
   Pencil, Check, X, Mail, Phone, Building2, Tag,
   MessageSquare, Loader2, MapPin, Hash, AlertCircle, Globe,
@@ -63,6 +63,7 @@ type ClientData = {
 export function ClientInfoCard({ client, isOwner = true }: { client: ClientData; isOwner?: boolean }) {
   const [editing, setEditing] = useState(false)
   const [isPending, startTransition] = useTransition()
+  const fid = useId()
 
   const [firstName, setFirstName] = useState(client.firstName ?? "")
   const [lastName, setLastName] = useState(client.lastName ?? "")
@@ -230,42 +231,43 @@ export function ClientInfoCard({ client, isOwner = true }: { client: ClientData;
         /* ── Mode édition ── */
         <div className="space-y-3">
           <div className="space-y-1">
-            <label className="text-xs text-muted-foreground">Libellé du contact</label>
-            <input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="Optionnel — ex. « Compta Acme »" className="flex h-8 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-ring" />
+            <label htmlFor={`${fid}-label`} className="text-xs text-muted-foreground">Libellé du contact</label>
+            <input id={`${fid}-label`} value={label} onChange={(e) => setLabel(e.target.value)} placeholder="Optionnel — ex. « Compta Acme »" className="flex h-8 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-ring" />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
-              <label className="text-xs text-muted-foreground">Prénom</label>
-              <input value={firstName} onChange={(e) => setFirstName(e.target.value)} placeholder="Jean" className="flex h-8 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-ring" />
+              <label htmlFor={`${fid}-firstName`} className="text-xs text-muted-foreground">Prénom</label>
+              <input id={`${fid}-firstName`} value={firstName} onChange={(e) => setFirstName(e.target.value)} placeholder="Jean" className="flex h-8 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-ring" />
             </div>
             <div className="space-y-1">
-              <label className="text-xs text-muted-foreground">Nom</label>
-              <input value={lastName} onChange={(e) => setLastName(e.target.value)} placeholder="Dupont" className="flex h-8 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-ring" />
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1">
-              <label className="text-xs text-muted-foreground">Société</label>
-              <CompanyCombobox value={company} onChange={setCompany} />
-            </div>
-            <div className="space-y-1">
-              <label className="text-xs text-muted-foreground">Poste</label>
-              <input value={jobTitle} onChange={(e) => setJobTitle(e.target.value)} placeholder="Directeur marketing, CTO…" className="flex h-8 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-ring" />
+              <label htmlFor={`${fid}-lastName`} className="text-xs text-muted-foreground">Nom</label>
+              <input id={`${fid}-lastName`} value={lastName} onChange={(e) => setLastName(e.target.value)} placeholder="Dupont" className="flex h-8 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-ring" />
             </div>
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
-              <label className="text-xs text-muted-foreground">Email</label>
-              <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="flex h-8 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-ring" />
+              <label htmlFor={`${fid}-company`} className="text-xs text-muted-foreground">Société</label>
+              <CompanyCombobox id={`${fid}-company`} value={company} onChange={setCompany} />
             </div>
             <div className="space-y-1">
-              <label className="text-xs text-muted-foreground">Téléphone</label>
-              <input value={phone} onChange={(e) => setPhone(e.target.value)} className="flex h-8 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-ring" />
+              <label htmlFor={`${fid}-jobTitle`} className="text-xs text-muted-foreground">Poste</label>
+              <input id={`${fid}-jobTitle`} value={jobTitle} onChange={(e) => setJobTitle(e.target.value)} placeholder="Directeur marketing, CTO…" className="flex h-8 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-ring" />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <label htmlFor={`${fid}-email`} className="text-xs text-muted-foreground">Email</label>
+              <input id={`${fid}-email`} type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="flex h-8 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-ring" />
+            </div>
+            <div className="space-y-1">
+              <label htmlFor={`${fid}-phone`} className="text-xs text-muted-foreground">Téléphone</label>
+              <input id={`${fid}-phone`} value={phone} onChange={(e) => setPhone(e.target.value)} className="flex h-8 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-ring" />
             </div>
           </div>
           <div className="space-y-1">
-            <label className="text-xs text-muted-foreground">LinkedIn</label>
+            <label htmlFor={`${fid}-linkedinUrl`} className="text-xs text-muted-foreground">LinkedIn</label>
             <input
+              id={`${fid}-linkedinUrl`}
               value={linkedinUrl} onChange={(e) => setLinkedinUrl(e.target.value)}
               placeholder="https://linkedin.com/in/…"
               className="flex h-8 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
@@ -274,14 +276,14 @@ export function ClientInfoCard({ client, isOwner = true }: { client: ClientData;
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
-              <label className="text-xs text-muted-foreground">Type</label>
-              <select value={type} onChange={(e) => setType(e.target.value)} className="flex h-8 w-full rounded-md border border-input bg-background px-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring">
+              <label htmlFor={`${fid}-type`} className="text-xs text-muted-foreground">Type</label>
+              <select id={`${fid}-type`} value={type} onChange={(e) => setType(e.target.value)} className="flex h-8 w-full rounded-md border border-input bg-background px-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring">
                 {TYPE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
               </select>
             </div>
             <div className="space-y-1">
-              <label className="text-xs text-muted-foreground">Source</label>
-              <select value={source} onChange={(e) => setSource(e.target.value)} className="flex h-8 w-full rounded-md border border-input bg-background px-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring">
+              <label htmlFor={`${fid}-source`} className="text-xs text-muted-foreground">Source</label>
+              <select id={`${fid}-source`} value={source} onChange={(e) => setSource(e.target.value)} className="flex h-8 w-full rounded-md border border-input bg-background px-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring">
                 {Object.entries(SOURCE_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
               </select>
             </div>
@@ -290,8 +292,8 @@ export function ClientInfoCard({ client, isOwner = true }: { client: ClientData;
           {/* Statut prospect — visible uniquement si le type actuel est PROSPECT */}
           {type === "PROSPECT" && (
             <div className="space-y-1">
-              <label className="text-xs text-muted-foreground">Statut prospect</label>
-              <select value={prospectStatus} onChange={(e) => setProspectStatus(e.target.value)} className="flex h-8 w-full rounded-md border border-input bg-background px-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring">
+              <label htmlFor={`${fid}-prospectStatus`} className="text-xs text-muted-foreground">Statut prospect</label>
+              <select id={`${fid}-prospectStatus`} value={prospectStatus} onChange={(e) => setProspectStatus(e.target.value)} className="flex h-8 w-full rounded-md border border-input bg-background px-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring">
                 <optgroup label="Pipeline">
                   {PIPELINE_STATUSES.map((s) => (
                     <option key={s} value={s}>{STATUS_CONFIG[s].label}</option>
@@ -308,39 +310,39 @@ export function ClientInfoCard({ client, isOwner = true }: { client: ClientData;
 
           <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground/70 pt-1">Adresse du contact <span className="font-normal normal-case">(optionnelle)</span></p>
           <div className="space-y-1">
-            <label className="text-xs text-muted-foreground">Adresse</label>
-            <input value={address} onChange={(e) => setAddress(e.target.value)} placeholder="12 rue de la Paix" className="flex h-8 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-ring" />
+            <label htmlFor={`${fid}-address`} className="text-xs text-muted-foreground">Adresse</label>
+            <input id={`${fid}-address`} value={address} onChange={(e) => setAddress(e.target.value)} placeholder="12 rue de la Paix" className="flex h-8 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-ring" />
           </div>
 
           <div className="grid grid-cols-3 gap-3">
             <div className="space-y-1">
-              <label className="text-xs text-muted-foreground">Code postal</label>
-              <input value={postalCode} onChange={(e) => setPostalCode(e.target.value)} placeholder="75001" className="flex h-8 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-ring" />
+              <label htmlFor={`${fid}-postalCode`} className="text-xs text-muted-foreground">Code postal</label>
+              <input id={`${fid}-postalCode`} value={postalCode} onChange={(e) => setPostalCode(e.target.value)} placeholder="75001" className="flex h-8 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-ring" />
             </div>
             <div className="space-y-1">
-              <label className="text-xs text-muted-foreground">Ville</label>
-              <input value={city} onChange={(e) => setCity(e.target.value)} placeholder="Paris" className="flex h-8 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-ring" />
+              <label htmlFor={`${fid}-city`} className="text-xs text-muted-foreground">Ville</label>
+              <input id={`${fid}-city`} value={city} onChange={(e) => setCity(e.target.value)} placeholder="Paris" className="flex h-8 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-ring" />
             </div>
             <div className="space-y-1">
-              <label className="text-xs text-muted-foreground">Pays</label>
-              <input value={country} onChange={(e) => setCountry(e.target.value)} placeholder="France" className="flex h-8 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-ring" />
+              <label htmlFor={`${fid}-country`} className="text-xs text-muted-foreground">Pays</label>
+              <input id={`${fid}-country`} value={country} onChange={(e) => setCountry(e.target.value)} placeholder="France" className="flex h-8 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-ring" />
             </div>
           </div>
 
           <div className="space-y-1">
-            <label className="text-xs text-muted-foreground">SIRET</label>
-            <input value={siret} onChange={(e) => setSiret(e.target.value)} placeholder="123 456 789 00012" className="flex h-8 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-ring" />
+            <label htmlFor={`${fid}-siret`} className="text-xs text-muted-foreground">SIRET</label>
+            <input id={`${fid}-siret`} value={siret} onChange={(e) => setSiret(e.target.value)} placeholder="123 456 789 00012" className="flex h-8 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-ring" />
           </div>
 
           <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground/70 pt-1">Site web du prospect <span className="font-normal normal-case">(optionnel)</span></p>
           <div className="space-y-1">
-            <label className="text-xs text-muted-foreground">URL du site</label>
-            <input value={websiteUrl} onChange={(e) => setWebsiteUrl(e.target.value)} placeholder="https://exemple.fr" className="flex h-8 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-ring" />
+            <label htmlFor={`${fid}-websiteUrl`} className="text-xs text-muted-foreground">URL du site</label>
+            <input id={`${fid}-websiteUrl`} value={websiteUrl} onChange={(e) => setWebsiteUrl(e.target.value)} placeholder="https://exemple.fr" className="flex h-8 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-ring" />
           </div>
           <div className="grid grid-cols-3 gap-3">
             <div className="space-y-1">
-              <label className="text-xs text-muted-foreground">Type de site</label>
-              <select value={websiteType} onChange={(e) => setWebsiteType(e.target.value)} className="flex h-8 w-full rounded-md border border-input bg-background px-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring">
+              <label htmlFor={`${fid}-websiteType`} className="text-xs text-muted-foreground">Type de site</label>
+              <select id={`${fid}-websiteType`} value={websiteType} onChange={(e) => setWebsiteType(e.target.value)} className="flex h-8 w-full rounded-md border border-input bg-background px-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring">
                 <option value="">—</option>
                 {(Object.keys(WEBSITE_TYPE_CONFIG) as WebsiteType[]).map((t) => (
                   <option key={t} value={t}>{WEBSITE_TYPE_CONFIG[t].label}</option>
@@ -348,22 +350,22 @@ export function ClientInfoCard({ client, isOwner = true }: { client: ClientData;
               </select>
             </div>
             <div className="space-y-1">
-              <label className="text-xs text-muted-foreground">Pages (approx.)</label>
-              <input value={websitePagesApprox} onChange={(e) => setWebsitePagesApprox(e.target.value)} inputMode="numeric" placeholder="5" className="flex h-8 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-ring" />
+              <label htmlFor={`${fid}-websitePagesApprox`} className="text-xs text-muted-foreground">Pages (approx.)</label>
+              <input id={`${fid}-websitePagesApprox`} value={websitePagesApprox} onChange={(e) => setWebsitePagesApprox(e.target.value)} inputMode="numeric" placeholder="5" className="flex h-8 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-ring" />
             </div>
             <div className="space-y-1">
-              <label className="text-xs text-muted-foreground">Région</label>
-              <input value={region} onChange={(e) => setRegion(e.target.value)} placeholder="Auvergne-Rhône-Alpes" className="flex h-8 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-ring" />
+              <label htmlFor={`${fid}-region`} className="text-xs text-muted-foreground">Région</label>
+              <input id={`${fid}-region`} value={region} onChange={(e) => setRegion(e.target.value)} placeholder="Auvergne-Rhône-Alpes" className="flex h-8 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-ring" />
             </div>
           </div>
           <div className="space-y-1">
-            <label className="text-xs text-muted-foreground">Description du business</label>
-            <textarea value={businessDescription} onChange={(e) => setBusinessDescription(e.target.value)} rows={2} placeholder="Ce que fait l'entreprise, à quoi sert le site…" className="flex w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-ring resize-none" />
+            <label htmlFor={`${fid}-businessDescription`} className="text-xs text-muted-foreground">Description du business</label>
+            <textarea id={`${fid}-businessDescription`} value={businessDescription} onChange={(e) => setBusinessDescription(e.target.value)} rows={2} placeholder="Ce que fait l'entreprise, à quoi sert le site…" className="flex w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-ring resize-none" />
           </div>
 
           <div className="space-y-1">
-            <label className="text-xs text-muted-foreground">Notes internes</label>
-            <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} placeholder="Notes privées..." className="flex w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-ring resize-none" />
+            <label htmlFor={`${fid}-notes`} className="text-xs text-muted-foreground">Notes internes</label>
+            <textarea id={`${fid}-notes`} value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} placeholder="Notes privées..." className="flex w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-ring resize-none" />
           </div>
         </div>
       ) : (

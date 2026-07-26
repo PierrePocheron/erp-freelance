@@ -94,6 +94,8 @@ export function TagManager({
             <button
               key={c}
               type="button"
+              aria-label={`Couleur ${c}`}
+              aria-pressed={color === c}
               onClick={() => setColor(c)}
               className="h-4 w-4 rounded-full border-2 transition-all hover:scale-110"
               style={{

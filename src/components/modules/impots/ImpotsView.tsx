@@ -110,6 +110,8 @@ export function ImpotsView({
       {/* Header */}
       <div className="flex items-start justify-between gap-4">
         <div>
+          {/* Titre visible en mobile ; en desktop, un h1 lu par les lecteurs d'écran (sr-only) prend le relais */}
+          <h1 className="sr-only hidden sm:block">Impôts &amp; URSSAF</h1>
           <h1 className="sm:hidden text-2xl font-bold tracking-tight flex items-center gap-2">
             <Landmark className="h-6 w-6 text-primary" />
             Impôts &amp; URSSAF
@@ -294,8 +296,8 @@ function DeclarationCard({ declaration: d, expanded, onToggle, onPay, rates, vlE
                         <span className="flex items-center gap-1.5 min-w-0">
                           <span className="truncate">{l.label}</span>
                           {l.invoiceId && (
-                            <Link href={`/facturation/factures/${l.invoiceId}`} className="text-primary shrink-0">
-                              <ExternalLink className="h-3 w-3" />
+                            <Link href={`/facturation/factures/${l.invoiceId}`} aria-label="Ouvrir la facture" className="text-primary shrink-0">
+                              <ExternalLink className="h-3 w-3" aria-hidden="true" />
                             </Link>
                           )}
                         </span>
@@ -487,10 +489,10 @@ function NewDeclarationDialog({
     <DialogShell title="Nouvelle déclaration URSSAF" onClose={onClose}>
       {/* Période */}
       <div className="flex items-center justify-between gap-2">
-        <button onClick={() => setPeriod(previousPeriod(period))}
+        <button onClick={() => setPeriod(previousPeriod(period))} aria-label="Période précédente"
           className="rounded-lg border border-border px-2 py-1 text-xs hover:bg-accent">←</button>
         <span className="text-sm font-semibold">{periodLabel(period)}</span>
-        <button onClick={() => setPeriod(nextPeriod(period))}
+        <button onClick={() => setPeriod(nextPeriod(period))} aria-label="Période suivante"
           className="rounded-lg border border-border px-2 py-1 text-xs hover:bg-accent">→</button>
       </div>
 
@@ -509,12 +511,13 @@ function NewDeclarationDialog({
           {/* Recherche parmi les factures / revenus de la période */}
           {lines.length > 5 && (
             <div className="flex items-center gap-1.5 rounded-lg border border-input bg-background px-2 py-1.5">
-              <Search className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+              <Search className="h-3.5 w-3.5 text-muted-foreground shrink-0" aria-hidden="true" />
               <input
                 type="text"
                 value={search}
                 onChange={e => setSearch(e.target.value)}
                 placeholder="Filtrer par client, numéro…"
+                aria-label="Filtrer les lignes"
                 className="bg-transparent text-xs outline-none flex-1 min-w-0 placeholder:text-muted-foreground/50"
               />
             </div>
@@ -527,8 +530,9 @@ function NewDeclarationDialog({
               lisible même avec beaucoup de factures sur la période. */}
           <div className="space-y-1.5 max-h-64 overflow-y-auto relative pr-0.5">
             {isFetching && (
-              <div className="absolute inset-0 z-10 flex items-center justify-center bg-card/70 rounded-lg">
-                <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+              <div role="status" className="absolute inset-0 z-10 flex items-center justify-center bg-card/70 rounded-lg">
+                <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" aria-hidden="true" />
+                <span className="sr-only">Chargement…</span>
               </div>
             )}
             {lines.length === 0 && (
@@ -564,13 +568,14 @@ function NewDeclarationDialog({
             <Input value={freeLabel} onChange={e => setFreeLabel(e.target.value)}
               placeholder="Encaissement manuel…" className="h-8 text-xs flex-1" />
             <select value={freeCat} onChange={e => setFreeCat(e.target.value as FiscalCategory)}
+              aria-label="Catégorie fiscale"
               className="rounded-md border border-input bg-background px-1.5 py-1.5 text-[10px] shrink-0">
               {ALL_CATEGORIES.map(c => <option key={c} value={c}>{FISCAL_CATEGORY_SHORT[c]}</option>)}
             </select>
             <Input value={freeAmount} onChange={e => setFreeAmount(e.target.value)}
               placeholder="€" className="h-8 text-xs w-20" inputMode="decimal" />
-            <Button size="sm" variant="outline" onClick={addFreeLine} className="h-8 px-2 shrink-0">
-              <Plus className="h-3.5 w-3.5" />
+            <Button size="sm" variant="outline" onClick={addFreeLine} aria-label="Ajouter la ligne" className="h-8 px-2 shrink-0">
+              <Plus className="h-3.5 w-3.5" aria-hidden="true" />
             </Button>
           </div>
 
@@ -585,7 +590,7 @@ function NewDeclarationDialog({
             </div>
           </div>
 
-          {error && <p className="text-xs text-red-600">{error}</p>}
+          {error && <p role="alert" className="text-xs text-red-600">{error}</p>}
 
           <div className="flex justify-end gap-2">
             <Button variant="outline" size="sm" onClick={onClose}>Annuler</Button>
@@ -610,6 +615,7 @@ function DeclarationLineRow({ line: l, onToggle, onCategory }: {
       l.included ? "border-border bg-card" : "border-border/50 opacity-60"
     }`}>
       <input type="checkbox" checked={l.included} onChange={() => onToggle(l.key)}
+        aria-label={l.label}
         className="h-3.5 w-3.5 accent-[var(--primary)] shrink-0" />
       <span className="flex-1 min-w-0 text-xs truncate">{l.label}</span>
       {statusMeta && (
@@ -620,6 +626,7 @@ function DeclarationLineRow({ line: l, onToggle, onCategory }: {
       <select
         value={l.category}
         onChange={e => onCategory(l.key, e.target.value as FiscalCategory)}
+        aria-label="Catégorie fiscale"
         className="rounded-md border border-input bg-background px-1.5 py-1 text-[10px] shrink-0"
       >
         {ALL_CATEGORIES.map(c => (
@@ -690,7 +697,7 @@ function PayDialog({ declaration: d, rates, vlEnabled, onClose, onSaved }: {
         <span className="text-sm font-bold tabular-nums amount-sensitive">{fmt(total)} €</span>
       </div>
 
-      {error && <p className="text-xs text-red-600">{error}</p>}
+      {error && <p role="alert" className="text-xs text-red-600">{error}</p>}
 
       <div className="flex justify-end gap-2">
         <Button variant="outline" size="sm" onClick={onClose}>Annuler</Button>
@@ -715,8 +722,8 @@ function DialogShell({ title, onClose, children }: {
       >
         <div className="flex items-center justify-between">
           <h3 className="font-semibold text-sm">{title}</h3>
-          <button onClick={onClose} className="text-muted-foreground hover:text-foreground">
-            <X className="h-4 w-4" />
+          <button onClick={onClose} aria-label="Fermer" className="text-muted-foreground hover:text-foreground">
+            <X className="h-4 w-4" aria-hidden="true" />
           </button>
         </div>
         {children}

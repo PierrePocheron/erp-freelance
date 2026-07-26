@@ -24,6 +24,7 @@ export function CompanyTypeSelect({
 
   return (
     <select
+      aria-label="Type de société"
       value={value ?? ""}
       onChange={(e) =>
         startTransition(() => updateCompanyType(companyId, e.target.value || null))

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useTransition } from "react"
+import { useId, useState, useTransition } from "react"
 import { X, Trash2 } from "lucide-react"
 import { toast } from "sonner"
 import { createHealthEvent, updateHealthEvent, deleteHealthEvent } from "@/actions/sante"
@@ -25,6 +25,7 @@ export function HealthEventDialog({
   const [bodyPart,      setBodyPart]      = useState(item?.bodyPart || "")
   const [resolvedAt,    setResolvedAt]    = useState(toISO(item?.resolvedAt))
   const [confirmDelete, setConfirmDelete] = useState(false)
+  const uid = useId()
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -55,23 +56,25 @@ export function HealthEventDialog({
       <div className="w-full max-w-md rounded-2xl bg-background border border-border shadow-xl">
         <div className="flex items-center justify-between px-5 py-4 border-b border-border/50">
           <h2 className="text-sm font-semibold">{item ? "Modifier" : "Ajouter"} une blessure / maladie</h2>
-          <button onClick={onClose} className="text-muted-foreground hover:text-foreground transition-colors">
-            <X className="h-4 w-4" />
+          <button onClick={onClose} aria-label="Fermer" className="text-muted-foreground hover:text-foreground transition-colors">
+            <X className="h-4 w-4" aria-hidden="true" />
           </button>
         </div>
 
         <form onSubmit={handleSubmit} className="p-5 space-y-4">
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="text-xs font-medium text-muted-foreground">Date</label>
+              <label htmlFor={`${uid}-date`} className="text-xs font-medium text-muted-foreground">Date</label>
               <input
+                id={`${uid}-date`}
                 type="date" value={date} onChange={e => setDate(e.target.value)} required
                 className="mt-1 w-full h-9 rounded-lg border border-input bg-background px-3 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
               />
             </div>
             <div>
-              <label className="text-xs font-medium text-muted-foreground">Type</label>
+              <label htmlFor={`${uid}-type`} className="text-xs font-medium text-muted-foreground">Type</label>
               <select
+                id={`${uid}-type`}
                 value={type} onChange={e => setType(e.target.value as HealthEventType)}
                 className="mt-1 w-full h-9 rounded-lg border border-input bg-background px-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
               >
@@ -83,8 +86,9 @@ export function HealthEventDialog({
           </div>
 
           <div>
-            <label className="text-xs font-medium text-muted-foreground">Titre *</label>
+            <label htmlFor={`${uid}-title`} className="text-xs font-medium text-muted-foreground">Titre *</label>
             <input
+              id={`${uid}-title`}
               value={title} onChange={e => setTitle(e.target.value)} required
               placeholder="Ex : Douleur lombaires, Grippe, Ligament croisé…"
               className="mt-1 w-full h-9 rounded-lg border border-input bg-background px-3 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
@@ -92,8 +96,9 @@ export function HealthEventDialog({
           </div>
 
           <div>
-            <label className="text-xs font-medium text-muted-foreground">Localisation (partie du corps)</label>
+            <label htmlFor={`${uid}-bodypart`} className="text-xs font-medium text-muted-foreground">Localisation (partie du corps)</label>
             <input
+              id={`${uid}-bodypart`}
               value={bodyPart} onChange={e => setBodyPart(e.target.value)}
               placeholder="Ex : dos, genou gauche, coude droit…"
               className="mt-1 w-full h-9 rounded-lg border border-input bg-background px-3 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
@@ -101,8 +106,9 @@ export function HealthEventDialog({
           </div>
 
           <div>
-            <label className="text-xs font-medium text-muted-foreground">Description / contexte</label>
+            <label htmlFor={`${uid}-description`} className="text-xs font-medium text-muted-foreground">Description / contexte</label>
             <textarea
+              id={`${uid}-description`}
               value={description} onChange={e => setDescription(e.target.value)} rows={3}
               placeholder="Circonstances, symptômes, contexte…"
               className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring resize-none"
@@ -111,8 +117,9 @@ export function HealthEventDialog({
 
           {item && (
             <div>
-              <label className="text-xs font-medium text-muted-foreground">Date de résolution (si guéri)</label>
+              <label htmlFor={`${uid}-resolved`} className="text-xs font-medium text-muted-foreground">Date de résolution (si guéri)</label>
               <input
+                id={`${uid}-resolved`}
                 type="date" value={resolvedAt} onChange={e => setResolvedAt(e.target.value)}
                 className="mt-1 w-full h-9 rounded-lg border border-input bg-background px-3 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
               />

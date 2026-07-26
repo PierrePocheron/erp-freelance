@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useTransition } from "react"
+import { useId, useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
 import { Upload, X, Check, RefreshCw } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -24,6 +24,7 @@ export function ImportInvoiceModal({
   projects: Project[]
 }) {
   const router  = useRouter()
+  const fieldId = useId()
   const [open,  setOpen]  = useState(false)
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
@@ -123,8 +124,9 @@ export function ImportInvoiceModal({
           {/* Client + Projet */}
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
-              <label className="text-xs font-medium text-muted-foreground">Client *</label>
+              <label htmlFor={`${fieldId}-client`} className="text-xs font-medium text-muted-foreground">Client *</label>
               <select
+                id={`${fieldId}-client`}
                 value={clientId}
                 onChange={e => { setClientId(e.target.value); setProjectId("") }}
                 className="w-full rounded-md border border-border bg-background px-2.5 py-1.5 text-sm"
@@ -136,8 +138,9 @@ export function ImportInvoiceModal({
               </select>
             </div>
             <div className="space-y-1">
-              <label className="text-xs font-medium text-muted-foreground">Projet (optionnel)</label>
+              <label htmlFor={`${fieldId}-project`} className="text-xs font-medium text-muted-foreground">Projet (optionnel)</label>
               <select
+                id={`${fieldId}-project`}
                 value={projectId}
                 onChange={e => setProjectId(e.target.value)}
                 disabled={!clientId || clientProjects.length === 0}
@@ -154,8 +157,9 @@ export function ImportInvoiceModal({
           {/* Numéro + Date */}
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
-              <label className="text-xs font-medium text-muted-foreground">Numéro de référence</label>
+              <label htmlFor={`${fieldId}-number`} className="text-xs font-medium text-muted-foreground">Numéro de référence</label>
               <input
+                id={`${fieldId}-number`}
                 type="text"
                 value={customNumber}
                 onChange={e => setCustomNumber(e.target.value)}
@@ -165,8 +169,9 @@ export function ImportInvoiceModal({
               <p className="text-[10px] text-muted-foreground">Laissez vide pour auto-générer</p>
             </div>
             <div className="space-y-1">
-              <label className="text-xs font-medium text-muted-foreground">Date de la facture *</label>
+              <label htmlFor={`${fieldId}-date`} className="text-xs font-medium text-muted-foreground">Date de la facture *</label>
               <input
+                id={`${fieldId}-date`}
                 type="date"
                 value={date}
                 onChange={e => setDate(e.target.value)}
@@ -177,8 +182,9 @@ export function ImportInvoiceModal({
 
           {/* Description */}
           <div className="space-y-1">
-            <label className="text-xs font-medium text-muted-foreground">Libellé / mission *</label>
+            <label htmlFor={`${fieldId}-description`} className="text-xs font-medium text-muted-foreground">Libellé / mission *</label>
             <input
+              id={`${fieldId}-description`}
               type="text"
               value={description}
               onChange={e => setDescription(e.target.value)}
@@ -190,8 +196,9 @@ export function ImportInvoiceModal({
           {/* Montants */}
           <div className="grid grid-cols-3 gap-3">
             <div className="col-span-2 space-y-1">
-              <label className="text-xs font-medium text-muted-foreground">Montant HT (€) *</label>
+              <label htmlFor={`${fieldId}-amount`} className="text-xs font-medium text-muted-foreground">Montant HT (€) *</label>
               <input
+                id={`${fieldId}-amount`}
                 type="number"
                 min="0"
                 step="0.01"
@@ -202,8 +209,9 @@ export function ImportInvoiceModal({
               />
             </div>
             <div className="space-y-1">
-              <label className="text-xs font-medium text-muted-foreground">TVA %</label>
+              <label htmlFor={`${fieldId}-tax`} className="text-xs font-medium text-muted-foreground">TVA %</label>
               <input
+                id={`${fieldId}-tax`}
                 type="number"
                 min="0"
                 max="100"
@@ -228,6 +236,9 @@ export function ImportInvoiceModal({
           <div className="flex items-center gap-2 pt-1">
             <button
               type="button"
+              role="switch"
+              aria-checked={isPaid}
+              aria-label="Payée"
               onClick={() => setIsPaid(v => !v)}
               className={`relative inline-flex h-5 w-9 shrink-0 rounded-full border transition-colors ${
                 isPaid ? "bg-emerald-500 border-emerald-500" : "bg-muted border-border"
@@ -243,8 +254,9 @@ export function ImportInvoiceModal({
           {isPaid && (
             <div className="grid grid-cols-2 gap-3 pl-0">
               <div className="space-y-1">
-                <label className="text-xs font-medium text-muted-foreground">Date du virement</label>
+                <label htmlFor={`${fieldId}-paidAt`} className="text-xs font-medium text-muted-foreground">Date du virement</label>
                 <input
+                  id={`${fieldId}-paidAt`}
                   type="date"
                   value={paidAt}
                   onChange={e => setPaidAt(e.target.value)}
@@ -252,8 +264,9 @@ export function ImportInvoiceModal({
                 />
               </div>
               <div className="space-y-1">
-                <label className="text-xs font-medium text-muted-foreground">Montant reçu (€)</label>
+                <label htmlFor={`${fieldId}-paidAmount`} className="text-xs font-medium text-muted-foreground">Montant reçu (€)</label>
                 <input
+                  id={`${fieldId}-paidAmount`}
                   type="number"
                   min="0"
                   step="0.01"
@@ -269,8 +282,9 @@ export function ImportInvoiceModal({
 
           {/* Notes */}
           <div className="space-y-1">
-            <label className="text-xs font-medium text-muted-foreground">Notes internes (optionnel)</label>
+            <label htmlFor={`${fieldId}-notes`} className="text-xs font-medium text-muted-foreground">Notes internes (optionnel)</label>
             <textarea
+              id={`${fieldId}-notes`}
               value={notes}
               onChange={e => setNotes(e.target.value)}
               rows={2}
@@ -280,7 +294,7 @@ export function ImportInvoiceModal({
           </div>
 
           {error && (
-            <p className="text-sm text-red-500 font-medium">{error}</p>
+            <p role="alert" className="text-sm text-red-500 font-medium">{error}</p>
           )}
         </div>
 

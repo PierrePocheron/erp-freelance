@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useRef, useEffect, useCallback } from "react"
+import { useState, useRef, useEffect, useCallback, useId } from "react"
 import { createPortal } from "react-dom"
 import { Check, Building2, ChevronDown, Plus, X } from "lucide-react"
 import { searchCompanies } from "@/actions/crm"
@@ -12,15 +12,18 @@ type Props = {
   value: { id: string | null; name: string }
   onChange: (v: { id: string | null; name: string }) => void
   placeholder?: string
+  /** id applique a l'input, pour l'association avec un <label htmlFor>. */
+  id?: string
 }
 
-export function CompanyCombobox({ value, onChange, placeholder }: Props) {
+export function CompanyCombobox({ value, onChange, placeholder, id }: Props) {
   const [query, setQuery] = useState("")
   const [open, setOpen] = useState(false)
   const [results, setResults] = useState<CompanyOption[]>([])
   const [dropdownStyle, setDropdownStyle] = useState<React.CSSProperties>({})
   const inputRef = useRef<HTMLInputElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
+  const listboxId = useId()
 
   // Recherche serveur débauncée tant que le dropdown est ouvert.
   useEffect(() => {
@@ -103,6 +106,12 @@ export function CompanyCombobox({ value, onChange, placeholder }: Props) {
       <div className="relative">
         <input
           ref={inputRef}
+          id={id}
+          role="combobox"
+          aria-expanded={open}
+          aria-controls={listboxId}
+          aria-autocomplete="list"
+          aria-haspopup="listbox"
           value={open ? query : value.name}
           onChange={(e) => {
             const v = e.target.value
@@ -112,6 +121,7 @@ export function CompanyCombobox({ value, onChange, placeholder }: Props) {
             if (!open) handleOpen()
           }}
           onFocus={handleOpen}
+          onKeyDown={(e) => { if (e.key === "Escape") setOpen(false) }}
           placeholder={placeholder ?? "Rechercher ou créer une société..."}
           className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring pr-8"
         />
@@ -135,7 +145,7 @@ export function CompanyCombobox({ value, onChange, placeholder }: Props) {
           style={dropdownStyle}
           className="rounded-md border border-border bg-popover shadow-lg overflow-hidden"
         >
-          <div className="max-h-52 overflow-y-auto">
+          <div id={listboxId} role="listbox" className="max-h-52 overflow-y-auto">
             {results.length === 0 && !showCreate && (
               <p className="px-3 py-2.5 text-sm text-muted-foreground">Aucune société</p>
             )}
@@ -144,7 +154,9 @@ export function CompanyCombobox({ value, onChange, placeholder }: Props) {
               <button
                 key={c.id}
                 type="button"
-                onPointerDown={(e) => { e.preventDefault(); handleSelect(c) }}
+                role="option"
+                aria-selected={c.id === value.id}
+                onClick={() => handleSelect(c)}
                 className="flex items-center gap-2.5 w-full px-3 py-2 text-sm text-left hover:bg-muted/60 transition-colors"
               >
                 <Building2 className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
@@ -161,7 +173,9 @@ export function CompanyCombobox({ value, onChange, placeholder }: Props) {
                 {results.length > 0 && <div className="border-t border-border/50" />}
                 <button
                   type="button"
-                  onPointerDown={(e) => { e.preventDefault(); handleCreate() }}
+                  role="option"
+                  aria-selected={false}
+                  onClick={() => handleCreate()}
                   className="flex items-center gap-2 w-full px-3 py-2.5 text-sm text-primary font-medium hover:bg-primary/8 transition-colors"
                 >
                   <Plus className="h-3.5 w-3.5 shrink-0" />

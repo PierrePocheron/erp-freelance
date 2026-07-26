@@ -255,6 +255,7 @@ export function FiscalSummary({
       <div className="flex items-center gap-3 flex-wrap">
         <button
           onClick={() => router.push(`/revenus/recapitulatif?year=${year - 1}`)}
+          aria-label="Année précédente"
           className="rounded-md border border-border p-1.5 hover:bg-accent transition-colors"
         >
           <ChevronLeft className="h-4 w-4" />
@@ -262,6 +263,7 @@ export function FiscalSummary({
         <span className="text-lg font-bold tabular-nums w-16 text-center">{year}</span>
         <button
           onClick={() => router.push(`/revenus/recapitulatif?year=${year + 1}`)}
+          aria-label="Année suivante"
           className="rounded-md border border-border p-1.5 hover:bg-accent transition-colors"
         >
           <ChevronRight className="h-4 w-4" />
@@ -529,10 +531,11 @@ function ClientGroupRow({ group }: { group: { clientKey: string; clientName: str
     <div>
       <button
         onClick={() => setOpen(v => !v)}
+        aria-expanded={open}
         className="w-full flex items-center justify-between px-5 py-3 hover:bg-accent/40 transition-colors text-left"
       >
         <div className="flex items-center gap-2.5">
-          <span className={`text-xs transition-transform ${open ? "rotate-90" : ""}`}>▶</span>
+          <span aria-hidden="true" className={`text-xs transition-transform ${open ? "rotate-90" : ""}`}>▶</span>
           <div>
             <p className="text-sm font-medium">{displayName}</p>
             <p className="text-xs text-muted-foreground">{group.lines.length} entrée{group.lines.length > 1 ? "s" : ""}</p>

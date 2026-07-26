@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useTransition } from "react"
+import { useState, useTransition, useId } from "react"
 import { useRouter } from "next/navigation"
 import { Plus, Pencil, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -39,6 +39,7 @@ export function RecurringExpenseDialog({
   recurringExpense?: RecurringExpenseForEdit
 }) {
   const router = useRouter()
+  const fieldId = useId()
   const isEdit = !!recurringExpense
   const [open, setOpen] = useState(false)
   const [isPending, startTransition] = useTransition()
@@ -115,17 +116,18 @@ export function RecurringExpenseDialog({
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-3">
           <div className="space-y-1">
-            <label className="text-xs text-muted-foreground">Libellé</label>
-            <Input value={label} onChange={e => setLabel(e.target.value)} placeholder="Loyer, Internet, Assurance…" required />
+            <label htmlFor={`${fieldId}-libelle`} className="text-xs text-muted-foreground">Libellé</label>
+            <Input id={`${fieldId}-libelle`} value={label} onChange={e => setLabel(e.target.value)} placeholder="Loyer, Internet, Assurance…" required />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
-              <label className="text-xs text-muted-foreground">Montant (€)</label>
-              <Input type="text" inputMode="decimal" value={amount} onChange={e => setAmount(e.target.value)} placeholder="0.00" required />
+              <label htmlFor={`${fieldId}-amount`} className="text-xs text-muted-foreground">Montant (€)</label>
+              <Input id={`${fieldId}-amount`} type="text" inputMode="decimal" value={amount} onChange={e => setAmount(e.target.value)} placeholder="0.00" required />
             </div>
             <div className="space-y-1">
-              <label className="text-xs text-muted-foreground">Fréquence</label>
+              <label htmlFor={`${fieldId}-frequency`} className="text-xs text-muted-foreground">Fréquence</label>
               <select
+                id={`${fieldId}-frequency`}
                 value={frequency}
                 onChange={e => setFrequency(e.target.value)}
                 className="flex h-9 w-full rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
@@ -158,8 +160,9 @@ export function RecurringExpenseDialog({
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
-              <label className="text-xs text-muted-foreground">Portée</label>
+              <label htmlFor={`${fieldId}-scope`} className="text-xs text-muted-foreground">Portée</label>
               <select
+                id={`${fieldId}-scope`}
                 value={scope}
                 onChange={e => setScope(e.target.value as "PRO" | "PERSO")}
                 className="flex h-9 w-full rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
@@ -169,13 +172,13 @@ export function RecurringExpenseDialog({
               </select>
             </div>
             <div className="space-y-1">
-              <label className="text-xs text-muted-foreground">Catégorie</label>
-              <ExpenseCategoryCombobox categories={categories} value={categoryId} onChange={setCategoryId} />
+              <label htmlFor={`${fieldId}-category`} className="text-xs text-muted-foreground">Catégorie</label>
+              <ExpenseCategoryCombobox id={`${fieldId}-category`} categories={categories} value={categoryId} onChange={setCategoryId} />
             </div>
           </div>
           <div className="space-y-1">
-            <label className="text-xs text-muted-foreground">Notes (optionnel)</label>
-            <Input value={notes} onChange={e => setNotes(e.target.value)} placeholder="Détail, référence…" />
+            <label htmlFor={`${fieldId}-notes`} className="text-xs text-muted-foreground">Notes (optionnel)</label>
+            <Input id={`${fieldId}-notes`} value={notes} onChange={e => setNotes(e.target.value)} placeholder="Détail, référence…" />
           </div>
 
           <div className="flex items-center justify-between pt-1">

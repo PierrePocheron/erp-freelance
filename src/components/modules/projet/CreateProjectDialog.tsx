@@ -170,7 +170,7 @@ export function CreateProjectDialog({
               {/* Société */}
               <div className="space-y-1.5">
                 <div className="flex items-center justify-between">
-                  <Label>Société</Label>
+                  <Label htmlFor="companyId">Société</Label>
                   <button
                     type="button"
                     onClick={() => setShowNewCompany(true)}
@@ -181,6 +181,7 @@ export function CreateProjectDialog({
                   </button>
                 </div>
                 <select
+                  id="companyId"
                   value={selectedCompanyId}
                   onChange={(e) => { setSelectedCompanyId(e.target.value); setSelectedContactId("") }}
                   className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
@@ -196,8 +197,9 @@ export function CreateProjectDialog({
 
               {/* Contact */}
               <div className="space-y-1.5">
-                <Label>Contact</Label>
+                <Label htmlFor="contactId">Contact</Label>
                 <select
+                  id="contactId"
                   value={selectedContactId}
                   onChange={(e) => setSelectedContactId(e.target.value)}
                   className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-ring"

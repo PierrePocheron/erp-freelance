@@ -94,11 +94,12 @@ export function SettingsShell({ nodes }: { nodes: Record<SectionId, React.ReactN
             value={query}
             onChange={e => setQuery(e.target.value)}
             placeholder="Rechercher un paramètre…"
+            aria-label="Rechercher un paramètre"
             className="bg-transparent text-sm outline-none flex-1 min-w-0 placeholder:text-muted-foreground/50"
           />
           {query && (
-            <button onClick={() => setQuery("")} className="text-muted-foreground hover:text-foreground shrink-0">
-              <X className="h-3.5 w-3.5" />
+            <button type="button" onClick={() => setQuery("")} aria-label="Effacer la recherche" className="text-muted-foreground hover:text-foreground shrink-0">
+              <X className="h-3.5 w-3.5" aria-hidden="true" />
             </button>
           )}
         </div>

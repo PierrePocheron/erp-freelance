@@ -44,9 +44,15 @@ export function ExpenseDonutChart({
     )
   }
 
+  const chartLabel =
+    `Répartition des dépenses par catégorie, total ${total.toLocaleString("fr-FR", { maximumFractionDigits: 0 })} € : ` +
+    arcs
+      .map((a) => `${a.label} ${a.value.toLocaleString("fr-FR", { maximumFractionDigits: 0 })} € (${Math.round(a.fraction * 100)} %)`)
+      .join(", ")
+
   return (
     <div className="relative inline-flex items-center justify-center shrink-0" style={{ width: size, height: size }}>
-      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="-rotate-90">
+      <svg role="img" aria-label={chartLabel} width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="-rotate-90">
         <circle
           cx={size / 2} cy={size / 2} r={radius}
           fill="none" stroke="currentColor" strokeWidth={strokeWidth}

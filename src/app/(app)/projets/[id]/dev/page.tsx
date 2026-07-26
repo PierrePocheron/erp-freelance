@@ -172,7 +172,7 @@ export default async function ProjectDevPage({
                     const next = d.status === "TO_DELIVER" ? "DELIVERED" : d.status === "DELIVERED" ? "VALIDATED" : "TO_DELIVER"
                     await updateDeliverableStatus(d.id, id, next)
                   }}>
-                    <button type="submit" className="text-muted-foreground hover:text-primary">
+                    <button type="submit" aria-label={`Changer le statut du livrable ${d.name}`} className="text-muted-foreground hover:text-primary">
                       {d.status === "VALIDATED" ? <CheckCircle2 className="h-4 w-4 text-emerald-500" /> : d.status === "DELIVERED" ? <Clock className="h-4 w-4 text-amber-500" /> : <Circle className="h-4 w-4" />}
                     </button>
                   </form>

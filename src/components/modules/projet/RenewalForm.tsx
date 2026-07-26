@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useTransition } from "react"
+import { useId, useState, useTransition } from "react"
 import { Plus, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -38,6 +38,7 @@ function addMonths(dateStr: string, months: number): string {
 
 export function RenewalForm({ postDevId, projectId }: { postDevId: string; projectId: string }) {
   const [isPending, startTransition] = useTransition()
+  const uid = useId()
   const initialPurchase = todayStr()
   const [type, setType] = useState("DOMAIN")
   const [name, setName] = useState("")
@@ -76,17 +77,18 @@ export function RenewalForm({ postDevId, projectId }: { postDevId: string; proje
 
   return (
     <form onSubmit={handleSubmit} className="space-y-2">
-      <select value={type} onChange={(e) => setType(e.target.value)} className={selectClass}>
+      <select aria-label="Type de renouvellement" value={type} onChange={(e) => setType(e.target.value)} className={selectClass}>
         {renewalTypes.map((t) => (
           <option key={t.value} value={t.value}>{t.label}</option>
         ))}
       </select>
 
-      <Input value={name} onChange={(e) => setName(e.target.value)} required placeholder="monsite.com" className="h-8" />
+      <Input aria-label="Nom du renouvellement" value={name} onChange={(e) => setName(e.target.value)} required placeholder="monsite.com" className="h-8" />
 
       <div className="space-y-1">
-        <label className="text-xs text-muted-foreground">Montant € HT / période (pour facturer)</label>
+        <label htmlFor={`${uid}-amount`} className="text-xs text-muted-foreground">Montant € HT / période (pour facturer)</label>
         <Input
+          id={`${uid}-amount`}
           type="number"
           step="0.01"
           min="0"
@@ -98,13 +100,13 @@ export function RenewalForm({ postDevId, projectId }: { postDevId: string; proje
       </div>
 
       <div className="space-y-1">
-        <label className="text-xs text-muted-foreground">Date d’achat</label>
-        <Input type="date" value={purchasedAt} onChange={(e) => onPurchaseChange(e.target.value)} className="h-8" />
+        <label htmlFor={`${uid}-purchasedAt`} className="text-xs text-muted-foreground">Date d’achat</label>
+        <Input id={`${uid}-purchasedAt`} type="date" value={purchasedAt} onChange={(e) => onPurchaseChange(e.target.value)} className="h-8" />
       </div>
 
       <div className="space-y-1">
-        <label className="text-xs text-muted-foreground">Durée</label>
-        <select value={periodMonths} onChange={(e) => onPeriodChange(Number(e.target.value))} className={selectClass}>
+        <label htmlFor={`${uid}-period`} className="text-xs text-muted-foreground">Durée</label>
+        <select id={`${uid}-period`} value={periodMonths} onChange={(e) => onPeriodChange(Number(e.target.value))} className={selectClass}>
           {periods.map((p) => (
             <option key={p.value} value={p.value}>{p.label}</option>
           ))}
@@ -112,8 +114,8 @@ export function RenewalForm({ postDevId, projectId }: { postDevId: string; proje
       </div>
 
       <div className="space-y-1">
-        <label className="text-xs text-muted-foreground">Échéance (auto, modifiable)</label>
-        <Input type="date" value={expiresAt} onChange={(e) => setExpiresAt(e.target.value)} required className="h-8" />
+        <label htmlFor={`${uid}-expiresAt`} className="text-xs text-muted-foreground">Échéance (auto, modifiable)</label>
+        <Input id={`${uid}-expiresAt`} type="date" value={expiresAt} onChange={(e) => setExpiresAt(e.target.value)} required className="h-8" />
       </div>
 
       <Button type="submit" size="sm" variant="outline" className="w-full" disabled={isPending}>

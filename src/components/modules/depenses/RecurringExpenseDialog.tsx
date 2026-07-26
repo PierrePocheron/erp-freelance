@@ -11,6 +11,7 @@ import {
 import { DatePartsField } from "@/components/ui/date-parts-field"
 import { createRecurringExpense, updateRecurringExpense, deleteRecurringExpense, createExpense, convertRecurringToExpense } from "@/actions/expense"
 import { ExpenseCategoryCombobox, type ExpenseCategory } from "./ExpenseCategoryCombobox"
+import { toDateInput } from "@/lib/dates"
 
 import { FREQUENCY_LABELS } from "@/lib/expense-constants"
 
@@ -45,7 +46,7 @@ export function RecurringExpenseDialog({
 
   const [label, setLabel]         = useState(recurringExpense?.label ?? "")
   const [amount, setAmount]       = useState(recurringExpense ? String(recurringExpense.amount) : "")
-  const [nextDate, setNextDate]   = useState(() => new Date(recurringExpense?.nextGenerationDate ?? new Date()).toISOString().slice(0, 10))
+  const [nextDate, setNextDate]   = useState(() => toDateInput(new Date(recurringExpense?.nextGenerationDate ?? new Date())))
   const [scope, setScope]         = useState<"PRO" | "PERSO">(recurringExpense?.scope ?? "PERSO")
   const [frequency, setFrequency] = useState<string>(recurringExpense?.frequency ?? "MONTHLY")
   const isOneTime = frequency === "ONETIME"
@@ -68,7 +69,7 @@ export function RecurringExpenseDialog({
       categoryId: categoryId || null,
       notes: notes.trim() || null,
     }
-    const dateObj = new Date(`${nextDate || new Date().toISOString().slice(0, 10)}T00:00:00`)
+    const dateObj = new Date(`${nextDate || toDateInput(new Date())}T00:00:00`)
 
     startTransition(async () => {
       if (isOneTime) {

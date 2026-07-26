@@ -9,6 +9,7 @@ import {
   Settings2, KeyRound, CheckSquare, Square,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { toDateInput } from "@/lib/dates"
 import Link from "next/link"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
@@ -540,7 +541,7 @@ function NewEventDialog({
   const [rattachement, setRattachement] = useState<Rattachement>("none")
   const [nature, setNature]         = useState<CalNature>("event")
   const [title, setTitle]           = useState("")
-  const [date, setDate]             = useState(defaultDate.toISOString().slice(0, 10))
+  const [date, setDate]             = useState(toDateInput(defaultDate))
   const [time, setTime]             = useState("")
   const [allDay, setAllDay]         = useState(false)
   const [endDate, setEndDate]       = useState("")   // journée entière multi-jours (opt.)
@@ -561,7 +562,7 @@ function NewEventDialog({
       setRattachement("none"); setNature("event")
       setTitle(""); setDescription(""); setProjectId(""); setClientId(""); setError("")
       setChannel("EMAIL"); setPriority("MEDIUM")
-      setDate(defaultDate.toISOString().slice(0, 10))
+      setDate(toDateInput(defaultDate))
       setTime(timeStringFromDate(defaultDate, undefined))
       setAllDay(false); setEndDate("")
       setCategoryId(categories[0]?.id ?? "")
@@ -802,7 +803,7 @@ function EventDetailDialog({
   const d0 = new Date(event.date)
 
   const [title, setTitle]             = useState(event.title)
-  const [date, setDate]               = useState(d0.toISOString().slice(0, 10))
+  const [date, setDate]               = useState(toDateInput(d0))
   const [time, setTime]               = useState(timeStringFromDate(d0, event.allDay))
   const [description, setDescription] = useState(event.description ?? "")
   const [categoryId, setCategoryId]   = useState(event.categoryId ?? "")

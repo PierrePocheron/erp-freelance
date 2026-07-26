@@ -7,7 +7,7 @@ export async function GET(
   { params }: { params: Promise<{ projectId: string }> }
 ) {
   const session = await auth()
-  if (!session) return new Response("Unauthorized", { status: 401 })
+  if (!session?.user?.id) return new Response("Unauthorized", { status: 401 })
 
   const { projectId } = await params
   const userId = session.user.id

@@ -1076,6 +1076,7 @@ export async function sendInvoiceEmail(invoiceId: string, _userId: string) {
     include: { client: true, user: true },
   })
   if (!invoice) throw new Error("Facture introuvable")
+  if (!invoice.client.email) throw new Error("Ce client n'a pas d'email renseigné — impossible d'envoyer la facture.")
 
   const { Resend } = await import("resend")
   const resend = new Resend(process.env.RESEND_API_KEY)
@@ -1084,7 +1085,7 @@ export async function sendInvoiceEmail(invoiceId: string, _userId: string) {
 
   const { data, error } = await resend.emails.send({
     from: "ERP Freelance <noreply@resend.dev>",
-    to: invoice.client.email ?? invoice.user.email ?? "",
+    to: invoice.client.email,
     subject: `Facture ${invoice.number}`,
     html: `
       <p>Bonjour ${escapeHtml(invoice.client.name)},</p>

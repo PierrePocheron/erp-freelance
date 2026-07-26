@@ -811,13 +811,17 @@ export async function updateJournalEntry(id: string, projectId: string, content:
 }
 
 export async function deleteJournalEntry(id: string, projectId: string) {
-  await prisma.journalEntry.delete({ where: { id } })
+  const userId = await requireAuth()
+  await prisma.journalEntry.deleteMany({ where: { id, project: { userId } } })
   revalidatePath(`/projets/${projectId}`)
 }
 
 // ── Deliverables ───────────────────────────────────────────────────────────
 
 export async function createDeliverable(projectId: string, formData: FormData) {
+  const userId = await requireAuth()
+  const proj = await prisma.project.findFirst({ where: { id: projectId, userId }, select: { id: true } })
+  if (!proj) throw new Error("Projet introuvable")
   await prisma.deliverable.create({
     data: {
       projectId,
@@ -835,7 +839,12 @@ export async function updateDeliverableStatus(
   projectId: string,
   status: "TO_DELIVER" | "DELIVERED" | "VALIDATED"
 ) {
-  await prisma.deliverable.update({ where: { id: deliverableId }, data: { status } })
+  const userId = await requireAuth()
+  const { count } = await prisma.deliverable.updateMany({
+    where: { id: deliverableId, project: { userId } },
+    data: { status },
+  })
+  if (count === 0) throw new Error("Livrable introuvable")
   revalidatePath(`/projets/${projectId}`)
 }
 

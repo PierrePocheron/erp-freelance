@@ -246,7 +246,7 @@ export function GraphView({ rawNodes, rawLinks }: { rawNodes: RawNode[]; rawLink
       visIds.has(resolveId(l.source)) && visIds.has(resolveId(l.target))
     )
     return { nodes: visNodes, links: visLinks }
-  }, [rawNodes, rawLinks, nodeMap, collapsedIds, hiddenTypes, focusVisibleIds])
+  }, [rawNodes, rawLinks, nodeMap, collapsedIds, hiddenTypes, focusVisibleIds, filterVisibleIds])
 
   // ── IDs atténués et mis en valeur pour le canvas ─────────────────────────
   const dimmedIds = useMemo(() => {

@@ -12,6 +12,7 @@ import { DatePartsField } from "@/components/ui/date-parts-field"
 import { createExpense, updateExpense, deleteExpense, createRecurringExpense, convertExpenseToRecurring } from "@/actions/expense"
 import { ExpenseCategoryCombobox, type ExpenseCategory } from "./ExpenseCategoryCombobox"
 import { FREQUENCY_LABELS } from "./RecurringExpenseDialog"
+import { toDateInput } from "@/lib/dates"
 
 export type ExpenseForEdit = {
   id: string
@@ -42,7 +43,7 @@ export function ExpenseDialog({
   const [label, setLabel]           = useState(expense?.label ?? "")
   const [merchant, setMerchant]     = useState(expense?.merchant ?? "")
   const [amount, setAmount]         = useState(expense ? String(expense.amount) : "")
-  const [date, setDate]             = useState(() => new Date(expense?.date ?? new Date()).toISOString().slice(0, 10))
+  const [date, setDate]             = useState(() => toDateInput(new Date(expense?.date ?? new Date())))
   const [scope, setScope]           = useState<"PRO" | "PERSO">(expense?.scope ?? "PERSO")
   const [categoryId, setCategoryId] = useState(expense?.categoryId ?? "")
   const [notes, setNotes]           = useState(expense?.notes ?? "")
@@ -58,7 +59,7 @@ export function ExpenseDialog({
     setLabel("")
     setMerchant("")
     setAmount("")
-    setDate(new Date().toISOString().slice(0, 10))
+    setDate(toDateInput(new Date()))
     setScope("PERSO")
     setCategoryId("")
     setNotes("")
@@ -90,7 +91,7 @@ export function ExpenseDialog({
       } else if (isRecurring) {
         await createRecurringExpense({
           ...shared, frequency, dateToConfirm,
-          nextGenerationDate: new Date(`${date || new Date().toISOString().slice(0, 10)}T00:00:00`),
+          nextGenerationDate: new Date(`${date || toDateInput(new Date())}T00:00:00`),
         })
       } else {
         await createExpense({ ...shared, date: new Date(`${date}T00:00:00`) })

@@ -102,7 +102,7 @@ export function ConsultationDialog({
               <label className="text-xs font-medium text-muted-foreground">Praticien *</label>
               <input
                 value={practitionerName} onChange={e => setPractitionerName(e.target.value)} required
-                placeholder="Ex : Mickael Nguyen"
+                placeholder="Ex : Dr Dupont"
                 className="mt-1 w-full h-9 rounded-lg border border-input bg-background px-3 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
               />
             </div>

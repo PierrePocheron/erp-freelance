@@ -14,7 +14,7 @@ function invoiceMonthKey(inv: { paidAt: Date | null; issuedAt: Date | null; crea
 
 export async function GET(req: NextRequest) {
   const session = await auth()
-  if (!session) return new Response("Unauthorized", { status: 401 })
+  if (!session?.user?.id) return new Response("Unauthorized", { status: 401 })
 
   const userId = session.user.id
   const { searchParams } = req.nextUrl

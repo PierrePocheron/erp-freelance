@@ -1326,10 +1326,10 @@ export function CalendarView({
       {/* pr-12 : réserve la place du bouton flottant de notifications (haut-droite) */}
       <div className="flex items-center gap-2 shrink-0 flex-wrap pr-12">
         <div className="flex items-center gap-1">
-          <button onClick={() => navigate(-1)} className="rounded-lg border border-border p-1.5 hover:bg-muted transition-colors">
+          <button aria-label="Période précédente" onClick={() => navigate(-1)} className="rounded-lg border border-border p-1.5 hover:bg-muted transition-colors">
             <ChevronLeft className="h-4 w-4" />
           </button>
-          <button onClick={() => navigate(1)} className="rounded-lg border border-border p-1.5 hover:bg-muted transition-colors">
+          <button aria-label="Période suivante" onClick={() => navigate(1)} className="rounded-lg border border-border p-1.5 hover:bg-muted transition-colors">
             <ChevronRight className="h-4 w-4" />
           </button>
           <button onClick={goToToday} className="rounded-lg border border-border px-2.5 py-1.5 text-xs font-medium hover:bg-muted transition-colors">
@@ -1341,7 +1341,7 @@ export function CalendarView({
 
         {/* Dernière synchro Google, visible directement dans la barre */}
         {hasGoogleCalendar && (
-          <span className="hidden md:inline text-[11px] text-muted-foreground whitespace-nowrap">
+          <span aria-live="polite" className="hidden md:inline text-[11px] text-muted-foreground whitespace-nowrap">
             {isSyncing ? "Synchro en cours…"
               : lastSyncAt ? `Synchro ${formatLastSync(lastSyncAt)}`
               : "Jamais synchronisé"}
@@ -1511,7 +1511,7 @@ export function CalendarView({
 
       {/* ── Bandeau d'erreur de synchronisation ──────────────────────────── */}
       {syncStatus === "error" && syncError && (
-        <div className="shrink-0 flex items-start gap-2 rounded-lg border border-red-500/30 bg-red-500/5 px-3 py-2 text-xs text-red-700">
+        <div role="alert" className="shrink-0 flex items-start gap-2 rounded-lg border border-red-500/30 bg-red-500/5 px-3 py-2 text-xs text-red-700">
           <AlertCircle className="h-4 w-4 shrink-0 mt-px" />
           <div className="flex-1 min-w-0 space-y-1">
             <p className="font-medium">Échec de la synchronisation Google Calendar</p>
@@ -2051,7 +2051,9 @@ function TimeGridView({
               )}
 
               {/* Zone d'ajout rapide : suit le curseur et crée à l'heure pointée */}
-              <button type="button" className="absolute inset-0 w-full z-0 cursor-pointer"
+              <button type="button"
+                aria-label={`Ajouter un événement le ${date.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" })}`}
+                className="absolute inset-0 w-full z-0 cursor-pointer"
                 onMouseMove={e => { if (!draggingId) setHoverSlot({ colIdx: di, ...calcSlotAt(e, false) }) }}
                 onMouseLeave={() => setHoverSlot(s => (s?.colIdx === di ? null : s))}
                 onClick={e => {
@@ -2265,7 +2267,19 @@ function EventList({
         )
 
         if (editable && onEventClick) {
-          return <div key={ev.id} onClick={() => onEventClick(ev)}>{inner}</div>
+          return (
+            <div
+              key={ev.id}
+              role="button"
+              tabIndex={0}
+              onClick={() => onEventClick(ev)}
+              onKeyDown={e => {
+                if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onEventClick(ev) }
+              }}
+            >
+              {inner}
+            </div>
+          )
         }
         return ev.href
           ? <Link key={ev.id} href={ev.href} onClick={onNavigate}>{inner}</Link>

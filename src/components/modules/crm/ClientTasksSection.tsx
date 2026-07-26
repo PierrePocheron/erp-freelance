@@ -86,7 +86,12 @@ function TaskRow({ task }: { task: ClientTask }) {
         task.status === "DONE" && "opacity-50"
       )}>
         {/* Statut */}
-        <button onClick={handleStatus} disabled={isPending} className="shrink-0 transition-colors">
+        <button
+          onClick={handleStatus}
+          disabled={isPending}
+          aria-label={task.status === "DONE" ? "Rouvrir la tâche" : task.status === "IN_PROGRESS" ? "Marquer la tâche terminée" : "Démarrer la tâche"}
+          className="shrink-0 transition-colors"
+        >
           {isPending ? (
             <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
           ) : task.status === "DONE" ? (

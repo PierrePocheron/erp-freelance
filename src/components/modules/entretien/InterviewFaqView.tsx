@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState, useTransition } from "react"
+import { useId, useMemo, useState, useTransition } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { Plus, Pencil, Trash2, X, Check, Search, HelpCircle, Pin, PinOff, ChevronDown, Briefcase, Copy } from "lucide-react"
@@ -35,6 +35,7 @@ export function InterviewFaqView({ answers, applications }: { answers: Interview
   const [linkedAppIds, setLinkedAppIds] = useState<string[]>([]) // candidatures liées (éditeur)
   const [copiedId, setCopiedId] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
+  const fieldId = useId()
 
   async function copyAnswer(a: InterviewAnswer) {
     try {
@@ -151,12 +152,13 @@ export function InterviewFaqView({ answers, applications }: { answers: Interview
         <div className="rounded-xl border border-primary/30 bg-card p-4 space-y-3">
           <h2 className="text-sm font-semibold">{editingId === "new" ? "Nouvelle réponse" : "Modifier la réponse"}</h2>
           <div className="space-y-1">
-            <label className="text-xs text-muted-foreground">Question / sujet</label>
-            <Input value={question} onChange={(e) => setQuestion(e.target.value)} placeholder="Ex : Parlez-moi de vous" />
+            <label htmlFor={`${fieldId}-question`} className="text-xs text-muted-foreground">Question / sujet</label>
+            <Input id={`${fieldId}-question`} value={question} onChange={(e) => setQuestion(e.target.value)} placeholder="Ex : Parlez-moi de vous" />
           </div>
           <div className="space-y-1">
-            <label className="text-xs text-muted-foreground">Réponse préparée</label>
+            <label htmlFor={`${fieldId}-answer`} className="text-xs text-muted-foreground">Réponse préparée</label>
             <textarea
+              id={`${fieldId}-answer`}
               value={answer}
               onChange={(e) => setAnswer(e.target.value)}
               rows={8}
@@ -165,8 +167,8 @@ export function InterviewFaqView({ answers, applications }: { answers: Interview
             />
           </div>
           <div className="space-y-1">
-            <label className="text-xs text-muted-foreground">Catégorie (optionnel)</label>
-            <Input value={category} onChange={(e) => setCategory(e.target.value)} placeholder="Présentation, Motivation, Technique, Salaire, Lettre de motivation…" list="faq-categories" />
+            <label htmlFor={`${fieldId}-category`} className="text-xs text-muted-foreground">Catégorie (optionnel)</label>
+            <Input id={`${fieldId}-category`} value={category} onChange={(e) => setCategory(e.target.value)} placeholder="Présentation, Motivation, Technique, Salaire, Lettre de motivation…" list="faq-categories" />
             <datalist id="faq-categories">{categories.map((c) => <option key={c} value={c} />)}</datalist>
           </div>
           {applications.length > 0 && (

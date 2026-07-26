@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useTransition, useMemo, useEffect } from "react"
+import { useState, useTransition, useMemo, useEffect, useId } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import Link from "next/link"
 import {
@@ -115,6 +115,7 @@ function RevenueForm({
   onClose: () => void
   onSave: () => void
 }) {
+  const uid = useId()
   const now = new Date()
   const defaultPeriod = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`
 
@@ -183,15 +184,16 @@ function RevenueForm({
     <div className="rounded-xl border border-border/50 bg-card p-5 space-y-4 max-w-2xl">
       <div className="flex items-center justify-between">
         <h3 className="font-semibold text-sm">{initial?.id ? "Modifier" : "Nouveau revenu"}</h3>
-        <button type="button" onClick={onClose} className="text-muted-foreground hover:text-foreground">
+        <button type="button" onClick={onClose} aria-label="Fermer le formulaire" className="text-muted-foreground hover:text-foreground">
           <X className="h-4 w-4" />
         </button>
       </div>
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div className="space-y-1">
-          <label className="text-xs font-medium text-muted-foreground">Type</label>
+          <label htmlFor={`${uid}-type`} className="text-xs font-medium text-muted-foreground">Type</label>
           <select
+            id={`${uid}-type`}
             value={type}
             onChange={e => setType(e.target.value)}
             className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
@@ -203,8 +205,9 @@ function RevenueForm({
         </div>
 
         <div className="space-y-1">
-          <label className="text-xs font-medium text-muted-foreground">Période (AAAA-MM)</label>
+          <label htmlFor={`${uid}-period`} className="text-xs font-medium text-muted-foreground">Période (AAAA-MM)</label>
           <Input
+            id={`${uid}-period`}
             value={period}
             onChange={e => setPeriod(e.target.value)}
             placeholder="2026-06"
@@ -214,8 +217,9 @@ function RevenueForm({
 
         {fiscalSources.length > 0 && (
           <div className="space-y-1 sm:col-span-2">
-            <label className="text-xs font-medium text-muted-foreground">Source fiscale</label>
+            <label htmlFor={`${uid}-fiscalSource`} className="text-xs font-medium text-muted-foreground">Source fiscale</label>
             <select
+              id={`${uid}-fiscalSource`}
               value={fiscalSourceId}
               onChange={e => setFiscalSource(e.target.value)}
               className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
@@ -229,8 +233,9 @@ function RevenueForm({
         )}
 
         <div className="space-y-1 sm:col-span-2">
-          <label className="text-xs font-medium text-muted-foreground">Libellé</label>
+          <label htmlFor={`${uid}-label`} className="text-xs font-medium text-muted-foreground">Libellé</label>
           <Input
+            id={`${uid}-label`}
             value={label}
             onChange={e => setLabel(e.target.value)}
             placeholder="ex: Salaire juin 2026"
@@ -239,8 +244,9 @@ function RevenueForm({
         </div>
 
         <div className="space-y-1">
-          <label className="text-xs font-medium text-muted-foreground">Montant (€)</label>
+          <label htmlFor={`${uid}-amount`} className="text-xs font-medium text-muted-foreground">Montant (€)</label>
           <Input
+            id={`${uid}-amount`}
             type="number"
             min="0"
             step="0.01"
@@ -252,8 +258,9 @@ function RevenueForm({
         </div>
 
         <div className="space-y-1">
-          <label className="text-xs font-medium text-muted-foreground">Statut</label>
+          <label htmlFor={`${uid}-status`} className="text-xs font-medium text-muted-foreground">Statut</label>
           <select
+            id={`${uid}-status`}
             value={status}
             onChange={e => setStatus(e.target.value)}
             className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
@@ -265,8 +272,9 @@ function RevenueForm({
 
         {status === "PENDING" && (
           <div className="space-y-1">
-            <label className="text-xs font-medium text-muted-foreground">Date prévisionnelle</label>
+            <label htmlFor={`${uid}-expectedAt`} className="text-xs font-medium text-muted-foreground">Date prévisionnelle</label>
             <Input
+              id={`${uid}-expectedAt`}
               type="date"
               value={expectedAt}
               onChange={e => setExpectedAt(e.target.value)}
@@ -278,8 +286,9 @@ function RevenueForm({
         {status === "RECEIVED" && (
           <>
             <div className="space-y-1">
-              <label className="text-xs font-medium text-muted-foreground">Date de réception</label>
+              <label htmlFor={`${uid}-receivedAt`} className="text-xs font-medium text-muted-foreground">Date de réception</label>
               <Input
+                id={`${uid}-receivedAt`}
                 type="date"
                 value={receivedAt}
                 onChange={e => setReceivedAt(e.target.value)}
@@ -287,8 +296,9 @@ function RevenueForm({
               />
             </div>
             <div className="space-y-1">
-              <label className="text-xs font-medium text-muted-foreground">Moyen de paiement</label>
+              <label htmlFor={`${uid}-paymentMethod`} className="text-xs font-medium text-muted-foreground">Moyen de paiement</label>
               <select
+                id={`${uid}-paymentMethod`}
                 value={paymentMethod}
                 onChange={e => setPaymentMethod(e.target.value)}
                 className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
@@ -303,8 +313,9 @@ function RevenueForm({
         )}
 
         <div className="space-y-1 sm:col-span-2">
-          <label className="text-xs font-medium text-muted-foreground">Notes</label>
+          <label htmlFor={`${uid}-notes`} className="text-xs font-medium text-muted-foreground">Notes</label>
           <Input
+            id={`${uid}-notes`}
             value={notes}
             onChange={e => setNotes(e.target.value)}
             placeholder="Remarques optionnelles"
@@ -315,8 +326,9 @@ function RevenueForm({
         {/* Association société / contact / projet */}
         {companies.length > 0 && (
           <div className="space-y-1">
-            <label className="text-xs font-medium text-muted-foreground">Société</label>
+            <label htmlFor={`${uid}-company`} className="text-xs font-medium text-muted-foreground">Société</label>
             <select
+              id={`${uid}-company`}
               value={companyId}
               onChange={e => { setCompanyId(e.target.value); setClientId(""); setProjectId("") }}
               className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
@@ -330,8 +342,9 @@ function RevenueForm({
         )}
         {clients.length > 0 && (
           <div className="space-y-1">
-            <label className="text-xs font-medium text-muted-foreground">Contact</label>
+            <label htmlFor={`${uid}-client`} className="text-xs font-medium text-muted-foreground">Contact</label>
             <select
+              id={`${uid}-client`}
               value={clientId}
               onChange={e => { setClientId(e.target.value); setProjectId("") }}
               className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
@@ -345,8 +358,9 @@ function RevenueForm({
         )}
         {projects.length > 0 && (
           <div className="space-y-1 sm:col-span-2">
-            <label className="text-xs font-medium text-muted-foreground">Projet</label>
+            <label htmlFor={`${uid}-project`} className="text-xs font-medium text-muted-foreground">Projet</label>
             <select
+              id={`${uid}-project`}
               value={projectId}
               onChange={e => setProjectId(e.target.value)}
               className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
@@ -360,7 +374,7 @@ function RevenueForm({
         )}
       </div>
 
-      {error && <p className="text-xs text-red-500">{error}</p>}
+      {error && <p role="alert" className="text-xs text-red-500">{error}</p>}
 
       <div className="flex justify-end gap-2">
         <Button type="button" variant="outline" size="sm" onClick={onClose}>Annuler</Button>
@@ -445,7 +459,7 @@ function RecurringForm({
     <div className="rounded-xl border border-border/50 bg-card p-5 space-y-4">
       <div className="flex items-center justify-between">
         <h3 className="font-semibold text-sm">{initial?.id ? "Modifier" : "Nouveau récurrent"}</h3>
-        <button type="button" onClick={onClose} className="text-muted-foreground hover:text-foreground">
+        <button type="button" onClick={onClose} aria-label="Fermer le formulaire" className="text-muted-foreground hover:text-foreground">
           <X className="h-4 w-4" />
         </button>
       </div>
@@ -546,7 +560,7 @@ function RecurringForm({
         )}
       </div>
 
-      {error && <p className="text-xs text-red-500">{error}</p>}
+      {error && <p role="alert" className="text-xs text-red-500">{error}</p>}
 
       <div className="flex justify-end gap-2">
         <Button type="button" variant="outline" size="sm" onClick={onClose}>Annuler</Button>
@@ -906,9 +920,10 @@ export function RevenueManager({
                     <div
                       role="button"
                       tabIndex={0}
+                      aria-expanded={yearExpanded}
                       className="w-full flex items-center justify-between px-1.5 py-1 cursor-pointer group"
                       onClick={() => toggleYear(year)}
-                      onKeyDown={e => e.key === "Enter" && toggleYear(year)}
+                      onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggleYear(year) } }}
                     >
                       <div className="flex items-center gap-2">
                         {yearExpanded ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
@@ -935,9 +950,12 @@ export function RevenueManager({
                   <div key={period} className="rounded-xl border border-border/50 bg-card overflow-hidden">
                     { }
                     <div
+                      role="button"
+                      tabIndex={0}
+                      aria-expanded={expanded}
                       className="w-full flex items-center justify-between px-5 py-3.5 hover:bg-muted/30 transition-colors cursor-pointer"
                       onClick={() => togglePeriod(period)}
-                      onKeyDown={e => e.key === "Enter" && togglePeriod(period)}
+                      onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); togglePeriod(period) } }}
                     >
                       <div className="flex items-center gap-3">
                         {expanded ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
@@ -1004,6 +1022,7 @@ export function RevenueManager({
                                       type="checkbox"
                                       checked={selectedIds.has(r.id)}
                                       onChange={() => toggleSelect(r.id)}
+                                      aria-label={`Sélectionner ${r.label}`}
                                       className="h-4 w-4 rounded border-border accent-emerald-600 cursor-pointer"
                                     />
                                   ) : null}
@@ -1155,6 +1174,7 @@ export function RevenueManager({
                                       <button
                                         type="button"
                                         onClick={() => { setEditRevenue(r); setShowForm(false) }}
+                                        aria-label="Modifier le revenu"
                                         className="text-muted-foreground hover:text-foreground p-1 rounded"
                                       >
                                         <Pencil className="h-3.5 w-3.5" />
@@ -1175,6 +1195,7 @@ export function RevenueManager({
                                         <button
                                           type="button"
                                           onClick={() => setConfirmDelete(r.id)}
+                                          aria-label="Supprimer le revenu"
                                           className="text-muted-foreground hover:text-destructive p-1 rounded"
                                         >
                                           <Trash2 className="h-3.5 w-3.5" />
@@ -1227,7 +1248,7 @@ export function RevenueManager({
           </div>
 
           {genMessage && (
-            <div className="flex items-center gap-2 text-sm text-muted-foreground bg-muted/50 rounded-lg px-4 py-2">
+            <div role="status" aria-live="polite" className="flex items-center gap-2 text-sm text-muted-foreground bg-muted/50 rounded-lg px-4 py-2">
               <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />
               {genMessage}
             </div>

@@ -131,6 +131,7 @@ export function Sidebar() {
       <div className="px-2 pt-4 pb-2">
         <button
           onClick={toggle}
+          title={expanded ? "Réduire le menu" : "Agrandir le menu"}
           className={cn(
             "flex h-10 items-center gap-3 rounded-xl cursor-pointer transition-colors hover:bg-accent",
             // px-0.5 déplié = même retrait (2px) que le centrage du logo 36px dans
@@ -167,6 +168,7 @@ export function Sidebar() {
               href={href}
               data-tour={href === "/settings" ? "settings" : undefined}
               data-active={isActive || undefined}
+              aria-current={isActive ? "page" : undefined}
               title={expanded ? undefined : label}
               className={cn(
                 "group flex h-10 items-center gap-3 rounded-xl px-2.5 transition-colors",

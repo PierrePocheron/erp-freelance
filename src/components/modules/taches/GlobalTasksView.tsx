@@ -118,6 +118,7 @@ function QuickAddClientTask({ clientId }: { clientId: string | null }) {
       <input
         ref={inputRef}
         autoFocus
+        aria-label="Titre de la nouvelle tâche"
         placeholder="Titre de la tâche..."
         className="flex-1 h-8 text-sm px-2 rounded-md border border-border bg-background focus:outline-none focus:ring-1 focus:ring-ring"
         onKeyDown={(e) => { if (e.key === "Escape") setOpen(false) }}
@@ -132,6 +133,7 @@ function QuickAddClientTask({ clientId }: { clientId: string | null }) {
       <button
         type="submit"
         disabled={isPending}
+        aria-label="Ajouter la tâche"
         className="h-8 px-3 text-sm rounded-md bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
       >
         {isPending ? "…" : "↵"}
@@ -139,6 +141,7 @@ function QuickAddClientTask({ clientId }: { clientId: string | null }) {
       <button
         type="button"
         onClick={() => setOpen(false)}
+        aria-label="Annuler"
         className="h-8 px-2 text-sm rounded-md text-muted-foreground hover:text-foreground"
       >
         ✕
@@ -169,6 +172,10 @@ function TaskRow({ task }: { task: Task }) {
   const titleRef = useRef<HTMLInputElement>(null)
   const overdue = isOverdue(task)
   const projectId = task.project?.id ?? ""
+  const statusLabel =
+    task.status === "TODO" ? "Démarrer la tâche"
+      : task.status === "IN_PROGRESS" ? "Marquer la tâche comme terminée"
+        : "Rouvrir la tâche"
 
   const totalTime = task.timeEntries.reduce((s, e) => s + (e.duration ?? 0), 0)
   const hours = Math.floor(totalTime / 3600)
@@ -201,7 +208,7 @@ function TaskRow({ task }: { task: Task }) {
       task.status === "DONE" && "opacity-50"
     )}>
       {/* Statut */}
-      <button onClick={handleStatus} disabled={isPending} className="shrink-0 transition-colors">
+      <button onClick={handleStatus} disabled={isPending} aria-label={statusLabel} className="shrink-0 transition-colors">
         {isPending ? (
           <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
         ) : task.status === "DONE" ? (
@@ -226,6 +233,18 @@ function TaskRow({ task }: { task: Task }) {
       ) : (
         <span
           onClick={() => task.status !== "DONE" && setEditingTitle(true)}
+          role={task.status !== "DONE" ? "button" : undefined}
+          tabIndex={task.status !== "DONE" ? 0 : undefined}
+          onKeyDown={
+            task.status !== "DONE"
+              ? (e: React.KeyboardEvent<HTMLSpanElement>) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault()
+                    setEditingTitle(true)
+                  }
+                }
+              : undefined
+          }
           className={cn(
             "flex-1 text-sm truncate transition-colors min-w-0",
             task.status === "DONE"
@@ -292,10 +311,10 @@ function TaskRow({ task }: { task: Task }) {
 
       {/* Badges P/I */}
       <div className="flex items-center gap-1 shrink-0">
-        <span className={cn("h-5 w-5 rounded border text-[10px] font-bold flex items-center justify-center", BADGE_CLS[PRIORITY_NUM[task.priority]])}>
+        <span aria-label={`Priorité ${PRIORITY_NUM[task.priority]} sur 4`} className={cn("h-5 w-5 rounded border text-[10px] font-bold flex items-center justify-center", BADGE_CLS[PRIORITY_NUM[task.priority]])}>
           {PRIORITY_NUM[task.priority]}
         </span>
-        <span className={cn("h-5 w-5 rounded border text-[10px] font-bold flex items-center justify-center", BADGE_CLS[Math.max(1, Math.min(4, task.importance))])}>
+        <span aria-label={`Importance ${task.importance} sur 4`} className={cn("h-5 w-5 rounded border text-[10px] font-bold flex items-center justify-center", BADGE_CLS[Math.max(1, Math.min(4, task.importance))])}>
           {task.importance}
         </span>
       </div>
@@ -347,7 +366,15 @@ function ProjectSubGroup({ project, tasks }: { project: ProjectRef; tasks: Task[
     <div className="rounded-lg border border-border/40 bg-muted/20 overflow-hidden">
       <div
         role="button"
+        tabIndex={0}
+        aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
+        onKeyDown={(e) => {
+          if (e.target === e.currentTarget && (e.key === "Enter" || e.key === " ")) {
+            e.preventDefault()
+            setOpen((v) => !v)
+          }
+        }}
         className="w-full flex items-center gap-2 px-3 py-2 hover:bg-muted/30 transition-colors cursor-pointer select-none"
       >
         {open ? <ChevronDown className="h-3.5 w-3.5 text-muted-foreground shrink-0" /> : <ChevronRight className="h-3.5 w-3.5 text-muted-foreground shrink-0" />}
@@ -426,7 +453,15 @@ function ClientTaskGroup({ group }: { group: ClientGroup }) {
       {/* En-tête client */}
       <div
         role="button"
+        tabIndex={0}
+        aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
+        onKeyDown={(e) => {
+          if (e.target === e.currentTarget && (e.key === "Enter" || e.key === " ")) {
+            e.preventDefault()
+            setOpen((v) => !v)
+          }
+        }}
         className="w-full flex items-center gap-2 px-4 py-3 hover:bg-muted/30 transition-colors cursor-pointer select-none"
       >
         {open ? <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" /> : <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />}
@@ -629,6 +664,7 @@ export function GlobalTasksView({
           {/* Filtre date */}
           <select
             value={dueDateFilter}
+            aria-label="Filtrer par échéance"
             onChange={(e) => setDueDateFilter(e.target.value as typeof dueDateFilter)}
             className="text-xs border border-border rounded-lg px-2 py-1.5 bg-background text-foreground"
           >

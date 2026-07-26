@@ -128,7 +128,7 @@ export function HealthView({
           onClick={() => setEventDialog({ open: true, item: e })}
           className="w-full text-left flex items-start gap-3 rounded-xl border border-border/50 bg-card p-3 hover:border-border hover:shadow-sm transition-all group"
         >
-          <span className="text-xl shrink-0 mt-0.5">{cfg.icon}</span>
+          <span aria-hidden="true" className="text-xl shrink-0 mt-0.5">{cfg.icon}</span>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-0.5 flex-wrap">
               <span className={cn("rounded-full border px-2 py-0.5 text-[10px] font-semibold", cfg.cls)}>
@@ -148,10 +148,7 @@ export function HealthView({
             <span className="text-xs text-muted-foreground">{fmtShort(e.date)}</span>
             {!e.resolvedAt && (
               <span
-                role="button"
-                tabIndex={0}
                 onClick={(ev) => { ev.stopPropagation(); quickResolve(e.id) }}
-                onKeyDown={(ev) => { if (ev.key === "Enter" || ev.key === " ") { ev.stopPropagation(); quickResolve(e.id) } }}
                 className="text-[10px] font-medium text-emerald-600 hover:text-emerald-700 hover:underline cursor-pointer"
               >
                 Marquer résolu
@@ -174,7 +171,7 @@ export function HealthView({
           onClick={() => setConsultDialog({ open: true, item: c })}
           className="w-full text-left flex items-start gap-3 rounded-xl border border-border/50 bg-card p-3 hover:border-border hover:shadow-sm transition-all group"
         >
-          <span className="text-xl shrink-0 mt-0.5">🥼</span>
+          <span aria-hidden="true" className="text-xl shrink-0 mt-0.5">🥼</span>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-0.5 flex-wrap">
               <span className="rounded-full border border-blue-500/20 bg-blue-500/15 text-blue-600 px-2 py-0.5 text-[10px] font-semibold">
@@ -225,7 +222,13 @@ export function HealthView({
         role="button"
         tabIndex={0}
         onClick={() => setReimburseDialog({ open: true, item: r })}
-        onKeyDown={(e) => { if (e.key === "Enter") setReimburseDialog({ open: true, item: r }) }}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") setReimburseDialog({ open: true, item: r })
+          else if (e.key === " " && e.target === e.currentTarget) {
+            e.preventDefault()
+            setReimburseDialog({ open: true, item: r })
+          }
+        }}
         className={cn(
           "w-full text-left flex items-start gap-3 rounded-xl border p-3 hover:shadow-sm transition-all group cursor-pointer",
           isPending
@@ -233,7 +236,7 @@ export function HealthView({
             : "border-emerald-500/20 bg-emerald-500/5 hover:border-emerald-500/40"
         )}
       >
-        <span className="text-xl shrink-0 mt-0.5">{isPending ? "⏳" : "💸"}</span>
+        <span aria-hidden="true" className="text-xl shrink-0 mt-0.5">{isPending ? "⏳" : "💸"}</span>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-0.5 flex-wrap">
             <span className={cn(
@@ -529,7 +532,7 @@ function StatCard({
 function EmptyState({ onEvent, onConsult }: { onEvent: () => void; onConsult: () => void }) {
   return (
     <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border py-12 text-center gap-3">
-      <span className="text-4xl">🏥</span>
+      <span aria-hidden="true" className="text-4xl">🏥</span>
       <div>
         <p className="text-sm font-medium">Aucun événement de santé</p>
         <p className="text-xs text-muted-foreground mt-1">Commencez par enregistrer une blessure ou une consultation</p>

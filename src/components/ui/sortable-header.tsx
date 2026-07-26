@@ -21,7 +21,10 @@ export function Th({ label, col, sortCol, sortDir, onSort, className, align = "l
     : ChevronsUpDown
 
   return (
-    <th className={cn("font-medium", className)}>
+    <th
+      className={cn("font-medium", className)}
+      aria-sort={active ? (sortDir === "asc" ? "ascending" : "descending") : "none"}
+    >
       <button
         type="button"
         onClick={() => onSort(col)}

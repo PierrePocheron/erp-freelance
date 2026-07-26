@@ -1,6 +1,6 @@
 "use client"
 
-import { Fragment, useState, useTransition } from "react"
+import { Fragment, useEffect, useId, useState, useTransition } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import {
@@ -340,8 +340,9 @@ function EventRow({
 
         {/* Interlocuteur lié à ce point (un recrutement a souvent plusieurs contacts) */}
         <div className="flex items-center gap-1.5 flex-wrap">
-          <User className="h-3 w-3 text-muted-foreground shrink-0" />
+          <User aria-hidden="true" className="h-3 w-3 text-muted-foreground shrink-0" />
           <select
+            aria-label="Interlocuteur lié à ce point"
             value={ev.contact?.id ?? ""}
             onChange={(e) => handleContactChange(e.target.value)}
             className="h-6 max-w-[200px] rounded border border-input bg-background px-1.5 text-[11px] text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
@@ -424,10 +425,19 @@ export function ApplicationDetailView({
 }) {
   const router = useRouter()
   const [, start] = useTransition()
+  const fid = useId()
 
   const [statusOpen, setStatusOpen] = useState(false)
   const [editing, setEditing] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
+
+  // Fermeture au clavier (Échap) du menu de statut.
+  useEffect(() => {
+    if (!statusOpen) return
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setStatusOpen(false) }
+    document.addEventListener("keydown", onKey)
+    return () => document.removeEventListener("keydown", onKey)
+  }, [statusOpen])
 
   // Champs éditables inline (mode « Modifier ») — re-seedés à l'entrée en édition.
   const [fCompany, setFCompany] = useState(app.companyName)
@@ -619,13 +629,13 @@ export function ApplicationDetailView({
         {editing ? (
           <div className="grid gap-3 sm:grid-cols-2">
             <div>
-              <label className={labelCls}>Entreprise cible *</label>
-              <input value={fCompany} onChange={(e) => onCompanyNameChange(e.target.value)} list="detail-company-suggestions" className={cn(inputCls, "mt-1")} />
+              <label htmlFor={`${fid}-company`} className={labelCls}>Entreprise cible *</label>
+              <input id={`${fid}-company`} value={fCompany} onChange={(e) => onCompanyNameChange(e.target.value)} list="detail-company-suggestions" className={cn(inputCls, "mt-1")} />
               <datalist id="detail-company-suggestions">{companies.map((c) => <option key={c.id} value={c.name} />)}</datalist>
             </div>
             <div>
-              <label className={labelCls}>Poste / mission *</label>
-              <input value={fPosition} onChange={(e) => setFPosition(e.target.value)} className={cn(inputCls, "mt-1")} />
+              <label htmlFor={`${fid}-position`} className={labelCls}>Poste / mission *</label>
+              <input id={`${fid}-position`} value={fPosition} onChange={(e) => setFPosition(e.target.value)} className={cn(inputCls, "mt-1")} />
             </div>
           </div>
         ) : (
@@ -648,6 +658,8 @@ export function ApplicationDetailView({
         <div className="relative inline-block">
           <button
             onClick={() => setStatusOpen((v) => !v)}
+            aria-haspopup="menu"
+            aria-expanded={statusOpen}
             className={cn("rounded-full border px-2.5 py-0.5 text-xs font-medium hover:opacity-80 transition-opacity", cfg.cls)}
           >
             {cfg.label} ▾
@@ -655,10 +667,12 @@ export function ApplicationDetailView({
           {statusOpen && (
             <>
               <div className="fixed inset-0 z-10" onClick={() => setStatusOpen(false)} />
-              <div className="absolute left-0 top-full mt-1 z-20 rounded-lg border border-border bg-popover shadow-md p-1 min-w-44">
+              <div role="menu" className="absolute left-0 top-full mt-1 z-20 rounded-lg border border-border bg-popover shadow-md p-1 min-w-44">
                 <p className="px-2 py-1 text-[10px] font-semibold text-muted-foreground/60 uppercase tracking-wide">Pipeline</p>
                 {PIPELINE_STATUSES.map((s) => (
                   <button key={s} onClick={() => pickStatus(s)}
+                    role="menuitem"
+                    aria-current={s === app.status || undefined}
                     className={cn("w-full text-left px-2 py-1 text-xs rounded-md hover:bg-muted transition-colors flex items-center gap-1.5", s === app.status && "font-semibold")}>
                     <span className={cn("h-1.5 w-1.5 rounded-full shrink-0", STATUS_CONFIG[s].dot)} />
                     {STATUS_CONFIG[s].label}
@@ -667,6 +681,8 @@ export function ApplicationDetailView({
                 <p className="px-2 py-1 mt-1 text-[10px] font-semibold text-muted-foreground/60 uppercase tracking-wide border-t border-border/50 pt-1.5">Résultat</p>
                 {OUTCOME_STATUSES.map((s) => (
                   <button key={s} onClick={() => pickStatus(s)}
+                    role="menuitem"
+                    aria-current={s === app.status || undefined}
                     className={cn("w-full text-left px-2 py-1 text-xs rounded-md hover:bg-muted transition-colors flex items-center gap-1.5", s === app.status && "font-semibold")}>
                     <span className={cn("h-1.5 w-1.5 rounded-full shrink-0", STATUS_CONFIG[s].dot)} />
                     {STATUS_CONFIG[s].label}
@@ -685,30 +701,30 @@ export function ApplicationDetailView({
           <div className="space-y-3">
             <div className="grid gap-3 sm:grid-cols-2">
               <div>
-                <label className={labelCls}>Lieu</label>
-                <input value={fLocation} onChange={(e) => setFLocation(e.target.value)} placeholder="Ex : Lyon" className={cn(inputCls, "mt-1")} />
+                <label htmlFor={`${fid}-location`} className={labelCls}>Lieu</label>
+                <input id={`${fid}-location`} value={fLocation} onChange={(e) => setFLocation(e.target.value)} placeholder="Ex : Lyon" className={cn(inputCls, "mt-1")} />
               </div>
               <div>
-                <label className={labelCls}>Mode</label>
-                <input value={fWorkMode} onChange={(e) => setFWorkMode(e.target.value)} placeholder="Remote / Hybride / Présentiel" className={cn(inputCls, "mt-1")} />
+                <label htmlFor={`${fid}-workmode`} className={labelCls}>Mode</label>
+                <input id={`${fid}-workmode`} value={fWorkMode} onChange={(e) => setFWorkMode(e.target.value)} placeholder="Remote / Hybride / Présentiel" className={cn(inputCls, "mt-1")} />
               </div>
             </div>
             <div>
-              <label className={labelCls}>Rémunération (annuel brut €)</label>
+              <label htmlFor={`${fid}-salary-min`} className={labelCls}>Rémunération (annuel brut €)</label>
               <div className="mt-1 grid grid-cols-3 gap-2">
-                <input type="number" step="1000" min="0" value={fSalaryMin} onChange={(e) => setFSalaryMin(e.target.value)} placeholder="Min" className={inputCls} />
-                <input type="number" step="1000" min="0" value={fSalaryMax} onChange={(e) => setFSalaryMax(e.target.value)} placeholder="Max" className={inputCls} />
-                <input value={fSalaryNote} onChange={(e) => setFSalaryNote(e.target.value)} placeholder="+ variable…" className={inputCls} />
+                <input id={`${fid}-salary-min`} type="number" step="1000" min="0" value={fSalaryMin} onChange={(e) => setFSalaryMin(e.target.value)} placeholder="Min" className={inputCls} />
+                <input aria-label="Rémunération maximale (annuel brut €)" type="number" step="1000" min="0" value={fSalaryMax} onChange={(e) => setFSalaryMax(e.target.value)} placeholder="Max" className={inputCls} />
+                <input aria-label="Complément de rémunération" value={fSalaryNote} onChange={(e) => setFSalaryNote(e.target.value)} placeholder="+ variable…" className={inputCls} />
               </div>
             </div>
             <div className="grid gap-3 sm:grid-cols-2">
               <div>
-                <label className={labelCls}>Source</label>
-                <input value={fSource} onChange={(e) => setFSource(e.target.value)} placeholder="LinkedIn, cooptation…" className={cn(inputCls, "mt-1")} />
+                <label htmlFor={`${fid}-source`} className={labelCls}>Source</label>
+                <input id={`${fid}-source`} value={fSource} onChange={(e) => setFSource(e.target.value)} placeholder="LinkedIn, cooptation…" className={cn(inputCls, "mt-1")} />
               </div>
               <div>
-                <label className={labelCls}>Recruteur (contact)</label>
-                <select value={fContactId} onChange={(e) => setFContactId(e.target.value)} className={cn(inputCls, "mt-1")}>
+                <label htmlFor={`${fid}-contact`} className={labelCls}>Recruteur (contact)</label>
+                <select id={`${fid}-contact`} value={fContactId} onChange={(e) => setFContactId(e.target.value)} className={cn(inputCls, "mt-1")}>
                   <option value="">— Aucun —</option>
                   {contacts.map((c) => <option key={c.id} value={c.id}>{c.name}{c.company ? ` · ${c.company}` : ""}</option>)}
                 </select>
@@ -716,12 +732,12 @@ export function ApplicationDetailView({
             </div>
             <div className="grid gap-3 sm:grid-cols-2">
               <div>
-                <label className={labelCls}>Lien de l&apos;offre</label>
-                <input type="url" value={fUrl} onChange={(e) => setFUrl(e.target.value)} placeholder="https://…" className={cn(inputCls, "mt-1")} />
+                <label htmlFor={`${fid}-url`} className={labelCls}>Lien de l&apos;offre</label>
+                <input id={`${fid}-url`} type="url" value={fUrl} onChange={(e) => setFUrl(e.target.value)} placeholder="https://…" className={cn(inputCls, "mt-1")} />
               </div>
               <div>
-                <label className={labelCls}>Date de candidature</label>
-                <input type="date" value={fApplied} onChange={(e) => setFApplied(e.target.value)} className={cn(inputCls, "mt-1")} />
+                <label htmlFor={`${fid}-applied`} className={labelCls}>Date de candidature</label>
+                <input id={`${fid}-applied`} type="date" value={fApplied} onChange={(e) => setFApplied(e.target.value)} className={cn(inputCls, "mt-1")} />
               </div>
             </div>
           </div>
@@ -759,9 +775,9 @@ export function ApplicationDetailView({
           <h2 className={cardTitleCls}>Prochain point</h2>
           {editing ? (
             <div className="space-y-2">
-              <input type="date" value={fNextAt} onChange={(e) => setFNextAt(e.target.value)} className={inputCls} />
-              <input value={fNextLabel} onChange={(e) => setFNextLabel(e.target.value)} placeholder="Ex : Entretien technique" className={inputCls} />
-              <select value={fNextFormat} onChange={(e) => setFNextFormat(e.target.value)} className={inputCls}>
+              <input aria-label="Date du prochain point" type="date" value={fNextAt} onChange={(e) => setFNextAt(e.target.value)} className={inputCls} />
+              <input aria-label="Libellé du prochain point" value={fNextLabel} onChange={(e) => setFNextLabel(e.target.value)} placeholder="Ex : Entretien technique" className={inputCls} />
+              <select aria-label="Format du prochain point" value={fNextFormat} onChange={(e) => setFNextFormat(e.target.value)} className={inputCls}>
                 <option value="">Format — à préciser</option>
                 {MEETING_FORMATS.map((f) => <option key={f.value} value={f.value}>{f.icon} {f.label}</option>)}
               </select>
@@ -818,7 +834,7 @@ export function ApplicationDetailView({
                 <input type="checkbox" checked={fDossierValidated} onChange={(e) => setFDossierValidated(e.target.checked)} className="rounded border-input accent-primary" />
                 Dossier validé
               </label>
-              <input type="url" value={fDossierUrl} onChange={(e) => setFDossierUrl(e.target.value)} placeholder="Lien du dossier — https://…" className={inputCls} />
+              <input aria-label="Lien du dossier de compétences" type="url" value={fDossierUrl} onChange={(e) => setFDossierUrl(e.target.value)} placeholder="Lien du dossier — https://…" className={inputCls} />
             </div>
           ) : app.competencyDossierUrl ? (
             <a href={app.competencyDossierUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs text-primary hover:underline w-fit">
@@ -909,6 +925,7 @@ export function ApplicationDetailView({
           <h2 className={cardTitleCls}>Notes</h2>
           {editing ? (
             <textarea
+              aria-label="Notes"
               value={fNotes}
               onChange={(e) => setFNotes(e.target.value)}
               rows={4}
@@ -973,8 +990,9 @@ export function ApplicationDetailView({
               />
             </div>
             <div className="flex items-center gap-2">
-              <User className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+              <User aria-hidden="true" className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
               <select
+                aria-label="Interlocuteur du point de contact"
                 value={evContactId}
                 onChange={(e) => setEvContactId(e.target.value)}
                 className="flex-1 h-8 rounded-md border border-input bg-background px-2 text-xs text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"

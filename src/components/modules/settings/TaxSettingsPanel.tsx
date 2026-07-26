@@ -77,6 +77,9 @@ export function TaxSettingsPanel({ initial }: { initial: TaxSettingsData }) {
         <div>
           <label className="text-xs text-muted-foreground">Versement libératoire</label>
           <button
+            type="button"
+            role="switch"
+            aria-checked={form.versementLiberatoire}
             onClick={() => setForm(f => ({ ...f, versementLiberatoire: !f.versementLiberatoire }))}
             className={`mt-1 flex items-center gap-2 w-full rounded-lg border px-2.5 py-2 text-sm transition-colors ${
               form.versementLiberatoire

@@ -38,6 +38,8 @@ export function AmountsPrivacyToggle() {
     <button
       type="button"
       onClick={toggle}
+      aria-pressed={hidden}
+      aria-label={hidden ? "Réafficher les montants" : "Masquer les montants"}
       className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border border-input text-sm text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
       title={hidden ? "Réafficher les montants" : "Masquer les montants (flou) — utile pour une capture"}
     >

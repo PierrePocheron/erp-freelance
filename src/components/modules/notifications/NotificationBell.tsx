@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useTransition } from "react"
+import { useState, useTransition, useEffect } from "react"
 import { Bell, X, CheckCheck } from "lucide-react"
 import Link from "next/link"
 import { cn } from "@/lib/utils"
@@ -44,6 +44,15 @@ export function NotificationBell({
 
   const unreadCount = notifications.filter((n) => !n.isRead).length
 
+  useEffect(() => {
+    if (!open) return
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") setOpen(false)
+    }
+    document.addEventListener("keydown", onKeyDown)
+    return () => document.removeEventListener("keydown", onKeyDown)
+  }, [open])
+
   function handleMarkRead(id: string) {
     startTransition(async () => {
       await markNotificationRead(id, userId)
@@ -73,6 +82,9 @@ export function NotificationBell({
           open ? "bg-accent" : "text-muted-foreground hover:bg-accent hover:text-foreground"
         )}
         title="Notifications"
+        aria-haspopup="dialog"
+        aria-expanded={open}
+        aria-label={unreadCount > 0 ? `Notifications, ${unreadCount} non lue${unreadCount > 1 ? "s" : ""}` : "Notifications"}
       >
         <Bell className="h-4 w-4" />
         {unreadCount > 0 && (
@@ -91,7 +103,11 @@ export function NotificationBell({
           />
 
           {/* Panel */}
-          <div className="absolute right-0 top-10 z-50 w-80 rounded-xl border border-border bg-popover shadow-xl overflow-hidden">
+          <div
+            role="dialog"
+            aria-label="Notifications"
+            className="absolute right-0 top-10 z-50 w-80 rounded-xl border border-border bg-popover shadow-xl overflow-hidden"
+          >
             <div className="flex items-center justify-between px-4 py-3 border-b border-border">
               <span className="text-sm font-semibold">
                 Notifications
@@ -118,6 +134,7 @@ export function NotificationBell({
                   type="button"
                   onClick={() => setOpen(false)}
                   className="text-muted-foreground hover:text-foreground transition-colors"
+                  aria-label="Fermer les notifications"
                 >
                   <X className="h-4 w-4" />
                 </button>

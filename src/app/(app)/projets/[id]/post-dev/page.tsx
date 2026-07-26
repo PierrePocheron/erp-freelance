@@ -68,20 +68,20 @@ export default async function ProjectPostDevPage({
           className="space-y-3"
         >
           <div className="space-y-1">
-            <label className="text-xs text-muted-foreground flex items-center gap-1.5"><Globe className="h-3 w-3" />URL production</label>
-            <Input name="prodUrl" type="url" defaultValue={postDev?.prodUrl ?? ""} placeholder="https://monsite.com" className="h-8 font-mono text-xs" />
+            <label htmlFor="prodUrl" className="text-xs text-muted-foreground flex items-center gap-1.5"><Globe className="h-3 w-3" />URL production</label>
+            <Input id="prodUrl" name="prodUrl" type="url" defaultValue={postDev?.prodUrl ?? ""} placeholder="https://monsite.com" className="h-8 font-mono text-xs" />
           </div>
           <div className="space-y-1">
-            <label className="text-xs text-muted-foreground flex items-center gap-1.5"><ShieldCheck className="h-3 w-3" />Panneau admin</label>
-            <Input name="adminUrl" type="url" defaultValue={postDev?.adminUrl ?? ""} placeholder="https://monsite.com/admin" className="h-8 font-mono text-xs" />
+            <label htmlFor="adminUrl" className="text-xs text-muted-foreground flex items-center gap-1.5"><ShieldCheck className="h-3 w-3" />Panneau admin</label>
+            <Input id="adminUrl" name="adminUrl" type="url" defaultValue={postDev?.adminUrl ?? ""} placeholder="https://monsite.com/admin" className="h-8 font-mono text-xs" />
           </div>
           <div className="space-y-1">
-            <label className="text-xs text-muted-foreground flex items-center gap-1.5"><Server className="h-3 w-3" />Hébergeur</label>
-            <Input name="hostingUrl" type="url" defaultValue={postDev?.hostingUrl ?? ""} placeholder="https://o2switch.fr" className="h-8 font-mono text-xs" />
+            <label htmlFor="hostingUrl" className="text-xs text-muted-foreground flex items-center gap-1.5"><Server className="h-3 w-3" />Hébergeur</label>
+            <Input id="hostingUrl" name="hostingUrl" type="url" defaultValue={postDev?.hostingUrl ?? ""} placeholder="https://o2switch.fr" className="h-8 font-mono text-xs" />
           </div>
           <div className="space-y-1">
-            <label className="text-xs text-muted-foreground flex items-center gap-1.5"><Building2 className="h-3 w-3" />Registrar domaine</label>
-            <Input name="registrarUrl" type="url" defaultValue={postDev?.registrarUrl ?? ""} placeholder="https://ovh.com" className="h-8 font-mono text-xs" />
+            <label htmlFor="registrarUrl" className="text-xs text-muted-foreground flex items-center gap-1.5"><Building2 className="h-3 w-3" />Registrar domaine</label>
+            <Input id="registrarUrl" name="registrarUrl" type="url" defaultValue={postDev?.registrarUrl ?? ""} placeholder="https://ovh.com" className="h-8 font-mono text-xs" />
           </div>
           <Button type="submit" size="sm" variant="outline" className="w-full">Enregistrer</Button>
         </form>
@@ -215,7 +215,7 @@ export default async function ProjectPostDevPage({
                         </form>
                       )}
                       <form action={async () => { "use server"; await deleteRenewal(r.id, id) }}>
-                        <button type="submit" className="md:opacity-0 md:group-hover:opacity-100 focus:opacity-100 text-muted-foreground hover:text-destructive transition-opacity">
+                        <button type="submit" aria-label={`Supprimer le renouvellement ${r.name}`} className="md:opacity-0 md:group-hover:opacity-100 focus:opacity-100 text-muted-foreground hover:text-destructive transition-opacity">
                           <Trash2 className="h-3.5 w-3.5" />
                         </button>
                       </form>

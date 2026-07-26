@@ -60,6 +60,23 @@ export function EmailTemplatesView({ templates }: { templates: EmailTemplate[] }
     })
   }
 
+  // Alternative clavier au glisser-déposer : déplace un modèle actif d'un cran
+  // (flèches haut/bas sur la poignée), même action de réordonnancement.
+  function moveActive(id: string, dir: -1 | 1) {
+    const activeItems = items.filter((t) => !t.archivedAt)
+    const idx = activeItems.findIndex((t) => t.id === id)
+    const target = idx + dir
+    if (idx === -1 || target < 0 || target >= activeItems.length) return
+    const reordered = [...activeItems]
+    const [moved] = reordered.splice(idx, 1)
+    reordered.splice(target, 0, moved)
+    setItems([...reordered, ...items.filter((t) => t.archivedAt)])
+    const orderedIds = reordered.map((t) => t.id)
+    startTransition(async () => {
+      await reorderEmailTemplates(orderedIds)
+    })
+  }
+
   function startCreate() {
     setEditingId("new")
     setName("")
@@ -193,9 +210,14 @@ export function EmailTemplatesView({ templates }: { templates: EmailTemplate[] }
                   draggable
                   onDragStart={() => setDragId(t.id)}
                   onDragEnd={() => setDragId(null)}
+                  onKeyDown={(e) => {
+                    if (e.key === "ArrowUp") { e.preventDefault(); moveActive(t.id, -1) }
+                    else if (e.key === "ArrowDown") { e.preventDefault(); moveActive(t.id, 1) }
+                  }}
                   className="cursor-grab active:cursor-grabbing text-muted-foreground/30 hover:text-muted-foreground transition-colors shrink-0 touch-none"
                   title="Glisser pour réordonner"
-                  aria-label="Réordonner le modèle"
+                  aria-label="Réordonner le modèle (flèches haut et bas)"
+                  aria-keyshortcuts="ArrowUp ArrowDown"
                 >
                   <GripVertical className="h-4 w-4" />
                 </button>

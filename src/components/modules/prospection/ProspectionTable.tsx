@@ -339,7 +339,7 @@ export function ProspectionTable({
             className="w-full h-8 rounded-lg border border-input bg-transparent pl-8 pr-7 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
           />
           {search && (
-            <button onClick={() => setSearch("")} className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors">
+            <button onClick={() => setSearch("")} aria-label="Effacer la recherche" className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors">
               <X className="h-3.5 w-3.5" />
             </button>
           )}
@@ -654,6 +654,7 @@ export function ProspectionTable({
               <button
                 onClick={() => setPage((p) => Math.max(1, p - 1))}
                 disabled={safePage <= 1}
+                aria-label="Page précédente"
                 className="h-7 w-7 flex items-center justify-center rounded-lg border border-input hover:bg-muted transition-colors disabled:opacity-40"
               >
                 <ChevronLeft className="h-3.5 w-3.5" />
@@ -662,6 +663,7 @@ export function ProspectionTable({
               <button
                 onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
                 disabled={safePage >= totalPages}
+                aria-label="Page suivante"
                 className="h-7 w-7 flex items-center justify-center rounded-lg border border-input hover:bg-muted transition-colors disabled:opacity-40"
               >
                 <ChevronRight className="h-3.5 w-3.5" />

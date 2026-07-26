@@ -137,7 +137,7 @@ export function EntretienView({
         {/* Header */}
         <div className="flex items-start justify-between gap-4 flex-wrap">
           <div>
-            <h1 className="sm:hidden text-2xl font-bold tracking-tight">Entretiens</h1>
+            <h1 className="text-2xl font-bold tracking-tight sm:sr-only">Entretiens</h1>
             <p className="text-sm text-muted-foreground">Suivi des candidatures et processus de recrutement</p>
           </div>
           <div className="flex items-center gap-2">
@@ -216,7 +216,7 @@ export function EntretienView({
                 className="w-full h-8 rounded-lg border border-input bg-transparent pl-8 pr-7 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
               />
               {search && (
-                <button onClick={() => setSearch("")} className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+                <button onClick={() => setSearch("")} aria-label="Effacer la recherche" className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
                   <X className="h-3.5 w-3.5" />
                 </button>
               )}
@@ -423,7 +423,11 @@ function ApplicationCard({ app, onOpen }: { app: JobApp; onOpen: () => void }) {
       role="button"
       tabIndex={0}
       onClick={onOpen}
-      onKeyDown={(e) => { if (e.key === "Enter") onOpen() }}
+      onKeyDown={(e) => {
+        // N'ouvrir que si la carte elle-même a le focus (évite de déclencher via un bouton imbriqué).
+        if (e.target !== e.currentTarget) return
+        if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onOpen() }
+      }}
       className="group rounded-xl border border-border/50 bg-card p-3 hover:border-border hover:shadow-sm transition-all cursor-pointer"
     >
       <div className="flex items-start justify-between gap-2 mb-1.5">

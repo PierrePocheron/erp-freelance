@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useTransition } from "react"
+import { useId, useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
 import { Plus, Pencil, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -48,6 +48,7 @@ function toDateParts(d: Date | string | null): { date: string; time: string } {
 
 export function MilestoneDialog({ projectId, milestone }: { projectId: string; milestone?: MilestoneForEdit }) {
   const router = useRouter()
+  const uid = useId()
   const isEdit = !!milestone
   const [open, setOpen] = useState(false)
   const [isPending, startTransition] = useTransition()
@@ -115,12 +116,13 @@ export function MilestoneDialog({ projectId, milestone }: { projectId: string; m
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-3">
           <div className="space-y-1">
-            <label className="text-xs text-muted-foreground">Nom</label>
-            <Input value={name} onChange={e => setName(e.target.value)} placeholder="Livraison V1, réunion cadrage…" required />
+            <label htmlFor={`${uid}-name`} className="text-xs text-muted-foreground">Nom</label>
+            <Input id={`${uid}-name`} value={name} onChange={e => setName(e.target.value)} placeholder="Livraison V1, réunion cadrage…" required />
           </div>
           <div className="space-y-1">
-            <label className="text-xs text-muted-foreground">Type</label>
+            <label htmlFor={`${uid}-type`} className="text-xs text-muted-foreground">Type</label>
             <select
+              id={`${uid}-type`}
               value={type}
               onChange={e => setType(e.target.value)}
               className="flex h-9 w-full rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
@@ -129,17 +131,17 @@ export function MilestoneDialog({ projectId, milestone }: { projectId: string; m
             </select>
           </div>
           <div className="space-y-1">
-            <label className="text-xs text-muted-foreground">Date</label>
-            <Input type="date" value={date} onChange={e => setDate(e.target.value)} required />
+            <label htmlFor={`${uid}-date`} className="text-xs text-muted-foreground">Date</label>
+            <Input id={`${uid}-date`} type="date" value={date} onChange={e => setDate(e.target.value)} required />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
-              <label className="text-xs text-muted-foreground">Heure de début (optionnel)</label>
-              <Input type="time" value={startTime} onChange={e => setStartTime(e.target.value)} />
+              <label htmlFor={`${uid}-start`} className="text-xs text-muted-foreground">Heure de début (optionnel)</label>
+              <Input id={`${uid}-start`} type="time" value={startTime} onChange={e => setStartTime(e.target.value)} />
             </div>
             <div className="space-y-1">
-              <label className="text-xs text-muted-foreground">Heure de fin (optionnel)</label>
-              <Input type="time" value={endTime} onChange={e => setEndTime(e.target.value)} />
+              <label htmlFor={`${uid}-end`} className="text-xs text-muted-foreground">Heure de fin (optionnel)</label>
+              <Input id={`${uid}-end`} type="time" value={endTime} onChange={e => setEndTime(e.target.value)} />
             </div>
           </div>
 

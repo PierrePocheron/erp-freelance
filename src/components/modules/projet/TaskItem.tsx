@@ -182,10 +182,10 @@ export function TaskItem({
 
         {/* Réordonner */}
         <div className="flex flex-col gap-0.5 md:opacity-0 md:group-hover:opacity-100 focus:opacity-100 transition-opacity shrink-0">
-          <button disabled={isFirst || isPending} onClick={() => startTransition(() => reorderTask(task.id, projectId, "up"))} className="text-muted-foreground hover:text-foreground disabled:opacity-20">
+          <button aria-label="Monter la tâche" disabled={isFirst || isPending} onClick={() => startTransition(() => reorderTask(task.id, projectId, "up"))} className="text-muted-foreground hover:text-foreground disabled:opacity-20">
             <ChevronUp className="h-3 w-3" />
           </button>
-          <button disabled={isLast || isPending} onClick={() => startTransition(() => reorderTask(task.id, projectId, "down"))} className="text-muted-foreground hover:text-foreground disabled:opacity-20">
+          <button aria-label="Descendre la tâche" disabled={isLast || isPending} onClick={() => startTransition(() => reorderTask(task.id, projectId, "down"))} className="text-muted-foreground hover:text-foreground disabled:opacity-20">
             <ChevronDown className="h-3 w-3" />
           </button>
         </div>
@@ -239,6 +239,7 @@ export function TaskItem({
                 {task.status !== "DONE" && (
                   <button
                     type="button"
+                    aria-label={`Retirer le tag ${tag.name}`}
                     onClick={() => startTransition(() => removeTagFromTask(task.id, tag.id, projectId))}
                     className="ml-0.5 opacity-60 hover:opacity-100"
                   >
@@ -362,7 +363,7 @@ export function TaskItem({
         </div>
 
         {/* Supprimer */}
-        <button onClick={() => startTransition(() => deleteTask(task.id, projectId))} className="md:opacity-0 md:group-hover:opacity-100 focus:opacity-100 transition-opacity text-muted-foreground hover:text-destructive shrink-0">
+        <button aria-label="Supprimer la tâche" onClick={() => startTransition(() => deleteTask(task.id, projectId))} className="md:opacity-0 md:group-hover:opacity-100 focus:opacity-100 transition-opacity text-muted-foreground hover:text-destructive shrink-0">
           <Trash2 className="h-3.5 w-3.5" />
         </button>
       </div>

@@ -266,6 +266,7 @@ export function LineItemsEditor({ entityId, entityType, lines, editable = true }
                 <>
                   <button
                     onClick={() => setEditingId(line.id)}
+                    aria-label="Modifier la ligne"
                     className="md:opacity-0 md:group-hover:opacity-100 focus:opacity-100 text-muted-foreground hover:text-foreground transition-opacity"
                   >
                     <Pencil className="h-3.5 w-3.5" />
@@ -273,6 +274,7 @@ export function LineItemsEditor({ entityId, entityType, lines, editable = true }
                   <button
                     onClick={() => startTransition(() => deleteLine(line.id))}
                     disabled={isPending}
+                    aria-label="Supprimer la ligne"
                     className="md:opacity-0 md:group-hover:opacity-100 focus:opacity-100 text-muted-foreground hover:text-destructive transition-opacity"
                   >
                     <Trash2 className="h-3.5 w-3.5" />

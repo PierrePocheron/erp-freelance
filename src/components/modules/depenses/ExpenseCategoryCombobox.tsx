@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useRef, useEffect, useCallback } from "react"
+import { useState, useRef, useEffect, useCallback, useId } from "react"
 import { createPortal } from "react-dom"
 import { Check, Plus, ChevronDown, Loader2 } from "lucide-react"
 import { createExpenseCategory } from "@/actions/expense"
@@ -27,11 +27,16 @@ export function ExpenseCategoryCombobox({
   categories,
   value,
   onChange,
+  id,
 }: {
   categories: ExpenseCategory[]
   value: string
   onChange: (id: string) => void
+  id?: string
 }) {
+  const generatedId = useId()
+  const inputId = id ?? generatedId
+  const listboxId = `${inputId}-listbox`
   const [query, setQuery] = useState("")
   const [open, setOpen] = useState(false)
   const [creating, setCreating] = useState(false)
@@ -111,6 +116,12 @@ export function ExpenseCategoryCombobox({
       <div className="relative">
         <input
           ref={inputRef}
+          id={inputId}
+          role="combobox"
+          aria-expanded={open}
+          aria-controls={open ? listboxId : undefined}
+          aria-autocomplete="list"
+          aria-haspopup="listbox"
           value={open ? query : (selected ? selected.name : "")}
           onChange={(e) => {
             setQuery(e.target.value)
@@ -130,9 +141,11 @@ export function ExpenseCategoryCombobox({
           style={dropdownStyle}
           className="rounded-md border border-border bg-popover shadow-lg overflow-hidden"
         >
-          <div className="max-h-52 overflow-y-auto">
+          <div id={listboxId} role="listbox" className="max-h-52 overflow-y-auto">
             <button
               type="button"
+              role="option"
+              aria-selected={!value}
               onPointerDown={(e) => { e.preventDefault(); handleSelect("") }}
               className="flex items-center gap-2.5 w-full px-3 py-2 text-sm text-left hover:bg-muted/60 transition-colors text-muted-foreground"
             >
@@ -148,6 +161,8 @@ export function ExpenseCategoryCombobox({
               <button
                 key={c.id}
                 type="button"
+                role="option"
+                aria-selected={c.id === value}
                 onPointerDown={(e) => { e.preventDefault(); handleSelect(c.id) }}
                 className="flex items-center gap-2.5 w-full px-3 py-2 text-sm text-left hover:bg-muted/60 transition-colors"
               >

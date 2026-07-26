@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useId, useState } from "react"
 import { useRouter } from "next/navigation"
 import { Play } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -21,6 +21,10 @@ export function StartSessionDialog() {
   const [statut, setStatut] = useState<ProspectStatus | "ALL">("TO_CONTACT")
   const [siteType, setSiteType] = useState<WebsiteType | "ALL">("ALL")
   const [count, setCount] = useState(10)
+  const fieldId = useId()
+  const statutId = `${fieldId}-statut`
+  const siteTypeId = `${fieldId}-type`
+  const countLabelId = `${fieldId}-count`
 
   function launch() {
     const params = new URLSearchParams()
@@ -50,8 +54,9 @@ export function StartSessionDialog() {
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
-              <label className="text-xs text-muted-foreground">Statut</label>
+              <label htmlFor={statutId} className="text-xs text-muted-foreground">Statut</label>
               <select
+                id={statutId}
                 value={statut}
                 onChange={(e) => setStatut(e.target.value as ProspectStatus | "ALL")}
                 className="flex h-9 w-full rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
@@ -63,8 +68,9 @@ export function StartSessionDialog() {
               </select>
             </div>
             <div className="space-y-1">
-              <label className="text-xs text-muted-foreground">Type de site</label>
+              <label htmlFor={siteTypeId} className="text-xs text-muted-foreground">Type de site</label>
               <select
+                id={siteTypeId}
                 value={siteType}
                 onChange={(e) => setSiteType(e.target.value as WebsiteType | "ALL")}
                 className="flex h-9 w-full rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
@@ -78,8 +84,8 @@ export function StartSessionDialog() {
           </div>
 
           <div className="space-y-1">
-            <label className="text-xs text-muted-foreground">Nombre de prospects</label>
-            <div className="flex gap-1.5">
+            <label id={countLabelId} className="text-xs text-muted-foreground">Nombre de prospects</label>
+            <div role="group" aria-labelledby={countLabelId} className="flex gap-1.5">
               {[5, 10, 20, 30].map((n) => (
                 <button
                   key={n}

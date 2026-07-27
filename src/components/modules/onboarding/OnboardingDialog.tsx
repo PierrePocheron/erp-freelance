@@ -3,6 +3,7 @@
 import { useState } from "react"
 import { Check, Sparkles, X } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
 import {
   MODULE_DEFS, CATEGORY_ORDER, CATEGORY_META,
   type ModuleId, type ModuleCategory,
@@ -38,9 +39,12 @@ export function OnboardingDialog({
 
   const byCategory = (cat: ModuleCategory) => MODULE_DEFS.filter((m) => m.category === cat)
 
+  // Mode "auto" (1re connexion) = choix OBLIGATOIRE : non fermable par Échap/overlay
+  // (on garde open contrôlé à true et on ignore onOpenChange). Mode "manual" =
+  // fermeture → onCancel. Le piège de focus / aria-modal viennent de base-ui.
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-      <div className="w-full max-w-2xl max-h-[90vh] flex flex-col rounded-2xl bg-background border border-border shadow-2xl overflow-hidden">
+    <Dialog open onOpenChange={(o) => { if (!o && mode === "manual") onCancel?.() }}>
+      <DialogContent showCloseButton={false} className="sm:max-w-2xl max-h-[90vh] flex flex-col overflow-hidden p-0 gap-0">
         {/* Header */}
         <div className="px-6 py-5 border-b border-border/50 shrink-0">
           <div className="flex items-start justify-between gap-3">
@@ -49,9 +53,9 @@ export function OnboardingDialog({
                 <Sparkles className="h-4.5 w-4.5 text-primary" />
               </div>
               <div>
-                <h2 className="text-lg font-bold tracking-tight">
+                <DialogTitle className="text-lg font-bold tracking-tight">
                   {mode === "auto" ? "Bienvenue 👋" : "Vos modules"}
-                </h2>
+                </DialogTitle>
                 <p className="text-sm text-muted-foreground">
                   {mode === "auto"
                     ? "Choisissez les modules à activer. Vous pourrez les modifier à tout moment dans les paramètres."
@@ -141,7 +145,7 @@ export function OnboardingDialog({
             </button>
           </div>
         </div>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   )
 }

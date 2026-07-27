@@ -4,6 +4,7 @@ import { useId, useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
 import { Upload, X, Check, RefreshCw } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { Dialog, DialogContent, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { importHistoricalInvoice } from "@/actions/facturation"
 
 type Client  = { id: string; name: string; company: string | null; type: string }
@@ -87,28 +88,18 @@ export function ImportInvoiceModal({
     })
   }
 
-  if (!open) {
-    return (
-      <Button
-        variant="outline"
-        size="sm"
-        onClick={() => setOpen(true)}
-        className="gap-1.5"
-      >
+  return (
+    <Dialog open={open} onOpenChange={(o) => (o ? setOpen(true) : handleClose())}>
+      <DialogTrigger render={<Button variant="outline" size="sm" className="gap-1.5" />}>
         <Upload className="h-3.5 w-3.5" />
         Importer
-      </Button>
-    )
-  }
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
-      <div className="bg-card border border-border rounded-2xl shadow-2xl w-full max-w-lg">
+      </DialogTrigger>
+      <DialogContent showCloseButton={false} className="sm:max-w-lg max-h-[85dvh] flex flex-col overflow-hidden p-0 gap-0">
 
         {/* Header */}
         <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-border">
           <div>
-            <h2 className="font-semibold text-base">Importer une facture historique</h2>
+            <DialogTitle className="font-semibold text-base">Importer une facture historique</DialogTitle>
             <p className="text-xs text-muted-foreground mt-0.5">
               Aucun PDF généré — document existant hors ERP
             </p>
@@ -311,7 +302,7 @@ export function ImportInvoiceModal({
           </Button>
         </div>
 
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   )
 }

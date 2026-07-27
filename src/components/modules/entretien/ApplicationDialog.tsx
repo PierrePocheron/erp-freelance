@@ -1,8 +1,9 @@
 "use client"
 
-import { useEffect, useId, useRef, useState, useTransition } from "react"
+import { useId, useState, useTransition } from "react"
 import { X, Trash2, FileCheck2 } from "lucide-react"
 import { toast } from "sonner"
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
 import { createJobApplication, updateJobApplication, deleteJobApplication } from "@/actions/entretien"
 import { STATUS_CONFIG, PIPELINE_STATUSES, OUTCOME_STATUSES, EVENT_TYPE_CONFIG, MEETING_FORMATS, toDateInputValue, type JobAppStatus } from "./status-config"
 import type { JobApp, JobContact, CompanyOption } from "./EntretienView"
@@ -22,21 +23,7 @@ export function ApplicationDialog({
   const [isPending, start] = useTransition()
   const [confirmDelete, setConfirmDelete] = useState(false)
 
-  const titleId = useId()
   const fid = useId()
-  const panelRef = useRef<HTMLDivElement>(null)
-
-  // Focus initial dans la modale — UNE SEULE FOIS au montage (deps vides) pour ne
-  // jamais voler le focus pendant la saisie si le parent se re-rend.
-  useEffect(() => {
-    panelRef.current?.focus()
-  }, [])
-  // Fermeture au clavier (Échap) — listener ré-attaché si onClose change (sans effet visible).
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose() }
-    document.addEventListener("keydown", onKey)
-    return () => document.removeEventListener("keydown", onKey)
-  }, [onClose])
 
   // Premier contact (création uniquement)
   const [initEventEnabled, setInitEventEnabled] = useState(false)
@@ -125,17 +112,10 @@ export function ApplicationDialog({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/50">
-      <div
-        ref={panelRef}
-        tabIndex={-1}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby={titleId}
-        className="w-full max-w-lg rounded-2xl bg-background border border-border shadow-xl max-h-[90vh] overflow-y-auto"
-      >
+    <Dialog open onOpenChange={(o) => { if (!o) onClose() }}>
+      <DialogContent showCloseButton={false} className="sm:max-w-lg max-h-[90vh] overflow-y-auto p-0 gap-0">
         <div className="flex items-center justify-between px-5 py-4 border-b border-border/50 sticky top-0 bg-background z-10">
-          <h2 id={titleId} className="text-sm font-semibold">{item ? "Modifier" : "Nouvelle"} candidature</h2>
+          <DialogTitle className="text-sm font-semibold">{item ? "Modifier" : "Nouvelle"} candidature</DialogTitle>
           <button onClick={onClose} aria-label="Fermer" className="text-muted-foreground hover:text-foreground transition-colors">
             <X className="h-4 w-4" />
           </button>
@@ -461,7 +441,7 @@ export function ApplicationDialog({
             </div>
           </div>
         </form>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   )
 }

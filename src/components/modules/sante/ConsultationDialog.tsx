@@ -4,6 +4,7 @@ import { useState, useTransition } from "react"
 import { X, Trash2 } from "lucide-react"
 import { toast } from "sonner"
 import { createConsultation, updateConsultation, deleteConsultation } from "@/actions/sante"
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
 import { PRACTITIONER_LABELS } from "./HealthView"
 import type { HConsultation, HEvent } from "./HealthView"
 import type { PractitionerType } from "@/generated/prisma/enums"
@@ -87,10 +88,10 @@ export function ConsultationDialog({
   })
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/50">
-      <div className="w-full max-w-md rounded-2xl bg-background border border-border shadow-xl max-h-[90vh] overflow-y-auto">
+    <Dialog open onOpenChange={(o) => { if (!o) onClose() }}>
+      <DialogContent showCloseButton={false} className="sm:max-w-md max-h-[90vh] overflow-y-auto p-0 gap-0">
         <div className="flex items-center justify-between px-5 py-4 border-b border-border/50 sticky top-0 bg-background">
-          <h2 className="text-sm font-semibold">{item ? "Modifier" : "Ajouter"} une consultation</h2>
+          <DialogTitle className="text-sm font-semibold">{item ? "Modifier" : "Ajouter"} une consultation</DialogTitle>
           <button onClick={onClose} className="text-muted-foreground hover:text-foreground transition-colors">
             <X className="h-4 w-4" />
           </button>
@@ -235,7 +236,7 @@ export function ConsultationDialog({
             </div>
           </div>
         </form>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   )
 }

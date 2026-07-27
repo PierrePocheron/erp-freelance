@@ -10,6 +10,7 @@ import {
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
 import {
   createUrssafDeclaration, markUrssafDeclared, markUrssafPaid,
   deleteUrssafDeclaration, suggestDeclarationLines, type SuggestedLine,
@@ -747,20 +748,22 @@ function DialogShell({ title, onClose, children }: {
   title: string; onClose: () => void; children: React.ReactNode
 }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
-      <div
-        className="w-full max-w-lg rounded-2xl border border-border bg-card shadow-2xl p-5 space-y-4"
-        onClick={e => e.stopPropagation()}
-      >
-        <div className="flex items-center justify-between">
-          <h3 className="font-semibold text-sm">{title}</h3>
-          <button onClick={onClose} aria-label="Fermer" className="text-muted-foreground hover:text-foreground">
-            <X className="h-4 w-4" aria-hidden="true" />
-          </button>
+    <Dialog open onOpenChange={(o) => { if (!o) onClose() }}>
+      {/* p-0/gap-0 : le conteneur interne garde son propre padding et son
+          espacement vertical (comme avant la migration base-ui). Fermeture par
+          Échap / clic sur l'overlay gérée nativement par base-ui. */}
+      <DialogContent showCloseButton={false} className="sm:max-w-lg p-0 gap-0">
+        <div className="p-5 space-y-4">
+          <div className="flex items-center justify-between">
+            <DialogTitle className="font-semibold text-sm">{title}</DialogTitle>
+            <button onClick={onClose} aria-label="Fermer" className="text-muted-foreground hover:text-foreground">
+              <X className="h-4 w-4" aria-hidden="true" />
+            </button>
+          </div>
+          {children}
         </div>
-        {children}
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   )
 }
 

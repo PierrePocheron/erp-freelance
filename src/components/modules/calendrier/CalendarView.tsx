@@ -399,6 +399,30 @@ function timeStringFromDate(d: Date, allDay: boolean | undefined): string {
 
 // ── Dialog Nouvel Événement ───────────────────────────────────────────────────
 
+/** Sélecteur de catégorie sous forme de puces colorées (partagé entre les dialogs). */
+function CategoryPicker({ value, onChange, categories }: {
+  value: string
+  onChange: (id: string) => void
+  categories: CalendarCategory[]
+}) {
+  return (
+    <div className="space-y-1.5">
+      <label className="text-xs font-medium text-muted-foreground">Catégorie</label>
+      <div className="flex flex-wrap gap-1.5">
+        {categories.map(cat => (
+          <button key={cat.id} type="button" onClick={() => onChange(cat.id)}
+            className={cn("inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors",
+              value === cat.id ? "border-current" : "border-border text-muted-foreground hover:border-current hover:opacity-80")}
+            style={value === cat.id ? { color: cat.color, borderColor: cat.color, backgroundColor: cat.color + "20" } : {}}>
+            <span className="h-1.5 w-1.5 rounded-full shrink-0" style={{ backgroundColor: cat.color }} />
+            {cat.name}
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 function EventFormFields({
   title, setTitle,
   date, setDate,
@@ -459,21 +483,7 @@ function EventFormFields({
 
       {/* Catégorie */}
       {categories.length > 0 && (
-        <div className="space-y-1.5">
-          <label className="text-xs font-medium text-muted-foreground">Catégorie</label>
-          <div className="flex flex-wrap gap-1.5">
-            {categories.map(cat => (
-              <button key={cat.id} type="button" onClick={() => setCategoryId(cat.id)}
-                className={cn("inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors",
-                  categoryId === cat.id ? "border-current" : "border-border text-muted-foreground hover:border-current hover:opacity-80")}
-                style={categoryId === cat.id ? { color: cat.color, borderColor: cat.color, backgroundColor: cat.color + "20" } : {}}
-              >
-                <span className="h-1.5 w-1.5 rounded-full shrink-0" style={{ backgroundColor: cat.color }} />
-                {cat.name}
-              </button>
-            ))}
-          </div>
-        </div>
+        <CategoryPicker value={categoryId} onChange={setCategoryId} categories={categories} />
       )}
 
       {/* Projet */}
@@ -744,20 +754,7 @@ function NewEventDialog({
 
           {/* Catégorie (événement / note uniquement) */}
           {showCategory && categories.length > 0 && (
-            <div className="space-y-1.5">
-              <label className="text-xs font-medium text-muted-foreground">Catégorie</label>
-              <div className="flex flex-wrap gap-1.5">
-                {categories.map(cat => (
-                  <button key={cat.id} type="button" onClick={() => setCategoryId(cat.id)}
-                    className={cn("inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors",
-                      categoryId === cat.id ? "border-current" : "border-border text-muted-foreground hover:border-current hover:opacity-80")}
-                    style={categoryId === cat.id ? { color: cat.color, borderColor: cat.color, backgroundColor: cat.color + "20" } : {}}>
-                    <span className="h-1.5 w-1.5 rounded-full shrink-0" style={{ backgroundColor: cat.color }} />
-                    {cat.name}
-                  </button>
-                ))}
-              </div>
-            </div>
+            <CategoryPicker value={categoryId} onChange={setCategoryId} categories={categories} />
           )}
 
           {nature === "note" && (

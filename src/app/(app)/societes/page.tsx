@@ -65,7 +65,7 @@ export default async function SocietesPage() {
             {companies.length} société{companies.length !== 1 ? "s" : ""}
           </p>
         </div>
-        <CreateCompanyDialog userId={userId} fiscalSources={fiscalSources} />
+        <CreateCompanyDialog fiscalSources={fiscalSources} />
       </div>
 
       {/* Carte Sources fiscales */}

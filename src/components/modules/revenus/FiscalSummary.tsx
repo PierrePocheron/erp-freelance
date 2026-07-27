@@ -222,7 +222,7 @@ export function FiscalSummary({
   const emptySources  = fiscalSources.filter(src => (grids.get(src.id)?.yearTotal ?? 0) === 0)
 
   // ── Export texte enrichi ───────────────────────────────────────────────────
-  function handleExport() {
+  async function handleExport() {
     const lines: string[] = [`Récapitulatif fiscal ${year}`, ""]
     for (const src of activeSources) {
       const grid = grids.get(src.id)!
@@ -244,8 +244,12 @@ export function FiscalSummary({
       }
     }
     lines.push(`TOTAL GÉNÉRAL : ${fmt(grandTotal)} €`)
-    navigator.clipboard.writeText(lines.join("\n"))
-    toast.success("Récapitulatif copié dans le presse-papiers")
+    try {
+      await navigator.clipboard.writeText(lines.join("\n"))
+      toast.success("Récapitulatif copié dans le presse-papiers")
+    } catch {
+      toast.error("Impossible de copier dans le presse-papiers")
+    }
   }
 
   return (
@@ -509,21 +513,8 @@ export function FiscalSummary({
 
 // ── ClientGroupRow — ligne expandable par client ───────────────────────────────
 
-function ClientGroupRow({ group }: { group: { clientKey: string; clientName: string | null; clientCompany: string | null; total: number; lines: { id: string; kind: "invoice" | "revenue"; label: string; projectName: string | null; amount: number; date: string; href?: string }[] } }) {
+function ClientGroupRow({ group }: { group: ClientGroup }) {
   const [open, setOpen] = useState(false)
-
-  function fmt(n: number) {
-    return n.toLocaleString("fr-FR", { minimumFractionDigits: 0, maximumFractionDigits: 0 })
-  }
-
-  function fmtDate(iso: string) {
-    return new Date(iso).toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" })
-  }
-
-  function clientDisplayName(clientName: string | null, clientCompany: string | null): string {
-    if (clientName && clientCompany && clientCompany !== clientName) return `${clientName} · ${clientCompany}`
-    return clientName ?? clientCompany ?? "Sans client"
-  }
 
   const displayName = clientDisplayName(group.clientName, group.clientCompany)
 

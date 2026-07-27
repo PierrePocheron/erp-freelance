@@ -5,6 +5,7 @@ import {
   Pencil, Check, X, Mail, Phone, Building2, Tag,
   MessageSquare, Loader2, MapPin, Hash, AlertCircle, Globe,
 } from "lucide-react"
+import { toast } from "sonner"
 import { LinkedinIcon } from "@/components/ui/linkedin-icon"
 import { updateClientAll } from "@/actions/crm"
 import { updateProspectStatus } from "@/actions/prospection"
@@ -150,12 +151,18 @@ export function ClientInfoCard({ client, isOwner = true }: { client: ClientData;
       if (type === "PROSPECT" && prospectStatus !== client.prospectStatus) {
         saves.push(updateProspectStatus(client.id, prospectStatus as ProspectStatus))
       }
-      await Promise.all(saves)
-      setEditing(false)
+      try {
+        await Promise.all(saves)
+        setEditing(false)
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : "Échec de l'enregistrement")
+      }
     })
   }
 
-  const typeLabel = TYPE_OPTIONS.find((t) => t.value === client.type)?.label ?? client.type
+  const typeLabel =
+    TYPE_OPTIONS.find((t) => t.value === client.type)?.label ??
+    (client.type === "TO_COMPLETE" ? "À compléter" : client.type)
 
   const missingParts: string[] = []
   if (!client.firstName) missingParts.push("prénom")

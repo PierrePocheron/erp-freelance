@@ -15,10 +15,6 @@ import { toDateInput } from "@/lib/dates"
 
 import { FREQUENCY_LABELS } from "@/lib/expense-constants"
 
-// Ré-export conservé pour les imports client existants ; les Server
-// Components doivent importer depuis @/lib/expense-constants directement.
-export { FREQUENCY_LABELS }
-
 export type RecurringExpenseForEdit = {
   id: string
   label: string
@@ -49,7 +45,7 @@ export function RecurringExpenseDialog({
   const [amount, setAmount]       = useState(recurringExpense ? String(recurringExpense.amount) : "")
   const [nextDate, setNextDate]   = useState(() => toDateInput(new Date(recurringExpense?.nextGenerationDate ?? new Date())))
   const [scope, setScope]         = useState<"PRO" | "PERSO">(recurringExpense?.scope ?? "PERSO")
-  const [frequency, setFrequency] = useState<string>(recurringExpense?.frequency ?? "MONTHLY")
+  const [frequency, setFrequency] = useState<"ONETIME" | "WEEKLY" | "MONTHLY" | "QUARTERLY" | "YEARLY" | "CUSTOM">(recurringExpense?.frequency ?? "MONTHLY")
   const isOneTime = frequency === "ONETIME"
   const [categoryId, setCategoryId] = useState(recurringExpense?.categoryId ?? "")
   const [notes, setNotes]         = useState(recurringExpense?.notes ?? "")
@@ -73,12 +69,12 @@ export function RecurringExpenseDialog({
     const dateObj = new Date(`${nextDate || toDateInput(new Date())}T00:00:00`)
 
     startTransition(async () => {
-      if (isOneTime) {
+      if (frequency === "ONETIME") {
         // Conversion / création d'une dépense ponctuelle
         if (isEdit) await convertRecurringToExpense(recurringExpense.id, { ...shared, date: dateObj })
         else await createExpense({ ...shared, date: dateObj })
       } else {
-        const payload = { ...shared, frequency: frequency as RecurringExpenseForEdit["frequency"], nextGenerationDate: dateObj, dateToConfirm }
+        const payload = { ...shared, frequency, nextGenerationDate: dateObj, dateToConfirm }
         if (isEdit) await updateRecurringExpense(recurringExpense.id, payload)
         else await createRecurringExpense(payload)
       }
@@ -129,7 +125,7 @@ export function RecurringExpenseDialog({
               <select
                 id={`${fieldId}-frequency`}
                 value={frequency}
-                onChange={e => setFrequency(e.target.value)}
+                onChange={e => setFrequency(e.target.value as typeof frequency)}
                 className="flex h-9 w-full rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
               >
                 <option value="ONETIME">Ponctuelle</option>

@@ -4,12 +4,9 @@ import { useEffect, useId, useRef, useState, useTransition } from "react"
 import { X, Trash2, FileCheck2 } from "lucide-react"
 import { toast } from "sonner"
 import { createJobApplication, updateJobApplication, deleteJobApplication } from "@/actions/entretien"
-import { STATUS_CONFIG, PIPELINE_STATUSES, OUTCOME_STATUSES, EVENT_TYPE_CONFIG, MEETING_FORMATS, type JobAppStatus } from "./status-config"
+import { STATUS_CONFIG, PIPELINE_STATUSES, OUTCOME_STATUSES, EVENT_TYPE_CONFIG, MEETING_FORMATS, toDateInputValue, type JobAppStatus } from "./status-config"
 import type { JobApp, JobContact, CompanyOption } from "./EntretienView"
 import type { JobEventType } from "@/generated/prisma/enums"
-
-const toISO = (d: Date | string | null | undefined) =>
-  d ? new Date(d).toISOString().split("T")[0] : ""
 
 export function ApplicationDialog({
   item,
@@ -67,8 +64,8 @@ export function ApplicationDialog({
   const [salaryMax,   setSalaryMax]   = useState(item?.salaryMax?.toString() || "")
   const [salaryNote,  setSalaryNote]  = useState(item?.salaryNote || "")
   const [contactId,   setContactId]   = useState(item?.contactId || "")
-  const [appliedAt,   setAppliedAt]   = useState(toISO(item?.appliedAt))
-  const [nextActionAt,    setNextActionAt]    = useState(toISO(item?.nextActionAt))
+  const [appliedAt,   setAppliedAt]   = useState(toDateInputValue(item?.appliedAt))
+  const [nextActionAt,    setNextActionAt]    = useState(toDateInputValue(item?.nextActionAt))
   const [nextActionLabel, setNextActionLabel] = useState(item?.nextActionLabel || "")
   const [nextActionFormat, setNextActionFormat] = useState(item?.nextActionFormat || "")
   const [dossierValidated, setDossierValidated] = useState(item?.competencyDossierValidated ?? false)
@@ -94,28 +91,36 @@ export function ApplicationDialog({
       notes,
     }
     start(async () => {
-      if (item) {
-        await updateJobApplication(item.id, payload)
-        toast.success("Candidature mise à jour")
-      } else {
-        await createJobApplication({
-          ...payload,
-          initialEvent: initEventEnabled && initEventTitle.trim()
-            ? { type: initEventType, date: initEventDate, title: initEventTitle, notes: initEventNotes || null }
-            : null,
-        })
-        toast.success("Candidature créée")
+      try {
+        if (item) {
+          await updateJobApplication(item.id, payload)
+          toast.success("Candidature mise à jour")
+        } else {
+          await createJobApplication({
+            ...payload,
+            initialEvent: initEventEnabled && initEventTitle.trim()
+              ? { type: initEventType, date: initEventDate, title: initEventTitle, notes: initEventNotes || null }
+              : null,
+          })
+          toast.success("Candidature créée")
+        }
+        onClose()
+      } catch {
+        toast.error("Échec de l'enregistrement de la candidature")
       }
-      onClose()
     })
   }
 
   function handleDelete() {
     if (!item) return
     start(async () => {
-      await deleteJobApplication(item.id)
-      toast.success("Candidature supprimée")
-      onClose()
+      try {
+        await deleteJobApplication(item.id)
+        toast.success("Candidature supprimée")
+        onClose()
+      } catch {
+        toast.error("Échec de la suppression de la candidature")
+      }
     })
   }
 

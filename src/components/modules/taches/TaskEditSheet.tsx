@@ -2,9 +2,11 @@
 
 import { useState, useEffect, useTransition, useId } from "react"
 import { Loader2 } from "lucide-react"
+import { toast } from "sonner"
 import { updateTaskFields } from "@/actions/projet"
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetFooter } from "@/components/ui/sheet"
 import { Button } from "@/components/ui/button"
+import { toDateInput } from "@/lib/dates"
 import { cn } from "@/lib/utils"
 
 const PRIORITY_LABELS: Record<string, string> = { LOW: "Basse", MEDIUM: "Moyenne", HIGH: "Haute", URGENT: "Urgente" }
@@ -13,6 +15,14 @@ const PRIORITY_CLS: Record<string, string> = {
   MEDIUM: "border-amber-400/60 text-amber-400 bg-amber-400/10",
   HIGH: "border-orange-500/60 text-orange-500 bg-orange-500/10",
   URGENT: "border-red-500/60 text-red-500 bg-red-500/10",
+}
+// Couleur du badge Importance (niveaux 1-4), table dédiée indexée par niveau —
+// plus de dépendance implicite à l'ordre des clés de PRIORITY_CLS.
+const IMPORTANCE_CLS: Record<number, string> = {
+  1: "border-blue-400/60 text-blue-400 bg-blue-400/10",
+  2: "border-amber-400/60 text-amber-400 bg-amber-400/10",
+  3: "border-orange-500/60 text-orange-500 bg-orange-500/10",
+  4: "border-red-500/60 text-red-500 bg-red-500/10",
 }
 
 export type TaskForEdit = {
@@ -34,7 +44,7 @@ export function TaskEditSheet({ task, open, onOpenChange }: {
   const [title, setTitle] = useState(task.title)
   const [description, setDescription] = useState(task.description ?? "")
   const [dueDate, setDueDate] = useState(
-    task.dueDate ? new Date(task.dueDate).toISOString().split("T")[0] : ""
+    task.dueDate ? toDateInput(task.dueDate) : ""
   )
   const [priority, setPriority] = useState(task.priority)
   const [importance, setImportance] = useState(task.importance)
@@ -46,7 +56,7 @@ export function TaskEditSheet({ task, open, onOpenChange }: {
     /* eslint-disable react-hooks/set-state-in-effect */
     setTitle(task.title)
     setDescription(task.description ?? "")
-    setDueDate(task.dueDate ? new Date(task.dueDate).toISOString().split("T")[0] : "")
+    setDueDate(task.dueDate ? toDateInput(task.dueDate) : "")
     setPriority(task.priority)
     setImportance(task.importance)
     setEstimatedHours(task.estimatedHours?.toString() ?? "")
@@ -55,15 +65,19 @@ export function TaskEditSheet({ task, open, onOpenChange }: {
 
   function handleSave() {
     startTransitionFn(async () => {
-      await updateTaskFields(task.id, {
-        title: title.trim() || task.title,
-        description: description.trim() || null,
-        dueDate: dueDate || null,
-        priority,
-        importance,
-        estimatedHours: estimatedHours ? parseFloat(estimatedHours) : null,
-      })
-      onOpenChange(false)
+      try {
+        await updateTaskFields(task.id, {
+          title: title.trim() || task.title,
+          description: description.trim() || null,
+          dueDate: dueDate || null,
+          priority,
+          importance,
+          estimatedHours: estimatedHours ? parseFloat(estimatedHours) : null,
+        })
+        onOpenChange(false)
+      } catch {
+        toast.error("Échec de l'enregistrement de la tâche")
+      }
     })
   }
 
@@ -153,7 +167,7 @@ export function TaskEditSheet({ task, open, onOpenChange }: {
                   onClick={() => setImportance(n)}
                   className={cn(
                     "flex-1 rounded-lg border py-1.5 text-xs font-bold transition-all",
-                    importance === n ? PRIORITY_CLS[Object.keys(PRIORITY_CLS)[n - 1]] : "border-border text-muted-foreground hover:bg-muted/50"
+                    importance === n ? IMPORTANCE_CLS[n] : "border-border text-muted-foreground hover:bg-muted/50"
                   )}
                 >
                   {n}

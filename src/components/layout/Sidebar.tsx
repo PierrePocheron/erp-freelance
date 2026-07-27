@@ -161,19 +161,21 @@ export function Sidebar() {
           />
         )}
         {visibleItems.map(({ href, icon: Icon, label }) => {
-          const isActive = href === "/" ? pathname === "/" : pathname.startsWith(href)
+          // Route active courante — distincte du isActive(moduleId) du hook useModules
+          // (ci-dessus) qui teste, lui, l'activation d'un module.
+          const isCurrent = href === "/" ? pathname === "/" : pathname.startsWith(href)
           return (
             <Link
               key={href}
               href={href}
               data-tour={href === "/settings" ? "settings" : undefined}
-              data-active={isActive || undefined}
-              aria-current={isActive ? "page" : undefined}
+              data-active={isCurrent || undefined}
+              aria-current={isCurrent ? "page" : undefined}
               title={expanded ? undefined : label}
               className={cn(
                 "group flex h-10 items-center gap-3 rounded-xl px-2.5 transition-colors",
                 expanded ? "w-full" : "w-10 justify-center",
-                isActive
+                isCurrent
                   ? "text-primary-foreground"
                   : "text-muted-foreground hover:bg-accent hover:text-foreground"
               )}

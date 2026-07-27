@@ -16,23 +16,21 @@ const fmtShort = (d: Date | string) =>
 export function ReimbursementDialog({
   item,
   consultations,
-  defaultConsultationId,
   onClose,
 }: {
   item?: HReimbursement
   consultations: HConsultation[]
-  defaultConsultationId?: string
   onClose: () => void
 }) {
   const [isPending, start] = useTransition()
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [amount,         setAmount]         = useState(item?.amount?.toString() || "")
-  const [source,         setSource]         = useState<ReimbursementSource>((item?.source as ReimbursementSource) || "SECU")
-  const [status,         setStatus]         = useState<ReimbursementStatus>((item?.status as ReimbursementStatus) || "PENDING")
+  const [source,         setSource]         = useState<ReimbursementSource>(item?.source || "SECU")
+  const [status,         setStatus]         = useState<ReimbursementStatus>(item?.status || "PENDING")
   const [expectedDate,   setExpectedDate]   = useState(toISO(item?.expectedDate))
   const [receivedAt,     setReceivedAt]     = useState(toISO(item?.receivedAt) || toISO(new Date()))
   const [notes,          setNotes]          = useState(item?.notes || "")
-  const [consultationId, setConsultationId] = useState(item?.consultationId || defaultConsultationId || "")
+  const [consultationId, setConsultationId] = useState(item?.consultationId || "")
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -46,23 +44,31 @@ export function ReimbursementDialog({
       consultationId: consultationId || null,
     }
     start(async () => {
-      if (item) {
-        await updateReimbursement(item.id, payload)
-        toast.success("Remboursement mis à jour")
-      } else {
-        await createReimbursement(payload)
-        toast.success(status === "PENDING" ? "Remboursement attendu enregistré" : "Remboursement enregistré")
+      try {
+        if (item) {
+          await updateReimbursement(item.id, payload)
+          toast.success("Remboursement mis à jour")
+        } else {
+          await createReimbursement(payload)
+          toast.success(status === "PENDING" ? "Remboursement attendu enregistré" : "Remboursement enregistré")
+        }
+        onClose()
+      } catch {
+        toast.error("Échec de l'enregistrement du remboursement. Réessayez.")
       }
-      onClose()
     })
   }
 
   function handleDelete() {
     if (!item) return
     start(async () => {
-      await deleteReimbursement(item.id)
-      toast.success("Remboursement supprimé")
-      onClose()
+      try {
+        await deleteReimbursement(item.id)
+        toast.success("Remboursement supprimé")
+        onClose()
+      } catch {
+        toast.error("Échec de la suppression du remboursement. Réessayez.")
+      }
     })
   }
 

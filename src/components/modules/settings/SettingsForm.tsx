@@ -81,10 +81,15 @@ export function SettingsForm({ userId, profile, userName, userEmail, conditionsT
   const [customBackground, setCustomBackground] = useState<string[]>(initialPalettes.background)
 
   // ── Détection des modifications non enregistrées ──────────────────────────
-  const makeSnapshot = () => JSON.stringify({
+  // Source de vérité unique de la forme du snapshot. `overrides` permet
+  // d'injecter les palettes finales au succès (le setState correspondant n'est
+  // pas encore reflété dans la closure), sans dupliquer la liste des champs.
+  const makeSnapshot = (overrides?: { customAccent?: string[]; customBackground?: string[] }) => JSON.stringify({
     quotePrefix, invoicePrefix, quoteFormat, invoiceFormat,
     pdfLogoText, pdfLogoSubtext, pdfAccentColor, pdfBackgroundColor,
-    pdfBankName, customAccent, customBackground,
+    pdfBankName,
+    customAccent: overrides?.customAccent ?? customAccent,
+    customBackground: overrides?.customBackground ?? customBackground,
   })
   const [savedSnapshot, setSavedSnapshot] = useState(makeSnapshot)
   const currentSnapshot = makeSnapshot()
@@ -141,11 +146,7 @@ export function SettingsForm({ userId, profile, userName, userEmail, conditionsT
       })
       setCustomAccent(nextAccentPalette)
       setCustomBackground(nextBackgroundPalette)
-      setSavedSnapshot(JSON.stringify({
-        quotePrefix, invoicePrefix, quoteFormat, invoiceFormat,
-        pdfLogoText, pdfLogoSubtext, pdfAccentColor, pdfBackgroundColor,
-        pdfBankName, customAccent: nextAccentPalette, customBackground: nextBackgroundPalette,
-      }))
+      setSavedSnapshot(makeSnapshot({ customAccent: nextAccentPalette, customBackground: nextBackgroundPalette }))
       setStatus("saved")
       setTimeout(() => setStatus("idle"), 3000)
     } catch {

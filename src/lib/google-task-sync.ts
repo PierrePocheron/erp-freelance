@@ -15,6 +15,26 @@ function hasTime(d: Date): boolean {
 }
 
 /**
+ * Acquiert le contexte de poussée (access_token + agenda dédié) en une fois.
+ * Retourne null si l'un ou l'autre est indisponible (l'appelant abandonne alors
+ * silencieusement, best-effort).
+ */
+async function getPushContext(userId: string): Promise<{ accessToken: string; calendarId: string } | null> {
+  const accessToken = await getGoogleAccessToken(userId)
+  if (!accessToken) return null
+  const calendarId = await getErpCalendarId(userId, accessToken)
+  if (!calendarId) return null
+  return { accessToken, calendarId }
+}
+
+/** Retire l'événement Google d'une entité déjà résolue (id Google connu). */
+async function removeEntityFromGoogle(userId: string, googleEventId: string): Promise<void> {
+  const ctx = await getPushContext(userId)
+  if (!ctx) return
+  await deleteGoogleEvent(ctx.accessToken, ctx.calendarId, googleEventId)
+}
+
+/**
  * Synchronise une tâche : pousse (create/update) si elle a une échéance,
  * retire l'événement Google si l'échéance a été vidée.
  */
@@ -26,10 +46,9 @@ export async function syncTaskGoogleState(userId: string, taskId: string): Promi
     })
     if (!task) return
 
-    const accessToken = await getGoogleAccessToken(userId)
-    if (!accessToken) return
-    const calendarId = await getErpCalendarId(userId, accessToken)
-    if (!calendarId) return
+    const ctx = await getPushContext(userId)
+    if (!ctx) return
+    const { accessToken, calendarId } = ctx
 
     if (!task.dueDate) {
       if (task.googleEventId) {
@@ -68,11 +87,7 @@ export async function removeTaskFromGoogle(userId: string, taskId: string): Prom
       select: { googleEventId: true },
     })
     if (!task?.googleEventId) return
-    const accessToken = await getGoogleAccessToken(userId)
-    if (!accessToken) return
-    const calendarId = await getErpCalendarId(userId, accessToken)
-    if (!calendarId) return
-    await deleteGoogleEvent(accessToken, calendarId, task.googleEventId)
+    await removeEntityFromGoogle(userId, task.googleEventId)
   } catch {
     // best-effort
   }
@@ -87,10 +102,9 @@ export async function syncMilestoneGoogleState(userId: string, milestoneId: stri
     })
     if (!milestone) return
 
-    const accessToken = await getGoogleAccessToken(userId)
-    if (!accessToken) return
-    const calendarId = await getErpCalendarId(userId, accessToken)
-    if (!calendarId) return
+    const ctx = await getPushContext(userId)
+    if (!ctx) return
+    const { accessToken, calendarId } = ctx
 
     const { id: googleEventId, updated } = await pushGoogleEvent(
       accessToken,
@@ -120,11 +134,7 @@ export async function removeMilestoneFromGoogle(userId: string, milestoneId: str
       select: { googleEventId: true },
     })
     if (!milestone?.googleEventId) return
-    const accessToken = await getGoogleAccessToken(userId)
-    if (!accessToken) return
-    const calendarId = await getErpCalendarId(userId, accessToken)
-    if (!calendarId) return
-    await deleteGoogleEvent(accessToken, calendarId, milestone.googleEventId)
+    await removeEntityFromGoogle(userId, milestone.googleEventId)
   } catch {
     // best-effort
   }
@@ -147,10 +157,9 @@ export async function syncJobApplicationGoogleState(userId: string, applicationI
     })
     if (!app) return
 
-    const accessToken = await getGoogleAccessToken(userId)
-    if (!accessToken) return
-    const calendarId = await getErpCalendarId(userId, accessToken)
-    if (!calendarId) return
+    const ctx = await getPushContext(userId)
+    if (!ctx) return
+    const { accessToken, calendarId } = ctx
 
     if (!app.nextActionAt) {
       if (app.googleEventId) {
@@ -193,11 +202,7 @@ export async function removeJobApplicationFromGoogle(userId: string, application
       select: { googleEventId: true },
     })
     if (!app?.googleEventId) return
-    const accessToken = await getGoogleAccessToken(userId)
-    if (!accessToken) return
-    const calendarId = await getErpCalendarId(userId, accessToken)
-    if (!calendarId) return
-    await deleteGoogleEvent(accessToken, calendarId, app.googleEventId)
+    await removeEntityFromGoogle(userId, app.googleEventId)
   } catch {
     // best-effort
   }

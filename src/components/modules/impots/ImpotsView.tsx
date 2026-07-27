@@ -3,6 +3,7 @@
 import { useState, useMemo, useEffect, useTransition } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
+import { toast } from "sonner"
 import {
   Landmark, Plus, ChevronDown, ChevronUp, CheckCircle2, Clock,
   Trash2, X, AlertTriangle, Receipt, Wallet, ExternalLink, Search, Loader2,
@@ -99,7 +100,13 @@ export function ImpotsView({
   const yearDecls = declarations.filter(d => d.period.startsWith(String(year)))
   const declaredCA = yearDecls.reduce((s, d) => s + d.amountBNC + d.amountBICServices + d.amountBICSales, 0)
   const paidTotal  = yearDecls.reduce((s, d) => s + d.totalPaid, 0)
-  const nextDue    = declarations.find(d => d.status !== "PAID")?.dueDate ?? null
+  // Échéance réellement la plus proche parmi les non payées : `declarations` est
+  // trié par periodStart desc, donc .find() renverrait la période la plus récente
+  // et non la plus urgente. On prend le plus petit dueDate (ISO → tri lexical = chrono).
+  const nextDue    = declarations
+    .filter(d => d.status !== "PAID" && d.dueDate)
+    .map(d => d.dueDate as string)
+    .sort()[0] ?? null
   // Seules les lignes réellement encaissées comptent dans l'estimation "à déclarer" —
   // suggestedLines contient aussi les factures encore en attente pour qu'on puisse
   // les rattacher au bon moment, mais elles ne sont pas dues tant qu'elles ne sont pas payées.
@@ -231,16 +238,32 @@ function DeclarationCard({ declaration: d, expanded, onToggle, onPay, rates, vlE
 
   function handleDeclare() {
     startTransition(async () => {
-      await markUrssafDeclared(d.id, new Date())
-      router.refresh()
+      try {
+        const res = await markUrssafDeclared(d.id, new Date())
+        if (res?.error) {
+          toast.error(res.error)
+          return
+        }
+        router.refresh()
+      } catch {
+        toast.error("Impossible de marquer la déclaration comme déclarée.")
+      }
     })
   }
 
   function handleDelete() {
     if (!confirm(`Supprimer la déclaration ${periodLabel(d.period)} ?`)) return
     startTransition(async () => {
-      await deleteUrssafDeclaration(d.id)
-      router.refresh()
+      try {
+        const res = await deleteUrssafDeclaration(d.id)
+        if (res?.error) {
+          toast.error(res.error)
+          return
+        }
+        router.refresh()
+      } catch {
+        toast.error("Impossible de supprimer la déclaration.")
+      }
     })
   }
 
@@ -376,8 +399,10 @@ function RecapPill({ label, estimate, actual, highlight }: {
 
 type EditableLine = SuggestedLine & { included: boolean; key: string }
 
-let freeLineSeq = 0
-const lineKey = (l: SuggestedLine) => l.invoiceId ?? l.revenueId ?? `free-${freeLineSeq++}`
+// Les lignes suggérées portent toujours invoiceId ou revenueId (clé stable) ; le
+// fallback ne sert que par sécurité et n'incrémente plus de compteur mutable de
+// module pendant le rendu (effet de bord impur, fragile en double-invocation React).
+const lineKey = (l: SuggestedLine) => l.invoiceId ?? l.revenueId ?? crypto.randomUUID()
 
 function NewDeclarationDialog({
   defaultPeriod, suggestedLines, existingPeriods, rates, vlEnabled,
@@ -417,12 +442,19 @@ function NewDeclarationDialog({
     let cancelled = false
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setIsFetching(true)
-    suggestDeclarationLines(period).then(fresh => {
-      if (cancelled) return
-      setLines(fresh.map(l => ({ ...l, included: l.defaultIncluded, key: lineKey(l) })))
-      setLoadedPeriod(period)
-      setIsFetching(false)
-    })
+    suggestDeclarationLines(period)
+      .then(fresh => {
+        if (cancelled) return
+        setLines(fresh.map(l => ({ ...l, included: l.defaultIncluded, key: lineKey(l) })))
+        setLoadedPeriod(period)
+        setIsFetching(false)
+      })
+      .catch(() => {
+        // Sans ce catch, un rejet laissait le spinner (setIsFetching) bloqué à l'infini.
+        if (cancelled) return
+        setIsFetching(false)
+        toast.error("Impossible de charger les factures de cette période.")
+      })
     return () => { cancelled = true }
   }, [period, loadedPeriod, existingId])
 
@@ -465,7 +497,7 @@ function NewDeclarationDialog({
     setLines(prev => [...prev, {
       category: freeCat, invoiceId: null, revenueId: null,
       label: freeLabel.trim(), amount, included: true,
-      status: "PAID", defaultIncluded: true, key: `free-${freeLineSeq++}`,
+      status: "PAID", defaultIncluded: true, key: crypto.randomUUID(),
     }])
     setFreeLabel(""); setFreeAmount("")
   }

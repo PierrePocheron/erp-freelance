@@ -29,7 +29,7 @@ export function ConsultationDialog({
   const [date,             setDate]             = useState(toISO(item?.date) || toISO(new Date()))
   const [practitionerName, setPractitionerName] = useState(item?.practitionerName || "")
   const [practitionerType, setPractitionerType] = useState<PractitionerType>(
-    (item?.practitionerType as PractitionerType) || "OTHER"
+    item?.practitionerType || "OTHER"
   )
   const [title,       setTitle]       = useState(item?.title || "")
   const [notes,       setNotes]       = useState(item?.notes || "")
@@ -43,31 +43,39 @@ export function ConsultationDialog({
     if (!practitionerName.trim() || !title.trim()) return
     const costNum = cost ? parseFloat(cost) : null
     start(async () => {
-      if (item) {
-        await updateConsultation(item.id, {
-          date, practitionerName, practitionerType, title, notes,
-          cost: costNum, hasDocument, documentRef,
-          healthEventId: healthEventId || null,
-        })
-        toast.success("Consultation mise à jour")
-      } else {
-        await createConsultation({
-          date, practitionerName, practitionerType, title, notes,
-          cost: costNum, hasDocument, documentRef,
-          healthEventId: healthEventId || null,
-        })
-        toast.success("Consultation enregistrée")
+      try {
+        if (item) {
+          await updateConsultation(item.id, {
+            date, practitionerName, practitionerType, title, notes,
+            cost: costNum, hasDocument, documentRef,
+            healthEventId: healthEventId || null,
+          })
+          toast.success("Consultation mise à jour")
+        } else {
+          await createConsultation({
+            date, practitionerName, practitionerType, title, notes,
+            cost: costNum, hasDocument, documentRef,
+            healthEventId: healthEventId || null,
+          })
+          toast.success("Consultation enregistrée")
+        }
+        onClose()
+      } catch {
+        toast.error("Échec de l'enregistrement de la consultation. Réessayez.")
       }
-      onClose()
     })
   }
 
   function handleDelete() {
     if (!item) return
     start(async () => {
-      await deleteConsultation(item.id)
-      toast.success("Consultation supprimée")
-      onClose()
+      try {
+        await deleteConsultation(item.id)
+        toast.success("Consultation supprimée")
+        onClose()
+      } catch {
+        toast.error("Échec de la suppression de la consultation. Réessayez.")
+      }
     })
   }
 

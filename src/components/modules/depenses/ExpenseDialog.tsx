@@ -11,7 +11,7 @@ import {
 import { DatePartsField } from "@/components/ui/date-parts-field"
 import { createExpense, updateExpense, deleteExpense, createRecurringExpense, convertExpenseToRecurring } from "@/actions/expense"
 import { ExpenseCategoryCombobox, type ExpenseCategory } from "./ExpenseCategoryCombobox"
-import { FREQUENCY_LABELS } from "./RecurringExpenseDialog"
+import { FREQUENCY_LABELS } from "@/lib/expense-constants"
 import { toDateInput } from "@/lib/dates"
 
 export type ExpenseForEdit = {

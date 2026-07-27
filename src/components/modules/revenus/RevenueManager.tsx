@@ -8,6 +8,7 @@ import {
   Pencil, Trash2, RefreshCw, X, Check,
   ArrowUpDown, ExternalLink, ChevronsUpDown, RotateCcw,
 } from "lucide-react"
+import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
@@ -708,17 +709,27 @@ export function RevenueManager({
 
   function handleDelete(id: string) {
     startDel(async () => {
-      await deleteRevenue(id)
-      setConfirmDelete(null)
-      refresh()
+      try {
+        const res = await deleteRevenue(id)
+        if (res?.error) { toast.error(res.error); return }
+        setConfirmDelete(null)
+        refresh()
+      } catch {
+        toast.error("Échec de la suppression du revenu")
+      }
     })
   }
 
   function handleDeleteRecurring(id: string) {
     startDel(async () => {
-      await deleteRecurringRevenue(id)
-      setConfirmDelete(null)
-      refresh()
+      try {
+        const res = await deleteRecurringRevenue(id)
+        if (res?.error) { toast.error(res.error); return }
+        setConfirmDelete(null)
+        refresh()
+      } catch {
+        toast.error("Échec de la suppression du modèle récurrent")
+      }
     })
   }
 
@@ -745,9 +756,15 @@ export function RevenueManager({
   function handleQuickMark(id: string) {
     setQuickMarkingId(id)
     startBulk(async () => {
-      await markRevenueReceived(id, new Date(), "OTHER")
-      setQuickMarkingId(null)
-      refresh()
+      try {
+        const res = await markRevenueReceived(id, new Date(), "OTHER")
+        if (res?.error) { toast.error(res.error); return }
+        refresh()
+      } catch {
+        toast.error("Échec du marquage du revenu")
+      } finally {
+        setQuickMarkingId(null)
+      }
     })
   }
 
@@ -755,9 +772,15 @@ export function RevenueManager({
   function handleUnmark(id: string) {
     setQuickMarkingId(id)
     startBulk(async () => {
-      await markRevenuePending(id)
-      setQuickMarkingId(null)
-      refresh()
+      try {
+        const res = await markRevenuePending(id)
+        if (res?.error) { toast.error(res.error); return }
+        refresh()
+      } catch {
+        toast.error("Échec du retour en attente")
+      } finally {
+        setQuickMarkingId(null)
+      }
     })
   }
 
@@ -765,9 +788,14 @@ export function RevenueManager({
     const ids = Array.from(selectedIds)
     if (!ids.length) return
     startBulk(async () => {
-      await bulkMarkReceived(ids, bulkDate ? new Date(bulkDate) : new Date())
-      setSelectedIds(new Set())
-      refresh()
+      try {
+        const res = await bulkMarkReceived(ids, bulkDate ? new Date(bulkDate) : new Date())
+        if (res?.error) { toast.error(res.error); return }
+        setSelectedIds(new Set())
+        refresh()
+      } catch {
+        toast.error("Échec de la validation groupée")
+      }
     })
   }
 
@@ -948,7 +976,6 @@ export function RevenueManager({
 
                 return (
                   <div key={period} className="rounded-xl border border-border/50 bg-card overflow-hidden">
-                    { }
                     <div
                       role="button"
                       tabIndex={0}

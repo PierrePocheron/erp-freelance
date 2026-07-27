@@ -252,6 +252,14 @@ export const ForceGraphCanvas = forwardRef<GraphMethods, Props>(function ForceGr
     }
   }, [onNodeClick, onNodeDblClick])
 
+  // Annule le timer de simple-clic en attente au démontage (navigation,
+  // re-mount du dynamic import au changement de filtre) — sinon le callback
+  // appellerait onNodeClick après démontage (setState sur parent démonté).
+  useEffect(() => () => {
+    if (singleTimer.current) clearTimeout(singleTimer.current)
+    lastClick.current = null
+  }, [])
+
   // ── Pointer hit area : uniquement le cercle principal ──────────────────────
   const paintPointerArea = useCallback((raw: NodeObject, color: string, ctx: CanvasRenderingContext2D) => {
     const n = raw as RawNode & { x: number; y: number }

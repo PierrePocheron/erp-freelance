@@ -65,7 +65,7 @@ export default async function AppLayout({
               il ne défile jamais, comme la sidebar */}
           <AppHeader logoutAction={logout}>
             <span data-tour="notifications" className="inline-flex">
-              <NotificationBell userId={userId} notifications={notifications} />
+              <NotificationBell notifications={notifications} />
             </span>
           </AppHeader>
           {/* id consommé par MobileBottomNav : masquage au scroll des boutons
@@ -76,7 +76,7 @@ export default async function AppLayout({
             desktop porte la sienne) */}
         <div className="absolute top-3 right-4 z-50 sm:hidden">
           <div className="rounded-lg border border-border/50 bg-background/80 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-background/60">
-            <NotificationBell userId={userId} notifications={notifications} />
+            <NotificationBell notifications={notifications} />
           </div>
         </div>
       </div>

@@ -89,9 +89,16 @@ export function PendingIncomeCard({
     setPendingId(item.id)
     startTransition(async () => {
       try {
-        if (item.kind === "invoice") await updateInvoiceStatus(item.id, "", "PAID")
-        else if (item.kind === "revenue") await markRevenueReceived(item.id, new Date(), "VIREMENT")
-        else await markReimbursementReceived(item.id)
+        let res: { error?: string } | void
+        if (item.kind === "invoice") res = await updateInvoiceStatus(item.id, "", "PAID")
+        else if (item.kind === "revenue") res = await markRevenueReceived(item.id, new Date(), "VIREMENT")
+        else res = await markReimbursementReceived(item.id)
+        // Certaines actions renvoient { error } au lieu de lever une exception :
+        // sans ce garde, on afficherait « marqué reçu » sur un échec métier.
+        if (res?.error) {
+          toast.error(res.error)
+          return
+        }
         toast.success(`${KIND_CONFIG[item.kind].label} « ${item.title} » marqué${item.kind === "invoice" ? "e" : ""} reçu${item.kind === "invoice" ? "e" : ""} — ${eur(item.amount)}`)
         router.refresh()
       } catch {

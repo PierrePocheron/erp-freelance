@@ -5,8 +5,13 @@ import dynamic from "next/dynamic"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { X, Maximize2, ExternalLink, Search, CheckCircle2, Clock, AlertCircle } from "lucide-react"
+import { toast } from "sonner"
 import type { RawNode, RawLink, NodeType } from "./graph-types"
 import { NODE_TYPE_LABELS, NODE_BASE_COLORS, nodeColor } from "./graph-types"
+import type { GraphMethods } from "./ForceGraphCanvas"
+import { updateInvoiceStatus } from "@/actions/facturation"
+import { markRevenueReceived, updateRevenue } from "@/actions/revenue"
+import { updateCompany, updateClientAll } from "@/actions/crm"
 
 // ── Labels français des statuts ───────────────────────────────────────────────
 const STATUS_FR: Record<string, string> = {
@@ -22,10 +27,6 @@ const STATUS_FR: Record<string, string> = {
   INTERVIEW: "Entretien", TECHNICAL: "Test technique", FINAL: "Entretien final",
   OFFER: "Offre reçue", WITHDRAWN: "Désisté", GHOSTED: "Sans réponse",
 }
-import type { GraphMethods } from "./ForceGraphCanvas"
-import { updateInvoiceStatus } from "@/actions/facturation"
-import { markRevenueReceived, updateRevenue } from "@/actions/revenue"
-import { updateCompany, updateClientAll } from "@/actions/crm"
 
 // ── Dynamic import — jamais rendu côté serveur ──────────────────────────────
 const ForceGraphCanvas = dynamic(
@@ -312,13 +313,18 @@ export function GraphView({ rawNodes, rawLinks }: { rawNodes: RawNode[]; rawLink
   function handleMarkPaid(node: RawNode) {
     startTransition(async () => {
       const dbId = node.id.replace(/^(invoice|revenue)-/, "")
-      if (node.type === "INVOICE") {
-        await updateInvoiceStatus(dbId, "", "PAID")
-      } else if (node.type === "REVENUE") {
-        await markRevenueReceived(dbId, new Date(), "VIREMENT")
+      try {
+        if (node.type === "INVOICE") {
+          await updateInvoiceStatus(dbId, "", "PAID")
+        } else if (node.type === "REVENUE") {
+          const res = await markRevenueReceived(dbId, new Date(), "VIREMENT")
+          if (res?.error) { toast.error(res.error); return }
+        }
+        setSelected(null)
+        router.refresh()
+      } catch {
+        toast.error("Échec de la validation du paiement.")
       }
-      setSelected(null)
-      router.refresh()
     })
   }
 
@@ -329,9 +335,14 @@ export function GraphView({ rawNodes, rawLinks }: { rawNodes: RawNode[]; rawLink
     const dbId = selected.id.replace(/^revenue-/, "")
     const [kind, parentId] = assignParent.split(":")
     startTransition(async () => {
-      await updateRevenue(dbId, kind === "client" ? { clientId: parentId } : { companyId: parentId })
-      setSelected(null)
-      router.refresh()
+      try {
+        const res = await updateRevenue(dbId, kind === "client" ? { clientId: parentId } : { companyId: parentId })
+        if (res?.error) { toast.error(res.error); return }
+        setSelected(null)
+        router.refresh()
+      } catch {
+        toast.error("Échec de l'enregistrement.")
+      }
     })
   }
 
@@ -339,9 +350,13 @@ export function GraphView({ rawNodes, rawLinks }: { rawNodes: RawNode[]; rawLink
     if (!selected || !quickWebsite.trim()) return
     const dbId = selected.id.replace(/^company-/, "")
     startTransition(async () => {
-      await updateCompany(dbId, { website: quickWebsite.trim() })
-      setSelected(null)
-      router.refresh()
+      try {
+        await updateCompany(dbId, { website: quickWebsite.trim() })
+        setSelected(null)
+        router.refresh()
+      } catch {
+        toast.error("Échec de l'enregistrement du site web.")
+      }
     })
   }
 
@@ -351,14 +366,18 @@ export function GraphView({ rawNodes, rawLinks }: { rawNodes: RawNode[]; rawLink
     if (!hasInput) return
     const dbId = selected.id.replace(/^client-/, "")
     startTransition(async () => {
-      await updateClientAll(dbId, {
-        ...(quickFirstName.trim() ? { firstName: quickFirstName.trim() } : {}),
-        ...(quickLastName.trim()  ? { lastName: quickLastName.trim() }   : {}),
-        ...(quickEmail.trim()     ? { email: quickEmail.trim() }         : {}),
-        ...(quickPhone.trim()     ? { phone: quickPhone.trim() }         : {}),
-      })
-      setSelected(null)
-      router.refresh()
+      try {
+        await updateClientAll(dbId, {
+          ...(quickFirstName.trim() ? { firstName: quickFirstName.trim() } : {}),
+          ...(quickLastName.trim()  ? { lastName: quickLastName.trim() }   : {}),
+          ...(quickEmail.trim()     ? { email: quickEmail.trim() }         : {}),
+          ...(quickPhone.trim()     ? { phone: quickPhone.trim() }         : {}),
+        })
+        setSelected(null)
+        router.refresh()
+      } catch {
+        toast.error("Échec de l'enregistrement du contact.")
+      }
     })
   }
 
@@ -478,7 +497,7 @@ export function GraphView({ rawNodes, rawLinks }: { rawNodes: RawNode[]; rawLink
                     <span className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: getDisplayColor(n) }} />
                     <span className="flex-1 min-w-0">
                       <span className="font-medium block truncate">{n.label}</span>
-                      {n.meta.subtitle && <span className="text-muted-foreground block truncate">{n.meta.subtitle}</span>}
+                      {n.meta.subtitle && <span className={`text-muted-foreground block truncate${n.meta.subtitle.includes("€") ? " amount-sensitive" : ""}`}>{n.meta.subtitle}</span>}
                     </span>
                     <span className="text-muted-foreground/50 text-[10px] shrink-0">{NODE_TYPE_LABELS[n.type]}</span>
                   </button>
@@ -601,7 +620,7 @@ export function GraphView({ rawNodes, rawLinks }: { rawNodes: RawNode[]; rawLink
                 </div>
                 <h2 className="font-semibold text-sm leading-tight">{selected.label}</h2>
                 {selected.meta.subtitle && (
-                  <p className="text-xs text-muted-foreground mt-0.5 truncate">{selected.meta.subtitle}</p>
+                  <p className={`text-xs text-muted-foreground mt-0.5 truncate${selected.meta.subtitle.includes("€") ? " amount-sensitive" : ""}`}>{selected.meta.subtitle}</p>
                 )}
               </div>
               <button
@@ -622,7 +641,7 @@ export function GraphView({ rawNodes, rawLinks }: { rawNodes: RawNode[]; rawLink
                   {selected.meta.details.map((d, i) => (
                     <div key={i} className="flex items-center justify-between">
                       <span className="text-xs text-muted-foreground">{d.label}</span>
-                      <span className="text-xs font-medium">{d.value}</span>
+                      <span className={`text-xs font-medium${d.value.includes("€") ? " amount-sensitive" : ""}`}>{d.value}</span>
                     </div>
                   ))}
                 </div>

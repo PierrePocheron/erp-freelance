@@ -32,10 +32,8 @@ function fmtDate(d: Date | string) {
 }
 
 export function NotificationBell({
-  userId,
   notifications,
 }: {
-  userId: string
   notifications: Notification[]
 }) {
   const [open, setOpen] = useState(false)
@@ -55,14 +53,14 @@ export function NotificationBell({
 
   function handleMarkRead(id: string) {
     startTransition(async () => {
-      await markNotificationRead(id, userId)
+      await markNotificationRead(id)
       router.refresh()
     })
   }
 
   function handleMarkAll() {
     startTransition(async () => {
-      await markAllNotificationsRead(userId)
+      await markAllNotificationsRead()
       router.refresh()
     })
   }
@@ -158,17 +156,17 @@ export function NotificationBell({
                         )}
                       >
                         <div className="mt-1 shrink-0">
-                          {!notif.isRead && (
-                            <span className="block h-2 w-2 rounded-full bg-primary" />
-                          )}
-                          {notif.isRead && (
-                            <span className="block h-2 w-2 rounded-full bg-transparent" />
-                          )}
+                          <span
+                            className={cn(
+                              "block h-2 w-2 rounded-full",
+                              notif.isRead ? "bg-transparent" : "bg-primary"
+                            )}
+                          />
                         </div>
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-medium leading-snug">{notif.title}</p>
                           <p className="text-xs text-muted-foreground mt-0.5 leading-snug">{notif.body}</p>
-                          <p className="text-[10px] text-muted-foreground mt-1">{fmtDate(notif.createdAt)}</p>
+                          <p suppressHydrationWarning className="text-[10px] text-muted-foreground mt-1">{fmtDate(notif.createdAt)}</p>
                         </div>
                         {!notif.isRead && (
                           <button

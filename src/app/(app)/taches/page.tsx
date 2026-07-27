@@ -6,47 +6,45 @@ export default async function TachesPage() {
   const session = await auth()
   const userId = session!.user.id
 
-  const [tasks] = await Promise.all([
-    prisma.task.findMany({
-      where: {
-        OR: [
-          { project: { userId } },  // tâches projet
-          { userId },               // tâches client / standalone
-        ],
-        isGroup: false,
-        parentTaskId: null,
-      },
-      orderBy: [{ order: "asc" }, { createdAt: "asc" }],
-      select: {
-        id: true,
-        title: true,
-        description: true,
-        status: true,
-        priority: true,
-        importance: true,
-        order: true,
-        estimatedHours: true,
-        dueDate: true,
-        startedAt: true,
-        completedAt: true,
-        urssafPeriod: true,
-        project: {
-          select: {
-            id: true,
-            name: true,
-            client: { select: { id: true, name: true, company: true } },
-          },
+  const tasks = await prisma.task.findMany({
+    where: {
+      OR: [
+        { project: { userId } },  // tâches projet
+        { userId },               // tâches client / standalone
+      ],
+      isGroup: false,
+      parentTaskId: null,
+    },
+    orderBy: [{ order: "asc" }, { createdAt: "asc" }],
+    select: {
+      id: true,
+      title: true,
+      description: true,
+      status: true,
+      priority: true,
+      importance: true,
+      order: true,
+      estimatedHours: true,
+      dueDate: true,
+      startedAt: true,
+      completedAt: true,
+      urssafPeriod: true,
+      project: {
+        select: {
+          id: true,
+          name: true,
+          client: { select: { id: true, name: true, company: true } },
         },
-        client: { select: { id: true, name: true, company: true } },
-        taskTags: { select: { id: true, name: true, color: true } },
-        timeEntries: {
-          where: { userId },
-          select: { id: true, duration: true },
-        },
-        _count: { select: { subTasks: true } },
       },
-    }),
-  ])
+      client: { select: { id: true, name: true, company: true } },
+      taskTags: { select: { id: true, name: true, color: true } },
+      timeEntries: {
+        where: { userId },
+        select: { id: true, duration: true },
+      },
+      _count: { select: { subTasks: true } },
+    },
+  })
 
   // Collecter tous les tags uniques
   const allTagsMap = new Map<string, { id: string; name: string; color: string }>()
@@ -67,7 +65,7 @@ export default async function TachesPage() {
       </div>
 
       <GlobalTasksView
-        tasks={tasks as never}
+        tasks={tasks}
         allTags={allTags}
       />
     </div>

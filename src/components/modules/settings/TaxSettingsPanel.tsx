@@ -5,6 +5,7 @@ import { Landmark, Check } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { saveTaxSettings, type TaxSettingsData } from "@/actions/settings"
+import { toast } from "sonner"
 
 const LEGAL_STATUSES = [
   { value: "AUTO_ENTREPRENEUR", label: "Auto-entrepreneur (micro)" },
@@ -38,9 +39,13 @@ export function TaxSettingsPanel({ initial }: { initial: TaxSettingsData }) {
 
   function handleSave() {
     startTransition(async () => {
-      await saveTaxSettings(form)
-      setSaved(true)
-      setTimeout(() => setSaved(false), 2500)
+      try {
+        await saveTaxSettings(form)
+        setSaved(true)
+        setTimeout(() => setSaved(false), 2500)
+      } catch {
+        toast.error("Échec de l'enregistrement des paramètres d'imposition. Réessayez.")
+      }
     })
   }
 

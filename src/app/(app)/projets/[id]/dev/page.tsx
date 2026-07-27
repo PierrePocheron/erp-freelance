@@ -48,8 +48,11 @@ export default async function ProjectDevPage({
   const session = await auth()
   const userId = session!.user.id
 
-  // Migration one-shot : si des anciennes tâches-groupe existent, les convertir en tags
-  const hasGroups = await prisma.task.count({ where: { projectId: id, isGroup: true } })
+  // Migration one-shot : si des anciennes tâches-groupe existent, les convertir en tags.
+  // Scopé au propriétaire (relation project.userId) pour ne pas exécuter de requête
+  // non filtrée avant le contrôle d'accès : un non-propriétaire obtient 0 → aucune
+  // migration déclenchée, puis notFound() via le findFirst scopé ci-dessous.
+  const hasGroups = await prisma.task.count({ where: { projectId: id, isGroup: true, project: { userId } } })
   if (hasGroups > 0) {
     await migrateGroupsToTags(id)
     redirect(`/projets/${id}/dev`)

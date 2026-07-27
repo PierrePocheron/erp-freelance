@@ -46,6 +46,21 @@ export async function importData(jsonString: string): Promise<ImportResult> {
     if (n > 0) counts[key] = n
   }
 
+  // Anti-IDOR : un backup forgé peut référencer des id parents (clientId,
+  // invoiceId, projectId…) appartenant à un AUTRE utilisateur. On ne rattache
+  // donc chaque enregistrement enfant qu'aux parents réellement possédés par
+  // userId (pré-existants ou importés à l'instant sous ce userId). Sets mémoïsés.
+  const ownedCache: Record<string, Set<string>> = {}
+  async function ownedIds(
+    key: string,
+    load: () => Promise<{ id: string }[]>
+  ): Promise<Set<string>> {
+    if (!ownedCache[key]) {
+      ownedCache[key] = new Set((await load()).map((r) => r.id))
+    }
+    return ownedCache[key]
+  }
+
   try {
     // ── 1. UserProfile ────────────────────────────────────────────────────────
     if (data.userProfile) {
@@ -176,42 +191,54 @@ export async function importData(jsonString: string): Promise<ImportResult> {
 
     // ── 5. Interactions ───────────────────────────────────────────────────────
     if (data.interactions?.length) {
-      await prisma.interaction.createMany({
-        data: data.interactions.map((i: any) => ({ // eslint-disable-line @typescript-eslint/no-explicit-any
-          id: i.id, clientId: i.clientId, date: new Date(i.date),
-          channel: i.channel, summary: i.summary, response: i.response ?? null,
-          createdAt: toDate(i.createdAt) ?? new Date(),
-        })),
-        skipDuplicates: true,
-      })
-      track("Interactions", data.interactions.length)
+      const owned = await ownedIds("client", () => prisma.client.findMany({ where: { userId }, select: { id: true } }))
+      const rows = data.interactions.filter((i: any) => owned.has(i.clientId)) // eslint-disable-line @typescript-eslint/no-explicit-any
+      if (rows.length) {
+        await prisma.interaction.createMany({
+          data: rows.map((i: any) => ({ // eslint-disable-line @typescript-eslint/no-explicit-any
+            id: i.id, clientId: i.clientId, date: new Date(i.date),
+            channel: i.channel, summary: i.summary, response: i.response ?? null,
+            createdAt: toDate(i.createdAt) ?? new Date(),
+          })),
+          skipDuplicates: true,
+        })
+        track("Interactions", rows.length)
+      }
     }
 
     // ── 6. Rappels ────────────────────────────────────────────────────────────
     if (data.reminders?.length) {
-      await prisma.reminder.createMany({
-        data: data.reminders.map((r: any) => ({ // eslint-disable-line @typescript-eslint/no-explicit-any
-          id: r.id, clientId: r.clientId, dueDate: new Date(r.dueDate),
-          note: r.note ?? null, isDone: r.isDone ?? false, doneAt: toDate(r.doneAt),
-          emailSent: r.emailSent ?? false,
-          createdAt: toDate(r.createdAt) ?? new Date(),
-        })),
-        skipDuplicates: true,
-      })
-      track("Rappels", data.reminders.length)
+      const owned = await ownedIds("client", () => prisma.client.findMany({ where: { userId }, select: { id: true } }))
+      const rows = data.reminders.filter((r: any) => owned.has(r.clientId)) // eslint-disable-line @typescript-eslint/no-explicit-any
+      if (rows.length) {
+        await prisma.reminder.createMany({
+          data: rows.map((r: any) => ({ // eslint-disable-line @typescript-eslint/no-explicit-any
+            id: r.id, clientId: r.clientId, dueDate: new Date(r.dueDate),
+            note: r.note ?? null, isDone: r.isDone ?? false, doneAt: toDate(r.doneAt),
+            emailSent: r.emailSent ?? false,
+            createdAt: toDate(r.createdAt) ?? new Date(),
+          })),
+          skipDuplicates: true,
+        })
+        track("Rappels", rows.length)
+      }
     }
 
     // ── 7. Fichiers clients ───────────────────────────────────────────────────
     if (data.clientFiles?.length) {
-      await prisma.clientFile.createMany({
-        data: data.clientFiles.map((f: any) => ({ // eslint-disable-line @typescript-eslint/no-explicit-any
-          id: f.id, clientId: f.clientId, name: f.name,
-          fileUrl: f.fileUrl, type: f.type,
-          createdAt: toDate(f.createdAt) ?? new Date(),
-        })),
-        skipDuplicates: true,
-      })
-      track("Fichiers contacts", data.clientFiles.length)
+      const owned = await ownedIds("client", () => prisma.client.findMany({ where: { userId }, select: { id: true } }))
+      const rows = data.clientFiles.filter((f: any) => owned.has(f.clientId)) // eslint-disable-line @typescript-eslint/no-explicit-any
+      if (rows.length) {
+        await prisma.clientFile.createMany({
+          data: rows.map((f: any) => ({ // eslint-disable-line @typescript-eslint/no-explicit-any
+            id: f.id, clientId: f.clientId, name: f.name,
+            fileUrl: f.fileUrl, type: f.type,
+            createdAt: toDate(f.createdAt) ?? new Date(),
+          })),
+          skipDuplicates: true,
+        })
+        track("Fichiers contacts", rows.length)
+      }
     }
 
     // ── 8. Produits ───────────────────────────────────────────────────────────
@@ -256,38 +283,56 @@ export async function importData(jsonString: string): Promise<ImportResult> {
 
     // ── 11. Jalons ────────────────────────────────────────────────────────────
     if (data.milestones?.length) {
-      await prisma.milestone.createMany({
-        data: data.milestones.map((m: any) => ({ // eslint-disable-line @typescript-eslint/no-explicit-any
-          id: m.id, projectId: m.projectId, name: m.name,
-          date: new Date(m.date), status: m.status,
-          createdAt: toDate(m.createdAt) ?? new Date(),
-        })),
-        skipDuplicates: true,
-      })
-      track("Jalons", data.milestones.length)
+      const owned = await ownedIds("project", () => prisma.project.findMany({ where: { userId }, select: { id: true } }))
+      const rows = data.milestones.filter((m: any) => owned.has(m.projectId)) // eslint-disable-line @typescript-eslint/no-explicit-any
+      if (rows.length) {
+        await prisma.milestone.createMany({
+          data: rows.map((m: any) => ({ // eslint-disable-line @typescript-eslint/no-explicit-any
+            id: m.id, projectId: m.projectId, name: m.name,
+            date: new Date(m.date), status: m.status,
+            createdAt: toDate(m.createdAt) ?? new Date(),
+          })),
+          skipDuplicates: true,
+        })
+        track("Jalons", rows.length)
+      }
     }
 
     // ── 12. Tags de tâches ────────────────────────────────────────────────────
     if (data.taskTags?.length) {
-      await prisma.taskTag.createMany({
-        data: data.taskTags.map((tt: any) => ({ // eslint-disable-line @typescript-eslint/no-explicit-any
-          id: tt.id, projectId: tt.projectId, name: tt.name,
-          color: tt.color ?? "#6366f1",
-          createdAt: toDate(tt.createdAt) ?? new Date(),
-        })),
-        skipDuplicates: true,
-      })
-      track("Tags de tâches", data.taskTags.length)
+      const owned = await ownedIds("project", () => prisma.project.findMany({ where: { userId }, select: { id: true } }))
+      const rows = data.taskTags.filter((tt: any) => owned.has(tt.projectId)) // eslint-disable-line @typescript-eslint/no-explicit-any
+      if (rows.length) {
+        await prisma.taskTag.createMany({
+          data: rows.map((tt: any) => ({ // eslint-disable-line @typescript-eslint/no-explicit-any
+            id: tt.id, projectId: tt.projectId, name: tt.name,
+            color: tt.color ?? "#6366f1",
+            createdAt: toDate(tt.createdAt) ?? new Date(),
+          })),
+          skipDuplicates: true,
+        })
+        track("Tags de tâches", rows.length)
+      }
     }
 
     // ── 13. Tâches — passe 1 (sans parentTaskId) ──────────────────────────────
     if (data.tasks?.length) {
+      // Anti-IDOR : ne conserver un lien parent (projet/contact/jalon) que s'il
+      // appartient à l'utilisateur ; sinon le détacher (null) plutôt que greffer
+      // la tâche sur les données d'un autre tenant.
+      const [ownedProjects, ownedClients, ownedMilestones] = await Promise.all([
+        ownedIds("project", () => prisma.project.findMany({ where: { userId }, select: { id: true } })),
+        ownedIds("client", () => prisma.client.findMany({ where: { userId }, select: { id: true } })),
+        ownedIds("milestone", () => prisma.milestone.findMany({ where: { project: { userId } }, select: { id: true } })),
+      ])
       await prisma.task.createMany({
         data: data.tasks.map((t: any) => ({ // eslint-disable-line @typescript-eslint/no-explicit-any
           id: t.id,
           userId: t.userId ? userId : null,
-          projectId: t.projectId ?? null, clientId: t.clientId ?? null,
-          milestoneId: t.milestoneId ?? null, parentTaskId: null,
+          projectId: t.projectId && ownedProjects.has(t.projectId) ? t.projectId : null,
+          clientId: t.clientId && ownedClients.has(t.clientId) ? t.clientId : null,
+          milestoneId: t.milestoneId && ownedMilestones.has(t.milestoneId) ? t.milestoneId : null,
+          parentTaskId: null,
           title: t.title, description: t.description ?? null,
           status: t.status, priority: t.priority,
           importance: t.importance ?? 1, isGroup: t.isGroup ?? false,
@@ -324,84 +369,111 @@ export async function importData(jsonString: string): Promise<ImportResult> {
 
     // ── 16. Entrées de temps ──────────────────────────────────────────────────
     if (data.timeEntries?.length) {
-      await prisma.timeEntry.createMany({
-        data: data.timeEntries.map((e: any) => ({ // eslint-disable-line @typescript-eslint/no-explicit-any
-          id: e.id, taskId: e.taskId, userId,
-          startedAt: new Date(e.startedAt), endedAt: toDate(e.endedAt),
-          duration: e.duration ?? null, note: e.note ?? null,
-          createdAt: toDate(e.createdAt) ?? new Date(),
-        })),
-        skipDuplicates: true,
-      })
-      track("Entrées de temps", data.timeEntries.length)
+      const owned = await ownedIds("task", () => prisma.task.findMany({
+        where: { OR: [{ userId }, { project: { userId } }, { client: { userId } }] },
+        select: { id: true },
+      }))
+      const rows = data.timeEntries.filter((e: any) => owned.has(e.taskId)) // eslint-disable-line @typescript-eslint/no-explicit-any
+      if (rows.length) {
+        await prisma.timeEntry.createMany({
+          data: rows.map((e: any) => ({ // eslint-disable-line @typescript-eslint/no-explicit-any
+            id: e.id, taskId: e.taskId, userId,
+            startedAt: new Date(e.startedAt), endedAt: toDate(e.endedAt),
+            duration: e.duration ?? null, note: e.note ?? null,
+            createdAt: toDate(e.createdAt) ?? new Date(),
+          })),
+          skipDuplicates: true,
+        })
+        track("Entrées de temps", rows.length)
+      }
     }
 
     // ── 17. Journal de bord ───────────────────────────────────────────────────
     if (data.journalEntries?.length) {
-      await prisma.journalEntry.createMany({
-        data: data.journalEntries.map((j: any) => ({ // eslint-disable-line @typescript-eslint/no-explicit-any
-          id: j.id, projectId: j.projectId, content: j.content,
-          createdAt: toDate(j.createdAt) ?? new Date(),
-          updatedAt: toDate(j.updatedAt) ?? new Date(),
-        })),
-        skipDuplicates: true,
-      })
-      track("Journal de bord", data.journalEntries.length)
+      const owned = await ownedIds("project", () => prisma.project.findMany({ where: { userId }, select: { id: true } }))
+      const rows = data.journalEntries.filter((j: any) => owned.has(j.projectId)) // eslint-disable-line @typescript-eslint/no-explicit-any
+      if (rows.length) {
+        await prisma.journalEntry.createMany({
+          data: rows.map((j: any) => ({ // eslint-disable-line @typescript-eslint/no-explicit-any
+            id: j.id, projectId: j.projectId, content: j.content,
+            createdAt: toDate(j.createdAt) ?? new Date(),
+            updatedAt: toDate(j.updatedAt) ?? new Date(),
+          })),
+          skipDuplicates: true,
+        })
+        track("Journal de bord", rows.length)
+      }
     }
 
     // ── 18. Livrables ─────────────────────────────────────────────────────────
     if (data.deliverables?.length) {
-      await prisma.deliverable.createMany({
-        data: data.deliverables.map((d: any) => ({ // eslint-disable-line @typescript-eslint/no-explicit-any
-          id: d.id, projectId: d.projectId, name: d.name,
-          status: d.status, dueDate: toDate(d.dueDate),
-          createdAt: toDate(d.createdAt) ?? new Date(),
-        })),
-        skipDuplicates: true,
-      })
-      track("Livrables", data.deliverables.length)
+      const owned = await ownedIds("project", () => prisma.project.findMany({ where: { userId }, select: { id: true } }))
+      const rows = data.deliverables.filter((d: any) => owned.has(d.projectId)) // eslint-disable-line @typescript-eslint/no-explicit-any
+      if (rows.length) {
+        await prisma.deliverable.createMany({
+          data: rows.map((d: any) => ({ // eslint-disable-line @typescript-eslint/no-explicit-any
+            id: d.id, projectId: d.projectId, name: d.name,
+            status: d.status, dueDate: toDate(d.dueDate),
+            createdAt: toDate(d.createdAt) ?? new Date(),
+          })),
+          skipDuplicates: true,
+        })
+        track("Livrables", rows.length)
+      }
     }
 
     // ── 19. Liens utiles ──────────────────────────────────────────────────────
     if (data.usefulLinks?.length) {
-      await prisma.usefulLink.createMany({
-        data: data.usefulLinks.map((l: any) => ({ // eslint-disable-line @typescript-eslint/no-explicit-any
-          id: l.id, projectId: l.projectId, label: l.label,
-          url: l.url, category: l.category,
-          createdAt: toDate(l.createdAt) ?? new Date(),
-        })),
-        skipDuplicates: true,
-      })
-      track("Liens utiles", data.usefulLinks.length)
+      const owned = await ownedIds("project", () => prisma.project.findMany({ where: { userId }, select: { id: true } }))
+      const rows = data.usefulLinks.filter((l: any) => owned.has(l.projectId)) // eslint-disable-line @typescript-eslint/no-explicit-any
+      if (rows.length) {
+        await prisma.usefulLink.createMany({
+          data: rows.map((l: any) => ({ // eslint-disable-line @typescript-eslint/no-explicit-any
+            id: l.id, projectId: l.projectId, label: l.label,
+            url: l.url, category: l.category,
+            createdAt: toDate(l.createdAt) ?? new Date(),
+          })),
+          skipDuplicates: true,
+        })
+        track("Liens utiles", rows.length)
+      }
     }
 
     // ── 20. Post-Dev ──────────────────────────────────────────────────────────
     if (data.postDevs?.length) {
-      await prisma.postDev.createMany({
-        data: data.postDevs.map((p: any) => ({ // eslint-disable-line @typescript-eslint/no-explicit-any
-          id: p.id, projectId: p.projectId,
-          prodUrl: p.prodUrl ?? null, adminUrl: p.adminUrl ?? null,
-          hostingUrl: p.hostingUrl ?? null, registrarUrl: p.registrarUrl ?? null,
-          createdAt: toDate(p.createdAt) ?? new Date(),
-          updatedAt: toDate(p.updatedAt) ?? new Date(),
-        })),
-        skipDuplicates: true,
-      })
-      track("Post-Dev", data.postDevs.length)
+      const owned = await ownedIds("project", () => prisma.project.findMany({ where: { userId }, select: { id: true } }))
+      const rows = data.postDevs.filter((p: any) => owned.has(p.projectId)) // eslint-disable-line @typescript-eslint/no-explicit-any
+      if (rows.length) {
+        await prisma.postDev.createMany({
+          data: rows.map((p: any) => ({ // eslint-disable-line @typescript-eslint/no-explicit-any
+            id: p.id, projectId: p.projectId,
+            prodUrl: p.prodUrl ?? null, adminUrl: p.adminUrl ?? null,
+            hostingUrl: p.hostingUrl ?? null, registrarUrl: p.registrarUrl ?? null,
+            createdAt: toDate(p.createdAt) ?? new Date(),
+            updatedAt: toDate(p.updatedAt) ?? new Date(),
+          })),
+          skipDuplicates: true,
+        })
+        track("Post-Dev", rows.length)
+      }
     }
 
     // ── 21. Renouvellements ───────────────────────────────────────────────────
     if (data.renewals?.length) {
-      await prisma.renewal.createMany({
-        data: data.renewals.map((r: any) => ({ // eslint-disable-line @typescript-eslint/no-explicit-any
-          id: r.id, postDevId: r.postDevId, type: r.type, name: r.name,
-          expiresAt: new Date(r.expiresAt),
-          reminderSent30: r.reminderSent30 ?? false, reminderSent7: r.reminderSent7 ?? false,
-          createdAt: toDate(r.createdAt) ?? new Date(),
-        })),
-        skipDuplicates: true,
-      })
-      track("Renouvellements", data.renewals.length)
+      const owned = await ownedIds("postDev", () => prisma.postDev.findMany({ where: { project: { userId } }, select: { id: true } }))
+      const rows = data.renewals.filter((r: any) => owned.has(r.postDevId)) // eslint-disable-line @typescript-eslint/no-explicit-any
+      if (rows.length) {
+        await prisma.renewal.createMany({
+          data: rows.map((r: any) => ({ // eslint-disable-line @typescript-eslint/no-explicit-any
+            id: r.id, postDevId: r.postDevId, type: r.type, name: r.name,
+            expiresAt: new Date(r.expiresAt),
+            reminderSent30: r.reminderSent30 ?? false, reminderSent7: r.reminderSent7 ?? false,
+            createdAt: toDate(r.createdAt) ?? new Date(),
+          })),
+          skipDuplicates: true,
+        })
+        track("Renouvellements", rows.length)
+      }
     }
 
     // ── 22. Devis ─────────────────────────────────────────────────────────────
@@ -426,16 +498,20 @@ export async function importData(jsonString: string): Promise<ImportResult> {
 
     // ── 23. Lignes de devis ───────────────────────────────────────────────────
     if (data.quoteLines?.length) {
-      await prisma.quoteLine.createMany({
-        data: data.quoteLines.map((l: any) => ({ // eslint-disable-line @typescript-eslint/no-explicit-any
-          id: l.id, quoteId: l.quoteId, productId: l.productId ?? null,
-          description: l.description, detail: l.detail ?? null,
-          quantity: l.quantity ?? 1, unitPrice: l.unitPrice,
-          taxRate: l.taxRate ?? 0, billingType: l.billingType, total: l.total,
-        })),
-        skipDuplicates: true,
-      })
-      track("Lignes de devis", data.quoteLines.length)
+      const owned = await ownedIds("quote", () => prisma.quote.findMany({ where: { userId }, select: { id: true } }))
+      const rows = data.quoteLines.filter((l: any) => owned.has(l.quoteId)) // eslint-disable-line @typescript-eslint/no-explicit-any
+      if (rows.length) {
+        await prisma.quoteLine.createMany({
+          data: rows.map((l: any) => ({ // eslint-disable-line @typescript-eslint/no-explicit-any
+            id: l.id, quoteId: l.quoteId, productId: l.productId ?? null,
+            description: l.description, detail: l.detail ?? null,
+            quantity: l.quantity ?? 1, unitPrice: l.unitPrice,
+            taxRate: l.taxRate ?? 0, billingType: l.billingType, total: l.total,
+          })),
+          skipDuplicates: true,
+        })
+        track("Lignes de devis", rows.length)
+      }
     }
 
     // ── 24. Factures ──────────────────────────────────────────────────────────
@@ -459,29 +535,37 @@ export async function importData(jsonString: string): Promise<ImportResult> {
 
     // ── 25. Lignes de factures ────────────────────────────────────────────────
     if (data.invoiceLines?.length) {
-      await prisma.invoiceLine.createMany({
-        data: data.invoiceLines.map((l: any) => ({ // eslint-disable-line @typescript-eslint/no-explicit-any
-          id: l.id, invoiceId: l.invoiceId, productId: l.productId ?? null,
-          description: l.description, detail: l.detail ?? null,
-          quantity: l.quantity ?? 1, unitPrice: l.unitPrice,
-          taxRate: l.taxRate ?? 0, total: l.total,
-        })),
-        skipDuplicates: true,
-      })
-      track("Lignes de factures", data.invoiceLines.length)
+      const owned = await ownedIds("invoice", () => prisma.invoice.findMany({ where: { userId }, select: { id: true } }))
+      const rows = data.invoiceLines.filter((l: any) => owned.has(l.invoiceId)) // eslint-disable-line @typescript-eslint/no-explicit-any
+      if (rows.length) {
+        await prisma.invoiceLine.createMany({
+          data: rows.map((l: any) => ({ // eslint-disable-line @typescript-eslint/no-explicit-any
+            id: l.id, invoiceId: l.invoiceId, productId: l.productId ?? null,
+            description: l.description, detail: l.detail ?? null,
+            quantity: l.quantity ?? 1, unitPrice: l.unitPrice,
+            taxRate: l.taxRate ?? 0, total: l.total,
+          })),
+          skipDuplicates: true,
+        })
+        track("Lignes de factures", rows.length)
+      }
     }
 
     // ── 26. Paiements ─────────────────────────────────────────────────────────
     if (data.payments?.length) {
-      await prisma.payment.createMany({
-        data: data.payments.map((p: any) => ({ // eslint-disable-line @typescript-eslint/no-explicit-any
-          id: p.id, invoiceId: p.invoiceId, amount: p.amount,
-          paidAt: toDate(p.paidAt) ?? new Date(), note: p.note ?? null,
-          createdAt: toDate(p.createdAt) ?? new Date(),
-        })),
-        skipDuplicates: true,
-      })
-      track("Paiements", data.payments.length)
+      const owned = await ownedIds("invoice", () => prisma.invoice.findMany({ where: { userId }, select: { id: true } }))
+      const rows = data.payments.filter((p: any) => owned.has(p.invoiceId)) // eslint-disable-line @typescript-eslint/no-explicit-any
+      if (rows.length) {
+        await prisma.payment.createMany({
+          data: rows.map((p: any) => ({ // eslint-disable-line @typescript-eslint/no-explicit-any
+            id: p.id, invoiceId: p.invoiceId, amount: p.amount,
+            paidAt: toDate(p.paidAt) ?? new Date(), note: p.note ?? null,
+            createdAt: toDate(p.createdAt) ?? new Date(),
+          })),
+          skipDuplicates: true,
+        })
+        track("Paiements", rows.length)
+      }
     }
 
     // ── 27. Factures récurrentes ──────────────────────────────────────────────

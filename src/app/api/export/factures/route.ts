@@ -5,6 +5,15 @@ import type { InvoiceStatus } from "@/generated/prisma/enums"
 
 const VALID_STATUSES: InvoiceStatus[] = ["DRAFT", "ISSUED", "SENT", "PAID", "LATE", "CANCELLED"]
 
+/** Échappe une valeur pour une cellule CSV : guillemets + doublage des `"` afin
+ *  que `;`, retours à la ligne et guillemets internes ne cassent pas la structure
+ *  (colonnes décalées). `guard` neutralise en plus l'injection de formule
+ *  (`= + - @`) sur les champs texte libre (nom de client, projet…). */
+function csvCell(value: string, guard = false): string {
+  const safe = guard && /^[=+\-@]/.test(value) ? `'${value}` : value
+  return `"${safe.replace(/"/g, '""')}"`
+}
+
 /** Même sémantique de mois que la liste des factures : encaissement (paidAt),
  *  sinon date d'émission, en dernier recours date de création. */
 function invoiceMonthKey(inv: { paidAt: Date | null; issuedAt: Date | null; createdAt: Date }): string {
@@ -67,7 +76,9 @@ export async function GET(req: NextRequest) {
   }
 
   const rows: string[] = [
-    "Numéro;Client;Projet;Type;Statut;Total HT;Acompte déduit;Net à payer;Échéance;Date création",
+    ["Numéro", "Client", "Projet", "Type", "Statut", "Total HT", "Acompte déduit", "Net à payer", "Échéance", "Date création"]
+      .map((h) => csvCell(h))
+      .join(";"),
   ]
 
   for (const inv of filtered) {
@@ -77,20 +88,21 @@ export async function GET(req: NextRequest) {
     const dueDate = inv.dueDate ? new Date(inv.dueDate).toLocaleDateString("fr-FR") : ""
     const createdAt = new Date(inv.createdAt).toLocaleDateString("fr-FR")
     rows.push([
-      inv.number,
-      client.replace(/;/g, ","),
-      project.replace(/;/g, ","),
-      typeLabels[inv.type] ?? inv.type,
-      statusLabels[inv.status] ?? inv.status,
-      inv.totalHT.toFixed(2).replace(".", ","),
-      inv.depositDeducted.toFixed(2).replace(".", ","),
-      net.toFixed(2).replace(".", ","),
-      dueDate,
-      createdAt,
+      csvCell(inv.number, true),
+      csvCell(client, true),
+      csvCell(project, true),
+      csvCell(typeLabels[inv.type] ?? inv.type),
+      csvCell(statusLabels[inv.status] ?? inv.status),
+      csvCell(inv.totalHT.toFixed(2).replace(".", ",")),
+      csvCell(inv.depositDeducted.toFixed(2).replace(".", ",")),
+      csvCell(net.toFixed(2).replace(".", ",")),
+      csvCell(dueDate),
+      csvCell(createdAt),
     ].join(";"))
   }
 
-  const csv = rows.join("\n")
+  // BOM UTF-8 en tête pour qu'Excel (Windows) affiche correctement les accents.
+  const csv = "﻿" + rows.join("\n")
   const now = new Date().toISOString().split("T")[0]
 
   return new Response(csv, {

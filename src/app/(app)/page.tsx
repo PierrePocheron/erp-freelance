@@ -23,7 +23,7 @@ import { STATUS_CONFIG, PIPELINE_STATUSES } from "@/components/modules/prospecti
 export default async function DashboardPage() {
   const session = await auth()
   const userId = session!.user.id
-  const firstName = session?.user?.name?.split(" ")[0] ?? "vous"
+  const firstName = session!.user.name?.split(" ")[0] ?? "vous"
 
   const enabledModules = await getActiveModules(userId)
   const has = (id: string) => enabledModules.has(id as never)
@@ -164,8 +164,12 @@ export default async function DashboardPage() {
     }),
     prisma.product.findMany({
       where: { userId, isActive: true },
+      select: {
+        id: true, name: true, description: true, unitPrice: true,
+        unit: true, isActive: true, billingType: true, defaultTaxRate: true,
+      },
       orderBy: { name: "asc" },
-    }) as unknown as Array<{ id: string; name: string; description: string | null; unitPrice: number; unit: string; isActive: boolean; billingType: string; defaultTaxRate: number }>,
+    }),
     prisma.quote.findMany({
       where: { userId, status: { notIn: ["DRAFT", "REJECTED"] } },
       select: {
@@ -503,7 +507,7 @@ export default async function DashboardPage() {
   }
 
   const hour = new Date().getHours()
-  const greeting = hour < 12 ? "Bonjour" : hour < 18 ? "Bonjour" : "Bonsoir"
+  const greeting = hour < 18 ? "Bonjour" : "Bonsoir"
 
   return (
     <>

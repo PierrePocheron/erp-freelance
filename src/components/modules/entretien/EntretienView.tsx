@@ -82,10 +82,14 @@ export function EntretienView({
     const position = quickPosition.trim()
     if (!companyName || !position) return
     startAdding(async () => {
-      await createJobApplication({ companyName, position, status: "WISHLIST" })
-      setQuickCompany("")
-      setQuickPosition("")
-      toast.success(`Candidature "${position}" ajoutée`)
+      try {
+        await createJobApplication({ companyName, position, status: "WISHLIST" })
+        setQuickCompany("")
+        setQuickPosition("")
+        toast.success(`Candidature "${position}" ajoutée`)
+      } catch {
+        toast.error("Échec de l'ajout de la candidature")
+      }
     })
   }
 
@@ -401,20 +405,36 @@ function ApplicationCard({ app, onOpen }: { app: JobApp; onOpen: () => void }) {
 
   function quickDelete(e: React.MouseEvent) {
     e.stopPropagation()
-    startTransition(() => deleteJobApplication(app.id))
+    startTransition(async () => {
+      try {
+        await deleteJobApplication(app.id)
+      } catch {
+        toast.error("Échec de la suppression de la candidature")
+      }
+    })
   }
 
   function togglePriority(e: React.MouseEvent) {
     e.stopPropagation()
-    startTransition(() => toggleApplicationPriority(app.id))
+    startTransition(async () => {
+      try {
+        await toggleApplicationPriority(app.id)
+      } catch {
+        toast.error("Échec de la mise à jour de la priorité")
+      }
+    })
   }
 
   // Valide le RDV planifié en un clic : l'archive dans l'historique + efface le point.
   function markDone(e: React.MouseEvent) {
     e.stopPropagation()
     startTransition(async () => {
-      await completeNextAction(app.id)
-      toast.success(`« ${app.companyName} » — rendez-vous marqué fait ✓`)
+      try {
+        await completeNextAction(app.id)
+        toast.success(`« ${app.companyName} » — rendez-vous marqué fait ✓`)
+      } catch {
+        toast.error("Échec de la validation du rendez-vous")
+      }
     })
   }
 

@@ -802,9 +802,20 @@ export async function updateProduct(
   data: { name?: string; description?: string | null; unitPrice?: number; unit?: string; isActive?: boolean; billingType?: string; defaultTaxRate?: number }
 ) {
   const userId = await requireAuth()
+  // Whitelist explicite (anti mass-assignment) : ne recopier que les champs
+  // autorisés, jamais l'objet `data` brut (qui pourrait injecter userId, id…).
+  // On conserve la sémantique « ne pas toucher un champ absent » via `undefined`.
+  const clean: Record<string, unknown> = {}
+  if (data.name !== undefined) clean.name = data.name
+  if (data.description !== undefined) clean.description = data.description
+  if (data.unitPrice !== undefined) clean.unitPrice = data.unitPrice
+  if (data.unit !== undefined) clean.unit = data.unit
+  if (data.isActive !== undefined) clean.isActive = data.isActive
+  if (data.billingType !== undefined) clean.billingType = data.billingType
+  if (data.defaultTaxRate !== undefined) clean.defaultTaxRate = data.defaultTaxRate
   await prisma.product.update({
     where: { id: productId, userId },
-    data: data as never,
+    data: clean as never,
   })
   revalidatePath("/facturation/produits")
 }
@@ -968,35 +979,52 @@ export async function setRecurringInvoiceLines(
     userId
   )
   if (owns.length === 0) throw new Error("Modèle introuvable")
-  // RecurringInvoiceLine is not in Prisma schema (raw SQL migration) — use $executeRawUnsafe
-  await prisma.$executeRawUnsafe(
-    `DELETE FROM "RecurringInvoiceLine" WHERE "recurringInvoiceId" = $1`,
-    recurringInvoiceId
-  )
 
   const totalHT = lines.reduce((s, l) => s + l.quantity * l.unitPrice, 0)
 
-  for (const l of lines) {
-    await prisma.$executeRawUnsafe(
-      `INSERT INTO "RecurringInvoiceLine" (id, "recurringInvoiceId", "productId", description, detail, quantity, "unitPrice", "taxRate", total)
-       VALUES (gen_random_uuid()::text, $1, $2, $3, NULL, $4, $5, $6, $7)`,
-      recurringInvoiceId,
-      l.productId || null,
-      l.description,
-      l.quantity,
-      l.unitPrice,
-      l.taxRate,
-      l.quantity * l.unitPrice
+  // DELETE + INSERT (lot) + UPDATE dans une seule transaction : atomique (un
+  // échec au milieu ne laisse plus les lignes partiellement supprimées) et un
+  // unique INSERT multi-VALUES au lieu d'un aller-retour DB par ligne.
+  // RecurringInvoiceLine n'est pas dans le schéma Prisma (migration SQL brute) —
+  // d'où $executeRawUnsafe.
+  await prisma.$transaction(async (tx) => {
+    await tx.$executeRawUnsafe(
+      `DELETE FROM "RecurringInvoiceLine" WHERE "recurringInvoiceId" = $1`,
+      recurringInvoiceId
     )
-  }
 
-  // Update totalHT on RecurringInvoice (column added via raw SQL migration)
-  await prisma.$executeRawUnsafe(
-    `UPDATE "RecurringInvoice" SET "totalHT" = $1 WHERE id = $2 AND "userId" = $3`,
-    totalHT,
-    recurringInvoiceId,
-    userId
-  )
+    if (lines.length > 0) {
+      const params: unknown[] = []
+      const valuesSql = lines
+        .map((l) => {
+          const base = params.length
+          params.push(
+            recurringInvoiceId,
+            l.productId || null,
+            l.description,
+            l.quantity,
+            l.unitPrice,
+            l.taxRate,
+            l.quantity * l.unitPrice
+          )
+          return `(gen_random_uuid()::text, $${base + 1}, $${base + 2}, $${base + 3}, NULL, $${base + 4}, $${base + 5}, $${base + 6}, $${base + 7})`
+        })
+        .join(", ")
+      await tx.$executeRawUnsafe(
+        `INSERT INTO "RecurringInvoiceLine" (id, "recurringInvoiceId", "productId", description, detail, quantity, "unitPrice", "taxRate", total)
+         VALUES ${valuesSql}`,
+        ...params
+      )
+    }
+
+    // Update totalHT on RecurringInvoice (column added via raw SQL migration)
+    await tx.$executeRawUnsafe(
+      `UPDATE "RecurringInvoice" SET "totalHT" = $1 WHERE id = $2 AND "userId" = $3`,
+      totalHT,
+      recurringInvoiceId,
+      userId
+    )
+  })
 
   revalidatePath("/facturation/recurrentes")
 }

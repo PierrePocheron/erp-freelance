@@ -13,7 +13,9 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       return token
     },
     session({ session, token }) {
-      session.user.id = token.id as string
+      // token.id peut être absent (token hérité sans passage par le callback jwt) :
+      // on n'assigne que si c'est bien une chaîne, plutôt qu'un undefined typé string.
+      if (typeof token.id === "string") session.user.id = token.id
       return session
     },
   },

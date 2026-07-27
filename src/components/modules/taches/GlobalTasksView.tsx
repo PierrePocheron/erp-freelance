@@ -11,6 +11,7 @@ import { startTask, completeTask, reopenTask, createClientTask, deleteTask, upda
 import { AddTaskForm } from "@/components/modules/projet/AddTaskForm"
 import { TaskEditSheet } from "@/components/modules/taches/TaskEditSheet"
 import { cn } from "@/lib/utils"
+import { toast } from "sonner"
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -22,7 +23,7 @@ type Task = {
   id: string
   title: string
   description: string | null
-  status: "TODO" | "IN_PROGRESS" | "DONE"
+  status: "TODO" | "IN_PROGRESS" | "DONE" | "CANCELLED"
   priority: "LOW" | "MEDIUM" | "HIGH" | "URGENT"
   importance: number
   order: number
@@ -46,10 +47,20 @@ const BADGE_CLS: Record<number, string> = {
   4: "text-red-500 border-red-500/40 bg-red-500/10",
 }
 
-const STATUS_CYCLE = {
-  TODO: "start" as const,
-  IN_PROGRESS: "complete" as const,
-  DONE: "reopen" as const,
+const STATUS_CYCLE: Record<Task["status"], "start" | "complete" | "reopen" | null> = {
+  TODO: "start",
+  IN_PROGRESS: "complete",
+  DONE: "reopen",
+  CANCELLED: null,
+}
+
+/** Tri décroissant par date de complétion (les plus récemment terminées d'abord). */
+function sortByCompletedDesc(tasks: Task[]): Task[] {
+  return [...tasks].sort((a, b) => {
+    const da = a.completedAt ? new Date(a.completedAt).getTime() : 0
+    const db = b.completedAt ? new Date(b.completedAt).getTime() : 0
+    return db - da
+  })
 }
 
 function isOverdue(task: Task) {
@@ -94,10 +105,14 @@ function QuickAddClientTask({ clientId }: { clientId: string | null }) {
     if (!title) return
     const dueDate = dateRef.current?.value || null
     startTransitionFn(async () => {
-      await createClientTask(clientId, title, dueDate)
-      if (inputRef.current) inputRef.current.value = ""
-      if (dateRef.current)  dateRef.current.value  = ""
-      inputRef.current?.focus()
+      try {
+        await createClientTask(clientId, title, dueDate)
+        if (inputRef.current) inputRef.current.value = ""
+        if (dateRef.current)  dateRef.current.value  = ""
+        inputRef.current?.focus()
+      } catch {
+        toast.error("Échec de la création de la tâche")
+      }
     })
   }
 
@@ -184,20 +199,38 @@ function TaskRow({ task }: { task: Task }) {
 
   function handleStatus() {
     const action = STATUS_CYCLE[task.status]
-    startTransitionFn(() => {
-      if (action === "start") return startTask(task.id, projectId)
-      if (action === "complete") return completeTask(task.id, projectId)
-      if (action === "reopen") return reopenTask(task.id, projectId)
+    startTransitionFn(async () => {
+      try {
+        if (action === "start") await startTask(task.id, projectId)
+        else if (action === "complete") await completeTask(task.id, projectId)
+        else if (action === "reopen") await reopenTask(task.id, projectId)
+      } catch {
+        toast.error("Échec de la mise à jour du statut de la tâche")
+      }
     })
   }
 
   function handleDelete() {
-    startDeleteTransition(() => deleteTask(task.id))
+    startDeleteTransition(async () => {
+      try {
+        await deleteTask(task.id)
+      } catch {
+        toast.error("Échec de la suppression de la tâche")
+      }
+    })
   }
 
   function saveTitle() {
     const val = titleRef.current?.value.trim()
-    if (val && val !== task.title) startTitleTransition(() => updateTaskFields(task.id, { title: val }))
+    if (val && val !== task.title) {
+      startTitleTransition(async () => {
+        try {
+          await updateTaskFields(task.id, { title: val })
+        } catch {
+          toast.error("Échec de l'enregistrement du titre")
+        }
+      })
+    }
     setEditingTitle(false)
   }
 
@@ -347,6 +380,34 @@ function TaskRow({ task }: { task: Task }) {
   )
 }
 
+// ── DoneTasksSection (bloc « Terminées (n) » repliable, partagé) ─────────────
+
+function DoneTasksSection({ tasks, show, onToggle, className }: {
+  tasks: Task[]
+  show: boolean
+  onToggle: () => void
+  className?: string
+}) {
+  if (tasks.length === 0) return null
+  return (
+    <div className={cn("border-t border-border/20 pt-1", className)}>
+      <button
+        type="button"
+        onClick={onToggle}
+        className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors px-2 py-1"
+      >
+        {show ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+        Terminées ({tasks.length})
+      </button>
+      {show && (
+        <div className="space-y-0.5 opacity-60">
+          {tasks.map((t) => <TaskRow key={t.id} task={t} />)}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── ProjectSubGroup (carte projet imbriquée dans client) ─────────────────────
 
 function ProjectSubGroup({ project, tasks }: { project: ProjectRef; tasks: Task[] }) {
@@ -354,13 +415,7 @@ function ProjectSubGroup({ project, tasks }: { project: ProjectRef; tasks: Task[
   const [showDone, setShowDone] = useState(false)
 
   const activeTasks = tasks.filter((t) => t.status !== "DONE")
-  const doneTasks = tasks
-    .filter((t) => t.status === "DONE")
-    .sort((a, b) => {
-      const da = a.completedAt ? new Date(a.completedAt).getTime() : 0
-      const db = b.completedAt ? new Date(b.completedAt).getTime() : 0
-      return db - da
-    })
+  const doneTasks = sortByCompletedDesc(tasks.filter((t) => t.status === "DONE"))
 
   return (
     <div className="rounded-lg border border-border/40 bg-muted/20 overflow-hidden">
@@ -403,23 +458,12 @@ function ProjectSubGroup({ project, tasks }: { project: ProjectRef; tasks: Task[
             <AddTaskForm projectId={project.id} placeholder="Nouvelle tâche..." />
           </div>
 
-          {doneTasks.length > 0 && (
-            <div className="mt-1 border-t border-border/20 pt-1">
-              <button
-                type="button"
-                onClick={() => setShowDone((v) => !v)}
-                className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors px-2 py-1"
-              >
-                {showDone ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
-                Terminées ({doneTasks.length})
-              </button>
-              {showDone && (
-                <div className="space-y-0.5 opacity-60">
-                  {doneTasks.map((t) => <TaskRow key={t.id} task={t} />)}
-                </div>
-              )}
-            </div>
-          )}
+          <DoneTasksSection
+            tasks={doneTasks}
+            show={showDone}
+            onToggle={() => setShowDone((v) => !v)}
+            className="mt-1"
+          />
         </div>
       )}
     </div>
@@ -433,13 +477,7 @@ function ClientTaskGroup({ group }: { group: ClientGroup }) {
   const [showDoneDirect, setShowDoneDirect] = useState(false)
 
   const activeDirect = group.directTasks.filter((t) => t.status !== "DONE")
-  const doneDirect = group.directTasks
-    .filter((t) => t.status === "DONE")
-    .sort((a, b) => {
-      const da = a.completedAt ? new Date(a.completedAt).getTime() : 0
-      const db = b.completedAt ? new Date(b.completedAt).getTime() : 0
-      return db - da
-    })
+  const doneDirect = sortByCompletedDesc(group.directTasks.filter((t) => t.status === "DONE"))
 
   const totalTasks =
     group.directTasks.length +
@@ -502,23 +540,11 @@ function ClientTaskGroup({ group }: { group: ClientGroup }) {
                 <QuickAddClientTask clientId={group.clientId} />
               </div>
 
-              {doneDirect.length > 0 && (
-                <div className="border-t border-border/20 pt-1">
-                  <button
-                    type="button"
-                    onClick={() => setShowDoneDirect((v) => !v)}
-                    className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors px-2 py-1"
-                  >
-                    {showDoneDirect ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
-                    Terminées ({doneDirect.length})
-                  </button>
-                  {showDoneDirect && (
-                    <div className="space-y-0.5 opacity-60">
-                      {doneDirect.map((t) => <TaskRow key={t.id} task={t} />)}
-                    </div>
-                  )}
-                </div>
-              )}
+              <DoneTasksSection
+                tasks={doneDirect}
+                show={showDoneDirect}
+                onToggle={() => setShowDoneDirect((v) => !v)}
+              />
             </div>
           )}
 

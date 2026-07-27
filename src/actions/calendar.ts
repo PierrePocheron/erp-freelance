@@ -257,55 +257,22 @@ export async function updateCalendarEvent(
   const session = await auth()
   const userId = session!.user.id
 
-  // Chaque champ modifié → UPDATE individuel (tagged templates non dynamiques)
-  if (data.title !== undefined) {
-    await prisma.$executeRaw`
-      UPDATE "CalendarEvent" SET title = ${data.title}, "updatedAt" = NOW()
-      WHERE id = ${eventId} AND "userId" = ${userId}
-    `
-  }
-  if (data.description !== undefined) {
-    await prisma.$executeRaw`
-      UPDATE "CalendarEvent" SET description = ${data.description}, "updatedAt" = NOW()
-      WHERE id = ${eventId} AND "userId" = ${userId}
-    `
-  }
-  if (data.startDate !== undefined) {
-    await prisma.$executeRaw`
-      UPDATE "CalendarEvent" SET "startDate" = ${data.startDate}, "updatedAt" = NOW()
-      WHERE id = ${eventId} AND "userId" = ${userId}
-    `
-  }
-  if (data.endDate !== undefined) {
-    await prisma.$executeRaw`
-      UPDATE "CalendarEvent" SET "endDate" = ${data.endDate}, "updatedAt" = NOW()
-      WHERE id = ${eventId} AND "userId" = ${userId}
-    `
-  }
-  if (data.allDay !== undefined) {
-    await prisma.$executeRaw`
-      UPDATE "CalendarEvent" SET "allDay" = ${data.allDay}, "updatedAt" = NOW()
-      WHERE id = ${eventId} AND "userId" = ${userId}
-    `
-  }
-  if (data.categoryId !== undefined) {
-    await prisma.$executeRaw`
-      UPDATE "CalendarEvent" SET "categoryId" = ${data.categoryId}, "updatedAt" = NOW()
-      WHERE id = ${eventId} AND "userId" = ${userId}
-    `
-  }
-  if (data.projectId !== undefined) {
-    await prisma.$executeRaw`
-      UPDATE "CalendarEvent" SET "projectId" = ${data.projectId}, "updatedAt" = NOW()
-      WHERE id = ${eventId} AND "userId" = ${userId}
-    `
-  }
-  if (data.clientId !== undefined) {
-    await prisma.$executeRaw`
-      UPDATE "CalendarEvent" SET "clientId" = ${data.clientId}, "updatedAt" = NOW()
-      WHERE id = ${eventId} AND "userId" = ${userId}
-    `
-  }
+  // Un seul UPDATE scopé au propriétaire (anti-IDOR) : Prisma ignore les champs
+  // `undefined` (donc seuls les champs fournis sont écrits) et gère `updatedAt`
+  // automatiquement (@updatedAt). Remplace 8 $executeRaw séquentiels.
+  await prisma.calendarEvent.updateMany({
+    where: { id: eventId, userId },
+    data: {
+      title: data.title,
+      description: data.description,
+      startDate: data.startDate,
+      endDate: data.endDate,
+      allDay: data.allDay,
+      categoryId: data.categoryId,
+      projectId: data.projectId,
+      clientId: data.clientId,
+    },
+  })
 
   revalidatePath("/calendrier")
 }
@@ -963,11 +930,6 @@ export async function syncGooglePull(monthsBack: number = 1): Promise<SyncResult
     from.setMonth(from.getMonth() - Math.max(1, Math.min(monthsBack, 24)))
     const to = new Date()
     to.setMonth(to.getMonth() + 3)
-
-    // Push (ERP → Google) : on garde une fenêtre courte pour ne pas déverser tout
-    // l'historique ERP sur l'agenda Google. Seul le pull couvre tout le passé.
-    const pushFrom = new Date()
-    pushFrom.setMonth(pushFrom.getMonth() - 1)
 
     // Agenda principal (événements importés) + agenda dédié ERP (nos événements
     // poussés, pour détecter les modifs faites côté Google → arbitrage).

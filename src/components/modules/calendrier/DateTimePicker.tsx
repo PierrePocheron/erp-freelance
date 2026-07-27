@@ -173,7 +173,6 @@ export function TimePicker({
   ariaLabel?: string
 }) {
   const [open, setOpen] = useState(false)
-  const listRef = useRef<HTMLDivElement>(null)
   const selectedRef = useRef<HTMLButtonElement>(null)
 
   // Centre l'heure sélectionnée à l'ouverture.
@@ -203,7 +202,7 @@ export function TimePicker({
       <Popover.Portal>
         <Popover.Positioner className="isolate z-50 outline-none" side="bottom" align="start" sideOffset={6}>
           <Popover.Popup className={cn(POPUP_CLASS, "w-(--anchor-width) min-w-32 p-1")}>
-            <div ref={listRef} className="max-h-56 overflow-y-auto">
+            <div className="max-h-56 overflow-y-auto">
               {clearable && (
                 <button type="button"
                   onClick={() => { onChange(""); setOpen(false) }}

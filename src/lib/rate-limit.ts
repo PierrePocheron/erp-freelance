@@ -36,8 +36,26 @@ function getLimiter(limit: number, windowMs: number): Ratelimit {
 type Bucket = { count: number; resetAt: number }
 const buckets = new Map<string, Bucket>()
 
+// Purge périodique des buckets expirés pour borner la mémoire du fallback :
+// sans Redis et sur un process long, une clé éphémère (IP/identifiant vu une
+// seule fois) resterait indéfiniment en mémoire. Supprimer un bucket expiré est
+// sémantiquement neutre (il serait de toute façon réinitialisé au prochain accès).
+const SWEEP_INTERVAL_MS = 60_000
+const MAX_BUCKETS = 10_000
+let lastSweep = 0
+
+function sweepExpiredBuckets(now: number): void {
+  for (const [k, b] of buckets) {
+    if (now > b.resetAt) buckets.delete(k)
+  }
+  lastSweep = now
+}
+
 function inMemoryCheck(key: string, limit: number, windowMs: number): boolean {
   const now = Date.now()
+  if (now - lastSweep > SWEEP_INTERVAL_MS || buckets.size > MAX_BUCKETS) {
+    sweepExpiredBuckets(now)
+  }
   const bucket = buckets.get(key)
   if (!bucket || now > bucket.resetAt) {
     buckets.set(key, { count: 1, resetAt: now + windowMs })

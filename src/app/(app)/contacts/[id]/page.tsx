@@ -1,3 +1,4 @@
+import type { ComponentProps } from "react"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { notFound } from "next/navigation"
@@ -63,82 +64,85 @@ export default async function ClientOverviewPage({
 
   if (!client) notFound()
 
-  // Candidatures liées (si c'est un recruteur)
-  const linkedApplications = client.type === "RECRUITER"
-    ? await prisma.jobApplication.findMany({
-        where: { userId, contactId: id },
-        select: { id: true, companyName: true, position: true, status: true, nextActionAt: true },
-        orderBy: { updatedAt: "desc" },
-      })
-    : []
-
-  // Toutes les factures liées à ce client (directement ou via ses projets)
-  const allClientInvoices = await prisma.invoice.findMany({
-    where: {
-      userId,
-      status: { not: "DRAFT" },
-      OR: [
-        { clientId: id },
-        { project: { clientId: id } },
-        { project: { contactLinks: { some: { clientId: id } } } },
-      ],
-    },
-    select: { totalHT: true, depositDeducted: true, status: true },
-  })
-
-  // Projets liés via la table M2M (rôle quelconque) mais pas déjà dans client.projects
+  // Ces requêtes ne dépendent que de `client` (déjà chargé) et sont
+  // indépendantes entre elles : on les lance en un seul Promise.all pour
+  // éviter ~5 allers-retours séquentiels vers Neon à chaque rendu de la fiche.
   const linkedProjectIds = new Set(client.projects.map(p => p.id))
-  const m2mProjects = await prisma.project.findMany({
-    where: {
-      userId,
-      contactLinks: { some: { clientId: id } },
-      id: { notIn: [...linkedProjectIds] },
-    },
-    select: { id: true, name: true, status: true },
-  })
-  // Liste complète des projets pour la section "Projets"
-  const allProjects = [...client.projects, ...m2mProjects]
 
-  // Sociétés et contacts pour alimenter le dialog « Nouveau projet »
-  const [allCompanies, allContacts] = await Promise.all([
-    prisma.company.findMany({
-      where: { userId },
-      orderBy: { name: "asc" },
-      select: { id: true, name: true, city: true },
+  const [
+    linkedApplications,          // candidatures liées (si c'est un recruteur)
+    allClientInvoices,           // factures liées (directement ou via ses projets)
+    m2mProjects,                 // projets liés via la table M2M, hors client.projects
+    [allCompanies, allContacts], // sociétés + contacts pour le dialog « Nouveau projet »
+    projectTasks,                // tâches via les projets du client
+  ] = await Promise.all([
+    client.type === "RECRUITER"
+      ? prisma.jobApplication.findMany({
+          where: { userId, contactId: id },
+          select: { id: true, companyName: true, position: true, status: true, nextActionAt: true },
+          orderBy: { updatedAt: "desc" },
+        })
+      : [],
+    prisma.invoice.findMany({
+      where: {
+        userId,
+        status: { not: "DRAFT" },
+        OR: [
+          { clientId: id },
+          { project: { clientId: id } },
+          { project: { contactLinks: { some: { clientId: id } } } },
+        ],
+      },
+      select: { totalHT: true, depositDeducted: true, status: true },
     }),
-    prisma.client.findMany({
-      where: { userId },
-      orderBy: [{ name: "asc" }],
-      select: { id: true, name: true, company: true, companyId: true },
+    prisma.project.findMany({
+      where: {
+        userId,
+        contactLinks: { some: { clientId: id } },
+        id: { notIn: [...linkedProjectIds] },
+      },
+      select: { id: true, name: true, status: true },
+    }),
+    Promise.all([
+      prisma.company.findMany({
+        where: { userId },
+        orderBy: { name: "asc" },
+        select: { id: true, name: true, city: true },
+      }),
+      prisma.client.findMany({
+        where: { userId },
+        orderBy: [{ name: "asc" }],
+        select: { id: true, name: true, company: true, companyId: true },
+      }),
+    ]),
+    prisma.task.findMany({
+      where: {
+        project: { OR: [{ clientId: id }, { contactLinks: { some: { clientId: id } } }], userId },
+        isGroup: false,
+        parentTaskId: null,
+        clientId: null, // éviter les doublons
+      },
+      orderBy: [{ order: "asc" }, { createdAt: "asc" }],
+      select: {
+        id: true,
+        title: true,
+        description: true,
+        status: true,
+        createdAt: true,
+        priority: true,
+        importance: true,
+        estimatedHours: true,
+        dueDate: true,
+        startedAt: true,
+        completedAt: true,
+        project: { select: { id: true, name: true } },
+        taskTags: { select: { id: true, name: true, color: true } },
+        _count: { select: { subTasks: true } },
+      },
     }),
   ])
-
-  // Récupérer aussi les tâches via les projets du client
-  const projectTasks = await prisma.task.findMany({
-    where: {
-      project: { OR: [{ clientId: id }, { contactLinks: { some: { clientId: id } } }], userId },
-      isGroup: false,
-      parentTaskId: null,
-      clientId: null, // éviter les doublons
-    },
-    orderBy: [{ order: "asc" }, { createdAt: "asc" }],
-    select: {
-      id: true,
-      title: true,
-      description: true,
-      status: true,
-      createdAt: true,
-      priority: true,
-      importance: true,
-      estimatedHours: true,
-      dueDate: true,
-      startedAt: true,
-      completedAt: true,
-      project: { select: { id: true, name: true } },
-      taskTags: { select: { id: true, name: true, color: true } },
-      _count: { select: { subTasks: true } },
-    },
-  })
+  // Liste complète des projets pour la section "Projets"
+  const allProjects = [...client.projects, ...m2mProjects]
 
   const isOwner = client.userId === userId
   const allTasks = [...client.tasks, ...projectTasks]
@@ -191,7 +195,7 @@ export default async function ClientOverviewPage({
         {/* Tâches */}
         <ClientTasksSection
           clientId={id}
-          tasks={allTasks as never}
+          tasks={allTasks as ComponentProps<typeof ClientTasksSection>["tasks"]}
         />
 
       </div>
@@ -203,7 +207,7 @@ export default async function ClientOverviewPage({
         {isOwner && (
           <FiscalCategoryCard
             clientId={id}
-            initial={client.defaultFiscalCategory as never}
+            initial={client.defaultFiscalCategory}
           />
         )}
 
@@ -316,11 +320,11 @@ export default async function ClientOverviewPage({
           <ContactActivity
             clientId={id}
             isProspect={client.type === "PROSPECT" || client.prospectStatus === "WON"}
-            currentStatus={client.prospectStatus as never}
+            currentStatus={client.prospectStatus}
             interactions={client.interactions}
             events={client.prospectEvents}
             notes={client.prospectNotes}
-            tasks={allTasks as never}
+            tasks={allTasks}
           />
         </div>
 

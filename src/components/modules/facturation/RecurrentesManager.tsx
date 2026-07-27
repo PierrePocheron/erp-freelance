@@ -34,6 +34,10 @@ type RecurringLine = {
   taxRate: number
   productId?: string | null
 }
+// Ligne en cours d'édition : clé stable côté client (comme CreateQuoteDialog),
+// indépendante de l'index, pour ne pas déplacer valeurs/focus à l'ajout ou la
+// suppression d'une ligne intermédiaire.
+type EditableLine = RecurringLine & { localId: string }
 type RecurringRow = {
   id: string
   name: string
@@ -105,7 +109,7 @@ export function RecurrentesManager({
   const [projectId, setProjectId] = useState("")
 
   // Lines
-  const [lines, setLines] = useState<RecurringLine[]>([])
+  const [lines, setLines] = useState<EditableLine[]>([])
 
   const clientProjects = projects.filter((p) => p.clientId === clientId)
 
@@ -121,7 +125,7 @@ export function RecurrentesManager({
   }
 
   function addLine() {
-    setLines((prev) => [...prev, { description: "", quantity: 1, unitPrice: 0, taxRate: 0 }])
+    setLines((prev) => [...prev, { localId: crypto.randomUUID(), description: "", quantity: 1, unitPrice: 0, taxRate: 0 }])
   }
 
   function removeLine(idx: number) {
@@ -195,7 +199,7 @@ export function RecurrentesManager({
     setFrequency(row.frequency)
     setNextDate(new Date(row.nextGenerationDate).toISOString().split("T")[0])
     setProjectId(row.project?.id ?? "")
-    setLines(row.lines.map((l) => ({ ...l })))
+    setLines(row.lines.map((l) => ({ ...l, localId: crypto.randomUUID() })))
   }
 
   function handleUpdate() {
@@ -424,7 +428,7 @@ export function RecurrentesManager({
               ) : (
                 <div className="space-y-2">
                   {lines.map((line, idx) => (
-                    <div key={idx} className="rounded-lg border border-border/60 bg-muted/30 p-3 space-y-2">
+                    <div key={line.localId} className="rounded-lg border border-border/60 bg-muted/30 p-3 space-y-2">
                       <div className="flex items-center gap-2">
                         {products.length > 0 && (
                           <select

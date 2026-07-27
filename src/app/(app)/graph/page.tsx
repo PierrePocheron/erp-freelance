@@ -71,6 +71,10 @@ export default async function GraphPage() {
   const nodes: RawNode[] = []
   const links: RawLink[] = []
 
+  // Index O(1) — évite de re-scanner ces collections dans les boucles ci-dessous
+  const clientsById  = new Map(clients.map(c => [c.id, c]))
+  const projectsById = new Map(projects.map(p => [p.id, p]))
+
   // ── Companies ────────────────────────────────────────────────────────────
   for (const c of companies) {
     const contactCount  = clients.filter(cl => cl.companyId === c.id && cl.type !== "SELF").length
@@ -209,7 +213,7 @@ export default async function GraphPage() {
     const target = `project-${pc.projectId}`
     if (!nodeIds.has(source) || !nodeIds.has(target)) continue
     // Éviter le doublon si ce contact est déjà le parent principal du projet
-    const project = projects.find(p => p.id === pc.projectId)
+    const project = projectsById.get(pc.projectId)
     if (project?.clientId === pc.clientId) continue
     links.push({ source, target })
   }
@@ -357,7 +361,7 @@ export default async function GraphPage() {
     const recruiterCompanyNodeIds = new Set<string>()
     for (const app of applications) {
       if (app.contactId) {
-        const contact = clients.find(c => c.id === app.contactId)
+        const contact = clientsById.get(app.contactId)
         if (contact?.companyId) recruiterCompanyNodeIds.add(`company-${contact.companyId}`)
       }
       if (app.companyId && appNodeIds.has(`company-${app.companyId}`)) {
@@ -409,7 +413,7 @@ export default async function GraphPage() {
     const standaloneClientIds = new Set<string>()
 
     for (const clientId of linkedClientIds) {
-      const client = clients.find(c => c.id === clientId)
+      const client = clientsById.get(clientId)
       if (!client || client.type === "SELF") continue
       if (client.companyId) {
         linkedCompanyIds.add(client.companyId)
@@ -424,7 +428,7 @@ export default async function GraphPage() {
       if (rev.companyId) {
         linkedCompanyIds.add(rev.companyId)
       } else if (rev.clientId) {
-        const client = clients.find(c => c.id === rev.clientId)
+        const client = clientsById.get(rev.clientId)
         // Ne JAMAIS rattacher via un client SELF (Pierre) : sa société « Perso »
         // n'est pas une société liée à la source — ça créait un faux lien
         // Reventes → Perso → projets perso.
@@ -467,14 +471,16 @@ export default async function GraphPage() {
   if (reventesSource) {
     const srcNodeId = `source-${reventesSource.id}`
     const platformNodeId = new Map<string, string>() // plateforme → id de nœud
-    for (const rev of revenues) {
-      if (rev.fiscalSourceId !== reventesSource.id) continue
+    // Sous-ensemble des revenus « Reventes » calculé une seule fois — évite de
+    // re-scanner l'ensemble des revenus à chaque itération et pour chaque platCount.
+    const reventeRevenues = revenues.filter(r => r.fiscalSourceId === reventesSource.id)
+    for (const rev of reventeRevenues) {
       const platform = (rev.label.split("—")[0] || "").trim() || "Autre"
       let platId = platformNodeId.get(platform)
       if (!platId) {
         platId = `resale-platform-${platform.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`
         platformNodeId.set(platform, platId)
-        const platCount = revenues.filter(r => r.fiscalSourceId === reventesSource.id && r.label.startsWith(platform)).length
+        const platCount = reventeRevenues.filter(r => r.label.startsWith(platform)).length
         nodes.push({
           id: platId, type: "COMPANY", label: platform, parentId: srcNodeId,
           meta: { subtitle: `Revente · ${platCount} vente${platCount > 1 ? "s" : ""}` },

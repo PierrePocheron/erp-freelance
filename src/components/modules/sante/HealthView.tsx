@@ -5,6 +5,7 @@ import { Plus, Heart, Stethoscope, Wallet, Syringe, Clock, Check } from "lucide-
 import { toast } from "sonner"
 import { cn } from "@/lib/utils"
 import { markReimbursementReceived, resolveHealthEvent } from "@/actions/sante"
+import type { HealthEventType, PractitionerType, ReimbursementSource, ReimbursementStatus } from "@/generated/prisma/enums"
 import { HealthEventDialog }      from "./HealthEventDialog"
 import { ConsultationDialog }     from "./ConsultationDialog"
 import { ReimbursementDialog }    from "./ReimbursementDialog"
@@ -12,12 +13,12 @@ import { ReimbursementDialog }    from "./ReimbursementDialog"
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 export type HEvent = {
-  id: string; date: Date | string; type: string
+  id: string; date: Date | string; type: HealthEventType
   title: string; description: string | null; bodyPart: string | null
   resolvedAt: Date | string | null; createdAt: Date | string; updatedAt: Date | string
 }
 export type HConsultation = {
-  id: string; date: Date | string; practitionerName: string; practitionerType: string
+  id: string; date: Date | string; practitionerName: string; practitionerType: PractitionerType
   title: string; notes: string | null; cost: number | null
   hasDocument: boolean; documentRef: string | null; healthEventId: string | null
   createdAt: Date | string; updatedAt: Date | string
@@ -25,7 +26,7 @@ export type HConsultation = {
   reimbursements: HReimbursement[]
 }
 export type HReimbursement = {
-  id: string; amount: number; source: string; status: string
+  id: string; amount: number; source: ReimbursementSource; status: ReimbursementStatus
   expectedDate: Date | string | null; receivedAt: Date | string | null; notes: string | null
   consultationId: string | null; createdAt: Date | string; updatedAt: Date | string
   consultation?: { id: string; title: string; practitionerName: string } | null
@@ -38,10 +39,10 @@ export function reimbursementDate(r: HReimbursement): Date {
 
 // ── Config ─────────────────────────────────────────────────────────────────────
 
-export const EVENT_TYPE_CONFIG: Record<string, { label: string; icon: string; cls: string; dot: string }> = {
-  INJURY:  { label: "Blessure",  icon: "🩸", cls: "bg-red-500/15 text-red-600 border-red-500/20",      dot: "bg-red-500"     },
-  ILLNESS: { label: "Maladie",   icon: "🩸", cls: "bg-orange-500/15 text-orange-600 border-orange-500/20", dot: "bg-orange-500" },
-  OTHER:   { label: "Autre",     icon: "🩸", cls: "bg-muted text-muted-foreground border-border",         dot: "bg-gray-400"    },
+export const EVENT_TYPE_CONFIG: Record<string, { label: string; icon: string; cls: string }> = {
+  INJURY:  { label: "Blessure",  icon: "🩸", cls: "bg-red-500/15 text-red-600 border-red-500/20"      },
+  ILLNESS: { label: "Maladie",   icon: "🩸", cls: "bg-orange-500/15 text-orange-600 border-orange-500/20" },
+  OTHER:   { label: "Autre",     icon: "🩸", cls: "bg-muted text-muted-foreground border-border"         },
 }
 
 export const PRACTITIONER_LABELS: Record<string, string> = {
@@ -76,8 +77,8 @@ export function HealthView({
   currentYear: number
 }) {
   const [tab, setTab] = useState<"timeline" | "blessures" | "consultations" | "remboursements">("timeline")
-  const [, startMark]    = useTransition()
-  const [, startResolve] = useTransition()
+  const [markPending, startMark]       = useTransition()
+  const [resolvePending, startResolve] = useTransition()
 
   // Dialogs
   const [eventDialog, setEventDialog]   = useState<{ open: boolean; item?: HEvent }>({ open: false })
@@ -85,16 +86,26 @@ export function HealthView({
   const [reimburseDialog, setReimburseDialog] = useState<{ open: boolean; item?: HReimbursement }>({ open: false })
 
   function markReceived(id: string) {
+    if (markPending) return
     startMark(async () => {
-      await markReimbursementReceived(id)
-      toast.success("Remboursement marqué reçu")
+      try {
+        await markReimbursementReceived(id)
+        toast.success("Remboursement marqué reçu")
+      } catch {
+        toast.error("Impossible de marquer le remboursement comme reçu. Réessayez.")
+      }
     })
   }
 
   function quickResolve(id: string) {
+    if (resolvePending) return
     startResolve(async () => {
-      await resolveHealthEvent(id)
-      toast.success("Événement marqué résolu")
+      try {
+        await resolveHealthEvent(id)
+        toast.success("Événement marqué résolu")
+      } catch {
+        toast.error("Impossible de marquer l'événement comme résolu. Réessayez.")
+      }
     })
   }
 
@@ -115,6 +126,16 @@ export function HealthView({
     ...consultations.map((c) => ({ kind: "consult"   as const, date: new Date(c.date), data: c })),
     ...reimbursements.map((r)=> ({ kind: "reimburse" as const, date: reimbursementDate(r), data: r })),
   ].sort((a, b) => b.date.getTime() - a.date.getTime())
+
+  // ── Onglets : invariants calculés une seule fois (hors du .map) ───────────────
+  const activeEvents = events.filter(e => !e.resolvedAt)
+  const tabLabels = { timeline: "Tout", blessures: "Blessures", consultations: "Consultations", remboursements: "Remboursements" }
+  const tabCounts = {
+    timeline: timeline.length,
+    blessures: activeEvents.length,
+    consultations: consultations.length,
+    remboursements: reimbursements.length,
+  }
 
   // ── Rendu d'une entrée timeline ───────────────────────────────────────────────
 
@@ -393,33 +414,23 @@ export function HealthView({
 
         {/* Tabs */}
         <div className="flex items-center gap-1 border-b border-border/50">
-          {(["timeline", "blessures", "consultations", "remboursements"] as const).map((t) => {
-            const activeEvents = events.filter(e => !e.resolvedAt)
-            const labels = { timeline: "Tout", blessures: "Blessures", consultations: "Consultations", remboursements: "Remboursements" }
-            const counts = {
-              timeline: timeline.length,
-              blessures: activeEvents.length,
-              consultations: consultations.length,
-              remboursements: reimbursements.length,
-            }
-            return (
-              <button
-                key={t}
-                onClick={() => setTab(t)}
-                className={cn(
-                  "pb-2 px-3 text-sm font-medium border-b-2 transition-colors",
-                  tab === t
-                    ? "border-primary text-foreground"
-                    : "border-transparent text-muted-foreground hover:text-foreground"
-                )}
-              >
-                {labels[t]}
-                {counts[t] > 0 && (
-                  <span className="ml-1.5 text-xs text-muted-foreground">({counts[t]})</span>
-                )}
-              </button>
-            )
-          })}
+          {(["timeline", "blessures", "consultations", "remboursements"] as const).map((t) => (
+            <button
+              key={t}
+              onClick={() => setTab(t)}
+              className={cn(
+                "pb-2 px-3 text-sm font-medium border-b-2 transition-colors",
+                tab === t
+                  ? "border-primary text-foreground"
+                  : "border-transparent text-muted-foreground hover:text-foreground"
+              )}
+            >
+              {tabLabels[t]}
+              {tabCounts[t] > 0 && (
+                <span className="ml-1.5 text-xs text-muted-foreground">({tabCounts[t]})</span>
+              )}
+            </button>
+          ))}
         </div>
 
         {/* Content */}

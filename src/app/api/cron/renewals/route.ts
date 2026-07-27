@@ -5,14 +5,25 @@
 // Sécurité : Authorization: Bearer <CRON_SECRET>
 
 import { NextRequest, NextResponse } from "next/server"
+import { timingSafeEqual } from "node:crypto"
 import { prisma } from "@/lib/prisma"
 import { createRenewalDraftInvoice } from "@/lib/renewal-invoice"
 
 export const dynamic = "force-dynamic"
 
+// Comparaison à temps constant : évite qu'une attaque temporelle reconstitue le
+// secret octet par octet (endpoint public déclenché par Vercel Cron).
+function safeEqual(a: string, b: string): boolean {
+  const bufA = Buffer.from(a)
+  const bufB = Buffer.from(b)
+  if (bufA.length !== bufB.length) return false
+  return timingSafeEqual(bufA, bufB)
+}
+
 export async function GET(req: NextRequest) {
   const secret = process.env.CRON_SECRET
-  if (!secret || req.headers.get("authorization") !== `Bearer ${secret}`) {
+  const authHeader = req.headers.get("authorization")
+  if (!secret || !authHeader || !safeEqual(authHeader, `Bearer ${secret}`)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 

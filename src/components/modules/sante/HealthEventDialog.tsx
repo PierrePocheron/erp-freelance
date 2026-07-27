@@ -19,7 +19,7 @@ export function HealthEventDialog({
 }) {
   const [isPending, start] = useTransition()
   const [date,          setDate]          = useState(toISO(item?.date) || toISO(new Date()))
-  const [type,          setType]          = useState<HealthEventType>(item?.type as HealthEventType || "INJURY")
+  const [type,          setType]          = useState<HealthEventType>(item?.type || "INJURY")
   const [title,         setTitle]         = useState(item?.title || "")
   const [description,   setDescription]   = useState(item?.description || "")
   const [bodyPart,      setBodyPart]      = useState(item?.bodyPart || "")
@@ -31,23 +31,31 @@ export function HealthEventDialog({
     e.preventDefault()
     if (!title.trim()) return
     start(async () => {
-      if (item) {
-        await updateHealthEvent(item.id, { date, type, title, description, bodyPart, resolvedAt: resolvedAt || null })
-        toast.success("Événement mis à jour")
-      } else {
-        await createHealthEvent({ date, type, title, description, bodyPart })
-        toast.success("Événement enregistré")
+      try {
+        if (item) {
+          await updateHealthEvent(item.id, { date, type, title, description, bodyPart, resolvedAt: resolvedAt || null })
+          toast.success("Événement mis à jour")
+        } else {
+          await createHealthEvent({ date, type, title, description, bodyPart })
+          toast.success("Événement enregistré")
+        }
+        onClose()
+      } catch {
+        toast.error("Échec de l'enregistrement de l'événement. Réessayez.")
       }
-      onClose()
     })
   }
 
   function handleDelete() {
     if (!item) return
     start(async () => {
-      await deleteHealthEvent(item.id)
-      toast.success("Événement supprimé")
-      onClose()
+      try {
+        await deleteHealthEvent(item.id)
+        toast.success("Événement supprimé")
+        onClose()
+      } catch {
+        toast.error("Échec de la suppression de l'événement. Réessayez.")
+      }
     })
   }
 

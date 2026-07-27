@@ -148,9 +148,16 @@ export default async function CompanyDetailPage({
   const netAmount = (inv: { totalHT: number; depositDeducted: number }) =>
     inv.totalHT - inv.depositDeducted
 
-  const totalPaid    = invoices.filter(i => i.status === "PAID").reduce((s, i) => s + netAmount(i), 0)
-  const totalPending = invoices.filter(i => i.status === "SENT").reduce((s, i) => s + netAmount(i), 0)
-  const totalLate    = invoices.filter(i => i.status === "LATE").reduce((s, i) => s + netAmount(i), 0)
+  const paidInvoices = invoices.filter(i => i.status === "PAID")
+  const sentInvoices = invoices.filter(i => i.status === "SENT")
+  const lateInvoices = invoices.filter(i => i.status === "LATE")
+  const paidCount = paidInvoices.length
+  const sentCount = sentInvoices.length
+  const lateCount = lateInvoices.length
+
+  const totalPaid    = paidInvoices.reduce((s, i) => s + netAmount(i), 0)
+  const totalPending = sentInvoices.reduce((s, i) => s + netAmount(i), 0)
+  const totalLate    = lateInvoices.reduce((s, i) => s + netAmount(i), 0)
   const totalBilled  = totalPaid + totalPending + totalLate  // émises (hors brouillon)
 
   const nbInvoices   = invoices.length
@@ -176,50 +183,6 @@ export default async function CompanyDetailPage({
   }, {})
 
   const totalEstimatedH = company.projects.reduce((s, p) => s + (p.estimatedHours ?? 0), 0)
-
-  // ── Labels / couleurs ─────────────────────────────────────────────────────────
-
-  const projectStatusLabel: Record<string, string> = {
-    ACTIVE: "En cours", COMPLETED: "Terminé", ON_HOLD: "En pause",
-    CANCELLED: "Annulé", DRAFT: "Brouillon", PAUSED: "En pause", ARCHIVED: "Archivé",
-  }
-  const projectStatusColor: Record<string, string> = {
-    ACTIVE: "text-emerald-600 bg-emerald-500/10",
-    COMPLETED: "text-blue-600 bg-blue-500/10",
-    PAUSED: "text-amber-600 bg-amber-500/10",
-    ON_HOLD: "text-amber-600 bg-amber-500/10",
-    CANCELLED: "text-red-600 bg-red-500/10",
-    ARCHIVED: "text-muted-foreground bg-muted",
-    DRAFT: "text-muted-foreground bg-muted",
-  }
-
-  const invoiceStatusLabel: Record<string, string> = {
-    DRAFT: "Brouillon", ISSUED: "Émise", SENT: "Envoyée", PAID: "Payée", LATE: "En retard",
-  }
-  const invoiceStatusColor: Record<string, string> = {
-    DRAFT: "text-muted-foreground bg-muted",
-    ISSUED: "text-violet-600 bg-violet-500/10",
-    SENT:  "text-blue-600 bg-blue-500/10",
-    PAID:  "text-emerald-600 bg-emerald-500/10",
-    LATE:  "text-red-600 bg-red-500/10",
-  }
-
-  const quoteStatusLabel: Record<string, string> = {
-    DRAFT: "Brouillon", VALIDATED: "Validé", SENT: "Envoyé",
-    ACCEPTED: "Accepté", IN_PROGRESS: "En cours", SIGNED: "Signé", REJECTED: "Refusé",
-    WAITING_DEPOSIT: "Acompte att.", DEPOSIT_RECEIVED: "Acompte reçu",
-  }
-  const quoteStatusColor: Record<string, string> = {
-    DRAFT: "text-muted-foreground bg-muted",
-    VALIDATED: "text-violet-600 bg-violet-500/10",
-    SENT: "text-blue-600 bg-blue-500/10",
-    ACCEPTED: "text-emerald-600 bg-emerald-500/10",
-    IN_PROGRESS: "text-indigo-600 bg-indigo-500/10",
-    SIGNED: "text-teal-600 bg-teal-500/10",
-    REJECTED: "text-red-600 bg-red-500/10",
-    WAITING_DEPOSIT: "text-amber-600 bg-amber-500/10",
-    DEPOSIT_RECEIVED: "text-emerald-600 bg-emerald-500/10",
-  }
 
   return (
     <div className="space-y-6">
@@ -260,7 +223,7 @@ export default async function CompanyDetailPage({
             label="CA encaissé"
             value={`${fmt(totalPaid)} €`}
             sensitive
-            sub={`${invoices.filter(i => i.status === "PAID").length} facture${invoices.filter(i => i.status === "PAID").length !== 1 ? "s" : ""} payée${invoices.filter(i => i.status === "PAID").length !== 1 ? "s" : ""}`}
+            sub={`${paidCount} facture${paidCount !== 1 ? "s" : ""} payée${paidCount !== 1 ? "s" : ""}`}
             color="emerald"
           />
           {totalPending > 0 && (
@@ -269,7 +232,7 @@ export default async function CompanyDetailPage({
               label="En attente"
               value={`${fmt(totalPending)} €`}
               sensitive
-              sub={`${invoices.filter(i => i.status === "SENT").length} envoyée${invoices.filter(i => i.status === "SENT").length !== 1 ? "s" : ""}`}
+              sub={`${sentCount} envoyée${sentCount !== 1 ? "s" : ""}`}
               color="blue"
             />
           )}
@@ -279,7 +242,7 @@ export default async function CompanyDetailPage({
               label="En retard"
               value={`${fmt(totalLate)} €`}
               sensitive
-              sub={`${invoices.filter(i => i.status === "LATE").length} facture${invoices.filter(i => i.status === "LATE").length !== 1 ? "s" : ""}`}
+              sub={`${lateCount} facture${lateCount !== 1 ? "s" : ""}`}
               color="red"
             />
           )}
@@ -833,6 +796,48 @@ const FISCAL_BUCKET_LABELS: Record<string, string> = {
   AE_URSSAF:     "AE — Déclaré URSSAF",
   NON_IMPOSABLE: "Non imposable",
   OTHER:         "Autre",
+}
+
+const projectStatusLabel: Record<string, string> = {
+  ACTIVE: "En cours", COMPLETED: "Terminé", ON_HOLD: "En pause",
+  CANCELLED: "Annulé", DRAFT: "Brouillon", PAUSED: "En pause", ARCHIVED: "Archivé",
+}
+const projectStatusColor: Record<string, string> = {
+  ACTIVE: "text-emerald-600 bg-emerald-500/10",
+  COMPLETED: "text-blue-600 bg-blue-500/10",
+  PAUSED: "text-amber-600 bg-amber-500/10",
+  ON_HOLD: "text-amber-600 bg-amber-500/10",
+  CANCELLED: "text-red-600 bg-red-500/10",
+  ARCHIVED: "text-muted-foreground bg-muted",
+  DRAFT: "text-muted-foreground bg-muted",
+}
+
+const invoiceStatusLabel: Record<string, string> = {
+  DRAFT: "Brouillon", ISSUED: "Émise", SENT: "Envoyée", PAID: "Payée", LATE: "En retard",
+}
+const invoiceStatusColor: Record<string, string> = {
+  DRAFT: "text-muted-foreground bg-muted",
+  ISSUED: "text-violet-600 bg-violet-500/10",
+  SENT:  "text-blue-600 bg-blue-500/10",
+  PAID:  "text-emerald-600 bg-emerald-500/10",
+  LATE:  "text-red-600 bg-red-500/10",
+}
+
+const quoteStatusLabel: Record<string, string> = {
+  DRAFT: "Brouillon", VALIDATED: "Validé", SENT: "Envoyé",
+  ACCEPTED: "Accepté", IN_PROGRESS: "En cours", SIGNED: "Signé", REJECTED: "Refusé",
+  WAITING_DEPOSIT: "Acompte att.", DEPOSIT_RECEIVED: "Acompte reçu",
+}
+const quoteStatusColor: Record<string, string> = {
+  DRAFT: "text-muted-foreground bg-muted",
+  VALIDATED: "text-violet-600 bg-violet-500/10",
+  SENT: "text-blue-600 bg-blue-500/10",
+  ACCEPTED: "text-emerald-600 bg-emerald-500/10",
+  IN_PROGRESS: "text-indigo-600 bg-indigo-500/10",
+  SIGNED: "text-teal-600 bg-teal-500/10",
+  REJECTED: "text-red-600 bg-red-500/10",
+  WAITING_DEPOSIT: "text-amber-600 bg-amber-500/10",
+  DEPOSIT_RECEIVED: "text-emerald-600 bg-emerald-500/10",
 }
 
 // ── Composant KPI ─────────────────────────────────────────────────────────────

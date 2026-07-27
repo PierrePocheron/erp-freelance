@@ -8,7 +8,8 @@ import { toast } from "sonner"
 import { useSortState, cmp } from "@/hooks/use-sortable"
 import { Th } from "@/components/ui/sortable-header"
 import { markProspectsContacted, updateProspectsStatusBulk, deleteProspects } from "@/actions/prospection"
-import { renderTemplate, stripMarkdown } from "@/lib/email-template"
+import { renderTemplate } from "@/lib/email-template"
+import { gmailComposeUrl } from "@/lib/gmail"
 import { STATUS_CONFIG, ALL_STATUSES, WEBSITE_TYPE_CONFIG, SOURCE_LABELS } from "./status-config"
 import { ProspectStatusSelect } from "./ProspectStatusSelect"
 import { ProspectInterestSelect } from "./ProspectInterestSelect"
@@ -193,11 +194,12 @@ export function ProspectionTable({
   const safePage = Math.min(page, totalPages)
   const paged = pageSize === 0 ? filtered : filtered.slice((safePage - 1) * pageSize, safePage * pageSize)
 
-  // Reset pagination quand les filtres changent
+  // Reset pagination quand les filtres changent (statusFilter est déjà remis à 1
+  // au rendu via prevFilterKey, inutile ici).
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setPage(1)
-  }, [statusFilter, siteTypeFilter, sourceFilter, needle])
+  }, [siteTypeFilter, sourceFilter, interestFilter, needle])
 
   // ── Sélection ─────────────────────────────────────────────────────────────
   const pagedIds = paged.map((p) => p.id)
@@ -247,14 +249,7 @@ export function ProspectionTable({
       return
     }
     const rendered = renderTemplate(template, p)
-    const params = new URLSearchParams({
-      view: "cm",
-      fs: "1",
-      to: p.email,
-      su: rendered.subject,
-      body: stripMarkdown(rendered.body),
-    })
-    window.open(`https://mail.google.com/mail/?${params.toString()}`, "_blank", "noopener,noreferrer")
+    window.open(gmailComposeUrl({ to: p.email, subject: rendered.subject, body: rendered.body }), "_blank", "noopener,noreferrer")
     if (rendered.missing.length > 0) toast.warning(`Mail généré pour ${p.name} — variables vides : ${rendered.missing.join(", ")}`)
     else toast.success(`Mail généré pour ${p.name}`)
   }

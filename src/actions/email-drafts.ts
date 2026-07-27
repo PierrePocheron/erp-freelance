@@ -226,6 +226,22 @@ export async function markDraftSentManually(id: string) {
   revalidateDraftPaths()
 }
 
+/**
+ * Note (ou efface) une erreur de distribution sur un brouillon : le mail est
+ * bien parti mais a été rejeté / non distribué (bounce). `note` vide/null efface
+ * l'erreur. Scopé par userId (anti-IDOR).
+ */
+export async function setDraftDeliveryError(id: string, note: string | null) {
+  const userId = await requireAuth()
+  const trimmed = note?.trim() || null
+  const { count } = await prisma.emailDraft.updateMany({
+    where: { id, userId },
+    data: { deliveryError: trimmed },
+  })
+  if (count === 0) throw new Error("Brouillon introuvable")
+  revalidateDraftPaths()
+}
+
 // ── Envoi des brouillons relus (Resend) ──────────────────────────────────────
 
 const RESEND_BATCH_SIZE = 100 // limite de l'API batch Resend

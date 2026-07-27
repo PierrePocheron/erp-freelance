@@ -101,6 +101,24 @@ function getDisplayColor(node: RawNode): string {
   return nodeColor(node)
 }
 
+// Choisit un texte noir ou blanc selon la luminance du fond pour rester lisible
+// (WCAG AA) sur les badges de statut : certaines couleurs sont très pâles
+// (#fed7aa, #a7f3d0, #99f6e4…) et rendaient le texte blanc illisible, d'autres
+// sont sombres (#7c3aed, #6b7280) et exigent du blanc. Seuil de croisement WCAG
+// black/white ≈ 0.179 sur la luminance relative sRGB.
+function readableTextColor(hex: string): string {
+  const h = hex.replace("#", "")
+  const toLin = (c: number) => {
+    const s = c / 255
+    return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4
+  }
+  const lum =
+    0.2126 * toLin(parseInt(h.slice(0, 2), 16)) +
+    0.7152 * toLin(parseInt(h.slice(2, 4), 16)) +
+    0.0722 * toLin(parseInt(h.slice(4, 6), 16))
+  return lum > 0.179 ? "#0f172a" : "#ffffff"
+}
+
 // ── Main component ────────────────────────────────────────────────────────────
 
 export function GraphView({ rawNodes, rawLinks }: { rawNodes: RawNode[]; rawLinks: RawLink[] }) {
@@ -589,7 +607,7 @@ export function GraphView({ rawNodes, rawLinks }: { rawNodes: RawNode[]; rawLink
             <Maximize2 className="h-3.5 w-3.5" />
             Centrer
           </button>
-          <p className="text-[10px] text-muted-foreground/50 leading-tight">
+          <p className="text-xs text-muted-foreground/80 leading-tight">
             Clic — panneau<br/>Double-clic — réduire
           </p>
         </div>
@@ -667,8 +685,11 @@ export function GraphView({ rawNodes, rawLinks }: { rawNodes: RawNode[]; rawLink
                 <div className="flex items-center gap-2">
                   <span className="text-xs text-muted-foreground">Statut</span>
                   <span
-                    className="inline-block rounded-full px-2 py-0.5 text-[10px] font-medium text-white"
-                    style={{ backgroundColor: getDisplayColor(selected) + "cc" }}
+                    className="inline-block rounded-full px-2 py-0.5 text-[10px] font-medium"
+                    style={{
+                      backgroundColor: getDisplayColor(selected),
+                      color: readableTextColor(getDisplayColor(selected)),
+                    }}
                   >
                     {STATUS_FR[selected.status] ?? selected.status}
                   </span>

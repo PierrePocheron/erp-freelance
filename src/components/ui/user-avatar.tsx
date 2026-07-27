@@ -7,8 +7,8 @@ type Size = "xs" | "sm" | "md" | "lg"
 type Variant = "primary" | "muted"
 
 const sizeClass: Record<Size, string> = {
-  xs: "h-5 w-5 text-[8px]",
-  sm: "h-6 w-6 text-[9px]",
+  xs: "h-5 w-5 text-[10px]",
+  sm: "h-6 w-6 text-xs",
   md: "h-8 w-8 text-xs",
   lg: "h-10 w-10 text-sm",
 }

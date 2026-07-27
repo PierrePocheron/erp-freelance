@@ -425,7 +425,7 @@ export function FacturesListView({
               >
                 {f.label}
                 {f.value !== "ALL" && (
-                  <span className="ml-1 text-[10px] opacity-60">
+                  <span className="ml-1 text-xs">
                     ({invoices.filter((i) => i.status === f.value).length})
                   </span>
                 )}

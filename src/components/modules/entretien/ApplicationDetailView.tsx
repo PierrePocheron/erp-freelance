@@ -146,8 +146,8 @@ function PipelineStepper({ status }: { status: string }) {
                 "bg-muted border-border/50"
               )} />
               <span className={cn(
-                "text-[9px] font-medium whitespace-nowrap px-0.5",
-                current ? "text-foreground" : done ? "text-muted-foreground" : "text-muted-foreground/40"
+                "text-xs font-medium whitespace-nowrap px-0.5",
+                current ? "text-foreground" : done ? "text-muted-foreground" : "text-muted-foreground"
               )}>
                 {cfg.short}
               </span>
@@ -164,7 +164,7 @@ function PipelineStepper({ status }: { status: string }) {
       {isOutcome && outcomeCfg && (
         <div className="flex flex-col items-center gap-0.5 shrink-0">
           <div className={cn("h-2 w-2 rounded-full border-transparent ring-2 ring-offset-1 ring-current/40 scale-125", outcomeCfg.dot)} />
-          <span className="text-[9px] font-medium text-foreground whitespace-nowrap px-0.5">
+          <span className="text-xs font-medium text-foreground whitespace-nowrap px-0.5">
             {outcomeCfg.short}
           </span>
         </div>

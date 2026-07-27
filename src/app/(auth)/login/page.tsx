@@ -63,7 +63,7 @@ export default function LoginPage() {
 
           <GoogleSignInButton />
 
-          <p className="text-center text-xs text-muted-foreground/50">
+          <p className="text-center text-xs text-muted-foreground">
             Accès privé · données jamais partagées
           </p>
         </div>

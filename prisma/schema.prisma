@@ -1159,6 +1159,9 @@ model EmailDraft {
   missingVars String?          // clés {{var}} restées vides à la génération, séparées par des virgules
   status      EmailDraftStatus @default(DRAFT)
   sentAt      DateTime?
+  // Erreur de distribution notée manuellement après envoi (email rejeté / non
+  // distribué). Non-null = le mail a bouncé ; le texte est le détail affiché.
+  deliveryError String?
   createdAt   DateTime         @default(now())
   updatedAt   DateTime         @updatedAt
 

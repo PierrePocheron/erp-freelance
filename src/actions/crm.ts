@@ -481,32 +481,3 @@ export async function deleteReminder(reminderId: string, clientId: string) {
   revalidatePath(`/contacts/${clientId}`)
 }
 
-// ── Panel ─────────────────────────────────────────────────────────────────────
-
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-export async function getClientPanel(clientId: string, _userId: string) {
-  const userId = await requireAuth()
-  return prisma.client.findFirst({
-    where: { id: clientId, userId },
-    include: {
-      interactions: { orderBy: { date: "desc" }, take: 3 },
-      reminders: { where: { isDone: false }, orderBy: { dueDate: "asc" }, take: 3 },
-      projects: {
-        orderBy: { createdAt: "desc" },
-        take: 5,
-        select: { id: true, name: true, status: true },
-      },
-      invoices: {
-        orderBy: { createdAt: "desc" },
-        take: 5,
-        select: { id: true, number: true, status: true, totalHT: true, depositDeducted: true, createdAt: true },
-      },
-      quotes: {
-        orderBy: { createdAt: "desc" },
-        take: 5,
-        select: { id: true, number: true, status: true, totalHT: true, createdAt: true },
-      },
-      _count: { select: { interactions: true, projects: true, invoices: true, quotes: true } },
-    },
-  })
-}

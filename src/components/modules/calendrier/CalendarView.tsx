@@ -1719,6 +1719,7 @@ function MonthView({
                       e.stopPropagation()
                       onEventClick(ev)
                     }}
+                    title={ev.isLate ? "En retard" : undefined}
                     className={cn(
                       "flex items-center gap-1 rounded px-1 py-px text-[10px] leading-tight truncate cursor-pointer hover:opacity-80 group",
                       ev.isLate ? "bg-red-500/10" : "bg-muted/50",

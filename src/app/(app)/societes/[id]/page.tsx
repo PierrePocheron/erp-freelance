@@ -508,12 +508,21 @@ export default async function CompanyDetailPage({
                 {tasks.map((t) => (
                   <div key={t.id} className="flex items-center gap-3 px-5 py-3 hover:bg-muted/30 transition-colors">
                     {/* Priorité */}
-                    <span className={`h-1.5 w-1.5 rounded-full shrink-0 ${
-                      t.priority === "URGENT" ? "bg-red-500" :
-                      t.priority === "HIGH"   ? "bg-amber-500" :
-                      t.priority === "MEDIUM" ? "bg-blue-400" :
-                      "bg-muted-foreground/40"
-                    }`} />
+                    <span
+                      role="img"
+                      aria-label={`Priorité ${
+                        t.priority === "URGENT" ? "urgente" :
+                        t.priority === "HIGH"   ? "haute" :
+                        t.priority === "MEDIUM" ? "moyenne" :
+                        "basse"
+                      }`}
+                      className={`h-1.5 w-1.5 rounded-full shrink-0 ${
+                        t.priority === "URGENT" ? "bg-red-500" :
+                        t.priority === "HIGH"   ? "bg-amber-500" :
+                        t.priority === "MEDIUM" ? "bg-blue-400" :
+                        "bg-muted-foreground/40"
+                      }`}
+                    />
                     <div className="flex-1 min-w-0">
                       <p className="text-sm truncate">{t.title}</p>
                       {(t.project || t.client) && (

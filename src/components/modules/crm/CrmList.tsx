@@ -202,7 +202,10 @@ function CardItem({ client, showBilling }: { client: Client; showBilling: boolea
         {nextReminder && (
           <>
             <span className="text-border">·</span>
-            <span className={new Date(nextReminder.dueDate) < new Date() ? "text-red-500 font-medium" : "text-amber-600"}>
+            <span
+              className={new Date(nextReminder.dueDate) < new Date() ? "text-red-500 font-medium" : "text-amber-600"}
+              title={new Date(nextReminder.dueDate) < new Date() ? "En retard" : undefined}
+            >
               ⏰ {fmtShort(nextReminder.dueDate)}
             </span>
           </>

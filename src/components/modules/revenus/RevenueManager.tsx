@@ -1342,6 +1342,7 @@ export function RevenueManager({
                       <td className="px-5 py-3 text-center text-muted-foreground hidden md:table-cell">{rec._count.revenues}</td>
                       <td className="px-5 py-3 text-center">
                         <span className={`inline-block h-2 w-2 rounded-full ${rec.isActive ? "bg-emerald-500" : "bg-muted-foreground/30"}`} />
+                        <span className="sr-only">{rec.isActive ? "Actif" : "Inactif"}</span>
                       </td>
                       <td className="px-5 py-3 text-right">
                         <div className="flex items-center justify-end gap-1.5">

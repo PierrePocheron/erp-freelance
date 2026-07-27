@@ -140,11 +140,13 @@ export function TaskEditSheet({ task, open, onOpenChange }: {
 
           <div className="space-y-1.5">
             <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Priorité</label>
-            <div className="flex gap-2">
+            <div className="flex gap-2" role="radiogroup" aria-label="Priorité">
               {(["LOW", "MEDIUM", "HIGH", "URGENT"] as const).map((p) => (
                 <button
                   key={p}
                   type="button"
+                  role="radio"
+                  aria-checked={priority === p}
                   onClick={() => setPriority(p)}
                   className={cn(
                     "flex-1 rounded-lg border py-1.5 text-xs font-medium transition-all",
@@ -159,11 +161,13 @@ export function TaskEditSheet({ task, open, onOpenChange }: {
 
           <div className="space-y-1.5">
             <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Importance</label>
-            <div className="flex gap-2">
+            <div className="flex gap-2" role="radiogroup" aria-label="Importance">
               {[1, 2, 3, 4].map((n) => (
                 <button
                   key={n}
                   type="button"
+                  role="radio"
+                  aria-checked={importance === n}
                   onClick={() => setImportance(n)}
                   className={cn(
                     "flex-1 rounded-lg border py-1.5 text-xs font-bold transition-all",

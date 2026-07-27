@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useTransition, useEffect } from "react"
+import { useState, useTransition, useEffect, useRef } from "react"
 import { Bell, X, CheckCheck } from "lucide-react"
 import Link from "next/link"
 import { cn } from "@/lib/utils"
@@ -39,16 +39,26 @@ export function NotificationBell({
   const [open, setOpen] = useState(false)
   const [isPending, startTransition] = useTransition()
   const router = useRouter()
+  const bellRef = useRef<HTMLButtonElement>(null)
+  const panelRef = useRef<HTMLDivElement>(null)
 
   const unreadCount = notifications.filter((n) => !n.isRead).length
 
   useEffect(() => {
     if (!open) return
+    // Ouverture : focus déplacé dans le panneau (gestion du focus du dialog).
+    panelRef.current?.focus()
+    const bell = bellRef.current // capturé pour le cleanup (bouton stable)
     function onKeyDown(e: KeyboardEvent) {
       if (e.key === "Escape") setOpen(false)
     }
     document.addEventListener("keydown", onKeyDown)
-    return () => document.removeEventListener("keydown", onKeyDown)
+    return () => {
+      document.removeEventListener("keydown", onKeyDown)
+      // Fermeture : retour du focus à la cloche (le cleanup ne s'exécute qu'au
+      // passage ouvert → fermé, jamais au montage initial).
+      bell?.focus()
+    }
   }, [open])
 
   function handleMarkRead(id: string) {
@@ -73,6 +83,7 @@ export function NotificationBell({
   return (
     <div className="relative">
       <button
+        ref={bellRef}
         type="button"
         onClick={() => setOpen((v) => !v)}
         className={cn(
@@ -102,9 +113,11 @@ export function NotificationBell({
 
           {/* Panel */}
           <div
+            ref={panelRef}
             role="dialog"
             aria-label="Notifications"
-            className="absolute right-0 top-10 z-50 w-80 rounded-xl border border-border bg-popover shadow-xl overflow-hidden"
+            tabIndex={-1}
+            className="absolute right-0 top-10 z-50 w-80 rounded-xl border border-border bg-popover shadow-xl overflow-hidden outline-none"
           >
             <div className="flex items-center justify-between px-4 py-3 border-b border-border">
               <span className="text-sm font-semibold">

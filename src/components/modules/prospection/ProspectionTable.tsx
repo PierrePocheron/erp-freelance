@@ -301,6 +301,7 @@ export function ProspectionTable({
       <div className="flex flex-wrap items-center gap-1.5">
         <button
           onClick={() => setStatusFilter("ALL")}
+          aria-pressed={statusFilter === "ALL"}
           className={cn(
             "rounded-full border px-2.5 py-0.5 text-xs font-medium transition-colors",
             statusFilter === "ALL" ? "bg-primary text-primary-foreground border-primary" : "border-border text-muted-foreground hover:bg-muted"
@@ -312,6 +313,7 @@ export function ProspectionTable({
           <button
             key={s}
             onClick={() => setStatusFilter(statusFilter === s ? "ALL" : s)}
+            aria-pressed={statusFilter === s}
             className={cn(
               "rounded-full border px-2.5 py-0.5 text-xs font-medium transition-opacity hover:opacity-80",
               STATUS_CONFIG[s].cls,

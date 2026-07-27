@@ -89,9 +89,10 @@ export function ProdMonitorCard({ prods }: { prods: ProdStatus[] }) {
           <div className="p-2 space-y-0.5">
             {prods.map(p => {
               const dot = p.isUp === true ? "bg-emerald-500" : p.isUp === false ? "bg-red-500" : "bg-muted-foreground/40"
+              const dotLabel = p.isUp === true ? "En ligne" : p.isUp === false ? "Hors ligne" : "Inconnu"
               return (
                 <div key={p.id} className="flex items-center gap-3 rounded-lg px-3 py-2 hover:bg-muted/50 transition-colors group">
-                  <span className={`h-2 w-2 rounded-full shrink-0 ${dot}`} />
+                  <span className={`h-2 w-2 rounded-full shrink-0 ${dot}`} title={dotLabel} aria-label={dotLabel} role="img" />
                   <Link href={`/projets/${p.projectId}/post-dev`} className="flex-1 min-w-0">
                     <p className="text-sm font-medium truncate">{p.name}</p>
                     <p className="text-xs text-muted-foreground truncate">

@@ -677,6 +677,7 @@ export function GlobalTasksView({
               <button
                 key={s}
                 onClick={() => setStatusFilter(s)}
+                aria-pressed={statusFilter === s}
                 className={cn(
                   "px-3 py-1.5 border-r last:border-r-0 border-border transition-colors",
                   statusFilter === s ? "bg-accent font-medium" : "text-muted-foreground hover:bg-muted/50"
@@ -711,6 +712,7 @@ export function GlobalTasksView({
                 <button
                   key={tag.id}
                   onClick={() => toggleTag(tag.id)}
+                  aria-pressed={active}
                   className={cn(
                     "flex items-center gap-1 rounded-full px-2 py-0.5 text-xs border transition-all",
                     active ? "opacity-100" : "opacity-50 hover:opacity-80"

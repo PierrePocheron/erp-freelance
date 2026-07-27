@@ -627,7 +627,7 @@ export default async function CompanyDetailPage({
                       <span className={`h-1.5 w-1.5 rounded-full shrink-0 ${cfg.dot}`} />
                       <div className="flex-1 min-w-0">
                         <p className="text-xs font-medium truncate">{a.position}</p>
-                        <p className="text-[10px] text-muted-foreground truncate">{a.companyName}</p>
+                        <p className="text-xs text-muted-foreground truncate">{a.companyName}</p>
                       </div>
                       <span className={`text-[10px] rounded-full border px-1.5 py-0.5 shrink-0 ${cfg.cls}`}>
                         {cfg.short}

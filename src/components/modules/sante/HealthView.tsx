@@ -203,7 +203,7 @@ export function HealthView({
             <p className="text-sm font-semibold group-hover:text-primary transition-colors">{c.practitionerName}</p>
             <p className="text-xs text-muted-foreground">{c.title}</p>
             {c.healthEvent && (
-              <p className="text-[10px] text-muted-foreground/60 mt-0.5">
+              <p className="text-xs text-muted-foreground mt-0.5">
                 🩸 {c.healthEvent.title}
               </p>
             )}

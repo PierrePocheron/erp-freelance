@@ -1986,7 +1986,7 @@ function TimeGridView({
           {Array.from({ length: HOUR_END - HOUR_START }, (_, i) => (
             <div key={i} style={{ top: i * HOUR_HEIGHT }}
               className="absolute w-full flex items-start justify-end pr-2 pt-0.5">
-              <span className="text-[10px] text-muted-foreground/50 tabular-nums leading-none">
+              <span className="text-[10px] text-muted-foreground/70 tabular-nums leading-none">
                 {String(HOUR_START + i).padStart(2, "0")}h
               </span>
             </div>

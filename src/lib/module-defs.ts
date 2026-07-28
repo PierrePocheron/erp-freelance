@@ -14,6 +14,7 @@ export type ModuleId =
   | "entretien"
   | "impots"
   | "depenses"
+  | "competences"
 
 export type ModuleCategory = "core" | "recommended" | "bonus"
 
@@ -84,6 +85,10 @@ export const MODULE_DEFS: ModuleDef[] = [
   {
     id: "depenses", label: "Dépenses", icon: "💸", category: "bonus", defaultActive: false,
     description: "Suivi des dépenses récurrentes et ponctuelles, pro et perso, par catégorie",
+  },
+  {
+    id: "competences", label: "Compétences", icon: "🧠", category: "bonus", defaultActive: false,
+    description: "Connaissances & compétences (hard/soft) reliées aux projets, entretiens et questions techniques",
   },
 ]
 

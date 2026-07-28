@@ -56,6 +56,8 @@ model User {
   jobApplications     JobApplication[]
   urssafDeclarations  UrssafDeclaration[]
   emailDrafts         EmailDraft[]
+  skills              Skill[]
+  interviewQuestions  InterviewQuestion[]
 }
 
 model ProjectIdea {
@@ -605,6 +607,7 @@ model Project {
   members           ProjectMember[]
   revenues          Revenue[]          @relation("RevenueProject")
   recurringRevenues RecurringRevenue[] @relation("RecurringRevenueProject")
+  skills            ProjectSkill[]
 
   @@index([companyId])
 }
@@ -694,6 +697,7 @@ model Task {
   // Rappel de déclaration URSSAF auto-généré : "2026-T2". Marquée DONE
   // automatiquement quand la déclaration correspondante est déclarée/payée.
   urssafPeriod   String?
+  skillId        String?      // bloc « Travailler cette compétence » (module Compétences)
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
 
@@ -705,6 +709,7 @@ model Task {
   subTasks    Task[]       @relation("SubTasks")
   timeEntries TimeEntry[]
   taskTags    TaskTag[]    @relation("TaskToTaskTag")
+  skill       Skill?       @relation(fields: [skillId], references: [id], onDelete: SetNull)
 
   @@index([userId, urssafPeriod])
 }
@@ -1614,6 +1619,8 @@ model JobApplication {
   contact Client?               @relation("RecruiterApplications", fields: [contactId], references: [id], onDelete: SetNull)
   events  JobApplicationEvent[]
   usedAnswers InterviewAnswer[] @relation("AnswerApplications") // modèles/réponses utilisés sur ce process
+  requiredSkills JobApplicationSkill[]  // stack demandée par le poste
+  questions      InterviewQuestion[]    // questions posées lors de ce process
 
   @@index([userId])
   @@index([companyId])
@@ -1715,4 +1722,118 @@ model UrssafDeclarationLine {
   revenue     Revenue?          @relation(fields: [revenueId], references: [id], onDelete: SetNull)
 
   @@index([declarationId])
+}
+
+// ─── Compétences & connaissances ──────────────────────────────────────────────
+
+enum SkillType {
+  HARD
+  SOFT
+}
+
+enum SkillStatus {
+  TO_ACQUIRE // à acquérir
+  LEARNING   // en cours d'acquisition
+  MASTERED   // maîtrisée
+}
+
+enum ProjectSkillRole {
+  USED       // techno réellement utilisée sur le projet
+  TO_ACQUIRE // compétence à acquérir via ce projet
+}
+
+enum QuestionStatus {
+  TO_REVIEW
+  REVIEWED
+}
+
+/// Compétence (hard ou soft), organisée en arbre : Catégorie › Techno › Sous-sujet.
+model Skill {
+  id              String      @id @default(cuid())
+  userId          String
+  parentId        String?     // arbre (null = racine / catégorie de plus haut niveau)
+  name            String
+  type            SkillType   @default(HARD)
+  level           Int         @default(0)  // 0 Aucune · 1 Notions · 2 Junior · 3 Confirmé · 4 Avancé · 5 Expert
+  targetVersion   String?     // version visée sur le nœud (ex. "Spring 4")
+  status          SkillStatus @default(TO_ACQUIRE)
+  yearsExperience Float?      // années d'expérience
+  notes           String?     // notes / ressources (base de connaissances)
+  sortOrder       Int         @default(0)
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  user     User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  parent   Skill?  @relation("SkillTree", fields: [parentId], references: [id], onDelete: SetNull)
+  children Skill[] @relation("SkillTree")
+
+  projects        ProjectSkill[]
+  jobApplications JobApplicationSkill[]
+  questions       QuestionSkill[]
+  tasks           Task[]
+
+  @@index([userId])
+  @@index([parentId])
+}
+
+/// Lien Projet ↔ Compétence : version réellement utilisée + rôle (utilisée / à acquérir).
+model ProjectSkill {
+  id        String           @id @default(cuid())
+  projectId String
+  skillId   String
+  version   String?          // version utilisée dans CE projet (ex. "4 + FRN")
+  role      ProjectSkillRole @default(USED)
+  note      String?
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  skill   Skill   @relation(fields: [skillId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, skillId])
+  @@index([skillId])
+}
+
+/// Lien Entretien ↔ Compétence : stack demandée par le poste.
+model JobApplicationSkill {
+  id            String @id @default(cuid())
+  applicationId String
+  skillId       String
+
+  application JobApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  skill       Skill          @relation(fields: [skillId], references: [id], onDelete: Cascade)
+
+  @@unique([applicationId, skillId])
+  @@index([skillId])
+}
+
+/// Question technique (d'entretien ou de culture) à retenir / revoir.
+model InterviewQuestion {
+  id            String         @id @default(cuid())
+  userId        String
+  applicationId String?        // entretien d'où provient la question
+  question      String
+  answer        String?        // réponse / notes à revoir
+  difficulty    Int?           // 1 facile · 2 moyen · 3 difficile
+  status        QuestionStatus @default(TO_REVIEW)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  user        User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  application JobApplication? @relation(fields: [applicationId], references: [id], onDelete: SetNull)
+  skills      QuestionSkill[]
+
+  @@index([userId])
+  @@index([applicationId])
+}
+
+/// Lien Question ↔ Compétence (le(s) thème(s) de la question).
+model QuestionSkill {
+  id         String @id @default(cuid())
+  questionId String
+  skillId    String
+
+  question InterviewQuestion @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  skill    Skill             @relation(fields: [skillId], references: [id], onDelete: Cascade)
+
+  @@unique([questionId, skillId])
+  @@index([skillId])
 }

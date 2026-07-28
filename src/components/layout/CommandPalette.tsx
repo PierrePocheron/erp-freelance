@@ -36,6 +36,7 @@ const ALL_NAV_ITEMS: NavItem[] = [
   { label: "Graph",                href: "/graph",                  icon: "🕸️", keywords: ["graph", "graphe", "reseau", "réseau", "relation", "network"],                                   moduleId: "graph"       },
   { label: "Santé",                href: "/sante",                  icon: "🏥", keywords: ["sante", "santé", "medecin", "médecin", "consultation", "blessure", "maladie", "remboursement"], moduleId: "sante"       },
   { label: "Entretiens",           href: "/entretiens",             icon: "💼", keywords: ["entretien", "candidature", "job", "emploi", "recrutement", "interview"],                        moduleId: "entretien"   },
+  { label: "Compétences",          href: "/competences",            icon: "🧠", keywords: ["competence", "compétence", "connaissance", "techno", "technologie", "skill", "stack", "question", "apprendre", "hard skill", "soft skill"], moduleId: "competences" },
   { label: "Paramètres",           href: "/settings",               icon: "⚙️", keywords: ["parametres", "settings", "profil", "logo", "couleur", "iban", "siret", "entreprise", "conditions", "cgv"] },
 ]
 
@@ -54,6 +55,7 @@ const TYPE_ICON: Record<string, string> = {
   recurring_expense:    "🔁",
   prospect:             "🎯",
   revenue:              "💰",
+  skill:                "🧠",
 }
 
 const TYPE_LABEL: Record<string, string> = {
@@ -71,6 +73,7 @@ const TYPE_LABEL: Record<string, string> = {
   recurring_expense:    "Dépense récurrente",
   prospect:             "Prospect",
   revenue:              "Revenu",
+  skill:                "Compétence",
 }
 
 /**

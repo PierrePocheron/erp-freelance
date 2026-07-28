@@ -2,7 +2,7 @@ import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { notFound } from "next/navigation"
 import Link from "next/link"
-import { ChevronLeft } from "lucide-react"
+import { ChevronLeft, Briefcase } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { ProjectSkillManager } from "@/components/modules/competences/ProjectSkillManager"
 import { SKILL_STATUS_META, SKILL_TYPE_META, levelLabel } from "@/components/modules/competences/skill-config"
@@ -17,6 +17,7 @@ export default async function SkillDetailPage({ params }: { params: Promise<{ id
     include: {
       parent: { select: { id: true, name: true } },
       projects: { include: { project: { select: { id: true, name: true } } } },
+      jobApplications: { include: { application: { select: { id: true, companyName: true, position: true } } } },
     },
   })
   if (!skill) notFound()
@@ -71,6 +72,21 @@ export default async function SkillDetailPage({ params }: { params: Promise<{ id
       )}
 
       <ProjectSkillManager skillId={skill.id} links={links} allProjects={allProjects} />
+
+      {skill.jobApplications.length > 0 && (
+        <section className="space-y-2">
+          <h2 className="text-sm font-semibold flex items-center gap-2"><Briefcase className="h-4 w-4" /> Entretiens qui la demandent</h2>
+          <div className="rounded-xl border border-border/50 divide-y divide-border/40 overflow-hidden">
+            {skill.jobApplications.map((js) => (
+              <Link key={js.application.id} href={`/entretiens/${js.application.id}`}
+                className="flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted/30">
+                <span className="font-medium truncate">{js.application.companyName}</span>
+                {js.application.position && <span className="text-xs text-muted-foreground truncate">· {js.application.position}</span>}
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
     </div>
   )
 }

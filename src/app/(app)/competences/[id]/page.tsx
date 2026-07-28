@@ -5,6 +5,7 @@ import Link from "next/link"
 import { ChevronLeft, Briefcase, HelpCircle } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { ProjectSkillManager } from "@/components/modules/competences/ProjectSkillManager"
+import { SkillWorkButton } from "@/components/modules/competences/SkillWorkButton"
 import { SKILL_STATUS_META, SKILL_TYPE_META, levelLabel } from "@/components/modules/competences/skill-config"
 
 export default async function SkillDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -42,13 +43,16 @@ export default async function SkillDetailPage({ params }: { params: Promise<{ id
         <Link href="/competences" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground mb-3">
           <ChevronLeft className="h-4 w-4" /> Compétences
         </Link>
-        <div className="flex items-center gap-3 flex-wrap">
-          <span className="text-xl" aria-hidden>{typeMeta.icon}</span>
-          <h1 className="text-2xl font-bold tracking-tight">{skill.name}</h1>
-          {skill.targetVersion && (
-            <span className="text-xs font-mono text-muted-foreground rounded border border-border px-1.5 py-0.5">v{skill.targetVersion}</span>
-          )}
-          <span className={cn("inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium", st.cls)}>{st.label}</span>
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex items-center gap-3 flex-wrap">
+            <span className="text-xl" aria-hidden>{typeMeta.icon}</span>
+            <h1 className="text-2xl font-bold tracking-tight">{skill.name}</h1>
+            {skill.targetVersion && (
+              <span className="text-xs font-mono text-muted-foreground rounded border border-border px-1.5 py-0.5">v{skill.targetVersion}</span>
+            )}
+            <span className={cn("inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium", st.cls)}>{st.label}</span>
+          </div>
+          <SkillWorkButton skillId={skill.id} skillName={skill.name} />
         </div>
         {skill.parent && (
           <p className="text-sm text-muted-foreground mt-1">

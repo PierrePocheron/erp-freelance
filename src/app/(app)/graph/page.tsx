@@ -10,7 +10,7 @@ export default async function GraphPage() {
   if (!session) redirect("/login")
   const userId = session.user.id
 
-  const [companies, clients, projects, projectContactLinks, invoices, quotes, fiscalSources, revenues, applications] = await Promise.all([
+  const [companies, clients, projects, projectContactLinks, invoices, quotes, fiscalSources, revenues, applications, skills, questions] = await Promise.all([
     prisma.company.findMany({
       where: { userId },
       select: { id: true, name: true, city: true, website: true },
@@ -63,6 +63,23 @@ export default async function GraphPage() {
       select: {
         id: true, companyName: true, position: true, status: true,
         companyId: true, contactId: true, salaryMin: true, salaryMax: true,
+      },
+      orderBy: { createdAt: "asc" },
+    }),
+    prisma.skill.findMany({
+      where: { userId },
+      select: {
+        id: true, name: true, type: true, level: true, status: true, parentId: true, targetVersion: true,
+        projects: { select: { projectId: true } },
+        jobApplications: { select: { applicationId: true } },
+      },
+      orderBy: { name: "asc" },
+    }),
+    prisma.interviewQuestion.findMany({
+      where: { userId },
+      select: {
+        id: true, question: true, status: true, difficulty: true, applicationId: true,
+        skills: { select: { skillId: true } },
       },
       orderBy: { createdAt: "asc" },
     }),
@@ -509,6 +526,98 @@ export default async function GraphPage() {
         },
       })
       links.push({ source: platId, target: `revenue-${rev.id}` })
+    }
+  }
+
+  // ── Compétences & questions (module « Connaissances & compétences ») ───────
+  // Hub « Compétences » (replié par défaut, comme Prospection) → arbre des
+  // compétences (self-relation parentId) → arêtes transverses vers les projets
+  // qui les utilisent et les entretiens qui les demandent. Les questions
+  // techniques se rattachent à leur 1ʳᵉ compétence liée (sinon l'entretien).
+  if (skills.length > 0) {
+    const existingIds  = new Set(nodes.map(n => n.id))   // projets / entretiens déjà présents
+    const skillNodeIds = new Set(skills.map(s => `skill-${s.id}`))
+    const skillIdSet   = new Set(skills.map(s => s.id))
+    const hubId = "hub-competences"
+
+    nodes.push({
+      id:       hubId,
+      type:     "SOURCE",
+      label:    "Compétences",
+      parentId: null,
+      defaultCollapsed: true,
+      meta: {
+        href:     "/competences",
+        color:    "#a3e635", // lime — identique aux nœuds SKILL
+        subtitle: `${skills.length} compétence${skills.length > 1 ? "s" : ""}`,
+        details: [{ label: "Compétences", value: String(skills.length) }],
+      },
+    })
+
+    for (const s of skills) {
+      const nodeId = `skill-${s.id}`
+      // Parent = compétence parente (arbre) si elle existe, sinon le hub
+      const parentSkill = s.parentId ? `skill-${s.parentId}` : null
+      const parentId = parentSkill && skillNodeIds.has(parentSkill) ? parentSkill : hubId
+      nodes.push({
+        id:       nodeId,
+        type:     "SKILL",
+        label:    s.name,
+        parentId,
+        status:   s.status,
+        meta: {
+          href:     `/competences/${s.id}`,
+          subtitle: s.type === "SOFT" ? "Soft skill" : `Niveau ${s.level}/5`,
+          details: [
+            { label: "Type",       value: s.type === "SOFT" ? "Soft skill" : "Hard skill" },
+            { label: "Niveau",     value: `${s.level}/5` },
+            ...(s.targetVersion ? [{ label: "Version", value: `v${s.targetVersion}` }] : []),
+            { label: "Projets",    value: String(s.projects.length) },
+            { label: "Entretiens", value: String(s.jobApplications.length) },
+          ],
+        },
+      })
+      links.push({ source: parentId, target: nodeId })
+      // Arêtes transverses : compétence ↔ projet, compétence ↔ entretien
+      for (const ps of s.projects) {
+        if (existingIds.has(`project-${ps.projectId}`)) links.push({ source: nodeId, target: `project-${ps.projectId}` })
+      }
+      for (const js of s.jobApplications) {
+        if (existingIds.has(`application-${js.applicationId}`)) links.push({ source: nodeId, target: `application-${js.applicationId}` })
+      }
+    }
+
+    for (const q of questions) {
+      const nodeId = `question-${q.id}`
+      const firstSkill = q.skills.find(qs => skillIdSet.has(qs.skillId))
+      const parentId = firstSkill
+        ? `skill-${firstSkill.skillId}`
+        : (q.applicationId && existingIds.has(`application-${q.applicationId}`))
+        ? `application-${q.applicationId}`
+        : hubId
+      const label = q.question.length > 60 ? `${q.question.slice(0, 57)}…` : q.question
+      nodes.push({
+        id:       nodeId,
+        type:     "QUESTION",
+        label,
+        parentId,
+        status:   q.status,
+        meta: {
+          href:     "/competences/questions",
+          subtitle: q.status === "REVIEWED" ? "Revue" : "À revoir",
+          details: [
+            { label: "Statut", value: q.status === "REVIEWED" ? "Revue" : "À revoir" },
+            ...(q.difficulty ? [{ label: "Difficulté", value: ["Facile", "Moyen", "Difficile"][q.difficulty - 1] ?? String(q.difficulty) }] : []),
+          ],
+        },
+      })
+      links.push({ source: parentId, target: nodeId })
+      // Liens vers les autres compétences associées (au-delà de la compétence parente)
+      for (const qs of q.skills) {
+        if (qs.skillId !== firstSkill?.skillId && skillIdSet.has(qs.skillId)) {
+          links.push({ source: `skill-${qs.skillId}`, target: nodeId })
+        }
+      }
     }
   }
 

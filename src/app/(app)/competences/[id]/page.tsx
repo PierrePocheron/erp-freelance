@@ -2,7 +2,7 @@ import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { notFound } from "next/navigation"
 import Link from "next/link"
-import { ChevronLeft, Briefcase } from "lucide-react"
+import { ChevronLeft, Briefcase, HelpCircle } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { ProjectSkillManager } from "@/components/modules/competences/ProjectSkillManager"
 import { SKILL_STATUS_META, SKILL_TYPE_META, levelLabel } from "@/components/modules/competences/skill-config"
@@ -18,6 +18,7 @@ export default async function SkillDetailPage({ params }: { params: Promise<{ id
       parent: { select: { id: true, name: true } },
       projects: { include: { project: { select: { id: true, name: true } } } },
       jobApplications: { include: { application: { select: { id: true, companyName: true, position: true } } } },
+      questions: { include: { question: { select: { id: true, question: true, status: true } } } },
     },
   })
   if (!skill) notFound()
@@ -82,6 +83,20 @@ export default async function SkillDetailPage({ params }: { params: Promise<{ id
                 className="flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted/30">
                 <span className="font-medium truncate">{js.application.companyName}</span>
                 {js.application.position && <span className="text-xs text-muted-foreground truncate">· {js.application.position}</span>}
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {skill.questions.length > 0 && (
+        <section className="space-y-2">
+          <h2 className="text-sm font-semibold flex items-center gap-2"><HelpCircle className="h-4 w-4" /> Questions associées</h2>
+          <div className="rounded-xl border border-border/50 divide-y divide-border/40 overflow-hidden">
+            {skill.questions.map((qs) => (
+              <Link key={qs.question.id} href="/competences/questions" className="flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted/30">
+                <span className={cn("h-1.5 w-1.5 rounded-full shrink-0", qs.question.status === "REVIEWED" ? "bg-emerald-500" : "bg-amber-500")} aria-hidden />
+                <span className="truncate">{qs.question.question}</span>
               </Link>
             ))}
           </div>

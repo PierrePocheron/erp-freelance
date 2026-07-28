@@ -4,6 +4,7 @@ import { notFound } from "next/navigation"
 import type { Metadata } from "next"
 import { ApplicationDetailView } from "@/components/modules/entretien/ApplicationDetailView"
 import { EntretienSkillsManager } from "@/components/modules/competences/EntretienSkillsManager"
+import { EntretienQuestionsManager } from "@/components/modules/competences/EntretienQuestionsManager"
 import { SetBreadcrumbLabel } from "@/components/layout/BreadcrumbContext"
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
@@ -47,6 +48,10 @@ export default async function EntretienDetailPage({
           orderBy: [{ pinned: "desc" }, { updatedAt: "desc" }],
         },
         requiredSkills: { include: { skill: { select: { id: true, name: true } } } },
+        questions: {
+          orderBy: { createdAt: "desc" },
+          select: { id: true, question: true, answer: true, difficulty: true, status: true, skills: { select: { skill: { select: { id: true, name: true } } } } },
+        },
       },
     }),
     prisma.client.findMany({
@@ -71,11 +76,18 @@ export default async function EntretienDetailPage({
     <>
       <SetBreadcrumbLabel value={id} label={app.companyName} />
       <ApplicationDetailView app={app} contacts={contacts} companies={companies} />
-      <div className="mt-6 rounded-xl border border-border/50 bg-card p-4">
+      <div className="mt-6 space-y-4 rounded-xl border border-border/50 bg-card p-4">
         <EntretienSkillsManager
           applicationId={app.id}
           linkedSkills={app.requiredSkills.map((rs) => rs.skill)}
           allSkills={allSkills}
+        />
+        <div className="border-t border-border/40" />
+        <EntretienQuestionsManager
+          applicationId={app.id}
+          applicationLabel={`${app.companyName}${app.position ? ` — ${app.position}` : ""}`}
+          questions={app.questions}
+          skillSuggestions={allSkills.map((s) => s.name)}
         />
       </div>
     </>

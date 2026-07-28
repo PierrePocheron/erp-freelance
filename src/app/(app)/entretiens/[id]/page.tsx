@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma"
 import { notFound } from "next/navigation"
 import type { Metadata } from "next"
 import { ApplicationDetailView } from "@/components/modules/entretien/ApplicationDetailView"
+import { EntretienSkillsManager } from "@/components/modules/competences/EntretienSkillsManager"
 import { SetBreadcrumbLabel } from "@/components/layout/BreadcrumbContext"
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
@@ -26,7 +27,7 @@ export default async function EntretienDetailPage({
   const session = await auth()
   const userId = session!.user.id
 
-  const [app, contacts, companies] = await Promise.all([
+  const [app, contacts, companies, allSkills] = await Promise.all([
     prisma.jobApplication.findFirst({
       where: { id, userId },
       include: {
@@ -45,6 +46,7 @@ export default async function EntretienDetailPage({
           select: { id: true, question: true, answer: true, category: true },
           orderBy: [{ pinned: "desc" }, { updatedAt: "desc" }],
         },
+        requiredSkills: { include: { skill: { select: { id: true, name: true } } } },
       },
     }),
     prisma.client.findMany({
@@ -60,6 +62,7 @@ export default async function EntretienDetailPage({
       select: { id: true, name: true },
       orderBy: { name: "asc" },
     }),
+    prisma.skill.findMany({ where: { userId }, select: { id: true, name: true }, orderBy: { name: "asc" } }),
   ])
 
   if (!app) notFound()
@@ -68,6 +71,13 @@ export default async function EntretienDetailPage({
     <>
       <SetBreadcrumbLabel value={id} label={app.companyName} />
       <ApplicationDetailView app={app} contacts={contacts} companies={companies} />
+      <div className="mt-6 rounded-xl border border-border/50 bg-card p-4">
+        <EntretienSkillsManager
+          applicationId={app.id}
+          linkedSkills={app.requiredSkills.map((rs) => rs.skill)}
+          allSkills={allSkills}
+        />
+      </div>
     </>
   )
 }

@@ -115,3 +115,38 @@ export async function removeProjectSkill(projectId: string, skillId: string): Pr
   revalidateSkillPaths()
   revalidatePath(`/projets/${projectId}`)
 }
+
+// ── Liaison Entretien ↔ Compétence (stack demandée par le poste) ──────────────
+
+/** Lie une compétence à un entretien par son NOM — la crée si elle n'existe pas encore. */
+export async function linkOrCreateJobApplicationSkill(applicationId: string, name: string): Promise<void> {
+  const userId = await requireAuth()
+  const trimmed = name.trim()
+  if (!trimmed) return
+  const app = await prisma.jobApplication.findFirst({ where: { id: applicationId, userId }, select: { id: true } })
+  if (!app) throw new Error("Entretien introuvable")
+  let skill = await prisma.skill.findFirst({
+    where: { userId, name: { equals: trimmed, mode: "insensitive" } },
+    select: { id: true },
+  })
+  if (!skill) {
+    skill = await prisma.skill.create({
+      data: { userId, name: trimmed, type: "HARD", status: "TO_ACQUIRE" },
+      select: { id: true },
+    })
+  }
+  await prisma.jobApplicationSkill.upsert({
+    where: { applicationId_skillId: { applicationId, skillId: skill.id } },
+    create: { applicationId, skillId: skill.id },
+    update: {},
+  })
+  revalidateSkillPaths()
+  revalidatePath(`/entretiens/${applicationId}`)
+}
+
+export async function removeJobApplicationSkill(applicationId: string, skillId: string): Promise<void> {
+  const userId = await requireAuth()
+  await prisma.jobApplicationSkill.deleteMany({ where: { applicationId, skillId, application: { userId } } })
+  revalidateSkillPaths()
+  revalidatePath(`/entretiens/${applicationId}`)
+}

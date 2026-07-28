@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache"
 import { prisma } from "@/lib/prisma"
 import { auth } from "@/lib/auth"
-import type { SkillType, SkillStatus, ProjectSkillRole } from "@/generated/prisma/enums"
+import type { SkillType, SkillStatus, ProjectSkillRole, QuestionStatus } from "@/generated/prisma/enums"
 
 async function requireAuth() {
   const session = await auth()
@@ -149,4 +149,105 @@ export async function removeJobApplicationSkill(applicationId: string, skillId: 
   await prisma.jobApplicationSkill.deleteMany({ where: { applicationId, skillId, application: { userId } } })
   revalidateSkillPaths()
   revalidatePath(`/entretiens/${applicationId}`)
+}
+
+// ── Questions techniques (d'entretien / de culture) ───────────────────────────
+
+async function findOrCreateSkillId(userId: string, name: string): Promise<string> {
+  const trimmed = name.trim()
+  const existing = await prisma.skill.findFirst({
+    where: { userId, name: { equals: trimmed, mode: "insensitive" } },
+    select: { id: true },
+  })
+  if (existing) return existing.id
+  const created = await prisma.skill.create({
+    data: { userId, name: trimmed, type: "HARD", status: "TO_ACQUIRE" },
+    select: { id: true },
+  })
+  return created.id
+}
+
+// Remplace les compétences liées à une question par la liste fournie (par nom,
+// création à la volée). `undefined` = ne touche pas aux liens existants.
+async function syncQuestionSkills(userId: string, questionId: string, skillNames?: string[]) {
+  if (skillNames === undefined) return
+  const names = [...new Set(skillNames.map((n) => n.trim()).filter(Boolean))]
+  await prisma.questionSkill.deleteMany({ where: { questionId } })
+  const skillIds = new Set<string>()
+  for (const name of names) skillIds.add(await findOrCreateSkillId(userId, name))
+  if (skillIds.size) {
+    await prisma.questionSkill.createMany({
+      data: [...skillIds].map((skillId) => ({ questionId, skillId })),
+      skipDuplicates: true,
+    })
+  }
+}
+
+async function ownedApplicationId(userId: string, applicationId?: string | null): Promise<string | null> {
+  if (!applicationId) return null
+  const a = await prisma.jobApplication.findFirst({ where: { id: applicationId, userId }, select: { id: true } })
+  return a?.id ?? null
+}
+
+export type QuestionInput = {
+  question: string
+  answer?: string | null
+  difficulty?: number | null   // 1 facile · 2 moyen · 3 difficile
+  status?: QuestionStatus
+  applicationId?: string | null
+  skillNames?: string[]
+}
+
+export async function createInterviewQuestion(input: QuestionInput): Promise<string> {
+  const userId = await requireAuth()
+  const question = input.question.trim()
+  if (!question) throw new Error("Question requise")
+  const created = await prisma.interviewQuestion.create({
+    data: {
+      userId, question,
+      answer: input.answer?.trim() || null,
+      difficulty: input.difficulty ?? null,
+      status: input.status ?? "TO_REVIEW",
+      applicationId: await ownedApplicationId(userId, input.applicationId),
+    },
+    select: { id: true },
+  })
+  await syncQuestionSkills(userId, created.id, input.skillNames)
+  revalidateSkillPaths()
+  revalidatePath("/competences/questions")
+  if (input.applicationId) revalidatePath(`/entretiens/${input.applicationId}`)
+  return created.id
+}
+
+export async function updateInterviewQuestion(id: string, input: QuestionInput): Promise<void> {
+  const userId = await requireAuth()
+  const question = input.question.trim()
+  if (!question) throw new Error("Question requise")
+  const { count } = await prisma.interviewQuestion.updateMany({
+    where: { id, userId },
+    data: {
+      question,
+      answer: input.answer?.trim() || null,
+      difficulty: input.difficulty ?? null,
+      status: input.status ?? "TO_REVIEW",
+      applicationId: await ownedApplicationId(userId, input.applicationId),
+    },
+  })
+  if (count === 0) throw new Error("Question introuvable")
+  await syncQuestionSkills(userId, id, input.skillNames)
+  revalidateSkillPaths()
+  revalidatePath("/competences/questions")
+}
+
+export async function deleteInterviewQuestion(id: string): Promise<void> {
+  const userId = await requireAuth()
+  await prisma.interviewQuestion.deleteMany({ where: { id, userId } })
+  revalidateSkillPaths()
+  revalidatePath("/competences/questions")
+}
+
+export async function setQuestionStatus(id: string, status: QuestionStatus): Promise<void> {
+  const userId = await requireAuth()
+  await prisma.interviewQuestion.updateMany({ where: { id, userId }, data: { status } })
+  revalidatePath("/competences/questions")
 }

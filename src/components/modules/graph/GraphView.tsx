@@ -4,7 +4,7 @@ import { useState, useMemo, useCallback, useRef, useEffect, useTransition } from
 import dynamic from "next/dynamic"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { X, Maximize2, ExternalLink, Search, CheckCircle2, Clock, AlertCircle } from "lucide-react"
+import { X, Maximize2, ExternalLink, Search, CheckCircle2, Clock, AlertCircle, Brain } from "lucide-react"
 import { toast } from "sonner"
 import type { RawNode, RawLink, NodeType } from "./graph-types"
 import { NODE_TYPE_LABELS, NODE_BASE_COLORS, nodeColor } from "./graph-types"
@@ -26,6 +26,10 @@ const STATUS_FR: Record<string, string> = {
   WISHLIST: "Repéré", APPLIED: "Candidaté", SCREENING: "Pré-qualif",
   INTERVIEW: "Entretien", TECHNICAL: "Test technique", FINAL: "Entretien final",
   OFFER: "Offre reçue", WITHDRAWN: "Désisté", GHOSTED: "Sans réponse",
+  // Compétences
+  TO_ACQUIRE: "À acquérir", LEARNING: "En apprentissage", MASTERED: "Maîtrisée",
+  // Questions techniques
+  TO_REVIEW: "À revoir", REVIEWED: "Revue",
 }
 
 // ── Dynamic import — jamais rendu côté serveur ──────────────────────────────
@@ -80,7 +84,7 @@ function getDescendants(nodeId: string, allNodes: RawNode[]): Set<string> {
 
 // ── Type filter toggles ───────────────────────────────────────────────────────
 
-const ALL_TYPES: NodeType[] = ["SOURCE", "COMPANY", "CLIENT", "PROSPECT", "PERSONAL", "PROJECT", "INVOICE", "QUOTE", "REVENUE", "RESALE", "APPLICATION"]
+const ALL_TYPES: NodeType[] = ["SOURCE", "COMPANY", "CLIENT", "PROSPECT", "PERSONAL", "PROJECT", "INVOICE", "QUOTE", "REVENUE", "RESALE", "APPLICATION", "SKILL", "QUESTION"]
 
 const TYPE_DOT: Record<NodeType, string> = {
   SOURCE:      NODE_BASE_COLORS.SOURCE,
@@ -94,6 +98,8 @@ const TYPE_DOT: Record<NodeType, string> = {
   REVENUE:     NODE_BASE_COLORS.REVENUE,
   RESALE:      NODE_BASE_COLORS.RESALE,
   APPLICATION: NODE_BASE_COLORS.APPLICATION,
+  SKILL:       NODE_BASE_COLORS.SKILL,
+  QUESTION:    NODE_BASE_COLORS.QUESTION,
 }
 
 function getDisplayColor(node: RawNode): string {
@@ -135,7 +141,7 @@ export function GraphView({ rawNodes, rawLinks }: { rawNodes: RawNode[]; rawLink
   )
   const [hiddenTypes, setHidden]    = useState<Set<NodeType>>(new Set())
   const [selected, setSelected]     = useState<RawNode | null>(null)
-  const [activeFilter, setActiveFilter]       = useState<"pending" | "incomplete" | null>(null)
+  const [activeFilter, setActiveFilter]       = useState<"pending" | "incomplete" | "skills" | null>(null)
   // Valeur combinée "company:<id>" | "client:<id>" — un revenu personnel (remboursement
   // d'un proche) n'a souvent qu'un contact, pas de société.
   const [assignParent,   setAssignParent]     = useState("")
@@ -228,6 +234,26 @@ export function GraphView({ rawNodes, rawLinks }: { rawNodes: RawNode[]; rawLink
   // ── Quick filter : nœuds ciblés + tous leurs ancêtres ──────────────────
   const filterVisibleIds = useMemo(() => {
     if (!activeFilter) return null
+    // Préset « Compétences » : sous-graphe compétences + questions + les projets
+    // et entretiens directement reliés (voisins d'arête), sans remonter jusqu'aux
+    // sociétés/clients pour rester focalisé sur « compétences/projets/questions/entretiens ».
+    if (activeFilter === "skills") {
+      const skillNodes   = rawNodes.filter(n => n.type === "SKILL" || n.type === "QUESTION")
+      const skillNodeIds = new Set(skillNodes.map(n => n.id))
+      const result = new Set<string>()
+      skillNodes.forEach(n => {
+        result.add(n.id)
+        getAncestors(n.id, nodeMap).forEach(a => result.add(a)) // compétences parentes + hub
+      })
+      const resolveId = (v: unknown): string =>
+        typeof v === "object" && v !== null ? (v as { id: string }).id : v as string
+      rawLinks.forEach(l => {
+        const s = resolveId(l.source), t = resolveId(l.target)
+        if (skillNodeIds.has(s) && !skillNodeIds.has(t)) result.add(t)
+        if (skillNodeIds.has(t) && !skillNodeIds.has(s)) result.add(s)
+      })
+      return result
+    }
     const seeds: string[] = []
     if (activeFilter === "pending") {
       rawNodes.forEach(n => {
@@ -241,7 +267,7 @@ export function GraphView({ rawNodes, rawLinks }: { rawNodes: RawNode[]; rawLink
     const result = new Set(seeds)
     seeds.forEach(id => getAncestors(id, nodeMap).forEach(a => result.add(a)))
     return result
-  }, [activeFilter, rawNodes, nodeMap])
+  }, [activeFilter, rawNodes, rawLinks, nodeMap])
 
   // Zoom to fit dès qu'on entre en mode focus
   useEffect(() => {
@@ -564,6 +590,26 @@ export function GraphView({ rawNodes, rawLinks }: { rawNodes: RawNode[]; rawLink
               {rawNodes.filter(n => n.incomplete).length}
             </span>
           </button>
+          {rawNodes.some(n => n.type === "SKILL") && (
+            <button
+              onClick={() => {
+                setActiveFilter(f => f === "skills" ? null : "skills")
+                // Le hub Compétences démarre replié : on le déplie en activant le préset
+                setCollapsed(prev => { const next = new Set(prev); next.delete("hub-competences"); return next })
+              }}
+              className={`flex items-center gap-2 w-full rounded-lg px-2.5 py-1.5 text-xs font-medium transition-colors ${
+                activeFilter === "skills"
+                  ? "bg-lime-500/15 text-lime-700 dark:text-lime-400 border border-lime-500/30"
+                  : "hover:bg-muted/60 text-muted-foreground border border-transparent"
+              }`}
+            >
+              <Brain className="h-3.5 w-3.5 shrink-0" />
+              Compétences & questions
+              <span className="ml-auto text-[10px] opacity-60">
+                {rawNodes.filter(n => n.type === "SKILL").length}
+              </span>
+            </button>
+          )}
         </div>
 
         {/* ── Type filters ─────────────────────────────────────────────────── */}

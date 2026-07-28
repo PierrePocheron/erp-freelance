@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache"
 import { prisma } from "@/lib/prisma"
 import { auth } from "@/lib/auth"
 import type { SkillType, SkillStatus, ProjectSkillRole, QuestionStatus } from "@/generated/prisma/enums"
+import { syncTaskGoogleState } from "@/lib/google-task-sync"
 
 async function requireAuth() {
   const session = await auth()
@@ -250,4 +251,50 @@ export async function setQuestionStatus(id: string, status: QuestionStatus): Pro
   const userId = await requireAuth()
   await prisma.interviewQuestion.updateMany({ where: { id, userId }, data: { status } })
   revalidatePath("/competences/questions")
+}
+
+// ── « Travailler cette compétence » : crée un créneau (tâche datée) ────────────
+
+/**
+ * Programme un créneau de travail sur une compétence : crée une tâche datée
+ * (liée à la compétence) qui remonte dans les tâches, le calendrier et l'agenda
+ * Google (best-effort). `startTime`/`endTime` au format "HH:mm".
+ */
+export async function scheduleSkillWork(
+  skillId: string,
+  opts: { date: string; startTime?: string; endTime?: string; label?: string },
+): Promise<void> {
+  const userId = await requireAuth()
+  const skill = await prisma.skill.findFirst({ where: { id: skillId, userId }, select: { id: true, name: true } })
+  if (!skill) throw new Error("Compétence introuvable")
+
+  const start = new Date(`${opts.date}T${(opts.startTime || "09:00")}:00`)
+  if (Number.isNaN(start.getTime())) throw new Error("Date invalide")
+  // Durée estimée si un créneau de fin est fourni.
+  let estimatedHours: number | null = null
+  if (opts.startTime && opts.endTime) {
+    const [sh, sm] = opts.startTime.split(":").map(Number)
+    const [eh, em] = opts.endTime.split(":").map(Number)
+    const mins = (eh * 60 + em) - (sh * 60 + sm)
+    if (mins > 0) estimatedHours = Math.round((mins / 60) * 100) / 100
+  }
+
+  const suffix = opts.label?.trim() ? ` — ${opts.label.trim()}` : ""
+  const task = await prisma.task.create({
+    data: {
+      userId, skillId,
+      title: `Travailler : ${skill.name}${suffix}`,
+      status: "TODO", priority: "MEDIUM",
+      dueDate: start, estimatedHours,
+    },
+    select: { id: true },
+  })
+
+  // Synchro Google best-effort (ne bloque jamais).
+  try { await syncTaskGoogleState(userId, task.id) } catch { /* best-effort */ }
+
+  revalidatePath("/competences")
+  revalidatePath(`/competences/${skillId}`)
+  revalidatePath("/taches")
+  revalidatePath("/calendrier")
 }

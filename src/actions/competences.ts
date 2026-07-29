@@ -30,12 +30,28 @@ export type SkillInput = {
   notes?: string | null
 }
 
-// parentId n'est retenu que s'il appartient à l'utilisateur et n'est pas le nœud
-// lui-même (anti-IDOR + anti-cycle direct).
+// parentId n'est retenu que s'il appartient à l'utilisateur (anti-IDOR) et ne crée pas
+// de cycle : ni le nœud lui-même, ni un de ses descendants ne peut devenir son parent
+// (sinon le sous-arbre deviendrait orphelin/invisible).
 async function ownedParentId(userId: string, parentId?: string | null, selfId?: string): Promise<string | null> {
   if (!parentId || parentId === selfId) return null
   const p = await prisma.skill.findFirst({ where: { id: parentId, userId }, select: { id: true } })
-  return p?.id ?? null
+  if (!p) return null
+  if (selfId) {
+    // Remonte la chaîne des parents depuis `parentId` ; si on retombe sur `selfId`,
+    // alors `parentId` est un descendant de `selfId` → cycle interdit.
+    const all = await prisma.skill.findMany({ where: { userId }, select: { id: true, parentId: true } })
+    const parentOf = new Map(all.map((s) => [s.id, s.parentId]))
+    const seen = new Set<string>()
+    let cur: string | null | undefined = parentId
+    while (cur) {
+      if (cur === selfId) throw new Error("Déplacement impossible : cycle")
+      if (seen.has(cur)) break
+      seen.add(cur)
+      cur = parentOf.get(cur)
+    }
+  }
+  return p.id
 }
 
 export async function createSkill(input: SkillInput): Promise<string> {
@@ -84,6 +100,41 @@ export async function deleteSkill(id: string): Promise<void> {
   // Les enfants ne sont PAS supprimés : la FK parentId est en SetNull → ils
   // remontent en racine (on ne perd pas un sous-arbre en supprimant une catégorie).
   await prisma.skill.deleteMany({ where: { id, userId } })
+  revalidateSkillPaths()
+}
+
+/**
+ * Reparente une compétence sans repasser par le formulaire complet (déplacement
+ * rapide dans l'arbre). Scopé userId (anti-IDOR) + anti-cycle profond via ownedParentId.
+ */
+export async function moveSkill(id: string, parentId: string | null): Promise<void> {
+  const userId = await requireAuth()
+  const validParent = await ownedParentId(userId, parentId, id)
+  const { count } = await prisma.skill.updateMany({ where: { id, userId }, data: { parentId: validParent } })
+  if (count === 0) throw new Error("Compétence introuvable")
+  revalidateSkillPaths()
+}
+
+/**
+ * Modification partielle pour les quick-actions inline (statut / niveau / renommage)
+ * sans réécrire tout l'objet. Scopé userId (anti-IDOR).
+ */
+export async function patchSkill(
+  id: string,
+  patch: { status?: SkillStatus; level?: number; name?: string },
+): Promise<void> {
+  const userId = await requireAuth()
+  const data: Record<string, unknown> = {}
+  if (patch.status) data.status = patch.status
+  if (patch.level !== undefined) data.level = clampLevel(patch.level)
+  if (patch.name !== undefined) {
+    const n = patch.name.trim()
+    if (!n) throw new Error("Nom de compétence requis")
+    data.name = n
+  }
+  if (Object.keys(data).length === 0) return
+  const { count } = await prisma.skill.updateMany({ where: { id, userId }, data })
+  if (count === 0) throw new Error("Compétence introuvable")
   revalidateSkillPaths()
 }
 

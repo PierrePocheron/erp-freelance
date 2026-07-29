@@ -87,7 +87,7 @@ export const MODULE_DEFS: ModuleDef[] = [
     description: "Suivi des dépenses récurrentes et ponctuelles, pro et perso, par catégorie",
   },
   {
-    id: "competences", label: "Compétences", icon: "🧠", category: "bonus", defaultActive: false,
+    id: "competences", label: "Compétences", icon: "🧠", category: "bonus", defaultActive: true,
     description: "Connaissances & compétences (hard/soft) reliées aux projets, entretiens et questions techniques",
   },
 ]

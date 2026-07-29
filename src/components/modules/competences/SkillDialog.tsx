@@ -1,10 +1,12 @@
 "use client"
 
-import { useEffect, useId, useState, useTransition } from "react"
+import { useEffect, useId, useMemo, useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
 import { Trash2 } from "lucide-react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { createSkill, updateSkill, deleteSkill, type SkillInput } from "@/actions/competences"
 import { SKILL_LEVELS } from "./skill-config"
@@ -21,11 +23,15 @@ export type SkillForEdit = {
   parentId: string | null
 }
 
-type ParentOption = { id: string; name: string; type: string }
+type SkillLite = { id: string; name: string; type: string; parentId: string | null }
+
+const selectCls = "h-9 w-full rounded-lg border border-input bg-background px-3 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
 
 /**
  * Création / édition d'une compétence. Contrôlé par le parent (open/onOpenChange)
  * pour piloter aussi bien « + compétence », « + sous-compétence » que l'édition.
+ * Le sélecteur « Rattachée à » présente l'arbre indenté et exclut le nœud lui-même
+ * ET ses descendants (anti-cycle côté UI ; l'action serveur le rejette aussi).
  */
 export function SkillDialog({
   open,
@@ -33,14 +39,14 @@ export function SkillDialog({
   skillForEdit,
   defaultParentId,
   defaultType,
-  parents,
+  allSkills,
 }: {
   open: boolean
   onOpenChange: (v: boolean) => void
   skillForEdit?: SkillForEdit
   defaultParentId?: string | null
   defaultType?: "HARD" | "SOFT"
-  parents: ParentOption[]
+  allSkills: SkillLite[]
 }) {
   const router = useRouter()
   const fid = useId()
@@ -72,15 +78,42 @@ export function SkillDialog({
     /* eslint-enable react-hooks/set-state-in-effect */
   }, [open, skillForEdit, defaultParentId, defaultType])
 
-  // Un nœud ne peut pas être son propre parent (les cycles plus profonds sont rares
-  // et sans conséquence sur l'affichage — on garde le sélecteur simple).
-  const parentOptions = parents.filter((p) => p.id !== skillForEdit?.id)
+  // Options de parent : arbre indenté, sans le nœud édité ni ses descendants (anti-cycle).
+  const parentOptions = useMemo(() => {
+    const childrenBy = new Map<string | null, SkillLite[]>()
+    for (const s of allSkills) {
+      const k = s.parentId
+      if (!childrenBy.has(k)) childrenBy.set(k, [])
+      childrenBy.get(k)!.push(s)
+    }
+    const excluded = new Set<string>()
+    if (skillForEdit) {
+      excluded.add(skillForEdit.id)
+      const stack = [...(childrenBy.get(skillForEdit.id) ?? [])]
+      while (stack.length) {
+        const n = stack.pop()!
+        if (excluded.has(n.id)) continue
+        excluded.add(n.id)
+        stack.push(...(childrenBy.get(n.id) ?? []))
+      }
+    }
+    const out: { id: string; label: string }[] = []
+    const walk = (pid: string | null, depth: number) => {
+      for (const s of childrenBy.get(pid) ?? []) {
+        if (!excluded.has(s.id)) out.push({ id: s.id, label: `${"  ".repeat(depth)}${s.name}` })
+        walk(s.id, depth + 1)
+      }
+    }
+    walk(null, 0)
+    return out
+  }, [allSkills, skillForEdit])
 
   function submit(e: React.FormEvent) {
     e.preventDefault()
-    if (!name.trim()) return
+    const trimmed = name.trim()
+    if (!trimmed) return
     const input: SkillInput = {
-      name: name.trim(),
+      name: trimmed,
       type,
       parentId: parentId || null,
       level,
@@ -93,10 +126,11 @@ export function SkillDialog({
       try {
         if (isEdit) await updateSkill(skillForEdit!.id, input)
         else await createSkill(input)
+        toast.success(isEdit ? "Compétence enregistrée" : `« ${trimmed} » créée`)
         onOpenChange(false)
         router.refresh()
-      } catch {
-        toast.error("Enregistrement impossible")
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Enregistrement impossible")
       }
     })
   }
@@ -106,6 +140,7 @@ export function SkillDialog({
     startDelete(async () => {
       try {
         await deleteSkill(skillForEdit.id)
+        toast.success("Compétence supprimée")
         onOpenChange(false)
         router.refresh()
       } catch {
@@ -113,8 +148,6 @@ export function SkillDialog({
       }
     })
   }
-
-  const inputCls = "h-9 w-full rounded-lg border border-input bg-background px-3 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -124,38 +157,38 @@ export function SkillDialog({
         </DialogHeader>
         <form onSubmit={submit} className="space-y-3">
           <div className="space-y-1">
-            <label htmlFor={`${fid}-name`} className="text-xs text-muted-foreground">Nom *</label>
-            <input id={`${fid}-name`} value={name} onChange={(e) => setName(e.target.value)} required
-              placeholder="Ex : Spring, Kubernetes, Communication…" className={inputCls} autoFocus />
+            <Label htmlFor={`${fid}-name`} className="text-xs text-muted-foreground">Nom *</Label>
+            <Input id={`${fid}-name`} value={name} onChange={(e) => setName(e.target.value)} required
+              placeholder="Ex : Spring, Kubernetes, Communication…" className="h-9" autoFocus />
           </div>
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
-              <label htmlFor={`${fid}-type`} className="text-xs text-muted-foreground">Type</label>
-              <select id={`${fid}-type`} value={type} onChange={(e) => setType(e.target.value as "HARD" | "SOFT")} className={inputCls}>
+              <Label htmlFor={`${fid}-type`} className="text-xs text-muted-foreground">Type</Label>
+              <select id={`${fid}-type`} value={type} onChange={(e) => setType(e.target.value as "HARD" | "SOFT")} className={selectCls}>
                 <option value="HARD">Technique (hard)</option>
                 <option value="SOFT">Soft skill</option>
               </select>
             </div>
             <div className="space-y-1">
-              <label htmlFor={`${fid}-parent`} className="text-xs text-muted-foreground">Rattachée à</label>
-              <select id={`${fid}-parent`} value={parentId} onChange={(e) => setParentId(e.target.value)} className={inputCls}>
+              <Label htmlFor={`${fid}-parent`} className="text-xs text-muted-foreground">Rattachée à</Label>
+              <select id={`${fid}-parent`} value={parentId} onChange={(e) => setParentId(e.target.value)} className={selectCls}>
                 <option value="">— Racine (catégorie) —</option>
-                {parentOptions.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                {parentOptions.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}
               </select>
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
-              <label htmlFor={`${fid}-level`} className="text-xs text-muted-foreground">Mon niveau</label>
-              <select id={`${fid}-level`} value={level} onChange={(e) => setLevel(Number(e.target.value))} className={inputCls}>
+              <Label htmlFor={`${fid}-level`} className="text-xs text-muted-foreground">Mon niveau</Label>
+              <select id={`${fid}-level`} value={level} onChange={(e) => setLevel(Number(e.target.value))} className={selectCls}>
                 {SKILL_LEVELS.map((l) => <option key={l.value} value={l.value}>{l.value} · {l.label}</option>)}
               </select>
             </div>
             <div className="space-y-1">
-              <label htmlFor={`${fid}-status`} className="text-xs text-muted-foreground">Statut</label>
-              <select id={`${fid}-status`} value={status} onChange={(e) => setStatus(e.target.value as typeof status)} className={inputCls}>
+              <Label htmlFor={`${fid}-status`} className="text-xs text-muted-foreground">Statut</Label>
+              <select id={`${fid}-status`} value={status} onChange={(e) => setStatus(e.target.value as typeof status)} className={selectCls}>
                 <option value="TO_ACQUIRE">À acquérir</option>
                 <option value="LEARNING">En cours</option>
                 <option value="MASTERED">Maîtrisée</option>
@@ -166,20 +199,20 @@ export function SkillDialog({
           {type === "HARD" && (
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
-                <label htmlFor={`${fid}-version`} className="text-xs text-muted-foreground">Version visée</label>
-                <input id={`${fid}-version`} value={targetVersion} onChange={(e) => setTargetVersion(e.target.value)}
-                  placeholder="Ex : 4.x" className={inputCls} />
+                <Label htmlFor={`${fid}-version`} className="text-xs text-muted-foreground">Version visée</Label>
+                <Input id={`${fid}-version`} value={targetVersion} onChange={(e) => setTargetVersion(e.target.value)}
+                  placeholder="Ex : 4.x" className="h-9" />
               </div>
               <div className="space-y-1">
-                <label htmlFor={`${fid}-years`} className="text-xs text-muted-foreground">Années d&apos;XP</label>
-                <input id={`${fid}-years`} type="text" inputMode="decimal" value={years} onChange={(e) => setYears(e.target.value)}
-                  placeholder="Ex : 2" className={inputCls} />
+                <Label htmlFor={`${fid}-years`} className="text-xs text-muted-foreground">Années d&apos;XP</Label>
+                <Input id={`${fid}-years`} type="text" inputMode="decimal" value={years} onChange={(e) => setYears(e.target.value)}
+                  placeholder="Ex : 2" className="h-9" />
               </div>
             </div>
           )}
 
           <div className="space-y-1">
-            <label htmlFor={`${fid}-notes`} className="text-xs text-muted-foreground">Notes / ressources</label>
+            <Label htmlFor={`${fid}-notes`} className="text-xs text-muted-foreground">Notes / ressources</Label>
             <textarea id={`${fid}-notes`} value={notes} onChange={(e) => setNotes(e.target.value)} rows={3}
               placeholder="Points à travailler, liens, remarques…"
               className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring resize-none" />

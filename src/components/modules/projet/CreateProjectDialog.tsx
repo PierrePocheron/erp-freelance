@@ -19,11 +19,13 @@ import { CATEGORY_CONFIG, ALL_CATEGORIES } from "./category-config"
 
 type Company = { id: string; name: string; city: string | null }
 type Contact = { id: string; name: string; company: string | null; companyId: string | null }
+type JobApp = { id: string; position: string; companyName: string }
 
 export function CreateProjectDialog({
   userId,
   companies: initialCompanies,
   contacts,
+  jobApplications = [],
   defaultCompanyId,
   open: controlledOpen,
   onOpenChange: controlledOnOpenChange,
@@ -31,6 +33,7 @@ export function CreateProjectDialog({
   userId: string
   companies: Company[]
   contacts: Contact[]
+  jobApplications?: JobApp[]
   defaultCompanyId?: string
   open?: boolean
   onOpenChange?: (v: boolean) => void
@@ -42,6 +45,7 @@ export function CreateProjectDialog({
   const [companies, setCompanies] = useState(initialCompanies)
   const [selectedCompanyId, setSelectedCompanyId] = useState(defaultCompanyId ?? initialCompanies[0]?.id ?? "")
   const [selectedContactId, setSelectedContactId] = useState("")
+  const [selectedJobApplicationId, setSelectedJobApplicationId] = useState("")
   const [showNewCompany, setShowNewCompany] = useState(false)
   const [startDate, setStartDate] = useState("")
 
@@ -65,6 +69,7 @@ export function CreateProjectDialog({
     const formData = new FormData(e.currentTarget)
     if (selectedCompanyId) formData.set("companyId", selectedCompanyId)
     if (selectedContactId) formData.set("contactId", selectedContactId)
+    if (selectedJobApplicationId) formData.set("jobApplicationId", selectedJobApplicationId)
     startTransition(async () => {
       const project = await createProject(userId, formData)
       handleOpenChange(false)
@@ -212,6 +217,26 @@ export function CreateProjectDialog({
                   ))}
                 </select>
               </div>
+
+              {/* Entretien associé (ex. challenge technique) — masqué s'il n'y a aucune candidature */}
+              {jobApplications.length > 0 && (
+                <div className="space-y-1.5">
+                  <Label htmlFor="jobApplicationId">Entretien associé</Label>
+                  <select
+                    id="jobApplicationId"
+                    value={selectedJobApplicationId}
+                    onChange={(e) => setSelectedJobApplicationId(e.target.value)}
+                    className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+                  >
+                    <option value="">— Aucun entretien —</option>
+                    {jobApplications.map((a) => (
+                      <option key={a.id} value={a.id}>
+                        {a.position} — {a.companyName}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
 
               {/* Description */}
               <div className="space-y-1.5">

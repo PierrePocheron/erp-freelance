@@ -11,6 +11,7 @@ import { MilestoneDialog, MILESTONE_TYPE_LABELS, MILESTONE_TYPE_COLORS } from "@
 import { MilestoneToggle } from "@/components/modules/projet/MilestoneToggle"
 import { ProjectTasksCard } from "@/components/modules/projet/ProjectTasksCard"
 import { ProjectLinksCard } from "@/components/modules/projet/ProjectLinksCard"
+import { ProjectJobApplicationCard } from "@/components/modules/projet/ProjectJobApplicationCard"
 import { REVENUE_TYPE_LABELS } from "@/lib/revenue-constants"
 
 function fmtTime(d: Date | string) {
@@ -111,10 +112,18 @@ export default async function ProjectOverviewPage({
         orderBy: { createdAt: "asc" },
       },
       user: { select: { name: true, email: true, image: true } },
+      jobApplication: { select: { id: true, companyName: true, position: true } },
     },
   })
 
   if (!project) notFound()
+
+  // Candidatures de l'utilisateur — pour associer/modifier l'entretien depuis la fiche
+  const jobApplications = await prisma.jobApplication.findMany({
+    where: { userId },
+    orderBy: [{ priority: "desc" }, { updatedAt: "desc" }],
+    select: { id: true, position: true, companyName: true },
+  })
 
   const totalTasks = project.tasks.length
   const doneTasks = project.tasks.filter((t) => t.status === "DONE").length
@@ -182,6 +191,13 @@ export default async function ProjectOverviewPage({
           carte ne se coupe jamais d'une colonne à l'autre. L'ordre de lecture
           suit l'ordre du code (les colonnes se remplissent de façon équilibrée). */}
       <div className="gap-6 lg:columns-2 2xl:columns-3 *:mb-6 *:break-inside-avoid">
+
+        {/* Entretien associé (affiché s'il y a un lien, ou proposé si des candidatures existent) */}
+        <ProjectJobApplicationCard
+          projectId={id}
+          linked={project.jobApplication}
+          jobApplications={jobApplications}
+        />
 
         {/* Tâches — liste cochable */}
         <div>

@@ -85,6 +85,7 @@ type DetailApp = {
   company: DetailCompany
   events: DetailEvent[]
   usedAnswers: { id: string; question: string; answer: string; category: string | null }[]
+  projects: { id: string; name: string; status: string }[]
 }
 
 type ListContact = {
@@ -119,6 +120,15 @@ const toDateInput = (d: Date | string | null | undefined) =>
 const inputCls = "w-full h-9 rounded-lg border border-input bg-background px-3 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
 const labelCls = "text-xs font-medium text-muted-foreground"
 const cardTitleCls = "text-xs font-semibold text-muted-foreground uppercase tracking-wide"
+
+// Libellés + couleurs de statut projet (pour la carte « Projet(s) associé(s) »)
+const PROJECT_STATUS_META: Record<string, { label: string; cls: string }> = {
+  ACTIVE:    { label: "Actif",    cls: "bg-emerald-500/15 text-emerald-600" },
+  PAUSED:    { label: "En pause", cls: "bg-amber-500/15 text-amber-600" },
+  COMPLETED: { label: "Terminé",  cls: "bg-blue-500/15 text-blue-600" },
+  ARCHIVED:  { label: "Archivé",  cls: "bg-muted text-muted-foreground" },
+  CANCELLED: { label: "Annulé",   cls: "bg-red-500/15 text-red-600" },
+}
 
 // ── Pipeline stepper ───────────────────────────────────────────────────────────
 
@@ -916,6 +926,30 @@ export function ApplicationDetailView({
                 )}
               </div>
             ))}
+          </div>
+        </div>
+      )}
+
+      {/* Projet(s) associé(s) — ex. challenge technique rattaché à cet entretien */}
+      {app.projects.length > 0 && (
+        <div className="rounded-xl border border-border/50 bg-card p-4 space-y-2">
+          <h2 className={cardTitleCls}>
+            Projet{app.projects.length > 1 ? `s associés (${app.projects.length})` : " associé"}
+          </h2>
+          <div className="space-y-1">
+            {app.projects.map((p) => {
+              const st = PROJECT_STATUS_META[p.status] ?? { label: p.status, cls: "bg-muted text-muted-foreground" }
+              return (
+                <Link
+                  key={p.id}
+                  href={`/projets/${p.id}`}
+                  className="flex items-center justify-between gap-2 rounded-lg px-2 py-1.5 hover:bg-muted/50 transition-colors"
+                >
+                  <span className="font-medium text-sm truncate">{p.name}</span>
+                  <span className={cn("shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium", st.cls)}>{st.label}</span>
+                </Link>
+              )
+            })}
           </div>
         </div>
       )}

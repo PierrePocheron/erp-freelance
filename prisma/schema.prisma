@@ -577,6 +577,7 @@ model Project {
   // clientId reste nullable pour compatibilité facturation (Phase 2 le supprimera)
   clientId       String?
   companyId      String?
+  jobApplicationId String?     // entretien d'où provient le projet (ex. challenge technique)
   name           String
   description    String?
   status         ProjectStatus @default(ACTIVE)
@@ -591,6 +592,7 @@ model Project {
   user              User               @relation(fields: [userId], references: [id], onDelete: Cascade)
   client            Client?            @relation("ProjectClient", fields: [clientId], references: [id], onDelete: SetNull)
   company           Company?           @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  jobApplication    JobApplication?    @relation(fields: [jobApplicationId], references: [id], onDelete: SetNull)
   contactLinks      ProjectContact[]
   milestones        Milestone[]
   tasks             Task[]
@@ -610,6 +612,7 @@ model Project {
   skills            ProjectSkill[]
 
   @@index([companyId])
+  @@index([jobApplicationId])
 }
 
 enum ProjectMemberRole {
@@ -1621,6 +1624,7 @@ model JobApplication {
   usedAnswers InterviewAnswer[] @relation("AnswerApplications") // modèles/réponses utilisés sur ce process
   requiredSkills JobApplicationSkill[]  // stack demandée par le poste
   questions      InterviewQuestion[]    // questions posées lors de ce process
+  projects       Project[]              // projets rattachés (ex. challenge technique)
 
   @@index([userId])
   @@index([companyId])

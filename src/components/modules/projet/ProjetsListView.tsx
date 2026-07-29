@@ -1,8 +1,8 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import { useState, useMemo, useRef, useEffect } from "react"
 import Link from "next/link"
-import { LayoutGrid, List, Layers, Calendar, CheckSquare, Search, TrendingUp, ChevronDown } from "lucide-react"
+import { LayoutGrid, List, Layers, Calendar, CheckSquare, Search, TrendingUp, ChevronDown, Check, SlidersHorizontal } from "lucide-react"
 import { useSortState, cmp } from "@/hooks/use-sortable"
 import { Th } from "@/components/ui/sortable-header"
 import { Badge } from "@/components/ui/badge"
@@ -26,6 +26,93 @@ const statusConfig = {
   CANCELLED: { label: "Annulé",     cls: "bg-red-500/15 text-red-600 border-red-500/20 line-through" },
 }
 
+type ProjectStatusKey = keyof typeof statusConfig
+const ALL_STATUSES = Object.keys(statusConfig) as ProjectStatusKey[]
+
+/** Menu déroulant de filtre compact, multi-sélection, avec pastille colorée par option. */
+function FilterDropdown<T extends string>({
+  label, icon, options, selected, onToggle, onClear,
+}: {
+  label: string
+  icon: React.ReactNode
+  options: { value: T; label: string; count: number; swatch: React.ReactNode }[]
+  selected: Set<T>
+  onToggle: (v: T) => void
+  onClear: () => void
+}) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (!open) return
+    function onDocClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    function onKey(e: KeyboardEvent) { if (e.key === "Escape") setOpen(false) }
+    document.addEventListener("mousedown", onDocClick)
+    document.addEventListener("keydown", onKey)
+    return () => { document.removeEventListener("mousedown", onDocClick); document.removeEventListener("keydown", onKey) }
+  }, [open])
+
+  const active = selected.size > 0
+  const summary = selected.size === 0
+    ? "Tous"
+    : selected.size === 1
+    ? options.find((o) => selected.has(o.value))?.label ?? "1"
+    : `${selected.size} sélectionnés`
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className={cn(
+          "flex items-center gap-1.5 h-8 px-2.5 rounded-lg text-xs font-medium border transition-colors",
+          active
+            ? "bg-primary/10 text-primary border-primary/25"
+            : "text-muted-foreground border-border hover:bg-muted/50 hover:text-foreground"
+        )}
+      >
+        {icon}
+        <span className="hidden sm:inline">{label} :</span>
+        <span className={active ? "font-semibold" : ""}>{summary}</span>
+        <ChevronDown className={cn("h-3.5 w-3.5 transition-transform", open && "rotate-180")} />
+      </button>
+      {open && (
+        <div className="absolute right-0 z-30 mt-1 min-w-[14rem] rounded-xl border border-border bg-card shadow-xl p-1">
+          {options.map((o) => {
+            const on = selected.has(o.value)
+            return (
+              <button
+                key={o.value}
+                type="button"
+                onClick={() => onToggle(o.value)}
+                className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-xs hover:bg-accent transition-colors"
+              >
+                <span className="w-3.5 shrink-0 flex justify-center text-primary">{on && <Check className="h-3.5 w-3.5" />}</span>
+                {o.swatch}
+                <span className="flex-1 text-left truncate">{o.label}</span>
+                <span className="text-[10px] text-muted-foreground tabular-nums">{o.count}</span>
+              </button>
+            )
+          })}
+          {active && (
+            <>
+              <div className="my-1 border-t border-border/60" />
+              <button
+                type="button"
+                onClick={onClear}
+                className="w-full rounded-lg px-2 py-1.5 text-xs text-muted-foreground hover:bg-accent hover:text-foreground transition-colors text-left"
+              >
+                Réinitialiser
+              </button>
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
 type Project = {
   id: string
   name: string
@@ -46,6 +133,7 @@ type Project = {
 
 type Company = { id: string; name: string; city: string | null }
 type Contact = { id: string; name: string; company: string | null; companyId: string | null }
+type JobApp = { id: string; position: string; companyName: string }
 
 function byPriority(a: Project, b: Project) {
   const pa = PRIORITY_ORDER[a.priority ?? "MEDIUM"]
@@ -58,19 +146,36 @@ export function ProjetsListView({
   projects,
   companies,
   contacts,
+  jobApplications = [],
 }: {
   userId: string
   projects: Project[]
   companies: Company[]
   contacts: Contact[]
+  jobApplications?: JobApp[]
 }) {
   const [view, setView] = useState<"cards" | "list">("cards")
   const [search, setSearch] = useState("")
-  const [statusFilter, setStatusFilter] = useState("ALL")
+  const [statusFilter, setStatusFilter] = useState<Set<ProjectStatusKey>>(new Set())
+  const [categoryFilter, setCategoryFilter] = useState<Set<ProjectCategory>>(new Set())
   const [showBilling, setShowBilling] = useState(false)
+  const searchRef = useRef<HTMLInputElement>(null)
   // Groupes de projets terminés dépliés (par catégorie) — repliés par défaut
   const [openCompleted, setOpenCompleted] = useState<Set<ProjectCategory>>(new Set())
   const { sortCol, sortDir, toggle } = useSortState()
+
+  // Raccourci ⌘F / Ctrl+F : focalise la recherche projets (remplace le « rechercher dans la page » natif)
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if ((e.metaKey || e.ctrlKey) && (e.key === "f" || e.key === "F")) {
+        e.preventDefault()
+        searchRef.current?.focus()
+        searchRef.current?.select()
+      }
+    }
+    document.addEventListener("keydown", onKey)
+    return () => document.removeEventListener("keydown", onKey)
+  }, [])
 
   function toggleCompletedGroup(c: ProjectCategory) {
     setOpenCompleted((prev) => {
@@ -81,20 +186,27 @@ export function ProjetsListView({
     })
   }
 
-  const STATUS_FILTERS = [
-    { value: "ALL",       label: "Tous"      },
-    { value: "ACTIVE",    label: "Actifs"    },
-    { value: "PAUSED",    label: "En pause"  },
-    { value: "COMPLETED", label: "Terminés"  },
-    { value: "ARCHIVED",  label: "Archivés"  },
-    { value: "CANCELLED", label: "Annulés"   },
-  ]
+  function toggleStatus(s: ProjectStatusKey) {
+    setStatusFilter((prev) => {
+      const next = new Set(prev)
+      if (next.has(s)) next.delete(s); else next.add(s)
+      return next
+    })
+  }
+  function toggleCategory(c: ProjectCategory) {
+    setCategoryFilter((prev) => {
+      const next = new Set(prev)
+      if (next.has(c)) next.delete(c); else next.add(c)
+      return next
+    })
+  }
 
   const filtered = projects.filter((p) => {
-    const matchStatus = statusFilter === "ALL" || p.status === statusFilter
+    const matchStatus = statusFilter.size === 0 || statusFilter.has(p.status)
+    const matchCategory = categoryFilter.size === 0 || categoryFilter.has(p.category ?? "AUTRE")
     const firstContactName = p.contactLinks[0]?.client?.name ?? ""
     const matchSearch = !search.trim() || p.name.toLowerCase().includes(search.toLowerCase()) || (p.company?.name ?? firstContactName).toLowerCase().includes(search.toLowerCase())
-    return matchStatus && matchSearch
+    return matchStatus && matchCategory && matchSearch
   })
 
   const active    = [...filtered.filter((p) => p.status === "ACTIVE")].sort(byPriority)
@@ -126,47 +238,49 @@ export function ProjetsListView({
           </p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
-          {/* Status filters — select on mobile, buttons on sm+ */}
-          <select
-            aria-label="Filtrer par statut"
-            className="sm:hidden rounded-lg border border-border px-2.5 py-1.5 text-xs bg-background text-foreground"
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-          >
-            {STATUS_FILTERS.map((f) => (
-              <option key={f.value} value={f.value}>{f.label}</option>
-            ))}
-          </select>
-          <div className="hidden sm:flex rounded-lg border border-border overflow-hidden text-xs">
-            {STATUS_FILTERS.map((f) => (
-              <button
-                key={f.value}
-                onClick={() => setStatusFilter(f.value)}
-                className={`px-2.5 py-1.5 border-r last:border-r-0 border-border transition-colors ${
-                  statusFilter === f.value ? "bg-accent font-medium" : "text-muted-foreground hover:bg-muted/50"
-                }`}
-              >
-                {f.label}
-                {f.value !== "ALL" && (
-                  <span className="ml-1 text-[10px] opacity-60">
-                    ({projects.filter((p) => p.status === f.value).length})
-                  </span>
-                )}
-              </button>
-            ))}
-          </div>
+          {/* Filtre Type (catégorie) — sélecteur compact multi-choix, couleurs + motifs des bannières */}
+          <FilterDropdown
+            label="Type"
+            icon={<SlidersHorizontal className="h-3.5 w-3.5" />}
+            options={ALL_CATEGORIES.map((c) => ({
+              value: c,
+              label: CATEGORY_CONFIG[c].label,
+              count: projects.filter((p) => (p.category ?? "AUTRE") === c).length,
+              swatch: <span className={cn("inline-block h-3 w-4 rounded-sm shrink-0", CATEGORY_CONFIG[c].bannerCls)} style={CATEGORY_CONFIG[c].pattern} />,
+            }))}
+            selected={categoryFilter}
+            onToggle={toggleCategory}
+            onClear={() => setCategoryFilter(new Set())}
+          />
 
-          {/* Search */}
+          {/* Filtre Statut — même sélecteur compact */}
+          <FilterDropdown
+            label="Statut"
+            icon={<CheckSquare className="h-3.5 w-3.5" />}
+            options={ALL_STATUSES.map((s) => ({
+              value: s,
+              label: statusConfig[s].label,
+              count: projects.filter((p) => p.status === s).length,
+              swatch: <span className={cn("inline-block h-3 w-4 rounded-sm shrink-0 border", statusConfig[s].cls)} />,
+            }))}
+            selected={statusFilter}
+            onToggle={toggleStatus}
+            onClear={() => setStatusFilter(new Set())}
+          />
+
+          {/* Recherche — agrandie + raccourci ⌘F */}
           <div className="relative">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
             <input
+              ref={searchRef}
               type="search"
               aria-label="Rechercher un projet"
-              placeholder="Rechercher..."
+              placeholder="Rechercher un projet…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="h-8 pl-8 pr-3 rounded-lg border border-border bg-transparent text-sm focus:outline-none focus:ring-1 focus:ring-ring w-40"
+              className="h-8 pl-8 pr-12 rounded-lg border border-border bg-transparent text-sm focus:outline-none focus:ring-1 focus:ring-ring w-56 sm:w-72"
             />
+            <kbd className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 hidden sm:flex items-center rounded border border-border/60 bg-muted/60 px-1 py-0.5 text-[10px] font-mono text-muted-foreground/70">⌘F</kbd>
           </div>
 
           {/* Toggle facturation */}
@@ -203,7 +317,7 @@ export function ProjetsListView({
               <List className="h-4 w-4" />
             </button>
           </div>
-          <CreateProjectDialog userId={userId} companies={companies} contacts={contacts} />
+          <CreateProjectDialog userId={userId} companies={companies} contacts={contacts} jobApplications={jobApplications} />
         </div>
       </div>
 

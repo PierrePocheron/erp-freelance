@@ -7,7 +7,7 @@ export default async function ProjetsPage() {
   const session = await auth()
   const userId = session!.user.id
 
-  const [projects, companies, contacts, projectTags, projectInvoices, projectRevenues, ideas] = await Promise.all([
+  const [projects, companies, contacts, projectTags, projectInvoices, projectRevenues, ideas, jobApplications] = await Promise.all([
     prisma.project.findMany({
       where: { OR: [{ userId }, { members: { some: { userId } } }] },
       orderBy: { createdAt: "desc" },
@@ -57,6 +57,11 @@ export default async function ProjetsPage() {
       orderBy: { createdAt: "desc" },
       select: { id: true, title: true, content: true, createdAt: true },
     }),
+    prisma.jobApplication.findMany({
+      where: { userId },
+      orderBy: [{ priority: "desc" }, { updatedAt: "desc" }],
+      select: { id: true, position: true, companyName: true },
+    }),
   ])
 
   const billingByProject: Record<string, { totalFacture: number; totalEncaisse: number }> = {}
@@ -94,7 +99,7 @@ export default async function ProjetsPage() {
 
   return (
     <div className="space-y-8">
-      <ProjetsListView userId={userId} projects={projectsWithStats} companies={companies} contacts={contacts} />
+      <ProjetsListView userId={userId} projects={projectsWithStats} companies={companies} contacts={contacts} jobApplications={jobApplications} />
       <ProjectIdeasPanel userId={userId} initialIdeas={ideas} companies={companies} />
     </div>
   )

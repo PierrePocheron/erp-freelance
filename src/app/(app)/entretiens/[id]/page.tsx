@@ -52,6 +52,7 @@ export default async function EntretienDetailPage({
           orderBy: { createdAt: "desc" },
           select: { id: true, question: true, answer: true, difficulty: true, status: true, skills: { select: { skill: { select: { id: true, name: true } } } } },
         },
+        projects: { select: { id: true, name: true, status: true }, orderBy: { updatedAt: "desc" } },
       },
     }),
     prisma.client.findMany({

@@ -7,8 +7,8 @@ import { fmtEur, RANGES, type RangeKey } from "@/lib/investments"
 type ChartPlatform = { id: string; name: string; color: string; entries: { date: string; capital: number }[] }
 type Pt = { t: number; v: number }
 
-const H = 300
-const PAD = { left: 54, right: 14, top: 12, bottom: 26 }
+const H = 360
+const PAD = { left: 56, right: 16, top: 12, bottom: 30 }
 
 /** Valeur interpolée (linéaire) d'une série au temps t ; null si hors de sa plage. */
 function valueAt(pts: Pt[], t: number): number | null {
@@ -19,6 +19,26 @@ function valueAt(pts: Pt[], t: number): number | null {
   }
   return pts[pts.length - 1].v
 }
+
+/** Graduations « rondes » (1/2/5 × 10ⁿ) entre min et max, ~5 lignes. */
+function niceTicks(min: number, max: number, target = 5): number[] {
+  const span = Math.max(1, max - min)
+  const raw = span / target
+  const mag = Math.pow(10, Math.floor(Math.log10(raw)))
+  const norm = raw / mag
+  const step = (norm < 1.5 ? 1 : norm < 3 ? 2 : norm < 7 ? 5 : 10) * mag
+  const ticks: number[] = []
+  for (let v = Math.ceil(min / step) * step; v <= max + 1e-6; v += step) ticks.push(v)
+  return ticks
+}
+
+/** Montant compact pour l'axe Y : « 5 k », « 1 k », sinon la valeur brute. */
+function fmtK(v: number): string {
+  if (v >= 1000) return `${(v / 1000).toLocaleString("fr-FR", { maximumFractionDigits: 1 })} k`
+  return v.toLocaleString("fr-FR")
+}
+
+const fmtDateTick = (t: number) => new Date(t).toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit" })
 
 export function InvestmentChart({ platforms, range, onRangeChange }: { platforms: ChartPlatform[]; range: RangeKey; onRangeChange: (r: RangeKey) => void }) {
   const containerRef = useRef<HTMLDivElement>(null)
@@ -91,11 +111,19 @@ export function InvestmentChart({ platforms, range, onRangeChange }: { platforms
       return { id: s.id, name: s.name, color: s.color, d, dots }
     })
 
-    // Ticks
-    const yTicks = Array.from({ length: 4 }, (_, i) => yMin + ((yMax - yMin) * i) / 3)
-    const xTicks = Array.from({ length: 5 }, (_, i) => left + (span * i) / 4)
+    // Graduations Y sur des nombres ronds (1/2/5 k…) ; graduations X = dates réelles
+    // des relevés (là où j'ai saisi des données).
+    const yTicks = niceTicks(yMin, yMax, 5)
+    const dateTicks = [...new Set(series.flatMap((s) => s.pts.filter((p) => p.t >= left && p.t <= right).map((p) => p.t)))].sort((a, b) => a - b)
+    // Sous-ensemble de dates à étiqueter (évite le chevauchement des libellés)
+    const dateLabels: number[] = []
+    let lastLabelX = -Infinity
+    for (const t of dateTicks) {
+      const x = xOf(t)
+      if (x - lastLabelX >= 46) { dateLabels.push(t); lastLabelX = x }
+    }
 
-    return { left, right, span, yMin, yMax, plotW, plotH, xOf, yOf, lines, yTicks, xTicks, empty: false as const }
+    return { left, right, span, yMin, yMax, plotW, plotH, xOf, yOf, lines, yTicks, dateTicks, dateLabels, empty: false as const }
   }, [width, hasData, series, range, now])
 
   // Survol : temps sous le curseur + valeurs interpolées par plateforme
@@ -151,26 +179,34 @@ export function InvestmentChart({ platforms, range, onRangeChange }: { platforms
             >
               {geo && !geo.empty && (
                 <>
-                  {/* Grille Y + labels */}
+                  {/* Grille Y : lignes horizontales fines sur des nombres ronds (1/2/5 k…) */}
                   {geo.yTicks.map((v, i) => (
                     <g key={i}>
-                      <line x1={PAD.left} y1={geo.yOf(v)} x2={width - PAD.right} y2={geo.yOf(v)} className="stroke-current text-border/60" strokeDasharray="3 3" />
+                      <line x1={PAD.left} y1={geo.yOf(v)} x2={width - PAD.right} y2={geo.yOf(v)} className="stroke-current text-border/50" strokeWidth={0.5} />
                       <text x={PAD.left - 6} y={geo.yOf(v)} dy="0.32em" textAnchor="end" className="fill-current text-muted-foreground text-[10px] tabular-nums amount-sensitive">
-                        {Math.round(v).toLocaleString("fr-FR")}
+                        {fmtK(v)}
                       </text>
                     </g>
                   ))}
-                  {/* Labels X */}
-                  {geo.xTicks.map((t, i) => (
-                    <text key={i} x={geo.xOf(t)} y={H - 8} textAnchor={i === 0 ? "start" : i === geo.xTicks.length - 1 ? "end" : "middle"} className="fill-current text-muted-foreground text-[10px]">
-                      {new Date(t).toLocaleDateString("fr-FR", { month: "short", year: "2-digit" })}
-                    </text>
+                  {/* Repères verticaux aux dates de relevés (où j'ai saisi des données) */}
+                  {geo.dateTicks.map((t, i) => (
+                    <line key={i} x1={geo.xOf(t)} y1={PAD.top} x2={geo.xOf(t)} y2={H - PAD.bottom} className="stroke-current text-border/35" strokeWidth={0.5} />
                   ))}
+                  {/* Labels de dates espacés */}
+                  {geo.dateLabels.map((t, i) => {
+                    const x = geo.xOf(t)
+                    const anchor = x < PAD.left + 16 ? "start" : x > width - PAD.right - 16 ? "end" : "middle"
+                    return (
+                      <text key={i} x={x} y={H - 9} textAnchor={anchor} className="fill-current text-muted-foreground text-[10px] tabular-nums">
+                        {fmtDateTick(t)}
+                      </text>
+                    )
+                  })}
                   {/* Courbes */}
                   {geo.lines.map((l) => (
                     <g key={l.id}>
                       {l.d && <path d={l.d} fill="none" stroke={l.color} strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />}
-                      {l.dots.map((dt, i) => <circle key={i} cx={dt.x} cy={dt.y} r={2.5} fill={l.color} />)}
+                      {l.dots.map((dt, i) => <circle key={i} cx={dt.x} cy={dt.y} r={3} fill={l.color} />)}
                     </g>
                   ))}
                   {/* Crosshair + points au survol */}

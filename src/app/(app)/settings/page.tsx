@@ -10,6 +10,7 @@ import { ExportSection } from "@/components/modules/settings/ExportSection"
 import { GoogleCalendarSection } from "@/components/modules/settings/GoogleCalendarSection"
 import { ModulesPanel } from "@/components/modules/settings/ModulesPanel"
 import { ProspectionSettingsPanel } from "@/components/modules/settings/ProspectionSettingsPanel"
+import { AppearanceSection } from "@/components/modules/settings/AppearanceSection"
 import { hasCalendarScope } from "@/lib/google-calendar"
 import { LogOut } from "lucide-react"
 
@@ -90,6 +91,7 @@ export default async function SettingsPage() {
         conditionsTemplates={conditionsTemplates}
       />
     ),
+    apparence: <AppearanceSection />,
     emetteurs: <EmittersManager emitters={emitters as Emitter[]} />,
     fiscalite: (
       <>

@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react"
 import {
-  User, Building2, Landmark, LayoutGrid, Plug, Database, Search, X, Send,
+  User, Building2, Landmark, LayoutGrid, Plug, Database, Search, X, Send, Palette,
 } from "lucide-react"
 
 // ── Catégories (style Réglages Apple) ─────────────────────────────────────────
@@ -10,7 +10,7 @@ import {
 // libellé, la description et les mots-clés (accents ignorés).
 
 export type SectionId =
-  | "profil" | "emetteurs" | "fiscalite" | "modules" | "prospection" | "integrations" | "donnees"
+  | "profil" | "apparence" | "emetteurs" | "fiscalite" | "modules" | "prospection" | "integrations" | "donnees"
 
 type SectionMeta = {
   id:          SectionId
@@ -26,6 +26,11 @@ const SECTIONS: SectionMeta[] = [
     id: "profil", label: "Profil & entreprise", icon: User, iconBg: "bg-blue-500",
     description: "Identité, coordonnées, numérotation et conditions",
     keywords: ["nom", "email", "siret", "adresse", "telephone", "site", "numerotation", "prefixe", "format", "devis", "facture", "conditions", "cgv", "logo", "couleur", "pdf", "iban", "bic"],
+  },
+  {
+    id: "apparence", label: "Apparence", icon: Palette, iconBg: "bg-indigo-500",
+    description: "Thème clair ou sombre",
+    keywords: ["theme", "apparence", "sombre", "clair", "nuit", "jour", "dark", "light", "mode", "couleur", "affichage"],
   },
   {
     id: "emetteurs", label: "Émetteurs", icon: Building2, iconBg: "bg-amber-500",

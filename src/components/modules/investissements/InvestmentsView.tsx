@@ -69,16 +69,16 @@ export function InvestmentsView({ platforms }: { platforms: PlatformData[] }) {
       {platforms.length === 0 ? (
         <EmptyState onCreate={() => setDialog({ open: true })} />
       ) : (
-        <div className="grid gap-6 lg:grid-cols-[minmax(280px,360px)_1fr]">
-          {/* Colonne gauche : plateformes empilées */}
-          <div className="space-y-3">
+        <div className="grid gap-6 lg:grid-cols-[minmax(260px,340px)_minmax(0,1fr)]">
+          {/* Colonne gauche : plateformes empilées (triées par capital décroissant) */}
+          <div className="min-w-0 space-y-3">
             <div className="rounded-xl border border-border/50 bg-card p-3">
               <div className="mb-2 flex items-center justify-between px-1">
                 <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Plateformes</h2>
                 <span className="text-[11px] text-muted-foreground">Capital · date</span>
               </div>
               <div className="space-y-2">
-                {withStats.map((p) => (
+                {[...withStats].sort((a, b) => b.all.currentCapital - a.all.currentCapital).map((p) => (
                   <PlatformCard key={p.id} platform={p} stats={p.all} period={p.period} rangeLabel={RANGE_LABEL[range]} color={p.color} onEdit={() => openEdit(p)} />
                 ))}
               </div>
@@ -86,7 +86,7 @@ export function InvestmentsView({ platforms }: { platforms: PlatformData[] }) {
           </div>
 
           {/* Colonne droite : bannière + KPI globaux + graphe */}
-          <div className="space-y-4">
+          <div className="min-w-0 space-y-4">
             {agg.incompleteCount > 0 && (
               <div className="flex items-start gap-2 rounded-xl border border-amber-500/30 bg-amber-500/8 px-4 py-3">
                 <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />

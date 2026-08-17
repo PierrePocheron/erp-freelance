@@ -3,7 +3,6 @@
 import { revalidatePath } from "next/cache"
 import { prisma } from "@/lib/prisma"
 import { auth } from "@/lib/auth"
-import type { InvestmentType } from "@/generated/prisma/enums"
 
 async function requireAuth(): Promise<string> {
   const session = await auth()
@@ -20,7 +19,7 @@ function revalidate(platformId?: string) {
 
 export type PlatformInput = {
   name: string
-  type: InvestmentType
+  type: string // preset (CROWDLENDING…) ou type personnalisé libre
   url?: string | null
   notes?: string | null
 }
@@ -30,7 +29,7 @@ export async function createPlatform(input: PlatformInput): Promise<string> {
   const name = input.name.trim()
   if (!name) throw new Error("Nom de plateforme requis")
   const p = await prisma.investmentPlatform.create({
-    data: { userId, name, type: input.type, url: input.url?.trim() || null, notes: input.notes?.trim() || null },
+    data: { userId, name, type: input.type.trim() || "AUTRE", url: input.url?.trim() || null, notes: input.notes?.trim() || null },
     select: { id: true },
   })
   revalidate()
@@ -43,7 +42,7 @@ export async function updatePlatform(id: string, input: PlatformInput): Promise<
   if (!name) throw new Error("Nom de plateforme requis")
   const { count } = await prisma.investmentPlatform.updateMany({
     where: { id, userId },
-    data: { name, type: input.type, url: input.url?.trim() || null, notes: input.notes?.trim() || null },
+    data: { name, type: input.type.trim() || "AUTRE", url: input.url?.trim() || null, notes: input.notes?.trim() || null },
   })
   if (count === 0) throw new Error("Plateforme introuvable")
   revalidate(id)

@@ -1844,6 +1844,10 @@ model QuestionSkill {
 }
 
 // ── Module Investissements ────────────────────────────────────────────────────
+// Valeurs « preset » historiques du type de plateforme. Le champ InvestmentPlatform.type
+// est désormais une chaîne LIBRE (types personnalisés saisis par l'utilisateur) : cet enum
+// n'est plus référencé par un champ, il documente les codes presets connus (mappés à une
+// icône/couleur dans INVESTMENT_TYPE_META). Conservé pour ne pas DROP le type Postgres.
 enum InvestmentType {
   CROWDLENDING   // Prêts entre particuliers (P2P lending)
   CROWDFUNDING   // Financement participatif
@@ -1856,7 +1860,7 @@ model InvestmentPlatform {
   id        String         @id @default(cuid())
   userId    String
   name      String
-  type      InvestmentType @default(CROWDLENDING)
+  type      String         @default("CROWDLENDING")  // preset (cf. enum InvestmentType) ou type personnalisé libre
   url       String?                            // lien d'accès rapide à la plateforme
   currency  String         @default("EUR")
   notes     String?

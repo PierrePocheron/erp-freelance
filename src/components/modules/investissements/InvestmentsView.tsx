@@ -6,14 +6,14 @@ import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import {
   computePlatformStats, computePeriodStats, rangeStartMs, RANGE_LABEL,
-  fmtEur, fmtEur2, fmtPctSigned, PLATFORM_COLORS, type InvestmentType, type RangeKey,
+  fmtEur, fmtEur2, fmtPctSigned, PLATFORM_COLORS, type RangeKey,
 } from "@/lib/investments"
 import { PlatformCard } from "./PlatformCard"
 import { PlatformDialog, type PlatformForEdit } from "./PlatformDialog"
 import { InvestmentChart } from "./InvestmentChart"
 
 export type EntryData = { id: string; date: string; capital: number | null; contribution: number; note: string | null }
-export type PlatformData = { id: string; name: string; type: InvestmentType; url: string | null; notes: string | null; entries: EntryData[] }
+export type PlatformData = { id: string; name: string; type: string; url: string | null; notes: string | null; entries: EntryData[] }
 
 export function InvestmentsView({ platforms }: { platforms: PlatformData[] }) {
   const [dialog, setDialog] = useState<{ open: boolean; editing?: PlatformForEdit }>({ open: false })
@@ -51,6 +51,9 @@ export function InvestmentsView({ platforms }: { platforms: PlatformData[] }) {
     const monthly = wCap > 0 ? known.reduce((s, p) => s + p.period.monthlyPct * p.period.endCapital, 0) / wCap : 0
     return { currentCapital, incompleteCount: incomplete.length, hasKnown: known.length > 0, posed, profit, roi, monthly }
   }, [withStats])
+
+  // Types déjà utilisés → proposés comme suggestions (les presets sont filtrés dans le combobox).
+  const typeSuggestions = useMemo(() => [...new Set(platforms.map((p) => p.type))], [platforms])
 
   const openEdit = (p: PlatformData) =>
     setDialog({ open: true, editing: { id: p.id, name: p.name, type: p.type, url: p.url, notes: p.notes } })
@@ -135,6 +138,7 @@ export function InvestmentsView({ platforms }: { platforms: PlatformData[] }) {
         open={dialog.open}
         onOpenChange={(v) => setDialog((d) => ({ ...d, open: v }))}
         platformForEdit={dialog.editing}
+        suggestions={typeSuggestions}
       />
     </div>
   )

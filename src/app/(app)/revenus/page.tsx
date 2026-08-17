@@ -4,7 +4,6 @@ import Link from "next/link"
 import { TrendingUp, Clock, CheckCircle2, Repeat, BarChart2, Wallet, ArrowRight, Infinity as InfinityIcon } from "lucide-react"
 import { REVENUE_TYPE_LABELS, PAYMENT_METHOD_LABELS } from "@/lib/revenue-constants"
 import { RevenueManager } from "@/components/modules/revenus/RevenueManager"
-import { AmountsPrivacyToggle } from "@/components/ui/amounts-privacy-toggle"
 
 const fmt = (n: number) => n.toLocaleString("fr-FR", { minimumFractionDigits: 0, maximumFractionDigits: 0 })
 
@@ -172,7 +171,6 @@ export default async function RevenuePage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <AmountsPrivacyToggle />
           <Link
             href="/revenus/recapitulatif"
             className="flex items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-2 text-sm font-medium hover:bg-accent transition-colors"

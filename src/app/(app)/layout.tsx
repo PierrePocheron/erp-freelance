@@ -12,6 +12,7 @@ import { NewModulesGate } from "@/components/modules/onboarding/NewModulesGate"
 import { UiTour } from "@/components/modules/onboarding/UiTour"
 import { ModuleScope } from "@/components/layout/ModuleScope"
 import { NotificationBell } from "@/components/modules/notifications/NotificationBell"
+import { AmountsPrivacyToggle } from "@/components/ui/amounts-privacy-toggle"
 import { ensureSelfClient } from "@/actions/user"
 import { getRunningTimer } from "@/actions/timetracking"
 import { ensureUrssafReminderTask } from "@/actions/urssaf"
@@ -75,7 +76,8 @@ export default async function AppLayout({
         {/* Cloche de notifications flottante — mobile uniquement (le header
             desktop porte la sienne) */}
         <div className="absolute top-3 right-4 z-50 sm:hidden">
-          <div className="rounded-lg border border-border/50 bg-background/80 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-background/60">
+          <div className="flex items-center gap-0.5 rounded-lg border border-border/50 bg-background/80 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-background/60">
+            <AmountsPrivacyToggle />
             <NotificationBell notifications={notifications} />
           </div>
         </div>

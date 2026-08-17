@@ -40,11 +40,11 @@ export function AmountsPrivacyToggle() {
       onClick={toggle}
       aria-pressed={hidden}
       aria-label={hidden ? "Réafficher les montants" : "Masquer les montants"}
-      className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border border-input text-sm text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
+      className="inline-flex items-center gap-1.5 h-8 px-2.5 rounded-lg text-sm text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
       title={hidden ? "Réafficher les montants" : "Masquer les montants (flou) — utile pour une capture"}
     >
-      {hidden ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
-      <span className="hidden sm:inline">{hidden ? "Montants masqués" : "Masquer les montants"}</span>
+      {hidden ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+      <span className="hidden lg:inline">{hidden ? "Montants masqués" : "Masquer les montants"}</span>
     </button>
   )
 }

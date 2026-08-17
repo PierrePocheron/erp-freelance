@@ -5,7 +5,6 @@ import { TrendingUp, Clock, AlertCircle, CheckCircle2, Settings } from "lucide-r
 import { markLateInvoices } from "@/actions/facturation"
 import { MonthlyRevenueChart } from "@/components/modules/facturation/MonthlyRevenueChart"
 import { FacturationQuickActions } from "@/components/modules/facturation/FacturationQuickActions"
-import { AmountsPrivacyToggle } from "@/components/ui/amounts-privacy-toggle"
 
 // Helpers d'affichage cohérents avec la liste des factures
 const faNumber = (n: string) => (/^fa/i.test(n.trim()) ? n : `FA${n}`)
@@ -140,7 +139,6 @@ export default async function FacturationOverviewPage({
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <AmountsPrivacyToggle />
           <FacturationQuickActions
             userId={userId}
             clients={quickClients}

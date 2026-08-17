@@ -32,31 +32,41 @@ import { ThemeToggle } from "./ThemeToggle"
 import { OPEN_COMMAND_PALETTE_EVENT } from "./CommandPalette"
 import { useModules, type ModuleId } from "@/hooks/use-modules"
 
+type NavGroup = "crm" | "finances" | "travail" | "perso"
+
+const GROUP_LABELS: Record<NavGroup, string> = {
+  crm: "CRM",
+  finances: "Finances",
+  travail: "Travail",
+  perso: "Perso",
+}
+
 type NavItem = {
   href:     string
   icon:     React.ElementType
   label:    string
   moduleId?: ModuleId   // si absent → toujours visible (Dashboard, Paramètres)
+  group?:    NavGroup   // regroupement visuel ; les items sans groupe restent isolés (Dashboard en haut, Paramètres en bas)
 }
 
 // Exporté : source de vérité route + icône + module, réutilisée par MobileHome.
 export const navItems: NavItem[] = [
   { href: "/",           icon: LayoutDashboard, label: "Dashboard" },
-  { href: "/contacts",   icon: Users,           label: "Contacts",   moduleId: "contacts"    },
-  { href: "/prospection",icon: Target,          label: "Prospection",moduleId: "prospection" },
-  { href: "/societes",   icon: Building2,       label: "Sociétés",   moduleId: "societes"    },
-  { href: "/facturation",icon: FileText,         label: "Facturation",moduleId: "facturation" },
-  { href: "/revenus",    icon: Wallet,           label: "Revenus",    moduleId: "revenus"     },
-  { href: "/depenses",   icon: TrendingDown,     label: "Dépenses",   moduleId: "depenses"    },
-  { href: "/impots",     icon: Landmark,         label: "Impôts",     moduleId: "impots"      },
-  { href: "/projets",    icon: Code2,            label: "Projets",    moduleId: "projets"     },
-  { href: "/taches",     icon: CheckSquare,      label: "Tâches",     moduleId: "taches"      },
-  { href: "/calendrier", icon: Calendar,         label: "Calendrier", moduleId: "calendrier"  },
-  { href: "/graph",      icon: Network,          label: "Graph",      moduleId: "graph"       },
-  { href: "/sante",      icon: Heart,            label: "Santé",      moduleId: "sante"       },
-  { href: "/entretiens", icon: Briefcase,        label: "Entretiens", moduleId: "entretien"   },
-  { href: "/competences",icon: Brain,            label: "Compétences",moduleId: "competences" },
-  { href: "/investissements", icon: LineChart,   label: "Investissements", moduleId: "investissements" },
+  { href: "/contacts",   icon: Users,           label: "Contacts",   moduleId: "contacts",    group: "crm" },
+  { href: "/prospection",icon: Target,          label: "Prospection",moduleId: "prospection", group: "crm" },
+  { href: "/societes",   icon: Building2,       label: "Sociétés",   moduleId: "societes",    group: "crm" },
+  { href: "/facturation",icon: FileText,         label: "Facturation",moduleId: "facturation", group: "finances" },
+  { href: "/revenus",    icon: Wallet,           label: "Revenus",    moduleId: "revenus",     group: "finances" },
+  { href: "/depenses",   icon: TrendingDown,     label: "Dépenses",   moduleId: "depenses",    group: "finances" },
+  { href: "/impots",     icon: Landmark,         label: "Impôts",     moduleId: "impots",      group: "finances" },
+  { href: "/projets",    icon: Code2,            label: "Projets",    moduleId: "projets",     group: "travail" },
+  { href: "/taches",     icon: CheckSquare,      label: "Tâches",     moduleId: "taches",      group: "travail" },
+  { href: "/calendrier", icon: Calendar,         label: "Calendrier", moduleId: "calendrier",  group: "travail" },
+  { href: "/graph",      icon: Network,          label: "Graph",      moduleId: "graph",       group: "travail" },
+  { href: "/sante",      icon: Heart,            label: "Santé",      moduleId: "sante",       group: "perso" },
+  { href: "/entretiens", icon: Briefcase,        label: "Entretiens", moduleId: "entretien",   group: "perso" },
+  { href: "/competences",icon: Brain,            label: "Compétences",moduleId: "competences", group: "perso" },
+  { href: "/investissements", icon: LineChart,   label: "Investissements", moduleId: "investissements", group: "perso" },
   { href: "/settings",   icon: Settings,         label: "Paramètres" },
 ]
 
@@ -117,18 +127,27 @@ export function Sidebar() {
   }
 
   // Évite le flash de contenu avant hydratation
-  if (!mounted) return <aside className="hidden sm:block w-16 h-screen shrink-0 border-r border-border/50" />
+  if (!mounted) return <aside className="hidden sm:block w-24 h-screen shrink-0 border-r border-border/50" />
 
   // Filtrer selon les modules actifs (les items sans moduleId sont toujours visibles)
   const visibleItems = navItems.filter(item =>
     !item.moduleId || isActive(item.moduleId)
   )
 
+  // Regrouper en segments contigus par groupe : chaque groupe (CRM, Finances…) forme un
+  // bloc ; les items sans groupe (Dashboard, Paramètres) restent des segments isolés.
+  const segments: { group?: NavGroup; items: NavItem[] }[] = []
+  for (const item of visibleItems) {
+    const last = segments[segments.length - 1]
+    if (last && last.group === item.group) last.items.push(item)
+    else segments.push({ group: item.group, items: [item] })
+  }
+
   return (
     <aside
       className={cn(
         "hidden sm:flex relative z-20 h-screen shrink-0 flex-col border-r border-border/50 bg-background/80 backdrop-blur-sm transition-all duration-200",
-        expanded ? "w-52" : "w-16"
+        expanded ? "w-52" : "w-24"
       )}
     >
       {/* Logo */}
@@ -152,11 +171,11 @@ export function Sidebar() {
         </button>
       </div>
 
-      {/* Nav */}
-      <nav ref={navRef} data-tour="sidebar" className="flex flex-1 flex-col gap-1 px-2 overflow-y-auto min-h-0">
+      {/* Nav — groupée par section ; repliée = grille 2 colonnes, dépliée = liste labellisée */}
+      <nav ref={navRef} data-tour="sidebar" className="relative flex flex-1 flex-col gap-1 px-2 overflow-y-auto min-h-0">
         {/* Indicateur de sélection : une seule pastille qui glisse jusqu'au module actif.
-            Ancrée à l'<aside> (position:relative parent) via -z-10 → NE change pas le
-            contexte de positionnement des infobulles des items (pas de scroll horizontal). */}
+            Ancrée à la <nav> (position:relative) → suit le scroll de la liste. Le nom des
+            items réduits passe par l'attribut `title` natif (plus de tooltip custom). */}
         {indicator && (
           <div
             aria-hidden
@@ -164,39 +183,49 @@ export function Sidebar() {
             style={{ top: indicator.top, left: indicator.left, width: indicator.width, height: indicator.height }}
           />
         )}
-        {visibleItems.map(({ href, icon: Icon, label }) => {
-          // Route active courante — distincte du isActive(moduleId) du hook useModules
-          // (ci-dessus) qui teste, lui, l'activation d'un module.
-          const isCurrent = href === "/" ? pathname === "/" : pathname.startsWith(href)
-          return (
-            <Link
-              key={href}
-              href={href}
-              data-tour={href === "/settings" ? "settings" : undefined}
-              data-active={isCurrent || undefined}
-              aria-current={isCurrent ? "page" : undefined}
-              title={expanded ? undefined : label}
-              className={cn(
-                "group flex h-10 items-center gap-3 rounded-xl px-2.5 transition-colors",
-                expanded ? "w-full" : "w-10 justify-center",
-                isCurrent
-                  ? "text-primary-foreground"
-                  : "text-muted-foreground hover:bg-accent hover:text-foreground"
-              )}
-            >
-              <Icon className="h-5 w-5 shrink-0" />
-              {expanded && (
-                <span className="text-sm font-medium truncate">{label}</span>
-              )}
-              {/* Tooltip uniquement en mode réduit */}
-              {!expanded && (
-                <span className="pointer-events-none absolute left-16 z-[999] hidden whitespace-nowrap rounded-md bg-popover px-2 py-1 text-xs text-popover-foreground shadow-md group-hover:block">
-                  {label}
-                </span>
-              )}
-            </Link>
-          )
-        })}
+        {segments.map((seg, si) => (
+          <div key={si} className="flex flex-col">
+            {si > 0 && <div aria-hidden className="my-1.5 h-px bg-border/60" />}
+            {seg.group && (
+              <div className={cn(
+                "pb-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground/70",
+                expanded ? "px-2.5 pt-1" : "px-1 pt-0.5 text-center",
+              )}>
+                {GROUP_LABELS[seg.group]}
+              </div>
+            )}
+            <div className={cn(
+              expanded ? "flex flex-col gap-0.5"
+              : seg.items.length > 1 ? "grid grid-cols-2 justify-items-center gap-1"
+              : "flex justify-center",
+            )}>
+              {seg.items.map(({ href, icon: Icon, label }) => {
+                // Route active courante — distincte du isActive(moduleId) du hook useModules.
+                const isCurrent = href === "/" ? pathname === "/" : pathname.startsWith(href)
+                return (
+                  <Link
+                    key={href}
+                    href={href}
+                    data-tour={href === "/settings" ? "settings" : undefined}
+                    data-active={isCurrent || undefined}
+                    aria-current={isCurrent ? "page" : undefined}
+                    title={expanded ? undefined : label}
+                    className={cn(
+                      "group flex h-9 items-center rounded-xl transition-colors",
+                      expanded ? "w-full gap-3 px-2.5" : "w-9 justify-center",
+                      isCurrent
+                        ? "text-primary-foreground"
+                        : "text-muted-foreground hover:bg-accent hover:text-foreground",
+                    )}
+                  >
+                    <Icon className="h-5 w-5 shrink-0" />
+                    {expanded && <span className="text-sm font-medium truncate">{label}</span>}
+                  </Link>
+                )
+              })}
+            </div>
+          </div>
+        ))}
       </nav>
 
       {/* Recherche Cmd+K */}

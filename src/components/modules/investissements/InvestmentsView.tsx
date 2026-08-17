@@ -1,7 +1,8 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { Plus, LineChart, AlertTriangle } from "lucide-react"
+import Link from "next/link"
+import { Plus, LineChart, AlertTriangle, FileBarChart } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import {
@@ -61,11 +62,18 @@ export function InvestmentsView({ platforms }: { platforms: PlatformData[] }) {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between gap-2">
-        <h1 className="text-2xl font-bold tracking-tight sm:hidden">Investissements</h1>
-        <p className="text-sm text-muted-foreground">
-          {platforms.length} plateforme{platforms.length !== 1 ? "s" : ""}
-          {agg.currentCapital > 0 && <> · <span className="amount-sensitive font-medium text-foreground">{fmtEur(agg.currentCapital)}</span> de capital</>}
-        </p>
+        <div className="flex items-baseline gap-2">
+          <h1 className="text-2xl font-bold tracking-tight sm:hidden">Investissements</h1>
+          <p className="text-sm text-muted-foreground">
+            {platforms.length} plateforme{platforms.length !== 1 ? "s" : ""}
+            {agg.currentCapital > 0 && <> · <span className="amount-sensitive font-medium text-foreground">{fmtEur(agg.currentCapital)}</span> de capital</>}
+          </p>
+        </div>
+        {platforms.length > 0 && (
+          <Link href="/investissements/rapport" className="inline-flex shrink-0 items-center gap-1.5 rounded-md border border-border px-2.5 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground">
+            <FileBarChart className="h-4 w-4" /> Rapport
+          </Link>
+        )}
       </div>
 
       {platforms.length === 0 ? (

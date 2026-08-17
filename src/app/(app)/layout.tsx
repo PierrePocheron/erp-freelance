@@ -1,4 +1,4 @@
-import { auth, signOut } from "@/lib/auth"
+import { auth } from "@/lib/auth"
 import { redirect } from "next/navigation"
 import { Sidebar } from "@/components/layout/Sidebar"
 import { AppHeader } from "@/components/layout/AppHeader"
@@ -46,11 +46,6 @@ export default async function AppLayout({
       .then((profile) => ensureUrssafReminderTask(userId, profile?.urssafFrequency ?? "QUARTERLY")),
   ])
 
-  async function logout() {
-    "use server"
-    await signOut({ redirectTo: "/login" })
-  }
-
   return (
     <div className="flex h-screen overflow-hidden print:h-auto print:overflow-visible">
       {/* Scope par compte des clés modules/onboarding — doit être rendu avant le reste */}
@@ -62,9 +57,9 @@ export default async function AppLayout({
             pages de détail (children) publient le nom de leur entité et que le
             header (AppBreadcrumbs) le lise. */}
         <BreadcrumbProvider>
-          {/* Header fixe (desktop) : fil d'Ariane + cloche + déconnexion —
-              il ne défile jamais, comme la sidebar */}
-          <AppHeader logoutAction={logout}>
+          {/* Header fixe (desktop) : fil d'Ariane + « Masquer les montants » + cloche —
+              il ne défile jamais, comme la sidebar. La déconnexion est dans Réglages. */}
+          <AppHeader>
             <span data-tour="notifications" className="inline-flex">
               <NotificationBell notifications={notifications} />
             </span>

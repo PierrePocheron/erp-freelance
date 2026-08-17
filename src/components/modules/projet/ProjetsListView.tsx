@@ -129,6 +129,7 @@ type Project = {
   tags: { id: string; name: string; color: string }[]
   billing: { totalFacture: number; totalEncaisse: number }
   revenue: { totalRevenu: number; revenuRecu: number }
+  lastActivityAt: number // ms — date d'activité la plus récente (créé / modifié / utilisé)
 }
 
 type Company = { id: string; name: string; city: string | null }
@@ -139,6 +140,11 @@ function byPriority(a: Project, b: Project) {
   const pa = PRIORITY_ORDER[a.priority ?? "MEDIUM"]
   const pb = PRIORITY_ORDER[b.priority ?? "MEDIUM"]
   return pb - pa  // plus haute priorité d'abord
+}
+
+// Tri par défaut : activité la plus récente d'abord (créé / modifié / utilisé), priorité en second.
+function byActivity(a: Project, b: Project) {
+  return b.lastActivityAt - a.lastActivityAt || byPriority(a, b)
 }
 
 export function ProjetsListView({
@@ -162,7 +168,7 @@ export function ProjetsListView({
   const searchRef = useRef<HTMLInputElement>(null)
   // Groupes de projets terminés dépliés (par catégorie) — repliés par défaut
   const [openCompleted, setOpenCompleted] = useState<Set<ProjectCategory>>(new Set())
-  const { sortCol, sortDir, toggle } = useSortState()
+  const { sortCol, sortDir, toggle } = useSortState("activity", "desc")
 
   // Raccourci ⌘F / Ctrl+F : focalise la recherche projets (remplace le « rechercher dans la page » natif)
   useEffect(() => {
@@ -209,9 +215,9 @@ export function ProjetsListView({
     return matchStatus && matchCategory && matchSearch
   })
 
-  const active    = [...filtered.filter((p) => p.status === "ACTIVE")].sort(byPriority)
-  const completed = [...filtered.filter((p) => p.status === "COMPLETED")].sort(byPriority)
-  const others    = [...filtered.filter((p) => p.status !== "ACTIVE" && p.status !== "COMPLETED")].sort(byPriority)
+  const active    = [...filtered.filter((p) => p.status === "ACTIVE")].sort(byActivity)
+  const completed = [...filtered.filter((p) => p.status === "COMPLETED")].sort(byActivity)
+  const others    = [...filtered.filter((p) => p.status !== "ACTIVE" && p.status !== "COMPLETED")].sort(byActivity)
 
   const listItems = useMemo(() => {
     const all = [...active, ...completed, ...others]
@@ -223,6 +229,7 @@ export function ProjetsListView({
         case "priority": return cmp(PRIORITY_ORDER[a.priority ?? "MEDIUM"], PRIORITY_ORDER[b.priority ?? "MEDIUM"], sortDir)
         case "status":   return cmp(a.status, b.status, sortDir)
         case "endDate":  return cmp(a.endDate ? new Date(a.endDate) : null, b.endDate ? new Date(b.endDate) : null, sortDir)
+        case "activity": return cmp(a.lastActivityAt, b.lastActivityAt, sortDir)
         default: return 0
       }
     })
@@ -402,6 +409,7 @@ export function ProjetsListView({
                 <th className="px-4 py-3 text-left font-medium text-xs text-muted-foreground hidden md:table-cell">Tâches</th>
                 {showBilling && <th className="px-4 py-3 text-left font-medium text-xs text-muted-foreground hidden md:table-cell">Facturation / Revenus</th>}
                 <Th label="Fin estimée" col="endDate"  sortCol={sortCol} sortDir={sortDir} onSort={toggle} className="px-4 py-3 hidden lg:table-cell" />
+                <Th label="Dernière activité" col="activity" sortCol={sortCol} sortDir={sortDir} onSort={toggle} className="px-4 py-3 hidden lg:table-cell" />
               </tr>
             </thead>
             <tbody>
@@ -473,6 +481,9 @@ export function ProjetsListView({
                           {new Date(p.endDate).toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" })}
                         </span>
                       ) : "—"}
+                    </td>
+                    <td className="px-4 py-3 text-xs text-muted-foreground hidden lg:table-cell whitespace-nowrap">
+                      {new Date(p.lastActivityAt).toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" })}
                     </td>
                   </tr>
                 )

@@ -6,7 +6,7 @@ import { ChevronLeft, Download, Printer } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import {
-  computeMonthlySeries, platformValueAt, metaForType, fmtEur2, fmtPctSigned,
+  computeMonthlySeries, platformValueAt, metaForType, fmtEur2, fmtPctSigned, type MonthlyRow,
 } from "@/lib/investments"
 import type { PlatformData } from "./InvestmentsView"
 
@@ -28,7 +28,7 @@ function periodStat(entries: PlatformData["entries"], fromMs: number, toMs: numb
   return { start, end, contrib, gain, perf }
 }
 
-export function InvestmentReport({ platforms }: { platforms: PlatformData[] }) {
+export function InvestmentReport({ platforms, userName }: { platforms: PlatformData[]; userName: string }) {
   const [nowMs, setNowMs] = useState(0)
   const [selected, setSelected] = useState<Set<string>>(() => new Set(platforms.map((p) => p.id)))
   const [fromStr, setFromStr] = useState("")
@@ -83,6 +83,12 @@ export function InvestmentReport({ platforms }: { platforms: PlatformData[] }) {
     ? `${new Date(`${fromStr}T00:00:00`).toLocaleDateString("fr-FR")} → ${new Date(`${toStr}T00:00:00`).toLocaleDateString("fr-FR")}`
     : "—"
 
+  // Nom de fichier CSV/PDF : Rapport-investissements-Nom-Prenom-periode
+  const fileBase = ["Rapport-investissements",
+    (userName || "").trim().replace(/[\\/:*?"<>|]/g, "").replace(/\s+/g, "-"),
+    fromStr && toStr ? `${fromStr}_${toStr}` : "periode",
+  ].filter(Boolean).join("-")
+
   function setPreset(kind: "current" | "last" | "12m" | "all") {
     if (!nowMs) return
     const now = new Date(nowMs)
@@ -102,9 +108,19 @@ export function InvestmentReport({ platforms }: { platforms: PlatformData[] }) {
     const url = URL.createObjectURL(blob)
     const a = document.createElement("a")
     a.href = url
-    a.download = `investissements_${fromStr}_${toStr}.csv`
+    a.download = `${fileBase}.csv`
     document.body.appendChild(a); a.click(); a.remove()
     URL.revokeObjectURL(url)
+  }
+
+  // Le nom par défaut du PDF « Enregistrer en PDF » vient du titre du document : on le
+  // fixe le temps de l'impression puis on le restaure.
+  function printReport() {
+    const prev = document.title
+    document.title = fileBase
+    const restore = () => { document.title = prev; window.removeEventListener("afterprint", restore) }
+    window.addEventListener("afterprint", restore)
+    window.print()
   }
 
   return (
@@ -161,7 +177,7 @@ export function InvestmentReport({ platforms }: { platforms: PlatformData[] }) {
           </div>
           <div className="ml-auto flex gap-2">
             <Button type="button" variant="outline" onClick={downloadCsv} disabled={monthly.length === 0}><Download className="h-4 w-4" /> CSV</Button>
-            <Button type="button" onClick={() => window.print()} disabled={monthly.length === 0}><Printer className="h-4 w-4" /> Imprimer / PDF</Button>
+            <Button type="button" onClick={printReport} disabled={monthly.length === 0}><Printer className="h-4 w-4" /> Imprimer / PDF</Button>
           </div>
         </div>
       </div>
@@ -259,6 +275,13 @@ export function InvestmentReport({ platforms }: { platforms: PlatformData[] }) {
               </div>
             </div>
 
+            {monthly.length >= 2 && (
+              <div className="break-inside-avoid">
+                <h3 className="mb-2 text-sm font-semibold">Évolution de la valeur du portefeuille</h3>
+                <ReportChart rows={monthly} />
+              </div>
+            )}
+
             <p className="pt-2 text-[11px] text-muted-foreground">
               Plus-value = valeur − apports (hors argent déposé). Performance mensuelle = gain du mois rapporté à la valeur de début de mois. Données personnelles — export généré depuis l&apos;ERP.
             </p>
@@ -277,5 +300,62 @@ function Kpi({ label, value, sub, tone, strong }: { label: string; value: string
         tone === "pos" && "text-emerald-600 dark:text-emerald-400", tone === "neg" && "text-red-600 dark:text-red-400")}>{value}</p>
       {sub && <p className={cn("text-[11px] tabular-nums", tone === "pos" ? "text-emerald-600/80 dark:text-emerald-400/80" : tone === "neg" ? "text-red-600/80 dark:text-red-400/80" : "text-muted-foreground")}>{sub}</p>}
     </div>
+  )
+}
+
+// Graduation « ronde » (1/2/5 × 10ⁿ) pour l'axe Y du graphe de fin de rapport.
+function niceNum(x: number) {
+  if (x <= 0) return 1
+  const mag = Math.pow(10, Math.floor(Math.log10(x)))
+  const n = x / mag
+  return (n < 1.5 ? 1 : n < 3 ? 2 : n < 7 ? 5 : 10) * mag
+}
+const fmtKeur = (v: number) =>
+  v >= 1000 ? `${(v / 1000).toLocaleString("fr-FR", { maximumFractionDigits: v >= 10000 ? 0 : 1 })} k€` : `${Math.round(v)} €`
+
+/**
+ * Graphe de fin de rapport : évolution de la valeur totale du portefeuille mois par mois.
+ * SVG en viewBox → se met à l'échelle (responsive) et s'imprime proprement (vectoriel).
+ */
+function ReportChart({ rows }: { rows: MonthlyRow[] }) {
+  if (rows.length < 2) return null
+  const GREEN = "#10b981"
+  const W = 760, Hc = 250
+  const pad = { l: 48, r: 14, t: 14, b: 26 }
+  const plotW = W - pad.l - pad.r
+  const plotH = Hc - pad.t - pad.b
+  const yMax = Math.max(...rows.map((r) => r.value), 1) * 1.08
+  const step = niceNum(yMax / 4)
+  const yticks: number[] = []
+  for (let v = 0; v <= yMax + 1e-6; v += step) yticks.push(v)
+  const n = rows.length
+  const xOf = (i: number) => pad.l + (i / (n - 1)) * plotW
+  const yOf = (v: number) => pad.t + (1 - v / yMax) * plotH
+  const pts = rows.map((r, i) => ({ x: xOf(i), y: yOf(r.value), label: r.label }))
+  const line = pts.map((p, i) => `${i === 0 ? "M" : "L"} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(" ")
+  const baseY = yOf(0)
+  const area = `${line} L ${pts[n - 1].x.toFixed(1)} ${baseY.toFixed(1)} L ${pts[0].x.toFixed(1)} ${baseY.toFixed(1)} Z`
+  const everyX = Math.ceil(n / 8)
+  return (
+    <svg viewBox={`0 0 ${W} ${Hc}`} className="w-full" role="img" aria-label="Évolution de la valeur du portefeuille">
+      <defs>
+        <linearGradient id="report-area" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor={GREEN} stopOpacity="0.18" />
+          <stop offset="100%" stopColor={GREEN} stopOpacity="0" />
+        </linearGradient>
+      </defs>
+      {yticks.map((v, i) => (
+        <g key={i}>
+          <line x1={pad.l} y1={yOf(v)} x2={W - pad.r} y2={yOf(v)} className="stroke-current text-border/60" strokeWidth={0.5} />
+          <text x={pad.l - 6} y={yOf(v)} dy="0.32em" textAnchor="end" className="fill-current text-muted-foreground text-[9px] tabular-nums amount-sensitive">{fmtKeur(v)}</text>
+        </g>
+      ))}
+      <path d={area} fill="url(#report-area)" />
+      <path d={line} fill="none" stroke={GREEN} strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
+      {pts.map((p, i) => <circle key={i} cx={p.x} cy={p.y} r={2.5} fill={GREEN} />)}
+      {pts.map((p, i) => (i % everyX === 0 || i === n - 1 ? (
+        <text key={`x${i}`} x={p.x} y={Hc - 8} textAnchor="middle" className="fill-current text-muted-foreground text-[9px] capitalize">{p.label}</text>
+      ) : null))}
+    </svg>
   )
 }

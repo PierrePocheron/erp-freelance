@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react"
 import Link from "next/link"
-import { ChevronLeft, ExternalLink, Pencil, Plus } from "lucide-react"
+import { AlertTriangle, ChevronLeft, ExternalLink, Pencil, Plus } from "lucide-react"
 import { cn } from "@/lib/utils"
 import {
   computePlatformStats, INVESTMENT_TYPE_META, fmtEur2, fmtPct, fmtPctSigned, type InvestmentType,
@@ -52,13 +52,25 @@ export function PlatformDetail({ platform }: { platform: PlatformData }) {
         {platform.notes && <p className="mt-1 text-sm text-muted-foreground">{platform.notes}</p>}
       </div>
 
+      {stats.contributionsMissing && (
+        <div className="flex items-start gap-2 rounded-xl border border-amber-500/30 bg-amber-500/8 px-4 py-3">
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+          <div>
+            <p className="text-sm font-medium text-amber-700 dark:text-amber-400">Apports à renseigner</p>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              Indique combien tu as déposé de ta poche (ouvre un relevé ci-dessous → champ «&nbsp;dont apport&nbsp;»). Tant que ce n&apos;est pas fait, les bénéfices ne sont pas calculés, et les «&nbsp;gains&nbsp;» par relevé ci-dessous incluent peut-être des dépôts.
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* KPI */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-        <Kpi label="Posé de ma poche" value={fmtEur2(stats.totalContributions)} />
+        <Kpi label="Posé de ma poche" value={stats.contributionsMissing ? "à renseigner" : fmtEur2(stats.totalContributions)} muted={stats.contributionsMissing} />
         <Kpi label="Valeur actuelle" value={fmtEur2(stats.currentCapital)} strong />
-        <Kpi label="Bénéfices" value={`${stats.profit >= 0 ? "+" : ""}${fmtEur2(stats.profit)}`} tone={stats.profit >= 0 ? "pos" : "neg"} sub={`${fmtPctSigned(stats.roi)} total`} />
-        <Kpi label="Annualisé" value={fmtPctSigned(stats.annualizedPct)} tone={stats.annualizedPct >= 0 ? "pos" : "neg"} sub="rendement/an" />
-        <Kpi label="≈ par mois" value={fmtPctSigned(stats.monthlyAvgPct)} tone={stats.monthlyAvgPct >= 0 ? "pos" : "neg"} sub="lissé" />
+        <Kpi label="Bénéfices" value={stats.contributionsMissing ? "à renseigner" : `${stats.profit >= 0 ? "+" : ""}${fmtEur2(stats.profit)}`} muted={stats.contributionsMissing} tone={stats.contributionsMissing ? undefined : stats.profit >= 0 ? "pos" : "neg"} sub={stats.contributionsMissing ? undefined : `${fmtPctSigned(stats.roi)} total`} />
+        <Kpi label="Annualisé" value={stats.contributionsMissing ? "à renseigner" : fmtPctSigned(stats.annualizedPct)} muted={stats.contributionsMissing} tone={stats.contributionsMissing ? undefined : stats.annualizedPct >= 0 ? "pos" : "neg"} sub={stats.contributionsMissing ? undefined : "rendement/an"} />
+        <Kpi label="≈ par mois" value={stats.contributionsMissing ? "à renseigner" : fmtPctSigned(stats.monthlyAvgPct)} muted={stats.contributionsMissing} tone={stats.contributionsMissing ? undefined : stats.monthlyAvgPct >= 0 ? "pos" : "neg"} sub={stats.contributionsMissing ? undefined : "lissé"} />
       </div>
 
       {/* Relevés */}
@@ -142,13 +154,15 @@ export function PlatformDetail({ platform }: { platform: PlatformData }) {
   )
 }
 
-function Kpi({ label, value, sub, tone, strong }: { label: string; value: string; sub?: string; tone?: "pos" | "neg"; strong?: boolean }) {
+function Kpi({ label, value, sub, tone, strong, muted }: { label: string; value: string; sub?: string; tone?: "pos" | "neg"; strong?: boolean; muted?: boolean }) {
   return (
     <div className="rounded-xl border border-border/50 bg-card px-3 py-2.5">
       <p className="text-[11px] text-muted-foreground">{label}</p>
       <p className={cn(
-        "mt-0.5 tabular-nums amount-sensitive",
+        "mt-0.5 tabular-nums",
+        !muted && "amount-sensitive",
         strong ? "text-lg font-bold" : "text-sm font-semibold",
+        muted && "text-sm font-medium text-amber-600 dark:text-amber-400",
         tone === "pos" && "text-emerald-600 dark:text-emerald-400",
         tone === "neg" && "text-red-600 dark:text-red-400",
       )}>{value}</p>

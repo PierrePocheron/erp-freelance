@@ -2,20 +2,10 @@
 
 import { useEffect, useMemo, useRef, useState } from "react"
 import { cn } from "@/lib/utils"
-import { fmtEur } from "@/lib/investments"
+import { fmtEur, RANGES, type RangeKey } from "@/lib/investments"
 
 type ChartPlatform = { id: string; name: string; color: string; entries: { date: string; capital: number }[] }
 type Pt = { t: number; v: number }
-
-const RANGES = [
-  { key: "3M",  label: "3 mois",  days: 91 },
-  { key: "6M",  label: "6 mois",  days: 183 },
-  { key: "12M", label: "12 mois", days: 365 },
-  { key: "2A",  label: "2 ans",   days: 730 },
-  { key: "3A",  label: "3 ans",   days: 1096 },
-  { key: "ALL", label: "Tout",    days: null },
-] as const
-type RangeKey = (typeof RANGES)[number]["key"]
 
 const H = 300
 const PAD = { left: 54, right: 14, top: 12, bottom: 26 }
@@ -30,10 +20,9 @@ function valueAt(pts: Pt[], t: number): number | null {
   return pts[pts.length - 1].v
 }
 
-export function InvestmentChart({ platforms }: { platforms: ChartPlatform[] }) {
+export function InvestmentChart({ platforms, range, onRangeChange }: { platforms: ChartPlatform[]; range: RangeKey; onRangeChange: (r: RangeKey) => void }) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [width, setWidth] = useState(0)
-  const [range, setRange] = useState<RangeKey>("12M")
   const [hoverX, setHoverX] = useState<number | null>(null)
   // « Maintenant » calculé après montage (impur en render — cf. React Compiler) ;
   // 0 avant montage → la borne droite retombe sur le dernier relevé, sans mismatch SSR.
@@ -133,7 +122,7 @@ export function InvestmentChart({ platforms }: { platforms: ChartPlatform[] }) {
         {RANGES.map((r) => (
           <button
             key={r.key}
-            onClick={() => setRange(r.key)}
+            onClick={() => onRangeChange(r.key)}
             className={cn(
               "rounded-md px-2 py-1 text-xs font-medium transition-colors",
               range === r.key ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-muted/60 hover:text-foreground",

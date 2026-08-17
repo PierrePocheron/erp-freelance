@@ -6,7 +6,7 @@ import { ChevronLeft, Download, Printer } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import {
-  computeMonthlySeries, platformValueAt, metaForType, fmtEur2, fmtPctSigned,
+  computeMonthlySeries, computeAnnualSeries, platformValueAt, metaForType, fmtEur2, fmtPctSigned,
 } from "@/lib/investments"
 import type { PlatformData } from "./InvestmentsView"
 
@@ -63,10 +63,12 @@ export function InvestmentReport({ platforms, userName }: { platforms: PlatformD
 
   const chosen = platforms.filter((p) => selected.has(p.id))
 
-  const monthly = useMemo(
-    () => computeMonthlySeries(chosen.map((p) => ({ entries: p.entries.map((e) => ({ date: e.date, capital: e.capital, contribution: e.contribution })) })), fromMs, toMs),
-    [chosen, fromMs, toMs],
+  const chosenLite = useMemo(
+    () => chosen.map((p) => ({ entries: p.entries.map((e) => ({ date: e.date, capital: e.capital, contribution: e.contribution })) })),
+    [chosen],
   )
+  const monthly = useMemo(() => computeMonthlySeries(chosenLite, fromMs, toMs), [chosenLite, fromMs, toMs])
+  const annual = useMemo(() => computeAnnualSeries(chosenLite, fromMs, toMs), [chosenLite, fromMs, toMs])
 
   const perPlatform = useMemo(() => chosen.map((p) => ({ p, s: periodStat(p.entries, fromMs, toMs) })), [chosen, fromMs, toMs])
 
@@ -202,6 +204,46 @@ export function InvestmentReport({ platforms, userName }: { platforms: PlatformD
               <Kpi label="Apports (période)" value={fmtEur2(totals.contrib)} />
               <Kpi label="Plus-value (période)" value={`${totals.gain >= 0 ? "+" : ""}${fmtEur2(totals.gain)}`} sub={fmtPctSigned(totals.perf)} tone={totals.gain >= 0 ? "pos" : "neg"} />
             </div>
+
+            {annual.length >= 2 && (
+              <div className="break-inside-avoid">
+                <h3 className="mb-2 text-sm font-semibold">Performances annuelles</h3>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-border/60 text-left text-xs text-muted-foreground">
+                        <th className="px-3 py-2 font-medium">Année</th>
+                        <th className="px-3 py-2 text-right font-medium">Valeur</th>
+                        <th className="px-3 py-2 text-right font-medium">Apports</th>
+                        <th className="px-3 py-2 text-right font-medium">Gain</th>
+                        <th className="px-3 py-2 text-right font-medium">Perf.</th>
+                        <th className="px-3 py-2 text-right font-medium">Plus-value cumulée</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {annual.map((r) => (
+                        <tr key={r.year} className="border-b border-border/40 font-medium last:border-0">
+                          <td className="whitespace-nowrap px-3 py-1.5">{r.year}</td>
+                          <td className="px-3 py-1.5 text-right tabular-nums">{fmtEur2(r.value)}</td>
+                          <td className={cn("px-3 py-1.5 text-right tabular-nums font-normal", r.contributions > 0 ? "text-blue-600 dark:text-blue-400" : r.contributions < 0 ? "text-amber-600 dark:text-amber-400" : "text-muted-foreground")}>
+                            {r.contributions ? `${r.contributions > 0 ? "+" : ""}${fmtEur2(r.contributions)}` : "—"}
+                          </td>
+                          <td className={cn("px-3 py-1.5 text-right tabular-nums", r.gain >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400")}>
+                            {r.gain >= 0 ? "+" : ""}{fmtEur2(r.gain)}
+                          </td>
+                          <td className={cn("px-3 py-1.5 text-right tabular-nums", r.returnPct >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400")}>
+                            {fmtPctSigned(r.returnPct)}
+                          </td>
+                          <td className={cn("px-3 py-1.5 text-right tabular-nums font-normal", r.cumulGain >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400")}>
+                            {r.cumulGain >= 0 ? "+" : ""}{fmtEur2(r.cumulGain)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
 
             <div>
               <h3 className="mb-2 text-sm font-semibold">Performances mensuelles</h3>

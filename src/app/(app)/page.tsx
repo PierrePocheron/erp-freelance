@@ -11,6 +11,7 @@ import { QuickActionsBar } from "@/components/modules/dashboard/QuickActionsBar"
 import { ProdMonitorCard } from "@/components/modules/dashboard/ProdMonitorCard"
 import { PendingIncomeCard } from "@/components/modules/dashboard/PendingIncomeCard"
 import { JobHuntCard } from "@/components/modules/dashboard/JobHuntCard"
+import { InvestmentsCard } from "@/components/modules/dashboard/InvestmentsCard"
 import { ConfirmEventsCard } from "@/components/modules/dashboard/ConfirmEventsCard"
 import { InProgressTasksCard } from "@/components/modules/dashboard/InProgressTasksCard"
 import { IncompleteDataSheet } from "@/components/modules/dashboard/IncompleteDataSheet"
@@ -509,6 +510,21 @@ export default async function DashboardPage() {
   const hour = new Date().getHours()
   const greeting = hour < 18 ? "Bonjour" : "Bonsoir"
 
+  // Module Investissements — résumé (fetch séparé, seulement si le module est actif)
+  const investPlatforms = has("investissements")
+    ? await prisma.investmentPlatform.findMany({
+        where: { userId },
+        orderBy: { createdAt: "asc" },
+        include: { entries: { orderBy: { date: "asc" }, select: { date: true, capital: true, contribution: true } } },
+      })
+    : []
+  const investPlatformItems = investPlatforms.map((p) => ({
+    id: p.id,
+    name: p.name,
+    type: p.type,
+    entries: p.entries.map((e) => ({ date: e.date.toISOString(), capital: e.capital, contribution: e.contribution })),
+  }))
+
   return (
     <>
     {/* Accueil mobile — remplace le dashboard sur petit écran */}
@@ -870,6 +886,9 @@ export default async function DashboardPage() {
 
           {/* Entretiens — candidatures actives */}
           {has("entretien") && <JobHuntCard applications={jobAppItems} />}
+
+          {/* Investissements — résumé capital / bénéfices */}
+          {has("investissements") && <InvestmentsCard platforms={investPlatformItems} />}
 
           {/* Pipeline Prospects */}
           {has("prospection") && dashboardProspects.length > 0 && (

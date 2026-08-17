@@ -12,7 +12,7 @@ import { PlatformCard } from "./PlatformCard"
 import { PlatformDialog, type PlatformForEdit } from "./PlatformDialog"
 import { InvestmentChart } from "./InvestmentChart"
 
-export type EntryData = { id: string; date: string; capital: number; contribution: number; note: string | null }
+export type EntryData = { id: string; date: string; capital: number | null; contribution: number; note: string | null }
 export type PlatformData = { id: string; name: string; type: InvestmentType; url: string | null; notes: string | null; entries: EntryData[] }
 
 export function InvestmentsView({ platforms }: { platforms: PlatformData[] }) {
@@ -59,11 +59,10 @@ export function InvestmentsView({ platforms }: { platforms: PlatformData[] }) {
     <div className="space-y-6">
       <div className="flex items-center justify-between gap-2">
         <h1 className="text-2xl font-bold tracking-tight sm:hidden">Investissements</h1>
-        <p className="hidden text-sm text-muted-foreground sm:block">
+        <p className="text-sm text-muted-foreground">
           {platforms.length} plateforme{platforms.length !== 1 ? "s" : ""}
           {agg.currentCapital > 0 && <> · <span className="amount-sensitive font-medium text-foreground">{fmtEur(agg.currentCapital)}</span> de capital</>}
         </p>
-        <Button onClick={() => setDialog({ open: true })}><Plus /> Plateforme</Button>
       </div>
 
       {platforms.length === 0 ? (
@@ -82,6 +81,13 @@ export function InvestmentsView({ platforms }: { platforms: PlatformData[] }) {
                   <PlatformCard key={p.id} platform={p} stats={p.all} period={p.period} rangeLabel={RANGE_LABEL[range]} color={p.color} onEdit={() => openEdit(p)} />
                 ))}
               </div>
+              <button
+                type="button"
+                onClick={() => setDialog({ open: true })}
+                className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-border/70 py-2 text-sm font-medium text-muted-foreground transition-colors hover:border-primary/40 hover:bg-primary/5 hover:text-primary"
+              >
+                <Plus className="h-4 w-4" /> Nouvelle plateforme
+              </button>
             </div>
           </div>
 
@@ -95,7 +101,7 @@ export function InvestmentsView({ platforms }: { platforms: PlatformData[] }) {
                     Apports à renseigner — {agg.incompleteCount} plateforme{agg.incompleteCount > 1 ? "s" : ""}
                   </p>
                   <p className="mt-0.5 text-xs text-muted-foreground">
-                    Indique combien tu as déposé de ta poche sur chaque plateforme (ouvre un relevé → champ «&nbsp;dont apport&nbsp;»). Sans cette info, impossible de distinguer tes bénéfices de tes dépôts, donc la rentabilité n&apos;est pas calculée.
+                    Renseigne en 1 clic : clique sur «&nbsp;Apports à renseigner&nbsp;» ou le bouton «&nbsp;Dépôt&nbsp;» d&apos;une plateforme, et saisis chaque dépôt d&apos;argent (montant + date). Sans ça, impossible de distinguer tes bénéfices de tes dépôts, donc la rentabilité n&apos;est pas calculée.
                   </p>
                 </div>
               </div>

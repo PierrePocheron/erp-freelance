@@ -51,7 +51,7 @@ export const RANGE_LABEL: Record<RangeKey, string> = {
   "3M": "3 mois", "6M": "6 mois", "12M": "12 mois", "2A": "2 ans", "3A": "3 ans", ALL: "depuis le début",
 }
 
-export type EntryLite = { date: Date | string; capital: number; contribution: number }
+export type EntryLite = { date: Date | string; capital: number | null; contribution: number }
 
 export type Interval = {
   from: Date
@@ -89,23 +89,31 @@ export function computePlatformStats(entriesInput: EntryLite[], now: Date = new 
     .sort((a, b) => a.date.getTime() - b.date.getTime())
 
   const totalContributions = entries.reduce((s, e) => s + e.contribution, 0)
-  const first = entries[0] ?? null
-  const last = entries[entries.length - 1] ?? null
+  // Valorisations (relevés) = entrées avec un capital ; les dépôts/retraits purs
+  // (capital null) sont des flux, dissociés des relevés.
+  const vals = entries.filter((e): e is { date: Date; capital: number; contribution: number } => e.capital != null)
+  const first = vals[0] ?? null
+  const last = vals[vals.length - 1] ?? null
   const currentCapital = last ? last.capital : 0
   const profit = currentCapital - totalContributions
   const roi = totalContributions > 0 ? profit / totalContributions : 0
 
+  // Somme des apports (tous types d'entrées) survenus dans (t1, t2]
+  const flowsBetween = (t1: number, t2: number) =>
+    entries.reduce((s, e) => (e.date.getTime() > t1 && e.date.getTime() <= t2 ? s + e.contribution : s), 0)
+
   const intervals: Interval[] = []
   let twrFactor = 1
-  for (let i = 1; i < entries.length; i++) {
-    const a = entries[i - 1]
-    const b = entries[i]
+  for (let i = 1; i < vals.length; i++) {
+    const a = vals[i - 1]
+    const b = vals[i]
     const days = Math.max(0, (b.date.getTime() - a.date.getTime()) / MS_DAY)
-    const gain = b.capital - a.capital - b.contribution
+    const flows = flowsBetween(a.date.getTime(), b.date.getTime())
+    const gain = b.capital - a.capital - flows
     const base = a.capital
     const returnPct = base > 0 ? gain / base : 0
     const monthlyPct = base > 0 && days > 0 ? Math.pow(1 + returnPct, DAYS_MONTH / days) - 1 : 0
-    intervals.push({ from: a.date, to: b.date, days, gain, returnPct, monthlyPct, contribution: b.contribution, startCapital: a.capital, endCapital: b.capital })
+    intervals.push({ from: a.date, to: b.date, days, gain, returnPct, monthlyPct, contribution: flows, startCapital: a.capital, endCapital: b.capital })
     twrFactor *= 1 + returnPct
   }
   const twr = twrFactor - 1
@@ -158,23 +166,27 @@ export function computePeriodStats(entriesInput: EntryLite[], fromMs: number): P
   const entries = entriesInput
     .map((e) => ({ t: toDate(e.date).getTime(), capital: e.capital, contribution: e.contribution }))
     .sort((a, b) => a.t - b.t)
-  if (entries.length === 0) return { hasData: false, startCapital: 0, endCapital: 0, apports: 0, gain: 0, returnPct: 0, annualizedPct: 0, monthlyPct: 0, days: 0 }
+  const vals = entries.filter((e): e is { t: number; capital: number; contribution: number } => e.capital != null)
+  if (vals.length === 0) return { hasData: false, startCapital: 0, endCapital: 0, apports: 0, gain: 0, returnPct: 0, annualizedPct: 0, monthlyPct: 0, days: 0 }
 
-  const first = entries[0]
-  const last = entries[entries.length - 1]
+  const first = vals[0]
+  const last = vals[vals.length - 1]
   const coversAll = fromMs <= first.t
   const winStart = coversAll ? first.t : fromMs
-  const startCapital = coversAll ? 0 : (interpAt(entries.map((e) => ({ t: e.t, v: e.capital })), fromMs) ?? first.capital)
-  const windowEntries = coversAll ? entries : entries.filter((e) => e.t > fromMs)
-  const apports = windowEntries.reduce((s, e) => s + e.contribution, 0)
+  const startCapital = coversAll ? 0 : (interpAt(vals.map((v) => ({ t: v.t, v: v.capital })), fromMs) ?? first.capital)
+  // apports = flux (dépôts/retraits, quelle que soit l'entrée) survenus dans la fenêtre
+  const apports = entries.reduce((s, e) => (coversAll || e.t > fromMs ? s + e.contribution : s), 0)
   const endCapital = last.capital
   const gain = endCapital - startCapital - apports
 
-  const synth = [{ t: winStart, capital: startCapital, contribution: 0 }, ...windowEntries]
+  const flowsBetween = (t1: number, t2: number) =>
+    entries.reduce((s, e) => (e.t > t1 && e.t <= t2 ? s + e.contribution : s), 0)
+  const windowVals = coversAll ? vals : vals.filter((v) => v.t > fromMs)
+  const synth = [{ t: winStart, capital: startCapital }, ...windowVals]
   let f = 1
   for (let i = 1; i < synth.length; i++) {
     const a = synth[i - 1], b = synth[i]
-    const g = b.capital - a.capital - b.contribution
+    const g = b.capital - a.capital - flowsBetween(a.t, b.t)
     const r = a.capital > 0 ? g / a.capital : 0
     f *= 1 + r
   }

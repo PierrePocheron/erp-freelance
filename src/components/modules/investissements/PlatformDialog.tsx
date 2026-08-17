@@ -8,21 +8,22 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { createPlatform, updatePlatform, deletePlatform } from "@/actions/investissements"
-import { ALL_INVESTMENT_TYPES, INVESTMENT_TYPE_META, type InvestmentType } from "@/lib/investments"
+import { InvestmentTypeCombobox } from "./InvestmentTypeCombobox"
 
-export type PlatformForEdit = { id: string; name: string; type: InvestmentType; url: string | null; notes: string | null }
+export type PlatformForEdit = { id: string; name: string; type: string; url: string | null; notes: string | null }
 
 export function PlatformDialog({
-  open, onOpenChange, platformForEdit,
+  open, onOpenChange, platformForEdit, suggestions,
 }: {
   open: boolean
   onOpenChange: (v: boolean) => void
   platformForEdit?: PlatformForEdit
+  suggestions?: string[]
 }) {
   const router = useRouter()
   const isEdit = !!platformForEdit
   const [name, setName] = useState("")
-  const [type, setType] = useState<InvestmentType>("CROWDLENDING")
+  const [type, setType] = useState<string>("CROWDLENDING")
   const [url, setUrl] = useState("")
   const [notes, setNotes] = useState("")
   const [isPending, start] = useTransition()
@@ -70,8 +71,6 @@ export function PlatformDialog({
     })
   }
 
-  const inputCls = "flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
-
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
@@ -83,11 +82,8 @@ export function PlatformDialog({
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="pf-type">Type d&apos;investissement</Label>
-            <select id="pf-type" value={type} onChange={(e) => setType(e.target.value as InvestmentType)} className={inputCls}>
-              {ALL_INVESTMENT_TYPES.map((t) => (
-                <option key={t} value={t}>{INVESTMENT_TYPE_META[t].icon} {INVESTMENT_TYPE_META[t].label}</option>
-              ))}
-            </select>
+            <InvestmentTypeCombobox id="pf-type" value={type} onChange={setType} suggestions={suggestions} />
+            <p className="text-[11px] text-muted-foreground">Choisis un type ou tape un nouveau nom pour le créer.</p>
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="pf-url">Lien (optionnel)</Label>
@@ -95,7 +91,14 @@ export function PlatformDialog({
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="pf-notes">Notes</Label>
-            <Input id="pf-notes" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Stratégie, taux cible…" />
+            <textarea
+              id="pf-notes"
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              rows={5}
+              placeholder="Stratégie, taux cible, historique des apports, migration de plateforme…"
+              className="flex min-h-[110px] w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring resize-y"
+            />
           </div>
           <div className="flex items-center justify-between gap-2 pt-1">
             {isEdit ? (

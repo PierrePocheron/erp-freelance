@@ -180,6 +180,101 @@ describe("indépendance dépôts / relevés (cas limites)", () => {
   })
 })
 
+describe("robustesse des performances (régression audit)", () => {
+  it("#1 apports qui s'annulent (dépôt +2000, retrait −2000) : PAS « à renseigner », profit exact", () => {
+    const s = computePlatformStats([
+      { date: "2025-01-01", capital: null, contribution: 2000 },
+      { date: "2025-06-01", capital: 2200, contribution: 0 },
+      { date: "2025-07-01", capital: null, contribution: -2000 },
+    ], new Date("2025-07-15"))
+    expect(s.totalContributions).toBe(0)
+    expect(s.currentCapital).toBeCloseTo(200, 6)
+    expect(s.profit).toBeCloseTo(200, 6)
+    expect(s.contributionsMissing).toBe(false) // des apports SONT saisis, ils se compensent
+  })
+
+  it("#2 ouverture à capital 0 puis dépôt : le TWR n'est plus écrasé à 0", () => {
+    const s = computePlatformStats([
+      { date: "2025-01-01", capital: 0, contribution: 0 },
+      { date: "2025-02-01", capital: null, contribution: 1000 },
+      { date: "2025-03-01", capital: 1050, contribution: 0 },
+    ], new Date("2025-03-05"))
+    expect(s.profit).toBeCloseTo(50, 6)
+    expect(s.twr).toBeGreaterThan(0)              // avant : 0
+    expect(s.annualizedPct).toBeGreaterThan(0)
+    expect(Number.isFinite(s.annualizedPct)).toBe(true)
+  })
+
+  it("#3 gros dépôt en début d'intervalle : base Modified-Dietz → rendement ~5 %, pas 50 %", () => {
+    const s = computePlatformStats([
+      { date: "2025-01-01", capital: 1000, contribution: 1000 },
+      { date: "2025-01-02", capital: null, contribution: 9000 },
+      { date: "2026-01-01", capital: 10500, contribution: 0 },
+    ], new Date("2026-01-05"))
+    expect(s.profit).toBeCloseTo(500, 6)
+    expect(s.intervals[0].returnPct).toBeGreaterThan(0.04)
+    expect(s.intervals[0].returnPct).toBeLessThan(0.06) // ~5,0 %, plus le 50 % gonflé
+    expect(s.annualizedPct).toBeLessThan(0.10)
+  })
+
+  it("#5 perte > 100 % d'un intervalle : annualisé/mensuel finis (plancher −100 %), pas NaN", () => {
+    const s = computePlatformStats([
+      { date: "2026-01-01", capital: 1000, contribution: 1000 },
+      { date: "2026-01-15", capital: null, contribution: 5000 },
+      { date: "2026-02-01", capital: 2000, contribution: 0 },
+    ], new Date("2026-02-05"))
+    expect(Number.isFinite(s.annualizedPct)).toBe(true)
+    expect(Number.isFinite(s.monthlyAvgPct)).toBe(true)
+    expect(s.annualizedPct).toBeGreaterThanOrEqual(-1)
+    expect(s.profit).toBeCloseTo(-4000, 6)
+  })
+
+  it("#6 même perte via computePeriodStats : rendement de fenêtre fini (pas de NaN propagé au global)", () => {
+    const entries = [
+      { date: "2026-01-01", capital: 1000, contribution: 1000 },
+      { date: "2026-01-15", capital: null, contribution: 5000 },
+      { date: "2026-02-01", capital: 2000, contribution: 0 },
+    ]
+    const p = computePeriodStats(entries, 0)
+    expect(Number.isFinite(p.returnPct)).toBe(true)
+    expect(Number.isFinite(p.annualizedPct)).toBe(true)
+    expect(Number.isFinite(p.monthlyPct)).toBe(true)
+  })
+
+  it("#7 span très court (2 jours) : pas d'annualisation délirante", () => {
+    const s = computePlatformStats([
+      { date: "2026-01-01T09:00:00", capital: 1000, contribution: 1000 },
+      { date: "2026-01-03T09:00:00", capital: 1020, contribution: 0 },
+    ], new Date("2026-01-04"))
+    expect(s.twr).toBeCloseTo(0.02, 6)
+    expect(s.annualizedPct).toBeLessThan(1)        // avant : ~3620 %
+    expect(s.annualizedPct).toBeCloseTo(0.02, 6)   // reporte le cumulé, pas d'extrapolation
+  })
+
+  it("#8 apports nets ≤ 0 (retrait > dépôts) : ROI cohérent avec le profit, pas 0", () => {
+    const s = computePlatformStats([
+      { date: "2026-01-01", capital: 1000, contribution: 1000 },
+      { date: "2026-07-01", capital: 1500, contribution: 0 },
+      { date: "2026-08-01", capital: null, contribution: -1200 },
+    ], new Date("2026-08-05"))
+    expect(s.currentCapital).toBeCloseTo(300, 6)
+    expect(s.profit).toBeCloseTo(500, 6)
+    expect(s.roi).toBeGreaterThan(0)               // avant : 0 (dénominateur net ≤ 0)
+    expect(s.contributionsMissing).toBe(false)
+  })
+
+  it("#9 dépôt après le dernier relevé mais avant la fenêtre : ne fuit pas en bénéfice", () => {
+    const entries = [
+      { date: "2025-10-01", capital: 1000, contribution: 1000 },
+      { date: "2025-11-01", capital: 1500, contribution: 0 },
+      { date: "2025-12-01", capital: null, contribution: 500 }, // dépôt post-dernier-relevé
+    ]
+    const p = computePeriodStats(entries, new Date("2026-01-01").getTime())
+    expect(p.startCapital).toBeCloseTo(2000, 6)    // 1500 + dépôt 500 réintégré
+    expect(p.gain).toBeCloseTo(0, 6)               // avant : +500 fantôme
+  })
+})
+
 describe("aggregateGlobal", () => {
   it("agrège apports, valeur et bénéfices sur plusieurs plateformes", () => {
     const a = computePlatformStats([{ date: "2026-01-01", capital: 1200, contribution: 1000 }], new Date("2026-02-01"))

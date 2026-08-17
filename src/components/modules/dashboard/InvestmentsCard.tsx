@@ -5,14 +5,14 @@ import { LineChart, ArrowRight } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useModules } from "@/hooks/use-modules"
 import {
-  computePlatformStats, aggregateGlobal, INVESTMENT_TYPE_META,
-  fmtEur, fmtEur2, fmtPctSigned, type InvestmentType,
+  computePlatformStats, aggregateGlobal, metaForType,
+  fmtEur, fmtEur2, fmtPctSigned,
 } from "@/lib/investments"
 
 export type DashboardInvestPlatform = {
   id: string
   name: string
-  type: InvestmentType
+  type: string
   entries: { date: string; capital: number | null; contribution: number }[]
 }
 
@@ -60,7 +60,7 @@ export function InvestmentsCard({ platforms }: { platforms: DashboardInvestPlatf
         </div>
         <div className="space-y-1 border-t border-border/40 pt-2">
           {top.map((p) => {
-            const meta = INVESTMENT_TYPE_META[p.type]
+            const meta = metaForType(p.type)
             return (
               <div key={p.id} className="flex items-center gap-2 text-xs">
                 <span aria-hidden>{meta.icon}</span>

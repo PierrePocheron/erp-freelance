@@ -2,9 +2,9 @@
 
 import { useState } from "react"
 import Link from "next/link"
-import { ExternalLink, Pencil, Plus, ArrowDownToLine } from "lucide-react"
+import { ExternalLink, Pencil, Plus, ArrowDownToLine, ArrowUpFromLine } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { INVESTMENT_TYPE_META, fmtEur, fmtEur2, fmtPctSigned, type PlatformStats, type PeriodStats } from "@/lib/investments"
+import { metaForType, fmtEur, fmtEur2, fmtPctSigned, type PlatformStats, type PeriodStats } from "@/lib/investments"
 import { InvestmentQuickAdd } from "./InvestmentQuickAdd"
 import type { PlatformData } from "./InvestmentsView"
 
@@ -25,8 +25,8 @@ export function PlatformCard({
   color: string
   onEdit: () => void
 }) {
-  const [adding, setAdding] = useState<null | "releve" | "depot">(null)
-  const meta = INVESTMENT_TYPE_META[platform.type]
+  const [adding, setAdding] = useState<null | "releve" | "depot" | "retrait">(null)
+  const meta = metaForType(platform.type)
   // Coloration du capital si le dernier relevé est ancien (> 1 mois → ambre, > 2 mois → rouge)
   const staleCls =
     stats.daysSinceLast === null ? ""
@@ -109,7 +109,7 @@ export function PlatformCard({
           <InvestmentQuickAdd platformId={platform.id} mode={adding} onClose={() => setAdding(null)} />
         </div>
       ) : (
-        <div className="mt-2 grid grid-cols-2 gap-1.5">
+        <div className="mt-2 grid grid-cols-3 gap-1.5">
           <button
             onClick={() => setAdding("releve")}
             className="flex items-center justify-center gap-1 rounded-md border border-dashed border-border/60 py-1.5 text-xs text-muted-foreground transition-colors hover:border-border hover:text-foreground"
@@ -121,6 +121,12 @@ export function PlatformCard({
             className="flex items-center justify-center gap-1 rounded-md border border-dashed border-blue-500/40 py-1.5 text-xs text-blue-600 transition-colors hover:bg-blue-500/5 dark:text-blue-400"
           >
             <ArrowDownToLine className="h-3.5 w-3.5" /> Dépôt
+          </button>
+          <button
+            onClick={() => setAdding("retrait")}
+            className="flex items-center justify-center gap-1 rounded-md border border-dashed border-amber-500/40 py-1.5 text-xs text-amber-600 transition-colors hover:bg-amber-500/5 dark:text-amber-400"
+          >
+            <ArrowUpFromLine className="h-3.5 w-3.5" /> Retrait
           </button>
         </div>
       )}

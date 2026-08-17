@@ -19,6 +19,22 @@ export const INVESTMENT_TYPE_META: Record<InvestmentType, { label: string; icon:
 
 export const ALL_INVESTMENT_TYPES: InvestmentType[] = ["CROWDLENDING", "CROWDFUNDING", "IMMOBILIER", "PEA", "AUTRE"]
 
+/**
+ * Métadonnées d'affichage pour un type de plateforme. Le type est désormais une chaîne
+ * LIBRE : les presets connus (cf. INVESTMENT_TYPE_META) gardent leur icône/couleur ;
+ * un type personnalisé retombe sur un rendu neutre avec son propre libellé.
+ */
+export function metaForType(type: string): { label: string; icon: string; cls: string; color: string } {
+  return (
+    (INVESTMENT_TYPE_META as Record<string, { label: string; icon: string; cls: string; color: string }>)[type] ?? {
+      label: type,
+      icon: "🏷️",
+      cls: "bg-slate-500/15 text-slate-600 border-slate-500/25",
+      color: "#64748b",
+    }
+  )
+}
+
 // Palette stable (par index de plateforme) pour les courbes du graphe.
 export const PLATFORM_COLORS = [
   "#6366f1", "#10b981", "#f59e0b", "#ec4899", "#06b6d4",
@@ -28,6 +44,9 @@ export const PLATFORM_COLORS = [
 const MS_DAY = 86_400_000
 const DAYS_MONTH = 30.44
 const DAYS_YEAR = 365.25
+// En deçà de ce span, on n'extrapole pas un rendement à l'année/au mois (quelques jours
+// annualisés donnent des pourcentages délirants) : on reporte le rendement cumulé brut.
+const MIN_ANNUALIZE_DAYS = 14
 const toDate = (d: Date | string) => (d instanceof Date ? d : new Date(d))
 
 // Plages de temps partagées par le graphe ET les statistiques.
@@ -89,6 +108,9 @@ export function computePlatformStats(entriesInput: EntryLite[], now: Date = new 
     .sort((a, b) => a.date.getTime() - b.date.getTime())
 
   const totalContributions = entries.reduce((s, e) => s + e.contribution, 0)
+  // Apports BRUTS (dépôts seuls) : dénominateur de rentabilité robuste quand les apports
+  // nets sont ≤ 0 (on a retiré autant ou plus qu'on a déposé).
+  const grossContributions = entries.reduce((s, e) => (e.contribution > 0 ? s + e.contribution : s), 0)
   // Valorisations (relevés) = entrées avec un capital ; les dépôts/retraits purs
   // (capital null) sont des flux, dissociés des relevés.
   const vals = entries.filter((e): e is { date: Date; capital: number; contribution: number } => e.capital != null)
@@ -105,32 +127,55 @@ export function computePlatformStats(entriesInput: EntryLite[], now: Date = new 
   const flowsAfterLast = last ? flowsBetween(last.date.getTime(), Infinity) : totalContributions
   const currentCapital = (last ? last.capital : 0) + flowsAfterLast
   const profit = currentCapital - totalContributions
-  const roi = totalContributions > 0 ? profit / totalContributions : 0
+  // Rentabilité simple. Si les apports nets sont ≤ 0 (retraits ≥ dépôts), on rapporte au
+  // brut déposé pour ne pas afficher 0 % à côté d'un profit réel.
+  const roi = totalContributions > 0 ? profit / totalContributions
+    : grossContributions > 0 ? profit / grossContributions : 0
 
   const intervals: Interval[] = []
   let twrFactor = 1
   for (let i = 1; i < vals.length; i++) {
     const a = vals[i - 1]
     const b = vals[i]
-    const days = Math.max(0, (b.date.getTime() - a.date.getTime()) / MS_DAY)
-    const flows = flowsBetween(a.date.getTime(), b.date.getTime())
+    const spanMs = b.date.getTime() - a.date.getTime()
+    const days = Math.max(0, spanMs / MS_DAY)
+    // Flux dans (a, b] + base « Modified-Dietz » : chaque apport est pondéré par la
+    // fraction de l'intervalle où il est resté investi. Sans ça, un gros dépôt en début
+    // d'intervalle gonfle le rendement (base = capital de début seul) et une ouverture à
+    // capital 0 l'annule (base 0) ; la base moyenne rend le rendement fidèle au timing.
+    let flows = 0
+    let weighted = 0
+    for (const e of entries) {
+      const t = e.date.getTime()
+      if (t > a.date.getTime() && t <= b.date.getTime()) {
+        flows += e.contribution
+        weighted += e.contribution * (spanMs > 0 ? (b.date.getTime() - t) / spanMs : 0)
+      }
+    }
     const gain = b.capital - a.capital - flows
-    const base = a.capital
+    const base = a.capital + weighted
     const returnPct = base > 0 ? gain / base : 0
-    const monthlyPct = base > 0 && days > 0 ? Math.pow(1 + returnPct, DAYS_MONTH / days) - 1 : 0
+    // Une sous-période ne peut pas perdre plus de 100 % : plancher à −1 pour ne pas rendre
+    // le facteur TWR négatif (→ NaN à l'annualisation) ni gonfler une reprise ultérieure.
+    const rClamped = Math.max(-1, returnPct)
+    const monthlyPct = base > 0 && days > 0 ? Math.pow(1 + rClamped, DAYS_MONTH / days) - 1 : 0
     intervals.push({ from: a.date, to: b.date, days, gain, returnPct, monthlyPct, contribution: flows, startCapital: a.capital, endCapital: b.capital })
-    twrFactor *= 1 + returnPct
+    twrFactor *= 1 + rClamped
   }
   const twr = twrFactor - 1
   const totalDays = first && last ? Math.max(0, (last.date.getTime() - first.date.getTime()) / MS_DAY) : 0
-  const annualizedPct = totalDays > 0 ? Math.pow(1 + twr, DAYS_YEAR / totalDays) - 1 : 0
-  const monthlyAvgPct = totalDays > 0 ? Math.pow(1 + twr, DAYS_MONTH / totalDays) - 1 : 0
+  // Base d'annualisation plancherée à 0 (perte ≥ 100 % → −100 %) : jamais un nombre négatif
+  // élevé à une puissance fractionnaire (= NaN). Span trop court → pas d'extrapolation.
+  const twrPow = Math.max(0, 1 + twr)
+  const annualizedPct = totalDays >= MIN_ANNUALIZE_DAYS ? Math.pow(twrPow, DAYS_YEAR / totalDays) - 1 : twr
+  const monthlyAvgPct = totalDays >= MIN_ANNUALIZE_DAYS ? Math.pow(twrPow, DAYS_MONTH / totalDays) - 1 : twr
 
   const daysSinceLast = last ? (now.getTime() - last.date.getTime()) / MS_DAY : null
   const isStale = daysSinceLast !== null && daysSinceLast > 31
-  // Aucun apport renseigné alors qu'il y a du capital → impossible de calculer les
-  // bénéfices (on prendrait tout le capital pour du gain). À compléter par l'utilisateur.
-  const contributionsMissing = totalContributions === 0 && currentCapital > 0
+  // Apports jamais renseignés (AUCUNE entrée avec un apport ≠ 0) alors qu'il y a du capital
+  // → bénéfices incalculables. On teste l'ABSENCE d'apport, pas une somme nette nulle : un
+  // dépôt puis un retrait égal ne sont pas « non renseignés ».
+  const contributionsMissing = !entries.some((e) => e.contribution !== 0) && currentCapital > 0
 
   return {
     totalContributions, currentCapital, firstDate: first?.date ?? null, lastDate: last?.date ?? null,
@@ -192,10 +237,11 @@ export function computePeriodStats(entriesInput: EntryLite[], fromMs: number): P
   const coversAll = fromMs <= first.t
   const winStart = coversAll ? first.t : fromMs
   // Capital de départ CONSCIENT DES DÉPÔTS (pas une interpolation linéaire naïve).
-  // Fallback = dernier capital connu : si la fenêtre est ENTIÈREMENT postérieure au
-  // dernier relevé (capitalAt renvoie null car fromMs > last.t), on reporte à plat le
-  // dernier capital → gain de période = 0 (cohérent), pas le capital du 1er relevé.
-  const startCapital = coversAll ? 0 : (capitalAt(vals.map((v) => ({ t: v.t, capital: v.capital })), flows, fromMs) ?? last.capital)
+  // Fallback si la fenêtre est ENTIÈREMENT postérieure au dernier relevé (capitalAt renvoie
+  // null car fromMs > last.t) = dernier capital connu + les dépôts faits APRÈS ce relevé mais
+  // AVANT le début de fenêtre. Sinon ces dépôts (comptés dans endCapital mais pas dans les
+  // apports de la fenêtre) fuiraient en faux bénéfice.
+  const startCapital = coversAll ? 0 : (capitalAt(vals.map((v) => ({ t: v.t, capital: v.capital })), flows, fromMs) ?? (last.capital + flowsBetween(last.t, fromMs)))
   // apports = flux survenus dans la fenêtre
   const apports = entries.reduce((s, e) => (coversAll || e.t > fromMs ? s + e.contribution : s), 0)
   // capital actuel = dernier relevé + dépôts postérieurs (non encore valorisés)
@@ -209,12 +255,13 @@ export function computePeriodStats(entriesInput: EntryLite[], fromMs: number): P
     const a = synth[i - 1], b = synth[i]
     const g = b.capital - a.capital - flowsBetween(a.t, b.t)
     const r = a.capital > 0 ? g / a.capital : 0
-    f *= 1 + r
+    f *= 1 + Math.max(-1, r) // plancher −100 % par sous-période (évite un facteur négatif → NaN)
   }
   const returnPct = f - 1
   const days = Math.max(0, (last.t - winStart) / MS_DAY)
-  const annualizedPct = days > 0 ? Math.pow(1 + returnPct, DAYS_YEAR / days) - 1 : 0
-  const monthlyPct = days > 0 ? Math.pow(1 + returnPct, DAYS_MONTH / days) - 1 : 0
+  const powBase = Math.max(0, 1 + returnPct) // base plancherée à 0 → jamais de NaN via Math.pow
+  const annualizedPct = days >= MIN_ANNUALIZE_DAYS ? Math.pow(powBase, DAYS_YEAR / days) - 1 : returnPct
+  const monthlyPct = days >= MIN_ANNUALIZE_DAYS ? Math.pow(powBase, DAYS_MONTH / days) - 1 : returnPct
 
   return { hasData: true, startCapital, endCapital, apports, gain, returnPct, annualizedPct, monthlyPct, days }
 }

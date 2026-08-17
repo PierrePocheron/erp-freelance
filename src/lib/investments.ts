@@ -266,6 +266,84 @@ export function computePeriodStats(entriesInput: EntryLite[], fromMs: number): P
   return { hasData: true, startCapital, endCapital, apports, gain, returnPct, annualizedPct, monthlyPct, days }
 }
 
+// ── Série mensuelle (rapport à envoyer au conseiller) ───────────────────────────
+
+/** Valeur d'UNE plateforme au temps t (ms), consciente des dépôts (mêmes règles que la courbe). */
+export function platformValueAt(entriesInput: EntryLite[], t: number): number {
+  const es = entriesInput
+    .map((e) => ({ t: toDate(e.date).getTime(), capital: e.capital, contribution: e.contribution }))
+    .sort((a, b) => a.t - b.t)
+  const vals = es.filter((e): e is { t: number; capital: number; contribution: number } => e.capital != null)
+  const flowsUpTo = (tt: number) => es.reduce((s, e) => (e.t <= tt ? s + e.contribution : s), 0)
+  if (vals.length === 0) return flowsUpTo(t) // que des flux, aucun relevé
+  const first = vals[0]
+  const last = vals[vals.length - 1]
+  if (t < first.t) return flowsUpTo(t) // avant le 1er relevé : cumul des dépôts antérieurs
+  if (t >= last.t) return last.capital + es.reduce((s, e) => (e.t > last.t && e.t <= t ? s + e.contribution : s), 0)
+  const flows = es.filter((e) => e.contribution !== 0).map((e) => ({ t: e.t, amount: e.contribution }))
+  return capitalAt(vals.map((v) => ({ t: v.t, capital: v.capital })), flows, t) ?? last.capital
+}
+
+export type MonthlyRow = {
+  ym: string           // "2026-01"
+  label: string        // "janv. 2026"
+  value: number        // valeur totale en fin de mois
+  contributions: number// apports du mois (net)
+  gain: number         // gain du mois hors apports
+  returnPct: number    // performance du mois
+  cumulContributions: number
+  cumulGain: number
+}
+
+/**
+ * Série mensuelle agrégée sur [fromMs, toMs] : pour chaque mois, la valeur totale de fin de
+ * mois, les apports du mois, le gain (hors apports) et la performance. `new Date(y, m, …)`
+ * est déterministe (dates construites avec arguments) → pas d'impureté en rendu.
+ */
+export function computeMonthlySeries(platforms: { entries: EntryLite[] }[], fromMs: number, toMs: number): MonthlyRow[] {
+  if (toMs < fromMs) return []
+  const totalValueAt = (t: number) => platforms.reduce((s, p) => s + platformValueAt(p.entries, t), 0)
+  const contributionsBetween = (t1: number, t2: number) =>
+    platforms.reduce((s, p) => s + p.entries.reduce((ss, e) => {
+      const et = toDate(e.date).getTime()
+      return et > t1 && et <= t2 ? ss + e.contribution : ss
+    }, 0), 0)
+
+  const from = new Date(fromMs)
+  const to = new Date(toMs)
+  const endY = to.getFullYear()
+  const endM = to.getMonth()
+  const rows: MonthlyRow[] = []
+  let cumulContributions = 0
+  let cumulGain = 0
+  let y = from.getFullYear()
+  let m = from.getMonth()
+  let guard = 0
+  while ((y < endY || (y === endY && m <= endM)) && guard++ < 600) {
+    const monthStartMinus1 = new Date(y, m, 1).getTime() - 1        // juste avant le mois
+    const monthEnd = new Date(y, m + 1, 1).getTime() - 1           // fin du dernier jour
+    const valStart = totalValueAt(monthStartMinus1)
+    const valEnd = totalValueAt(monthEnd)
+    const contributions = contributionsBetween(monthStartMinus1, monthEnd)
+    const gain = valEnd - valStart - contributions
+    cumulContributions += contributions
+    cumulGain += gain
+    rows.push({
+      ym: `${y}-${String(m + 1).padStart(2, "0")}`,
+      label: new Date(y, m, 1).toLocaleDateString("fr-FR", { month: "short", year: "numeric" }),
+      value: valEnd,
+      contributions,
+      gain,
+      returnPct: valStart > 0 ? gain / valStart : 0,
+      cumulContributions,
+      cumulGain,
+    })
+    m++
+    if (m > 11) { m = 0; y++ }
+  }
+  return rows
+}
+
 export type GlobalStats = {
   totalContributions: number
   currentCapital: number
@@ -287,10 +365,12 @@ export function aggregateGlobal(stats: PlatformStats[]): GlobalStats {
 }
 
 // ── Formatage ─────────────────────────────────────────────────────────────────
+// Espace INSÉCABLE ( ) avant € / % : correct en typographie française et évite que
+// « 6 260 » et « € » se retrouvent sur deux lignes (wrap dans l'infobulle du graphe).
 export const fmtEur = (n: number) =>
-  `${n.toLocaleString("fr-FR", { minimumFractionDigits: 0, maximumFractionDigits: 0 })} €`
+  `${n.toLocaleString("fr-FR", { minimumFractionDigits: 0, maximumFractionDigits: 0 })} €`
 export const fmtEur2 = (n: number) =>
-  `${n.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`
+  `${n.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`
 export const fmtPct = (r: number) =>
-  `${(r * 100).toLocaleString("fr-FR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })} %`
+  `${(r * 100).toLocaleString("fr-FR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })} %`
 export const fmtPctSigned = (r: number) => `${r >= 0 ? "+" : ""}${fmtPct(r)}`

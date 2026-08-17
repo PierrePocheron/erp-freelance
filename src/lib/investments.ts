@@ -288,7 +288,9 @@ export type MonthlyRow = {
   ym: string           // "2026-01"
   label: string        // "janv. 2026"
   value: number        // valeur totale en fin de mois
-  contributions: number// apports du mois (net)
+  deposits: number     // dépôts du mois (somme des apports positifs)
+  withdrawals: number  // retraits du mois (somme des apports négatifs, ≤ 0)
+  contributions: number// apports NETS du mois (dépôts + retraits)
   gain: number         // gain du mois hors apports
   returnPct: number    // performance du mois
   cumulContributions: number
@@ -303,11 +305,18 @@ export type MonthlyRow = {
 export function computeMonthlySeries(platforms: { entries: EntryLite[] }[], fromMs: number, toMs: number): MonthlyRow[] {
   if (toMs < fromMs) return []
   const totalValueAt = (t: number) => platforms.reduce((s, p) => s + platformValueAt(p.entries, t), 0)
-  const contributionsBetween = (t1: number, t2: number) =>
-    platforms.reduce((s, p) => s + p.entries.reduce((ss, e) => {
+  // Dépôts (apports > 0) et retraits (apports < 0) séparés dans (t1, t2].
+  const flowsBetween = (t1: number, t2: number) => {
+    let deposits = 0, withdrawals = 0
+    for (const p of platforms) for (const e of p.entries) {
       const et = toDate(e.date).getTime()
-      return et > t1 && et <= t2 ? ss + e.contribution : ss
-    }, 0), 0)
+      if (et > t1 && et <= t2) {
+        if (e.contribution > 0) deposits += e.contribution
+        else withdrawals += e.contribution
+      }
+    }
+    return { deposits, withdrawals }
+  }
 
   const from = new Date(fromMs)
   const to = new Date(toMs)
@@ -324,7 +333,8 @@ export function computeMonthlySeries(platforms: { entries: EntryLite[] }[], from
     const monthEnd = new Date(y, m + 1, 1).getTime() - 1           // fin du dernier jour
     const valStart = totalValueAt(monthStartMinus1)
     const valEnd = totalValueAt(monthEnd)
-    const contributions = contributionsBetween(monthStartMinus1, monthEnd)
+    const { deposits, withdrawals } = flowsBetween(monthStartMinus1, monthEnd)
+    const contributions = deposits + withdrawals
     const gain = valEnd - valStart - contributions
     cumulContributions += contributions
     cumulGain += gain
@@ -332,6 +342,8 @@ export function computeMonthlySeries(platforms: { entries: EntryLite[] }[], from
       ym: `${y}-${String(m + 1).padStart(2, "0")}`,
       label: new Date(y, m, 1).toLocaleDateString("fr-FR", { month: "short", year: "numeric" }),
       value: valEnd,
+      deposits,
+      withdrawals,
       contributions,
       gain,
       returnPct: valStart > 0 ? gain / valStart : 0,
@@ -347,7 +359,9 @@ export function computeMonthlySeries(platforms: { entries: EntryLite[] }[], from
 export type AnnualRow = {
   year: number
   value: number         // valeur en fin d'année (ou fin de période pour l'année en cours)
-  contributions: number // apports de l'année (net)
+  deposits: number      // dépôts de l'année (apports positifs)
+  withdrawals: number   // retraits de l'année (apports négatifs, ≤ 0)
+  contributions: number // apports NETS de l'année (dépôts + retraits)
   gain: number          // gain de l'année hors apports
   returnPct: number     // performance de l'année
   cumulContributions: number
@@ -362,11 +376,18 @@ export type AnnualRow = {
 export function computeAnnualSeries(platforms: { entries: EntryLite[] }[], fromMs: number, toMs: number): AnnualRow[] {
   if (toMs < fromMs) return []
   const totalValueAt = (t: number) => platforms.reduce((s, p) => s + platformValueAt(p.entries, t), 0)
-  const contributionsBetween = (t1: number, t2: number) =>
-    platforms.reduce((s, p) => s + p.entries.reduce((ss, e) => {
+  // Dépôts (apports > 0) et retraits (apports < 0) séparés dans (t1, t2].
+  const flowsBetween = (t1: number, t2: number) => {
+    let deposits = 0, withdrawals = 0
+    for (const p of platforms) for (const e of p.entries) {
       const et = toDate(e.date).getTime()
-      return et > t1 && et <= t2 ? ss + e.contribution : ss
-    }, 0), 0)
+      if (et > t1 && et <= t2) {
+        if (e.contribution > 0) deposits += e.contribution
+        else withdrawals += e.contribution
+      }
+    }
+    return { deposits, withdrawals }
+  }
 
   const startY = new Date(fromMs).getFullYear()
   const endY = new Date(toMs).getFullYear()
@@ -380,13 +401,16 @@ export function computeAnnualSeries(platforms: { entries: EntryLite[] }[], fromM
     const hi = Math.min(new Date(y + 1, 0, 1).getTime() - 1, toMs)
     const valStart = totalValueAt(lo)
     const valEnd = totalValueAt(hi)
-    const contributions = contributionsBetween(lo, hi)
+    const { deposits, withdrawals } = flowsBetween(lo, hi)
+    const contributions = deposits + withdrawals
     const gain = valEnd - valStart - contributions
     cumulContributions += contributions
     cumulGain += gain
     rows.push({
       year: y,
       value: valEnd,
+      deposits,
+      withdrawals,
       contributions,
       gain,
       returnPct: valStart > 0 ? gain / valStart : 0,

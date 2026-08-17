@@ -19,13 +19,18 @@ function periodStat(entries: PlatformData["entries"], fromMs: number, toMs: numb
   const lite = entries.map((e) => ({ date: e.date, capital: e.capital, contribution: e.contribution }))
   const start = platformValueAt(lite, fromMs - 1)
   const end = platformValueAt(lite, toMs)
-  const contrib = entries.reduce((s, e) => {
+  let deposits = 0, withdrawals = 0
+  for (const e of entries) {
     const t = new Date(e.date).getTime()
-    return t > fromMs - 1 && t <= toMs ? s + e.contribution : s
-  }, 0)
+    if (t > fromMs - 1 && t <= toMs) {
+      if (e.contribution > 0) deposits += e.contribution
+      else withdrawals += e.contribution
+    }
+  }
+  const contrib = deposits + withdrawals
   const gain = end - start - contrib
   const perf = start > 0 ? gain / start : contrib > 0 ? gain / contrib : 0
-  return { start, end, contrib, gain, perf }
+  return { start, end, deposits, withdrawals, contrib, gain, perf }
 }
 
 export function InvestmentReport({ platforms, userName }: { platforms: PlatformData[]; userName: string }) {
@@ -75,10 +80,12 @@ export function InvestmentReport({ platforms, userName }: { platforms: PlatformD
   const totals = useMemo(() => {
     const start = perPlatform.reduce((s, x) => s + x.s.start, 0)
     const end = perPlatform.reduce((s, x) => s + x.s.end, 0)
-    const contrib = perPlatform.reduce((s, x) => s + x.s.contrib, 0)
+    const deposits = perPlatform.reduce((s, x) => s + x.s.deposits, 0)
+    const withdrawals = perPlatform.reduce((s, x) => s + x.s.withdrawals, 0)
+    const contrib = deposits + withdrawals
     const gain = end - start - contrib
     const perf = start > 0 ? gain / start : contrib > 0 ? gain / contrib : 0
-    return { start, end, contrib, gain, perf }
+    return { start, end, deposits, withdrawals, contrib, gain, perf }
   }, [perPlatform])
 
   const periodLabel = fromStr && toStr
@@ -102,9 +109,9 @@ export function InvestmentReport({ platforms, userName }: { platforms: PlatformD
 
   function downloadCsv() {
     const sep = ";"
-    const head = ["Mois", "Valeur fin de mois (€)", "Apports du mois (€)", "Gain du mois (€)", "Performance mois (%)", "Apports cumulés (€)", "Plus-value cumulée (€)"]
-    const lines = monthly.map((r) => [r.label, fr2(r.value), fr2(r.contributions), fr2(r.gain), fr2(r.returnPct * 100), fr2(r.cumulContributions), fr2(r.cumulGain)])
-    const totalLine = ["TOTAL période", fr2(totals.end), fr2(totals.contrib), fr2(totals.gain), fr2(totals.perf * 100), "", ""]
+    const head = ["Mois", "Valeur fin de mois (€)", "Dépôts (€)", "Retraits (€)", "Gain du mois (€)", "Performance mois (%)", "Plus-value cumulée (€)"]
+    const lines = monthly.map((r) => [r.label, fr2(r.value), fr2(r.deposits), fr2(r.withdrawals), fr2(r.gain), fr2(r.returnPct * 100), fr2(r.cumulGain)])
+    const totalLine = ["TOTAL période", fr2(totals.end), fr2(totals.deposits), fr2(totals.withdrawals), fr2(totals.gain), fr2(totals.perf * 100), ""]
     const csv = [head, ...lines, totalLine].map((row) => row.map((c) => `"${c}"`).join(sep)).join("\r\n")
     const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8" })
     const url = URL.createObjectURL(blob)
@@ -214,7 +221,8 @@ export function InvestmentReport({ platforms, userName }: { platforms: PlatformD
                       <tr className="border-b border-border/60 text-left text-xs text-muted-foreground">
                         <th className="px-3 py-2 font-medium">Année</th>
                         <th className="px-3 py-2 text-right font-medium">Valeur</th>
-                        <th className="px-3 py-2 text-right font-medium">Apports</th>
+                        <th className="px-3 py-2 text-right font-medium">Dépôts</th>
+                        <th className="px-3 py-2 text-right font-medium">Retraits</th>
                         <th className="px-3 py-2 text-right font-medium">Gain</th>
                         <th className="px-3 py-2 text-right font-medium">Perf.</th>
                         <th className="px-3 py-2 text-right font-medium">Plus-value cumulée</th>
@@ -225,8 +233,11 @@ export function InvestmentReport({ platforms, userName }: { platforms: PlatformD
                         <tr key={r.year} className="border-b border-border/40 font-medium last:border-0">
                           <td className="whitespace-nowrap px-3 py-1.5">{r.year}</td>
                           <td className="px-3 py-1.5 text-right tabular-nums">{fmtEur2(r.value)}</td>
-                          <td className={cn("px-3 py-1.5 text-right tabular-nums font-normal", r.contributions > 0 ? "text-blue-600 dark:text-blue-400" : r.contributions < 0 ? "text-amber-600 dark:text-amber-400" : "text-muted-foreground")}>
-                            {r.contributions ? `${r.contributions > 0 ? "+" : ""}${fmtEur2(r.contributions)}` : "—"}
+                          <td className="px-3 py-1.5 text-right font-normal tabular-nums text-blue-600 dark:text-blue-400">
+                            {r.deposits ? `+${fmtEur2(r.deposits)}` : "—"}
+                          </td>
+                          <td className="px-3 py-1.5 text-right font-normal tabular-nums text-amber-600 dark:text-amber-400">
+                            {r.withdrawals ? fmtEur2(r.withdrawals) : "—"}
                           </td>
                           <td className={cn("px-3 py-1.5 text-right tabular-nums", r.gain >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400")}>
                             {r.gain >= 0 ? "+" : ""}{fmtEur2(r.gain)}
@@ -253,7 +264,8 @@ export function InvestmentReport({ platforms, userName }: { platforms: PlatformD
                     <tr className="border-b border-border/60 text-left text-xs text-muted-foreground">
                       <th className="px-3 py-2 font-medium">Mois</th>
                       <th className="px-3 py-2 text-right font-medium">Valeur</th>
-                      <th className="px-3 py-2 text-right font-medium">Apports</th>
+                      <th className="px-3 py-2 text-right font-medium">Dépôts</th>
+                      <th className="px-3 py-2 text-right font-medium">Retraits</th>
                       <th className="px-3 py-2 text-right font-medium">Gain</th>
                       <th className="px-3 py-2 text-right font-medium">Perf.</th>
                       <th className="px-3 py-2 text-right font-medium">Plus-value cumulée</th>
@@ -264,8 +276,11 @@ export function InvestmentReport({ platforms, userName }: { platforms: PlatformD
                       <tr key={r.ym} className="border-b border-border/40 last:border-0">
                         <td className="whitespace-nowrap px-3 py-1.5 capitalize">{r.label}</td>
                         <td className="px-3 py-1.5 text-right tabular-nums">{fmtEur2(r.value)}</td>
-                        <td className={cn("px-3 py-1.5 text-right tabular-nums", r.contributions > 0 ? "text-blue-600 dark:text-blue-400" : r.contributions < 0 ? "text-amber-600 dark:text-amber-400" : "text-muted-foreground")}>
-                          {r.contributions ? `${r.contributions > 0 ? "+" : ""}${fmtEur2(r.contributions)}` : "—"}
+                        <td className="px-3 py-1.5 text-right tabular-nums text-blue-600 dark:text-blue-400">
+                          {r.deposits ? `+${fmtEur2(r.deposits)}` : "—"}
+                        </td>
+                        <td className="px-3 py-1.5 text-right tabular-nums text-amber-600 dark:text-amber-400">
+                          {r.withdrawals ? fmtEur2(r.withdrawals) : "—"}
                         </td>
                         <td className={cn("px-3 py-1.5 text-right tabular-nums", r.gain >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400")}>
                           {r.gain >= 0 ? "+" : ""}{fmtEur2(r.gain)}
@@ -291,7 +306,8 @@ export function InvestmentReport({ platforms, userName }: { platforms: PlatformD
                     <tr className="border-b border-border/60 text-left text-xs text-muted-foreground">
                       <th className="px-3 py-2 font-medium">Plateforme</th>
                       <th className="px-3 py-2 text-right font-medium">Valeur début</th>
-                      <th className="px-3 py-2 text-right font-medium">Apports</th>
+                      <th className="px-3 py-2 text-right font-medium">Dépôts</th>
+                      <th className="px-3 py-2 text-right font-medium">Retraits</th>
                       <th className="px-3 py-2 text-right font-medium">Valeur fin</th>
                       <th className="px-3 py-2 text-right font-medium">Plus-value</th>
                       <th className="px-3 py-2 text-right font-medium">Perf.</th>
@@ -302,7 +318,8 @@ export function InvestmentReport({ platforms, userName }: { platforms: PlatformD
                       <tr key={p.id} className="border-b border-border/40 last:border-0">
                         <td className="whitespace-nowrap px-3 py-1.5">{metaForType(p.type).icon} {p.name}</td>
                         <td className="px-3 py-1.5 text-right tabular-nums">{fmtEur2(s.start)}</td>
-                        <td className="px-3 py-1.5 text-right tabular-nums">{s.contrib ? `${s.contrib > 0 ? "+" : ""}${fmtEur2(s.contrib)}` : "—"}</td>
+                        <td className="px-3 py-1.5 text-right tabular-nums text-blue-600 dark:text-blue-400">{s.deposits ? `+${fmtEur2(s.deposits)}` : "—"}</td>
+                        <td className="px-3 py-1.5 text-right tabular-nums text-amber-600 dark:text-amber-400">{s.withdrawals ? fmtEur2(s.withdrawals) : "—"}</td>
                         <td className="px-3 py-1.5 text-right tabular-nums font-medium">{fmtEur2(s.end)}</td>
                         <td className={cn("px-3 py-1.5 text-right tabular-nums", s.gain >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400")}>
                           {s.gain >= 0 ? "+" : ""}{fmtEur2(s.gain)}
@@ -318,7 +335,7 @@ export function InvestmentReport({ platforms, userName }: { platforms: PlatformD
             </div>
 
             <p className="pt-2 text-[11px] text-muted-foreground">
-              Plus-value = valeur − apports (hors argent déposé). Performance mensuelle = gain du mois rapporté à la valeur de début de mois. Données personnelles — export généré depuis l&apos;ERP.
+              Plus-value = valeur − apports nets (dépôts − retraits). Un transfert entre plateformes (retrait d&apos;un côté, dépôt de l&apos;autre) s&apos;annule et n&apos;affecte donc pas la performance. Performance = gain de la période rapporté à la valeur de début. Données personnelles — export généré depuis l&apos;ERP.
             </p>
           </>
         )}

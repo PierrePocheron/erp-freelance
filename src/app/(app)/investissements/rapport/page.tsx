@@ -35,5 +35,5 @@ export default async function RapportInvestissementsPage() {
     })),
   }))
 
-  return <InvestmentReport platforms={data} />
+  return <InvestmentReport platforms={data} userName={session!.user.name ?? ""} />
 }

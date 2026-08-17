@@ -1,4 +1,5 @@
 import type { ElementType } from "react"
+import { LayoutDashboard } from "lucide-react"
 
 /**
  * Fil d'Ariane dérivé de l'URL. Le module de tête (icône + libellé) vient de
@@ -57,10 +58,12 @@ export function buildCrumbs(
 ): Crumb[] {
   const segments = pathname.split("/").filter(Boolean)
 
-  // Accueil
+  // Accueil (dashboard). Le Dashboard n'a plus de bouton dédié dans navItems, donc on
+  // fournit un crumb par défaut « Tableau de bord » avec l'icône dashboard (sinon le
+  // header retombait sur le fallback « ERP »).
   if (segments.length === 0) {
     const home = modules.find((m) => m.href === "/")
-    return home ? [{ label: home.label, href: "/", icon: home.icon }] : []
+    return [{ label: home?.label ?? "Tableau de bord", href: "/", icon: home?.icon ?? LayoutDashboard }]
   }
 
   const moduleHref = "/" + segments[0]

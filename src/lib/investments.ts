@@ -30,6 +30,27 @@ const DAYS_MONTH = 30.44
 const DAYS_YEAR = 365.25
 const toDate = (d: Date | string) => (d instanceof Date ? d : new Date(d))
 
+// Plages de temps partagées par le graphe ET les statistiques.
+export const RANGES = [
+  { key: "3M",  label: "3 mois",  days: 91 },
+  { key: "6M",  label: "6 mois",  days: 183 },
+  { key: "12M", label: "12 mois", days: 365 },
+  { key: "2A",  label: "2 ans",   days: 730 },
+  { key: "3A",  label: "3 ans",   days: 1096 },
+  { key: "ALL", label: "Tout",    days: null },
+] as const
+export type RangeKey = (typeof RANGES)[number]["key"]
+
+/** Borne gauche (ms) d'une plage. 0 = « Tout » (couvre tous les relevés). */
+export function rangeStartMs(range: RangeKey, nowMs: number): number {
+  const days = RANGES.find((r) => r.key === range)?.days ?? null
+  return days === null || nowMs === 0 ? 0 : nowMs - days * MS_DAY
+}
+
+export const RANGE_LABEL: Record<RangeKey, string> = {
+  "3M": "3 mois", "6M": "6 mois", "12M": "12 mois", "2A": "2 ans", "3A": "3 ans", ALL: "depuis le début",
+}
+
 export type EntryLite = { date: Date | string; capital: number; contribution: number }
 
 export type Interval = {
@@ -58,6 +79,7 @@ export type PlatformStats = {
   entryCount: number
   daysSinceLast: number | null
   isStale: boolean            // dernier relevé > ~1 mois → inviter à mettre à jour
+  contributionsMissing: boolean // capital > 0 mais aucun apport renseigné → rentabilité impossible
 }
 
 /** Statistiques d'une plateforme à partir de ses relevés (ordre quelconque). */
@@ -93,11 +115,75 @@ export function computePlatformStats(entriesInput: EntryLite[], now: Date = new 
 
   const daysSinceLast = last ? (now.getTime() - last.date.getTime()) / MS_DAY : null
   const isStale = daysSinceLast !== null && daysSinceLast > 31
+  // Aucun apport renseigné alors qu'il y a du capital → impossible de calculer les
+  // bénéfices (on prendrait tout le capital pour du gain). À compléter par l'utilisateur.
+  const contributionsMissing = totalContributions === 0 && currentCapital > 0
 
   return {
     totalContributions, currentCapital, firstDate: first?.date ?? null, lastDate: last?.date ?? null,
     profit, roi, twr, annualizedPct, monthlyAvgPct, intervals, entryCount: entries.length, daysSinceLast, isStale,
+    contributionsMissing,
   }
+}
+
+// ── Statistiques sur une fenêtre temporelle (pilotées par le filtre du graphe) ──
+
+export type PeriodStats = {
+  hasData: boolean
+  startCapital: number  // capital au début de la fenêtre (0 si la fenêtre couvre tout)
+  endCapital: number    // capital actuel
+  apports: number       // apports effectués DANS la fenêtre
+  gain: number          // endCapital − startCapital − apports
+  returnPct: number     // rendement pondéré par le temps sur la fenêtre
+  annualizedPct: number
+  monthlyPct: number
+  days: number
+}
+
+/** Valeur interpolée linéairement d'une série (triée) au temps t ; null si hors plage. */
+function interpAt(pts: { t: number; v: number }[], t: number): number | null {
+  if (pts.length === 0 || t < pts[0].t || t > pts[pts.length - 1].t) return null
+  for (let i = 0; i < pts.length - 1; i++) {
+    const a = pts[i], b = pts[i + 1]
+    if (t >= a.t && t <= b.t) return b.t === a.t ? b.v : a.v + ((t - a.t) / (b.t - a.t)) * (b.v - a.v)
+  }
+  return pts[pts.length - 1].v
+}
+
+/**
+ * Statistiques restreintes à la fenêtre [fromMs, dernier relevé]. Si `fromMs` précède
+ * le premier relevé, la fenêtre couvre tout et on retombe sur les stats globales.
+ */
+export function computePeriodStats(entriesInput: EntryLite[], fromMs: number): PeriodStats {
+  const entries = entriesInput
+    .map((e) => ({ t: toDate(e.date).getTime(), capital: e.capital, contribution: e.contribution }))
+    .sort((a, b) => a.t - b.t)
+  if (entries.length === 0) return { hasData: false, startCapital: 0, endCapital: 0, apports: 0, gain: 0, returnPct: 0, annualizedPct: 0, monthlyPct: 0, days: 0 }
+
+  const first = entries[0]
+  const last = entries[entries.length - 1]
+  const coversAll = fromMs <= first.t
+  const winStart = coversAll ? first.t : fromMs
+  const startCapital = coversAll ? 0 : (interpAt(entries.map((e) => ({ t: e.t, v: e.capital })), fromMs) ?? first.capital)
+  const windowEntries = coversAll ? entries : entries.filter((e) => e.t > fromMs)
+  const apports = windowEntries.reduce((s, e) => s + e.contribution, 0)
+  const endCapital = last.capital
+  const gain = endCapital - startCapital - apports
+
+  const synth = [{ t: winStart, capital: startCapital, contribution: 0 }, ...windowEntries]
+  let f = 1
+  for (let i = 1; i < synth.length; i++) {
+    const a = synth[i - 1], b = synth[i]
+    const g = b.capital - a.capital - b.contribution
+    const r = a.capital > 0 ? g / a.capital : 0
+    f *= 1 + r
+  }
+  const returnPct = f - 1
+  const days = Math.max(0, (last.t - winStart) / MS_DAY)
+  const annualizedPct = days > 0 ? Math.pow(1 + returnPct, DAYS_YEAR / days) - 1 : 0
+  const monthlyPct = days > 0 ? Math.pow(1 + returnPct, DAYS_MONTH / days) - 1 : 0
+
+  return { hasData: true, startCapital, endCapital, apports, gain, returnPct, annualizedPct, monthlyPct, days }
 }
 
 export type GlobalStats = {

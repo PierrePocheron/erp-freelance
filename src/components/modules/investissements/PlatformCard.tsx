@@ -4,7 +4,7 @@ import { useState } from "react"
 import Link from "next/link"
 import { ExternalLink, Pencil, Plus } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { INVESTMENT_TYPE_META, fmtEur, fmtEur2, fmtPctSigned, type PlatformStats } from "@/lib/investments"
+import { INVESTMENT_TYPE_META, fmtEur, fmtEur2, fmtPctSigned, type PlatformStats, type PeriodStats } from "@/lib/investments"
 import { InvestmentQuickAdd } from "./InvestmentQuickAdd"
 import type { PlatformData } from "./InvestmentsView"
 
@@ -16,10 +16,12 @@ function relDays(d: number | null): string {
 }
 
 export function PlatformCard({
-  platform, stats, color, onEdit,
+  platform, stats, period, rangeLabel, color, onEdit,
 }: {
   platform: PlatformData
   stats: PlatformStats
+  period: PeriodStats
+  rangeLabel: string
   color: string
   onEdit: () => void
 }) {
@@ -76,12 +78,18 @@ export function PlatformCard({
                 {" · "}{relDays(stats.daysSinceLast)}
               </p>
             </div>
-            <div className="text-right">
-              <p className={cn("text-xs font-semibold tabular-nums amount-sensitive", stats.profit >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400")}>
-                {stats.profit >= 0 ? "+" : ""}{fmtEur2(stats.profit)}
-              </p>
-              <p className="text-[11px] text-muted-foreground tabular-nums">{fmtPctSigned(stats.roi)}</p>
-            </div>
+            {stats.contributionsMissing ? (
+              <div className="text-right">
+                <p className="text-[11px] font-medium leading-tight text-amber-600 dark:text-amber-400">Apports<br />à renseigner</p>
+              </div>
+            ) : (
+              <div className="text-right">
+                <p className={cn("text-xs font-semibold tabular-nums amount-sensitive", period.gain >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400")}>
+                  {period.gain >= 0 ? "+" : ""}{fmtEur2(period.gain)}
+                </p>
+                <p className="text-[11px] text-muted-foreground tabular-nums">{fmtPctSigned(period.returnPct)} · {rangeLabel}</p>
+              </div>
+            )}
           </div>
           {stats.isStale && (
             <p className="mt-1.5 text-[11px] text-amber-600 dark:text-amber-400">⚠ Capital à mettre à jour</p>

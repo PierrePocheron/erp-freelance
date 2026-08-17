@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest"
-import { computePlatformStats, aggregateGlobal } from "@/lib/investments"
+import { computePlatformStats, computePeriodStats, aggregateGlobal } from "@/lib/investments"
 
 describe("computePlatformStats — exemple robo.cash", () => {
   // 1000 € posés, puis +200 € à 3 mois (capital 1250), puis +1000 € à 1 an (capital 2400).
@@ -47,6 +47,41 @@ describe("computePlatformStats — cas limites", () => {
     expect(recent.isStale).toBe(false)
     const old = computePlatformStats([{ date: "2026-01-01", capital: 100, contribution: 100 }], new Date("2026-02-20"))
     expect(old.isStale).toBe(true)
+  })
+})
+
+describe("contributionsMissing (apports non renseignés)", () => {
+  it("true quand il y a du capital mais aucun apport (import Notion)", () => {
+    const s = computePlatformStats([
+      { date: "2025-02-05", capital: 4417.49, contribution: 0 },
+      { date: "2026-07-02", capital: 4949.90, contribution: 0 },
+    ], new Date("2026-07-10"))
+    expect(s.contributionsMissing).toBe(true)
+  })
+  it("false dès qu'un apport est renseigné", () => {
+    const s = computePlatformStats([{ date: "2025-01-01", capital: 1000, contribution: 1000 }], new Date("2026-01-01"))
+    expect(s.contributionsMissing).toBe(false)
+  })
+})
+
+describe("computePeriodStats (stats par plage de temps)", () => {
+  const entries = [
+    { date: "2025-01-01", capital: 1000, contribution: 1000 },
+    { date: "2025-07-01", capital: 1050, contribution: 0 },
+    { date: "2026-01-01", capital: 1100, contribution: 0 },
+  ]
+  it("fromMs ancien → couvre tout (= stats globales)", () => {
+    const p = computePeriodStats(entries, 0)
+    expect(p.startCapital).toBe(0)
+    expect(p.apports).toBe(1000)
+    expect(p.gain).toBeCloseTo(100, 6) // 1100 − 0 − 1000
+  })
+  it("fenêtre partielle : capital de départ interpolé, apports de la fenêtre seulement", () => {
+    const from = new Date("2025-07-01").getTime()
+    const p = computePeriodStats(entries, from)
+    expect(p.startCapital).toBeCloseTo(1050, 6)
+    expect(p.apports).toBe(0)
+    expect(p.gain).toBeCloseTo(50, 6) // 1100 − 1050 − 0
   })
 })
 

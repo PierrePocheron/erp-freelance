@@ -164,3 +164,24 @@
   user-select: none;
   cursor: default;
 }
+
+/* ── Impression (rapports à envoyer / archiver) ──────────────────────────────
+   Masque le chrome de l'app (sidebar, header) et libère les contraintes de
+   hauteur/scroll du shell (h-screen + overflow-hidden + main overflow-y-auto)
+   pour que le contenu se PAGINE sur plusieurs feuilles au lieu d'être coupé à
+   un seul écran. */
+@media print {
+  aside, header { display: none !important; }           /* sidebar + header de l'app */
+  html, body {
+    height: auto !important;
+    overflow: visible !important;
+    background: #fff !important;
+  }
+  /* Répéter l'en-tête des tableaux sur chaque page et éviter de couper une ligne */
+  table { break-inside: auto; }
+  thead { display: table-header-group; }
+  tfoot { display: table-footer-group; }
+  tr, img { break-inside: avoid; }
+  h1, h2, h3 { break-after: avoid; }
+  @page { margin: 14mm; }
+}

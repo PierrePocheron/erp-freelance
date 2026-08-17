@@ -167,7 +167,7 @@ export function InvestmentReport({ platforms }: { platforms: PlatformData[] }) {
       </div>
 
       {/* Rapport imprimable */}
-      <div className="space-y-6 rounded-xl border border-border/50 bg-card p-6 print:border-0 print:p-0">
+      <div className="space-y-6 rounded-xl border border-border/50 bg-card p-6 print:border-0 print:bg-transparent print:p-0">
         <div className="flex items-start justify-between gap-4 border-b border-border/50 pb-4">
           <div>
             <h2 className="text-lg font-bold">Suivi des investissements</h2>

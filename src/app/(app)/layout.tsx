@@ -51,11 +51,11 @@ export default async function AppLayout({
   }
 
   return (
-    <div className="flex h-screen overflow-hidden">
+    <div className="flex h-screen overflow-hidden print:h-auto print:overflow-visible">
       {/* Scope par compte des clés modules/onboarding — doit être rendu avant le reste */}
       <ModuleScope userId={userId} />
       <Sidebar />
-      <div className="relative flex flex-1 flex-col overflow-hidden">
+      <div className="relative flex flex-1 flex-col overflow-hidden print:overflow-visible">
         <TimerBanner initialTimer={runningTimer} userId={userId} />
         {/* Provider du fil d'Ariane : enveloppe header ET contenu pour que les
             pages de détail (children) publient le nom de leur entité et que le
@@ -70,7 +70,7 @@ export default async function AppLayout({
           </AppHeader>
           {/* id consommé par MobileBottomNav : masquage au scroll des boutons
               flottants (c'est ce conteneur qui scrolle, pas window) */}
-          <main id="app-main" className="flex-1 overflow-y-auto p-3 sm:p-6 pb-24 sm:pb-6">{children}</main>
+          <main id="app-main" className="flex-1 overflow-y-auto p-3 sm:p-6 pb-24 sm:pb-6 print:overflow-visible print:p-0 print:pb-0">{children}</main>
         </BreadcrumbProvider>
         {/* Cloche de notifications flottante — mobile uniquement (le header
             desktop porte la sienne) */}

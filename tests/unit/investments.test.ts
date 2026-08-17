@@ -101,6 +101,74 @@ describe("dépôts dissociés (entrées capital null)", () => {
   })
 })
 
+describe("indépendance dépôts / relevés (cas limites)", () => {
+  it("0 dépôt : le gain d'un relevé est de la pure croissance", () => {
+    const s = computePlatformStats([
+      { date: "2025-01-01", capital: 1000, contribution: 0 },
+      { date: "2025-02-01", capital: 1010, contribution: 0 },
+    ], new Date("2025-02-05"))
+    expect(s.totalContributions).toBe(0)
+    expect(s.intervals[0].gain).toBeCloseTo(10, 6)
+  })
+
+  it("plusieurs dépôts entre deux relevés (même mois) : tous comptés, exclus du gain", () => {
+    const s = computePlatformStats([
+      { date: "2025-01-01", capital: 1000, contribution: 1000 },
+      { date: "2025-06-10", capital: null, contribution: 100 },
+      { date: "2025-06-20", capital: null, contribution: 200 },
+      { date: "2025-07-01", capital: 1350, contribution: 0 },
+    ], new Date("2025-07-05"))
+    expect(s.totalContributions).toBe(1300)
+    expect(s.profit).toBeCloseTo(50, 6)          // 1350 − 1300
+    expect(s.intervals).toHaveLength(1)          // 2 valorisations
+    expect(s.intervals[0].gain).toBeCloseTo(50, 6) // 1350 − 1000 − (100+200)
+  })
+
+  it("dépôt APRÈS le dernier relevé : intégré au capital actuel (pas un faux -)", () => {
+    const s = computePlatformStats([
+      { date: "2025-01-01", capital: 1000, contribution: 1000 },
+      { date: "2025-02-01", capital: 1010, contribution: 0 },
+      { date: "2025-02-15", capital: null, contribution: 500 }, // dépôt après le dernier relevé
+    ], new Date("2025-02-20"))
+    expect(s.currentCapital).toBeCloseTo(1510, 6) // 1010 + 500
+    expect(s.profit).toBeCloseTo(10, 6)           // pas −490
+  })
+
+  it("dépôt AVANT le premier relevé : baked dans le relevé", () => {
+    const s = computePlatformStats([
+      { date: "2025-01-01", capital: null, contribution: 500 },
+      { date: "2025-02-01", capital: 520, contribution: 0 },
+    ], new Date("2025-02-05"))
+    expect(s.currentCapital).toBe(520)
+    expect(s.profit).toBeCloseTo(20, 6)
+  })
+
+  it("que des dépôts, aucun relevé : capital = apports, profit 0", () => {
+    const s = computePlatformStats([
+      { date: "2025-01-01", capital: null, contribution: 500 },
+      { date: "2025-02-01", capital: null, contribution: 300 },
+    ], new Date("2025-02-05"))
+    expect(s.currentCapital).toBe(800)
+    expect(s.profit).toBe(0)
+    expect(s.intervals).toHaveLength(0)
+  })
+
+  it("période démarrant dans un écart avec gros dépôt (cas Swaper) : pas de faux -", () => {
+    const entries = [
+      { date: "2025-02-05", capital: 0, contribution: 0 },
+      { date: "2025-06-01", capital: null, contribution: 200 },
+      { date: "2026-05-01", capital: null, contribution: 1000 },
+      { date: "2026-05-28", capital: 1200, contribution: 0 },
+      { date: "2026-08-17", capital: 1211.30, contribution: 0 },
+    ]
+    const from = new Date("2025-08-17").getTime() // fenêtre 12 mois
+    const p = computePeriodStats(entries, from)
+    expect(p.startCapital).toBeCloseTo(200, 2)  // conscient du dépôt (pas ~485 interpolé)
+    expect(p.gain).toBeCloseTo(11.30, 2)        // 1211.30 − 200 − 1000 (pas −275)
+    expect(p.returnPct).toBeGreaterThan(0)
+  })
+})
+
 describe("aggregateGlobal", () => {
   it("agrège apports, valeur et bénéfices sur plusieurs plateformes", () => {
     const a = computePlatformStats([{ date: "2026-01-01", capital: 1200, contribution: 1000 }], new Date("2026-02-01"))

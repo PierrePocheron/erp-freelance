@@ -94,13 +94,18 @@ export function computePlatformStats(entriesInput: EntryLite[], now: Date = new 
   const vals = entries.filter((e): e is { date: Date; capital: number; contribution: number } => e.capital != null)
   const first = vals[0] ?? null
   const last = vals[vals.length - 1] ?? null
-  const currentCapital = last ? last.capital : 0
-  const profit = currentCapital - totalContributions
-  const roi = totalContributions > 0 ? profit / totalContributions : 0
 
-  // Somme des apports (tous types d'entrées) survenus dans (t1, t2]
+  // Somme des apports (tous types d'entrées, relevés comme dépôts) survenus dans (t1, t2]
   const flowsBetween = (t1: number, t2: number) =>
     entries.reduce((s, e) => (e.date.getTime() > t1 && e.date.getTime() <= t2 ? s + e.contribution : s), 0)
+
+  // Capital actuel = dernier relevé + dépôts POSTÉRIEURS à ce relevé (encore non
+  // reflétés dans une valorisation). Sans ça, un dépôt fait après le dernier relevé
+  // (ou une plateforme sans aucun relevé) donnerait un profit faussement négatif.
+  const flowsAfterLast = last ? flowsBetween(last.date.getTime(), Infinity) : totalContributions
+  const currentCapital = (last ? last.capital : 0) + flowsAfterLast
+  const profit = currentCapital - totalContributions
+  const roi = totalContributions > 0 ? profit / totalContributions : 0
 
   const intervals: Interval[] = []
   let twrFactor = 1
@@ -148,19 +153,29 @@ export type PeriodStats = {
   days: number
 }
 
-/** Valeur interpolée linéairement d'une série (triée) au temps t ; null si hors plage. */
-function interpAt(pts: { t: number; v: number }[], t: number): number | null {
-  if (pts.length === 0 || t < pts[0].t || t > pts[pts.length - 1].t) return null
-  for (let i = 0; i < pts.length - 1; i++) {
-    const a = pts[i], b = pts[i + 1]
-    if (t >= a.t && t <= b.t) return b.t === a.t ? b.v : a.v + ((t - a.t) / (b.t - a.t)) * (b.v - a.v)
+/**
+ * Capital « le long de la courbe » au temps t, CONSCIENT DES DÉPÔTS : entre deux
+ * relevés la croissance est répartie dans le temps et chaque dépôt est une marche
+ * (comme sur le graphe). Une interpolation linéaire naïve serait gonflée par un gros
+ * dépôt situé entre les deux relevés. null si t est hors de la plage des relevés.
+ */
+export function capitalAt(vals: { t: number; capital: number }[], flows: { t: number; amount: number }[], t: number): number | null {
+  if (vals.length === 0 || t < vals[0].t || t > vals[vals.length - 1].t) return null
+  const flowsIn = (t1: number, t2: number) => flows.reduce((s, f) => (f.t > t1 && f.t <= t2 ? s + f.amount : s), 0)
+  for (let i = 0; i < vals.length - 1; i++) {
+    const a = vals[i], b = vals[i + 1]
+    if (t >= a.t && t <= b.t) {
+      if (b.t === a.t) return b.capital
+      const growth = b.capital - a.capital - flowsIn(a.t, b.t)
+      return a.capital + growth * ((t - a.t) / (b.t - a.t)) + flowsIn(a.t, t)
+    }
   }
-  return pts[pts.length - 1].v
+  return vals[vals.length - 1].capital
 }
 
 /**
- * Statistiques restreintes à la fenêtre [fromMs, dernier relevé]. Si `fromMs` précède
- * le premier relevé, la fenêtre couvre tout et on retombe sur les stats globales.
+ * Statistiques restreintes à la fenêtre [fromMs, maintenant]. Si `fromMs` précède le
+ * premier relevé, la fenêtre couvre tout et on retombe sur les stats globales.
  */
 export function computePeriodStats(entriesInput: EntryLite[], fromMs: number): PeriodStats {
   const entries = entriesInput
@@ -171,16 +186,19 @@ export function computePeriodStats(entriesInput: EntryLite[], fromMs: number): P
 
   const first = vals[0]
   const last = vals[vals.length - 1]
-  const coversAll = fromMs <= first.t
-  const winStart = coversAll ? first.t : fromMs
-  const startCapital = coversAll ? 0 : (interpAt(vals.map((v) => ({ t: v.t, v: v.capital })), fromMs) ?? first.capital)
-  // apports = flux (dépôts/retraits, quelle que soit l'entrée) survenus dans la fenêtre
-  const apports = entries.reduce((s, e) => (coversAll || e.t > fromMs ? s + e.contribution : s), 0)
-  const endCapital = last.capital
-  const gain = endCapital - startCapital - apports
-
   const flowsBetween = (t1: number, t2: number) =>
     entries.reduce((s, e) => (e.t > t1 && e.t <= t2 ? s + e.contribution : s), 0)
+  const flows = entries.filter((e) => e.contribution !== 0).map((e) => ({ t: e.t, amount: e.contribution }))
+  const coversAll = fromMs <= first.t
+  const winStart = coversAll ? first.t : fromMs
+  // Capital de départ CONSCIENT DES DÉPÔTS (pas une interpolation linéaire naïve)
+  const startCapital = coversAll ? 0 : (capitalAt(vals.map((v) => ({ t: v.t, capital: v.capital })), flows, fromMs) ?? first.capital)
+  // apports = flux survenus dans la fenêtre
+  const apports = entries.reduce((s, e) => (coversAll || e.t > fromMs ? s + e.contribution : s), 0)
+  // capital actuel = dernier relevé + dépôts postérieurs (non encore valorisés)
+  const endCapital = last.capital + flowsBetween(last.t, Infinity)
+  const gain = endCapital - startCapital - apports
+
   const windowVals = coversAll ? vals : vals.filter((v) => v.t > fromMs)
   const synth = [{ t: winStart, capital: startCapital }, ...windowVals]
   let f = 1

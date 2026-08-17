@@ -5,7 +5,6 @@ import { usePathname } from "next/navigation"
 import { useEffect, useRef, useState } from "react"
 import pkg from "../../../package.json"
 import {
-  LayoutDashboard,
   Users,
   FileText,
   Code2,
@@ -50,7 +49,6 @@ type NavItem = {
 
 // Exporté : source de vérité route + icône + module, réutilisée par MobileHome.
 export const navItems: NavItem[] = [
-  { href: "/",           icon: LayoutDashboard, label: "Dashboard" },
   { href: "/contacts",   icon: Users,           label: "Contacts",   moduleId: "contacts",    group: "crm" },
   { href: "/prospection",icon: Target,          label: "Prospection",moduleId: "prospection", group: "crm" },
   { href: "/societes",   icon: Building2,       label: "Sociétés",   moduleId: "societes",    group: "crm" },
@@ -133,13 +131,14 @@ export function Sidebar() {
         expanded ? "w-52" : "w-24"
       )}
     >
-      {/* Logo */}
+      {/* Logo → accueil (le Dashboard n'a plus de bouton dédié, c'est la page home) */}
       <div className={cn("px-2 pt-4 pb-2", !expanded && "flex justify-center")}>
-        <button
-          onClick={toggle}
-          title={expanded ? "Réduire le menu" : "Agrandir le menu"}
+        <Link
+          href="/"
+          aria-label="Accueil"
+          {...tipHandlers("Accueil")}
           className={cn(
-            "flex h-10 items-center gap-3 rounded-xl cursor-pointer transition-colors hover:bg-accent",
+            "flex h-10 items-center gap-3 rounded-xl transition-colors hover:bg-accent",
             // px-0.5 déplié = même retrait (2px) que le centrage du logo 36px dans
             // le bouton 40px replié → l'icône ne bouge pas d'un pixel au toggle.
             expanded ? "w-full px-0.5" : "w-10 justify-center"
@@ -151,7 +150,7 @@ export function Sidebar() {
           {expanded && (
             <span className="font-semibold text-sm truncate">ERP Freelance</span>
           )}
-        </button>
+        </Link>
       </div>
       {/* Trait qui isole le logo de la navigation */}
       <div aria-hidden className="mx-3 mb-1 h-px bg-border/60" />
@@ -212,13 +211,13 @@ export function Sidebar() {
           onClick={() => window.dispatchEvent(new CustomEvent(OPEN_COMMAND_PALETTE_EVENT))}
           {...tipHandlers("Recherche (⌘K)")}
           className={cn(
-            "flex h-9 items-center gap-3 rounded-xl px-2.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground w-full",
-            expanded ? "" : "w-10 justify-center"
+            "flex h-9 items-center rounded-xl text-muted-foreground transition-colors hover:bg-accent hover:text-foreground",
+            expanded ? "w-full gap-3 px-2.5" : "w-9 justify-center"
           )}
           title="Recherche (⌘K)"
           aria-label="Recherche (⌘K)"
         >
-          <Search className="h-4 w-4 shrink-0" />
+          <Search className="h-5 w-5 shrink-0" />
           {expanded && (
             <span className="flex-1 text-sm text-left truncate">Recherche</span>
           )}
@@ -234,15 +233,15 @@ export function Sidebar() {
           onClick={toggle}
           {...tipHandlers(expanded ? "Réduire" : "Agrandir")}
           className={cn(
-            "flex h-9 items-center gap-3 rounded-xl px-2.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground",
-            expanded ? "w-full" : "w-10 justify-center"
+            "flex h-9 items-center rounded-xl text-muted-foreground transition-colors hover:bg-accent hover:text-foreground",
+            expanded ? "w-full gap-3 px-2.5" : "w-9 justify-center"
           )}
           title={expanded ? "Réduire" : "Agrandir"}
           aria-label={expanded ? "Réduire le menu" : "Agrandir le menu"}
         >
           {expanded
-            ? <PanelLeftClose className="h-4 w-4 shrink-0" />
-            : <PanelLeftOpen className="h-4 w-4 shrink-0" />
+            ? <PanelLeftClose className="h-5 w-5 shrink-0" />
+            : <PanelLeftOpen className="h-5 w-5 shrink-0" />
           }
           {expanded && <span className="text-sm truncate">Réduire</span>}
         </button>

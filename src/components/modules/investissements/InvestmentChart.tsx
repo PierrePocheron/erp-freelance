@@ -4,8 +4,9 @@ import { useEffect, useMemo, useRef, useState } from "react"
 import { cn } from "@/lib/utils"
 import { fmtEur, RANGES, type RangeKey } from "@/lib/investments"
 
-type ChartPlatform = { id: string; name: string; color: string; entries: { date: string; capital: number }[] }
+type ChartPlatform = { id: string; name: string; color: string; entries: { date: string; capital: number | null; contribution: number }[] }
 type Pt = { t: number; v: number }
+type Flow = { t: number; amount: number }
 
 const H = 360
 const PAD = { left: 56, right: 16, top: 12, bottom: 30 }
@@ -18,6 +19,32 @@ function valueAt(pts: Pt[], t: number): number | null {
     if (t >= a.t && t <= b.t) return b.t === a.t ? b.v : a.v + ((t - a.t) / (b.t - a.t)) * (b.v - a.v)
   }
   return pts[pts.length - 1].v
+}
+
+/**
+ * Construit la polyligne d'affichage : la croissance est répartie sur le temps entre
+ * deux relevés, et chaque dépôt (flux) apparaît comme une MARCHE VERTICALE à sa date
+ * — pas une pente linéaire (qui laisserait croire à une progression du capital).
+ */
+function buildStepped(valPoints: Pt[], flows: Flow[]): Pt[] {
+  if (valPoints.length === 0) return []
+  const out: Pt[] = [valPoints[0]]
+  for (let i = 1; i < valPoints.length; i++) {
+    const a = valPoints[i - 1], b = valPoints[i]
+    const fl = flows.filter((f) => f.t > a.t && f.t <= b.t).sort((x, y) => x.t - y.t)
+    const F = fl.reduce((s, f) => s + f.amount, 0)
+    const growth = b.v - a.v - F
+    let run = 0
+    for (const f of fl) {
+      const frac = b.t === a.t ? 0 : (f.t - a.t) / (b.t - a.t)
+      const preCap = a.v + growth * frac + run
+      out.push({ t: f.t, v: preCap })          // fin de la croissance avant le dépôt
+      out.push({ t: f.t, v: preCap + f.amount }) // marche verticale du dépôt
+      run += f.amount
+    }
+    out.push(b)
+  }
+  return out
 }
 
 /** Graduations « rondes » (1/2/5 × 10ⁿ) entre min et max, ~5 lignes. */
@@ -59,12 +86,12 @@ export function InvestmentChart({ platforms, range, onRangeChange }: { platforms
 
   const series = useMemo(
     () => platforms
-      .map((p) => ({
-        ...p,
-        pts: p.entries
-          .map((e) => ({ t: new Date(e.date).getTime(), v: e.capital }))
-          .sort((a, b) => a.t - b.t),
-      }))
+      .map((p) => {
+        const all = p.entries.map((e) => ({ t: new Date(e.date).getTime(), capital: e.capital, contribution: e.contribution }))
+        const pts: Pt[] = all.filter((e) => e.capital != null).map((e) => ({ t: e.t, v: e.capital as number })).sort((a, b) => a.t - b.t)
+        const flows: Flow[] = all.filter((e) => e.contribution !== 0).map((e) => ({ t: e.t, amount: e.contribution })).sort((a, b) => a.t - b.t)
+        return { id: p.id, name: p.name, color: p.color, pts, flows }
+      })
       .filter((p) => p.pts.length > 0),
     [platforms],
   )
@@ -102,19 +129,20 @@ export function InvestmentChart({ platforms, range, onRangeChange }: { platforms
 
     const lines = series.map((s) => {
       const inRange = s.pts.filter((p) => p.t >= left && p.t <= right)
-      const seg: Pt[] = []
+      const valPoints: Pt[] = []
       const vl = valueAt(s.pts, left)
-      if (vl !== null && (inRange.length === 0 || inRange[0].t > left)) seg.push({ t: left, v: vl })
-      seg.push(...inRange)
+      if (vl !== null && (inRange.length === 0 || inRange[0].t > left)) valPoints.push({ t: left, v: vl })
+      valPoints.push(...inRange)
+      const seg = buildStepped(valPoints, s.flows) // dépôts = marches verticales
       const d = seg.map((p, i) => `${i === 0 ? "M" : "L"} ${xOf(p.t).toFixed(1)} ${yOf(p.v).toFixed(1)}`).join(" ")
       const dots = inRange.map((p) => ({ x: xOf(p.t), y: yOf(p.v) }))
       return { id: s.id, name: s.name, color: s.color, d, dots }
     })
 
     // Graduations Y sur des nombres ronds (1/2/5 k…) ; graduations X = dates réelles
-    // des relevés (là où j'ai saisi des données).
+    // où j'ai saisi des données (relevés ET dépôts).
     const yTicks = niceTicks(yMin, yMax, 5)
-    const dateTicks = [...new Set(series.flatMap((s) => s.pts.filter((p) => p.t >= left && p.t <= right).map((p) => p.t)))].sort((a, b) => a - b)
+    const dateTicks = [...new Set(series.flatMap((s) => [...s.pts.map((p) => p.t), ...s.flows.map((f) => f.t)].filter((t) => t >= left && t <= right)))].sort((a, b) => a - b)
     // Sous-ensemble de dates à étiqueter (évite le chevauchement des libellés)
     const dateLabels: number[] = []
     let lastLabelX = -Infinity

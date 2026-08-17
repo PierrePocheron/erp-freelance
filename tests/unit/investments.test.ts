@@ -85,6 +85,22 @@ describe("computePeriodStats (stats par plage de temps)", () => {
   })
 })
 
+describe("dépôts dissociés (entrées capital null)", () => {
+  it("compte le dépôt dans les apports et l'exclut du gain", () => {
+    const s = computePlatformStats([
+      { date: "2025-01-01", capital: 0, contribution: 0 },      // relevé
+      { date: "2025-02-01", capital: null, contribution: 1000 }, // dépôt (flux)
+      { date: "2025-06-01", capital: 1050, contribution: 0 },   // relevé
+    ], new Date("2025-06-05"))
+    expect(s.totalContributions).toBe(1000)
+    expect(s.currentCapital).toBe(1050)
+    expect(s.profit).toBeCloseTo(50, 6) // 1050 − 1000
+    expect(s.intervals).toHaveLength(1) // 2 valorisations → 1 intervalle
+    expect(s.intervals[0].gain).toBeCloseTo(50, 6) // 1050 − 0 − 1000 (dépôt exclu)
+    expect(s.contributionsMissing).toBe(false)
+  })
+})
+
 describe("aggregateGlobal", () => {
   it("agrège apports, valeur et bénéfices sur plusieurs plateformes", () => {
     const a = computePlatformStats([{ date: "2026-01-01", capital: 1200, contribution: 1000 }], new Date("2026-02-01"))

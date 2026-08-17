@@ -1873,9 +1873,9 @@ model InvestmentPlatform {
 model InvestmentEntry {
   id           String   @id @default(cuid())
   platformId   String
-  date         DateTime                        // date du relevé
-  capital      Float                           // capital total (valorisation) sur la plateforme à cette date
-  contribution Float    @default(0)            // apport net de la poche à cette date (+ dépôt / − retrait)
+  date         DateTime                        // date de l'entrée (relevé ou dépôt)
+  capital      Float?                          // valorisation totale (relevé) ; null pour un dépôt/retrait pur
+  contribution Float    @default(0)            // apport net de la poche (+ dépôt / − retrait) ; 0 pour un relevé pur
   note         String?
   createdAt    DateTime @default(now())
 

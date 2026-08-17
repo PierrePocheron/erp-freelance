@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import Link from "next/link"
-import { ExternalLink, Pencil, Plus } from "lucide-react"
+import { ExternalLink, Pencil, Plus, ArrowDownToLine } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { INVESTMENT_TYPE_META, fmtEur, fmtEur2, fmtPctSigned, type PlatformStats, type PeriodStats } from "@/lib/investments"
 import { InvestmentQuickAdd } from "./InvestmentQuickAdd"
@@ -25,7 +25,7 @@ export function PlatformCard({
   color: string
   onEdit: () => void
 }) {
-  const [adding, setAdding] = useState(false)
+  const [adding, setAdding] = useState<null | "releve" | "depot">(null)
   const meta = INVESTMENT_TYPE_META[platform.type]
   // Coloration du capital si le dernier relevé est ancien (> 1 mois → ambre, > 2 mois → rouge)
   const staleCls =
@@ -79,9 +79,14 @@ export function PlatformCard({
               </p>
             </div>
             {stats.contributionsMissing ? (
-              <div className="text-right">
-                <p className="text-[11px] font-medium leading-tight text-amber-600 dark:text-amber-400">Apports<br />à renseigner</p>
-              </div>
+              <button
+                type="button"
+                onClick={() => setAdding("depot")}
+                className="text-right text-[11px] font-medium leading-tight text-amber-600 hover:underline dark:text-amber-400"
+                title="Renseigner les apports en un clic"
+              >
+                Apports<br />à renseigner
+              </button>
             ) : (
               <div className="text-right">
                 <p className={cn("text-xs font-semibold tabular-nums amount-sensitive", period.gain >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400")}>
@@ -101,15 +106,23 @@ export function PlatformCard({
 
       {adding ? (
         <div className="mt-2">
-          <InvestmentQuickAdd platformId={platform.id} onClose={() => setAdding(false)} />
+          <InvestmentQuickAdd platformId={platform.id} mode={adding} onClose={() => setAdding(null)} />
         </div>
       ) : (
-        <button
-          onClick={() => setAdding(true)}
-          className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-md border border-dashed border-border/60 py-1.5 text-xs text-muted-foreground transition-colors hover:border-border hover:text-foreground"
-        >
-          <Plus className="h-3.5 w-3.5" /> Nouveau relevé
-        </button>
+        <div className="mt-2 grid grid-cols-2 gap-1.5">
+          <button
+            onClick={() => setAdding("releve")}
+            className="flex items-center justify-center gap-1 rounded-md border border-dashed border-border/60 py-1.5 text-xs text-muted-foreground transition-colors hover:border-border hover:text-foreground"
+          >
+            <Plus className="h-3.5 w-3.5" /> Relevé
+          </button>
+          <button
+            onClick={() => setAdding("depot")}
+            className="flex items-center justify-center gap-1 rounded-md border border-dashed border-blue-500/40 py-1.5 text-xs text-blue-600 transition-colors hover:bg-blue-500/5 dark:text-blue-400"
+          >
+            <ArrowDownToLine className="h-3.5 w-3.5" /> Dépôt
+          </button>
+        </div>
       )}
     </div>
   )

@@ -1,29 +1,50 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useMemo, useState, useTransition } from "react"
 import Link from "next/link"
-import { AlertTriangle, ChevronLeft, ExternalLink, Pencil, Plus } from "lucide-react"
+import { useRouter } from "next/navigation"
+import { toast } from "sonner"
+import { AlertTriangle, ArrowDownToLine, ChevronLeft, ExternalLink, Pencil, Plus, Trash2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import {
-  computePlatformStats, INVESTMENT_TYPE_META, fmtEur2, fmtPct, fmtPctSigned, type InvestmentType,
+  computePlatformStats, INVESTMENT_TYPE_META, fmtEur2, fmtPct, fmtPctSigned, type InvestmentType, type Interval,
 } from "@/lib/investments"
+import { deleteEntry } from "@/actions/investissements"
 import { PlatformDialog } from "./PlatformDialog"
 import { EntryDialog, type EntryForEdit } from "./EntryDialog"
 import { InvestmentQuickAdd } from "./InvestmentQuickAdd"
 
-type EntryData = { id: string; date: string; capital: number; contribution: number; note: string | null }
+type EntryData = { id: string; date: string; capital: number | null; contribution: number; note: string | null }
 type PlatformData = { id: string; name: string; type: InvestmentType; url: string | null; notes: string | null; entries: EntryData[] }
 
 export function PlatformDetail({ platform }: { platform: PlatformData }) {
+  const router = useRouter()
   const [platformDialog, setPlatformDialog] = useState(false)
   const [entryDialog, setEntryDialog] = useState<{ open: boolean; entry?: EntryForEdit }>({ open: false })
-  const [adding, setAdding] = useState(false)
+  const [adding, setAdding] = useState<null | "releve" | "depot">(null)
+  const [isDeleting, startDelete] = useTransition()
+
+  function removeDeposit(id: string) {
+    if (!window.confirm("Supprimer ce dépôt ?")) return
+    startDelete(async () => {
+      try { await deleteEntry(id); toast.success("Dépôt supprimé"); router.refresh() }
+      catch { toast.error("Suppression impossible") }
+    })
+  }
 
   const meta = INVESTMENT_TYPE_META[platform.type]
   const { stats, rows } = useMemo(() => {
     const sorted = [...platform.entries].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
     const s = computePlatformStats(platform.entries)
-    const r = sorted.map((e, i) => ({ entry: e, interval: i > 0 ? s.intervals[i - 1] : null })).reverse()
+    // Les intervalles portent sur les VALORISATIONS (relevés) ; on les rattache par date.
+    const vals = sorted.filter((e) => e.capital != null)
+    const intervalByDate = new Map<number, Interval>()
+    vals.forEach((v, j) => { if (j > 0) intervalByDate.set(new Date(v.date).getTime(), s.intervals[j - 1]) })
+    const r = sorted.map((e) => ({
+      entry: e,
+      isDeposit: e.capital == null,
+      interval: e.capital != null ? (intervalByDate.get(new Date(e.date).getTime()) ?? null) : null,
+    })).reverse()
     return { stats: s, rows: r }
   }, [platform.entries])
 
@@ -76,20 +97,25 @@ export function PlatformDetail({ platform }: { platform: PlatformData }) {
       {/* Relevés */}
       <div className="rounded-xl border border-border/50 bg-card">
         <div className="flex items-center justify-between border-b border-border/50 px-4 py-2.5">
-          <h2 className="text-sm font-semibold">Relevés de capital</h2>
+          <h2 className="text-sm font-semibold">Relevés &amp; dépôts</h2>
           {!adding && (
-            <button onClick={() => setAdding(true)} className="inline-flex items-center gap-1 text-xs text-primary hover:underline">
-              <Plus className="h-3.5 w-3.5" /> Nouveau relevé
-            </button>
+            <div className="flex items-center gap-3">
+              <button onClick={() => setAdding("releve")} className="inline-flex items-center gap-1 text-xs text-primary hover:underline">
+                <Plus className="h-3.5 w-3.5" /> Relevé
+              </button>
+              <button onClick={() => setAdding("depot")} className="inline-flex items-center gap-1 text-xs text-blue-600 hover:underline dark:text-blue-400">
+                <ArrowDownToLine className="h-3.5 w-3.5" /> Dépôt
+              </button>
+            </div>
           )}
         </div>
         {adding && (
           <div className="border-b border-border/50 p-3">
-            <InvestmentQuickAdd platformId={platform.id} onClose={() => setAdding(false)} />
+            <InvestmentQuickAdd platformId={platform.id} mode={adding} onClose={() => setAdding(null)} />
           </div>
         )}
         {rows.length === 0 ? (
-          <p className="px-4 py-8 text-center text-sm text-muted-foreground">Aucun relevé. Ajoute le capital actuel pour démarrer le suivi.</p>
+          <p className="px-4 py-8 text-center text-sm text-muted-foreground">Aucune entrée. Ajoute le capital actuel pour démarrer le suivi.</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
@@ -105,12 +131,14 @@ export function PlatformDetail({ platform }: { platform: PlatformData }) {
                 </tr>
               </thead>
               <tbody>
-                {rows.map(({ entry, interval }) => (
-                  <tr key={entry.id} className="border-b border-border/40 last:border-0 hover:bg-muted/30">
+                {rows.map(({ entry, interval, isDeposit }) => (
+                  <tr key={entry.id} className={cn("border-b border-border/40 last:border-0 hover:bg-muted/30", isDeposit && "bg-blue-500/[0.03]")}>
                     <td className="whitespace-nowrap px-4 py-2">
                       {new Date(entry.date).toLocaleDateString("fr-FR", { day: "2-digit", month: "short", year: "numeric" })}
                     </td>
-                    <td className="px-4 py-2 text-right font-medium tabular-nums amount-sensitive">{fmtEur2(entry.capital)}</td>
+                    <td className="px-4 py-2 text-right font-medium tabular-nums amount-sensitive">
+                      {isDeposit ? <span className="text-[11px] font-normal text-blue-600 dark:text-blue-400">Dépôt</span> : fmtEur2(entry.capital ?? 0)}
+                    </td>
                     <td className={cn("px-4 py-2 text-right tabular-nums amount-sensitive", entry.contribution ? "text-blue-600 dark:text-blue-400" : "text-muted-foreground")}>
                       {entry.contribution ? `${entry.contribution > 0 ? "+" : ""}${fmtEur2(entry.contribution)}` : "—"}
                     </td>
@@ -124,13 +152,19 @@ export function PlatformDetail({ platform }: { platform: PlatformData }) {
                       {interval ? fmtPct(interval.monthlyPct) : "—"}
                     </td>
                     <td className="px-2 py-2 text-right">
-                      <button
-                        onClick={() => setEntryDialog({ open: true, entry: { id: entry.id, date: entry.date, capital: entry.capital, contribution: entry.contribution, note: entry.note } })}
-                        className="text-muted-foreground hover:text-foreground"
-                        aria-label="Modifier le relevé"
-                      >
-                        <Pencil className="h-3.5 w-3.5" />
-                      </button>
+                      {isDeposit ? (
+                        <button onClick={() => removeDeposit(entry.id)} disabled={isDeleting} className="text-muted-foreground hover:text-red-600" aria-label="Supprimer le dépôt">
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => setEntryDialog({ open: true, entry: { id: entry.id, date: entry.date, capital: entry.capital ?? 0, contribution: entry.contribution, note: entry.note } })}
+                          className="text-muted-foreground hover:text-foreground"
+                          aria-label="Modifier le relevé"
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                        </button>
+                      )}
                     </td>
                   </tr>
                 ))}

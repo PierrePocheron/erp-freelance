@@ -28,7 +28,6 @@ import {
   LineChart,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { ThemeToggle } from "./ThemeToggle"
 import { OPEN_COMMAND_PALETTE_EVENT } from "./CommandPalette"
 import { useModules, type ModuleId } from "@/hooks/use-modules"
 
@@ -95,6 +94,20 @@ export function Sidebar() {
     })
   }
 
+  // Infobulle au survol (uniquement en mode replié) : positionne le nom du bouton à droite
+  // de la sidebar, aligné verticalement sur l'icône survolée.
+  const tipHandlers = (label: string) =>
+    expanded
+      ? {}
+      : {
+          onMouseEnter: (e: React.MouseEvent<HTMLElement>) => {
+            const r = e.currentTarget.getBoundingClientRect()
+            const a = asideRef.current?.getBoundingClientRect()
+            setTip({ label, top: r.top + r.height / 2, left: (a?.right ?? 96) + 8 })
+          },
+          onMouseLeave: () => setTip(null),
+        }
+
   // Évite le flash de contenu avant hydratation
   if (!mounted) return <aside className="hidden sm:block w-24 h-screen shrink-0 border-r border-border/50" />
 
@@ -121,7 +134,7 @@ export function Sidebar() {
       )}
     >
       {/* Logo */}
-      <div className="px-2 pt-4 pb-2">
+      <div className={cn("px-2 pt-4 pb-2", !expanded && "flex justify-center")}>
         <button
           onClick={toggle}
           title={expanded ? "Réduire le menu" : "Agrandir le menu"}
@@ -173,12 +186,7 @@ export function Sidebar() {
                     data-active={isCurrent || undefined}
                     aria-current={isCurrent ? "page" : undefined}
                     aria-label={!expanded ? label : undefined}
-                    onMouseEnter={!expanded ? (e) => {
-                      const r = e.currentTarget.getBoundingClientRect()
-                      const a = asideRef.current?.getBoundingClientRect()
-                      setTip({ label, top: r.top + r.height / 2, left: (a?.right ?? 96) + 8 })
-                    } : undefined}
-                    onMouseLeave={!expanded ? () => setTip(null) : undefined}
+                    {...tipHandlers(label)}
                     className={cn(
                       "flex items-center rounded-xl transition-colors",
                       expanded ? "h-9 w-full gap-3 px-2.5" : "h-9 w-9 justify-center",
@@ -202,11 +210,13 @@ export function Sidebar() {
         <button
           data-tour="search"
           onClick={() => window.dispatchEvent(new CustomEvent(OPEN_COMMAND_PALETTE_EVENT))}
+          {...tipHandlers("Recherche (⌘K)")}
           className={cn(
             "flex h-9 items-center gap-3 rounded-xl px-2.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground w-full",
             expanded ? "" : "w-10 justify-center"
           )}
           title="Recherche (⌘K)"
+          aria-label="Recherche (⌘K)"
         >
           <Search className="h-4 w-4 shrink-0" />
           {expanded && (
@@ -220,14 +230,15 @@ export function Sidebar() {
 
       {/* Toggle + version */}
       <div className={cn("px-2 pb-5 space-y-1", expanded ? "" : "flex flex-col items-center")}>
-        <ThemeToggle expanded={expanded} />
         <button
           onClick={toggle}
+          {...tipHandlers(expanded ? "Réduire" : "Agrandir")}
           className={cn(
             "flex h-9 items-center gap-3 rounded-xl px-2.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground",
             expanded ? "w-full" : "w-10 justify-center"
           )}
           title={expanded ? "Réduire" : "Agrandir"}
+          aria-label={expanded ? "Réduire le menu" : "Agrandir le menu"}
         >
           {expanded
             ? <PanelLeftClose className="h-4 w-4 shrink-0" />

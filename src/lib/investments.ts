@@ -1,0 +1,130 @@
+// Calculs purs du module Investissements (importable serveur + client, testable).
+//
+// Modèle : chaque relevé (InvestmentEntry) porte le CAPITAL total sur la plateforme
+// à une date + l'APPORT net de la poche ce jour-là (+ dépôt / − retrait), déjà inclus
+// dans le capital. Les bénéfices ne comptent jamais les apports :
+//   gain d'un intervalle = capital_fin − capital_début − apport_fin
+// La rentabilité « vraie » (indépendante du timing des apports) est le rendement
+// pondéré par le temps (TWR) : produit des (1 + rendement) de chaque sous-période.
+
+export type InvestmentType = "CROWDLENDING" | "CROWDFUNDING" | "IMMOBILIER" | "PEA" | "AUTRE"
+
+export const INVESTMENT_TYPE_META: Record<InvestmentType, { label: string; icon: string; cls: string; color: string }> = {
+  CROWDLENDING: { label: "Crowdlending", icon: "🤝", cls: "bg-indigo-500/15 text-indigo-600 border-indigo-500/25", color: "#6366f1" },
+  CROWDFUNDING: { label: "Crowdfunding", icon: "🚀", cls: "bg-violet-500/15 text-violet-600 border-violet-500/25", color: "#8b5cf6" },
+  IMMOBILIER:   { label: "Immobilier",   icon: "🏘️", cls: "bg-amber-500/15 text-amber-600 border-amber-500/25",   color: "#f59e0b" },
+  PEA:          { label: "PEA / Bourse", icon: "📊", cls: "bg-emerald-500/15 text-emerald-600 border-emerald-500/25", color: "#10b981" },
+  AUTRE:        { label: "Autre",        icon: "💠", cls: "bg-slate-500/15 text-slate-600 border-slate-500/25",   color: "#64748b" },
+}
+
+export const ALL_INVESTMENT_TYPES: InvestmentType[] = ["CROWDLENDING", "CROWDFUNDING", "IMMOBILIER", "PEA", "AUTRE"]
+
+// Palette stable (par index de plateforme) pour les courbes du graphe.
+export const PLATFORM_COLORS = [
+  "#6366f1", "#10b981", "#f59e0b", "#ec4899", "#06b6d4",
+  "#8b5cf6", "#ef4444", "#14b8a6", "#eab308", "#3b82f6",
+]
+
+const MS_DAY = 86_400_000
+const DAYS_MONTH = 30.44
+const DAYS_YEAR = 365.25
+const toDate = (d: Date | string) => (d instanceof Date ? d : new Date(d))
+
+export type EntryLite = { date: Date | string; capital: number; contribution: number }
+
+export type Interval = {
+  from: Date
+  to: Date
+  days: number
+  gain: number         // € gagnés (hors apport)
+  returnPct: number    // rendement de la sous-période
+  monthlyPct: number   // rendement ramené au mois (compound)
+  contribution: number // apport à la fin de l'intervalle
+  startCapital: number
+  endCapital: number
+}
+
+export type PlatformStats = {
+  totalContributions: number  // Σ apports (posé de ma poche)
+  currentCapital: number      // dernier relevé
+  firstDate: Date | null
+  lastDate: Date | null
+  profit: number              // capital actuel − apports
+  roi: number                 // profit / apports (rentabilité simple)
+  twr: number                 // rendement pondéré par le temps (cumulé)
+  annualizedPct: number       // TWR annualisé
+  monthlyAvgPct: number       // équivalent mensuel du TWR (lissé)
+  intervals: Interval[]
+  entryCount: number
+  daysSinceLast: number | null
+  isStale: boolean            // dernier relevé > ~1 mois → inviter à mettre à jour
+}
+
+/** Statistiques d'une plateforme à partir de ses relevés (ordre quelconque). */
+export function computePlatformStats(entriesInput: EntryLite[], now: Date = new Date()): PlatformStats {
+  const entries = entriesInput
+    .map((e) => ({ date: toDate(e.date), capital: e.capital, contribution: e.contribution }))
+    .sort((a, b) => a.date.getTime() - b.date.getTime())
+
+  const totalContributions = entries.reduce((s, e) => s + e.contribution, 0)
+  const first = entries[0] ?? null
+  const last = entries[entries.length - 1] ?? null
+  const currentCapital = last ? last.capital : 0
+  const profit = currentCapital - totalContributions
+  const roi = totalContributions > 0 ? profit / totalContributions : 0
+
+  const intervals: Interval[] = []
+  let twrFactor = 1
+  for (let i = 1; i < entries.length; i++) {
+    const a = entries[i - 1]
+    const b = entries[i]
+    const days = Math.max(0, (b.date.getTime() - a.date.getTime()) / MS_DAY)
+    const gain = b.capital - a.capital - b.contribution
+    const base = a.capital
+    const returnPct = base > 0 ? gain / base : 0
+    const monthlyPct = base > 0 && days > 0 ? Math.pow(1 + returnPct, DAYS_MONTH / days) - 1 : 0
+    intervals.push({ from: a.date, to: b.date, days, gain, returnPct, monthlyPct, contribution: b.contribution, startCapital: a.capital, endCapital: b.capital })
+    twrFactor *= 1 + returnPct
+  }
+  const twr = twrFactor - 1
+  const totalDays = first && last ? Math.max(0, (last.date.getTime() - first.date.getTime()) / MS_DAY) : 0
+  const annualizedPct = totalDays > 0 ? Math.pow(1 + twr, DAYS_YEAR / totalDays) - 1 : 0
+  const monthlyAvgPct = totalDays > 0 ? Math.pow(1 + twr, DAYS_MONTH / totalDays) - 1 : 0
+
+  const daysSinceLast = last ? (now.getTime() - last.date.getTime()) / MS_DAY : null
+  const isStale = daysSinceLast !== null && daysSinceLast > 31
+
+  return {
+    totalContributions, currentCapital, firstDate: first?.date ?? null, lastDate: last?.date ?? null,
+    profit, roi, twr, annualizedPct, monthlyAvgPct, intervals, entryCount: entries.length, daysSinceLast, isStale,
+  }
+}
+
+export type GlobalStats = {
+  totalContributions: number
+  currentCapital: number
+  profit: number
+  roi: number
+  monthlyAvgPct: number // moyenne pondérée par le capital
+  platformCount: number
+}
+
+/** Agrège les stats de plusieurs plateformes (rentabilité mensuelle pondérée par le capital). */
+export function aggregateGlobal(stats: PlatformStats[]): GlobalStats {
+  const totalContributions = stats.reduce((s, p) => s + p.totalContributions, 0)
+  const currentCapital = stats.reduce((s, p) => s + p.currentCapital, 0)
+  const profit = currentCapital - totalContributions
+  const roi = totalContributions > 0 ? profit / totalContributions : 0
+  const weight = stats.reduce((s, p) => s + p.currentCapital, 0)
+  const monthlyAvgPct = weight > 0 ? stats.reduce((s, p) => s + p.monthlyAvgPct * p.currentCapital, 0) / weight : 0
+  return { totalContributions, currentCapital, profit, roi, monthlyAvgPct, platformCount: stats.length }
+}
+
+// ── Formatage ─────────────────────────────────────────────────────────────────
+export const fmtEur = (n: number) =>
+  `${n.toLocaleString("fr-FR", { minimumFractionDigits: 0, maximumFractionDigits: 0 })} €`
+export const fmtEur2 = (n: number) =>
+  `${n.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`
+export const fmtPct = (r: number) =>
+  `${(r * 100).toLocaleString("fr-FR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })} %`
+export const fmtPctSigned = (r: number) => `${r >= 0 ? "+" : ""}${fmtPct(r)}`

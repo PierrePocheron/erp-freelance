@@ -58,6 +58,7 @@ model User {
   emailDrafts         EmailDraft[]
   skills              Skill[]
   interviewQuestions  InterviewQuestion[]
+  investmentPlatforms InvestmentPlatform[]
 }
 
 model ProjectIdea {
@@ -1840,4 +1841,46 @@ model QuestionSkill {
 
   @@unique([questionId, skillId])
   @@index([skillId])
+}
+
+// ── Module Investissements ────────────────────────────────────────────────────
+enum InvestmentType {
+  CROWDLENDING   // Prêts entre particuliers (P2P lending)
+  CROWDFUNDING   // Financement participatif
+  IMMOBILIER     // Immobilier participatif (ex. Bricks)
+  PEA            // Plan d'Épargne en Actions / Bourse
+  AUTRE
+}
+
+model InvestmentPlatform {
+  id        String         @id @default(cuid())
+  userId    String
+  name      String
+  type      InvestmentType @default(CROWDLENDING)
+  url       String?                            // lien d'accès rapide à la plateforme
+  currency  String         @default("EUR")
+  notes     String?
+  sortOrder Int            @default(0)
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+
+  user    User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  entries InvestmentEntry[]
+
+  @@index([userId])
+}
+
+model InvestmentEntry {
+  id           String   @id @default(cuid())
+  platformId   String
+  date         DateTime                        // date du relevé
+  capital      Float                           // capital total (valorisation) sur la plateforme à cette date
+  contribution Float    @default(0)            // apport net de la poche à cette date (+ dépôt / − retrait)
+  note         String?
+  createdAt    DateTime @default(now())
+
+  platform InvestmentPlatform @relation(fields: [platformId], references: [id], onDelete: Cascade)
+
+  @@index([platformId])
+  @@index([platformId, date])
 }

@@ -37,6 +37,7 @@ const ALL_NAV_ITEMS: NavItem[] = [
   { label: "Santé",                href: "/sante",                  icon: "🏥", keywords: ["sante", "santé", "medecin", "médecin", "consultation", "blessure", "maladie", "remboursement"], moduleId: "sante"       },
   { label: "Entretiens",           href: "/entretiens",             icon: "💼", keywords: ["entretien", "candidature", "job", "emploi", "recrutement", "interview"],                        moduleId: "entretien"   },
   { label: "Compétences",          href: "/competences",            icon: "🧠", keywords: ["competence", "compétence", "connaissance", "techno", "technologie", "skill", "stack", "question", "apprendre", "hard skill", "soft skill"], moduleId: "competences" },
+  { label: "Investissements",      href: "/investissements",        icon: "📈", keywords: ["investissement", "invest", "placement", "capital", "crowdlending", "crowdfunding", "immo", "bricks", "pea", "rentabilite", "rendement", "portefeuille", "robocash"], moduleId: "investissements" },
   { label: "Paramètres",           href: "/settings",               icon: "⚙️", keywords: ["parametres", "settings", "profil", "logo", "couleur", "iban", "siret", "entreprise", "conditions", "cgv"] },
 ]
 
@@ -56,6 +57,7 @@ const TYPE_ICON: Record<string, string> = {
   prospect:             "🎯",
   revenue:              "💰",
   skill:                "🧠",
+  investment_platform:  "📈",
 }
 
 const TYPE_LABEL: Record<string, string> = {
@@ -74,6 +76,7 @@ const TYPE_LABEL: Record<string, string> = {
   prospect:             "Prospect",
   revenue:              "Revenu",
   skill:                "Compétence",
+  investment_platform:  "Investissement",
 }
 
 /**

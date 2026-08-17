@@ -25,6 +25,7 @@ import {
   TrendingDown,
   Target,
   Brain,
+  LineChart,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { ThemeToggle } from "./ThemeToggle"
@@ -55,6 +56,7 @@ export const navItems: NavItem[] = [
   { href: "/sante",      icon: Heart,            label: "Santé",      moduleId: "sante"       },
   { href: "/entretiens", icon: Briefcase,        label: "Entretiens", moduleId: "entretien"   },
   { href: "/competences",icon: Brain,            label: "Compétences",moduleId: "competences" },
+  { href: "/investissements", icon: LineChart,   label: "Investissements", moduleId: "investissements" },
   { href: "/settings",   icon: Settings,         label: "Paramètres" },
 ]
 

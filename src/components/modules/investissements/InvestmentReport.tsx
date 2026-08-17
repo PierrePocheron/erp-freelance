@@ -124,7 +124,7 @@ export function InvestmentReport({ platforms, userName }: { platforms: PlatformD
   }
 
   return (
-    <div className="mx-auto max-w-5xl space-y-6 print:max-w-none">
+    <div className="space-y-6">
       <div className="print:hidden">
         <Link href="/investissements" className="mb-3 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
           <ChevronLeft className="h-4 w-4" /> Investissements

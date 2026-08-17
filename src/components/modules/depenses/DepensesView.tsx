@@ -3,7 +3,6 @@
 import { useMemo, useState, useTransition } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { TrendingDown, Repeat, Play, Pause, ChevronLeft, ChevronRight, CalendarClock } from "lucide-react"
-import { AmountsPrivacyToggle } from "@/components/ui/amounts-privacy-toggle"
 import { toggleRecurringExpenseActive } from "@/actions/expense"
 import { getOccurrencesInRange } from "@/lib/dates"
 import { FREQUENCY_LABELS } from "@/lib/expense-constants"
@@ -221,7 +220,6 @@ export function DepensesView({
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <AmountsPrivacyToggle />
           <ExpenseDialog categories={categories} />
         </div>
       </div>

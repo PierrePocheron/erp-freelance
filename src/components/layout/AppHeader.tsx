@@ -3,6 +3,7 @@
 import { LogOut } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { AppBreadcrumbs } from "@/components/layout/AppBreadcrumbs"
+import { AmountsPrivacyToggle } from "@/components/ui/amounts-privacy-toggle"
 
 /**
  * Header d'application fixe (desktop) : fil d'Ariane cliquable du module/page
@@ -24,6 +25,7 @@ export function AppHeader({
         <AppBreadcrumbs />
       </div>
       <div className="flex items-center gap-1.5 shrink-0">
+        <AmountsPrivacyToggle />
         {children}
         <form action={logoutAction}>
           <Button

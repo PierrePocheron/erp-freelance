@@ -344,6 +344,59 @@ export function computeMonthlySeries(platforms: { entries: EntryLite[] }[], from
   return rows
 }
 
+export type AnnualRow = {
+  year: number
+  value: number         // valeur en fin d'année (ou fin de période pour l'année en cours)
+  contributions: number // apports de l'année (net)
+  gain: number          // gain de l'année hors apports
+  returnPct: number     // performance de l'année
+  cumulContributions: number
+  cumulGain: number
+}
+
+/**
+ * Série ANNUELLE agrégée sur [fromMs, toMs] : pour chaque année civile, la valeur de fin
+ * d'année, les apports de l'année, le gain (hors apports) et la performance. La 1ʳᵉ année
+ * démarre au début de la période et la dernière s'arrête à `toMs` (année en cours).
+ */
+export function computeAnnualSeries(platforms: { entries: EntryLite[] }[], fromMs: number, toMs: number): AnnualRow[] {
+  if (toMs < fromMs) return []
+  const totalValueAt = (t: number) => platforms.reduce((s, p) => s + platformValueAt(p.entries, t), 0)
+  const contributionsBetween = (t1: number, t2: number) =>
+    platforms.reduce((s, p) => s + p.entries.reduce((ss, e) => {
+      const et = toDate(e.date).getTime()
+      return et > t1 && et <= t2 ? ss + e.contribution : ss
+    }, 0), 0)
+
+  const startY = new Date(fromMs).getFullYear()
+  const endY = new Date(toMs).getFullYear()
+  const rows: AnnualRow[] = []
+  let cumulContributions = 0
+  let cumulGain = 0
+  for (let y = startY; y <= endY; y++) {
+    // Borne basse = max(veille du 1er janvier, veille du début de période) ; borne haute =
+    // min(fin du 31 décembre, fin de période).
+    const lo = Math.max(new Date(y, 0, 1).getTime() - 1, fromMs - 1)
+    const hi = Math.min(new Date(y + 1, 0, 1).getTime() - 1, toMs)
+    const valStart = totalValueAt(lo)
+    const valEnd = totalValueAt(hi)
+    const contributions = contributionsBetween(lo, hi)
+    const gain = valEnd - valStart - contributions
+    cumulContributions += contributions
+    cumulGain += gain
+    rows.push({
+      year: y,
+      value: valEnd,
+      contributions,
+      gain,
+      returnPct: valStart > 0 ? gain / valStart : 0,
+      cumulContributions,
+      cumulGain,
+    })
+  }
+  return rows
+}
+
 export type GlobalStats = {
   totalContributions: number
   currentCapital: number

@@ -103,16 +103,22 @@ export function InvestmentChart({ platforms, range, onRangeChange }: { platforms
     const left = rangeDays === null ? minT : Math.max(minT, right - rangeDays * 86_400_000)
     const span = Math.max(1, right - left)
 
-    // Domaine Y sur les points visibles (+ interpolation aux bornes)
-    const vals: number[] = []
-    for (const s of series) {
-      for (const p of s.pts) if (p.t >= left && p.t <= right) vals.push(p.v)
+    // Points étagés (espace données) par série : dépôts = marches verticales. Sert
+    // À LA FOIS au domaine Y (sommets de marches compris) et au tracé, pour qu'une
+    // courbe ne sorte jamais du cadre (bug si gros dépôt dans un intervalle en perte).
+    const stepped = series.map((s) => {
+      const inRange = s.pts.filter((p) => p.t >= left && p.t <= right)
+      const valPoints: Pt[] = []
       const vl = valueAt(s.pts, s.flows, left)
-      if (vl !== null) vals.push(vl)
-    }
-    if (vals.length === 0) return { left, right, span, empty: true as const }
-    let yMin = Math.min(...vals)
-    let yMax = Math.max(...vals)
+      if (vl !== null && (inRange.length === 0 || inRange[0].t > left)) valPoints.push({ t: left, v: vl })
+      valPoints.push(...inRange)
+      return { id: s.id, name: s.name, color: s.color, seg: buildStepped(valPoints, s.flows), inRange }
+    })
+
+    const yValues = stepped.flatMap((s) => s.seg.map((p) => p.v))
+    if (yValues.length === 0) return { left, right, span, empty: true as const }
+    let yMin = Math.min(...yValues)
+    let yMax = Math.max(...yValues)
     const pad = (yMax - yMin) * 0.12 || Math.max(1, yMax * 0.1)
     yMin = Math.max(0, yMin - pad)
     yMax = yMax + pad
@@ -122,17 +128,11 @@ export function InvestmentChart({ platforms, range, onRangeChange }: { platforms
     const xOf = (t: number) => PAD.left + ((t - left) / span) * plotW
     const yOf = (v: number) => PAD.top + (1 - (v - yMin) / (yMax - yMin || 1)) * plotH
 
-    const lines = series.map((s) => {
-      const inRange = s.pts.filter((p) => p.t >= left && p.t <= right)
-      const valPoints: Pt[] = []
-      const vl = valueAt(s.pts, s.flows, left)
-      if (vl !== null && (inRange.length === 0 || inRange[0].t > left)) valPoints.push({ t: left, v: vl })
-      valPoints.push(...inRange)
-      const seg = buildStepped(valPoints, s.flows) // dépôts = marches verticales
-      const d = seg.map((p, i) => `${i === 0 ? "M" : "L"} ${xOf(p.t).toFixed(1)} ${yOf(p.v).toFixed(1)}`).join(" ")
-      const dots = inRange.map((p) => ({ x: xOf(p.t), y: yOf(p.v) }))
-      return { id: s.id, name: s.name, color: s.color, d, dots }
-    })
+    const lines = stepped.map((s) => ({
+      id: s.id, name: s.name, color: s.color,
+      d: s.seg.map((p, i) => `${i === 0 ? "M" : "L"} ${xOf(p.t).toFixed(1)} ${yOf(p.v).toFixed(1)}`).join(" "),
+      dots: s.inRange.map((p) => ({ x: xOf(p.t), y: yOf(p.v) })),
+    }))
 
     // Graduations Y sur des nombres ronds (1/2/5 k…) ; graduations X = dates réelles
     // où j'ai saisi des données (relevés ET dépôts).

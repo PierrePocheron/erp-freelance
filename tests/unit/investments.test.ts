@@ -153,6 +153,17 @@ describe("indépendance dépôts / relevés (cas limites)", () => {
     expect(s.intervals).toHaveLength(0)
   })
 
+  it("fenêtre entièrement postérieure au dernier relevé : report à plat, gain 0", () => {
+    const entries = [
+      { date: "2025-10-01", capital: 1000, contribution: 1000 },
+      { date: "2025-11-01", capital: 1500, contribution: 0 }, // dernier relevé
+    ]
+    const from = new Date("2026-06-01").getTime() // bien après le dernier relevé
+    const p = computePeriodStats(entries, from)
+    expect(p.startCapital).toBe(1500) // dernier capital connu, pas celui du 1er relevé
+    expect(p.gain).toBeCloseTo(0, 6)  // aucune croissance mesurée dans la fenêtre
+  })
+
   it("période démarrant dans un écart avec gros dépôt (cas Swaper) : pas de faux -", () => {
     const entries = [
       { date: "2025-02-05", capital: 0, contribution: 0 },

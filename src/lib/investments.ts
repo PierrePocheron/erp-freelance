@@ -191,8 +191,11 @@ export function computePeriodStats(entriesInput: EntryLite[], fromMs: number): P
   const flows = entries.filter((e) => e.contribution !== 0).map((e) => ({ t: e.t, amount: e.contribution }))
   const coversAll = fromMs <= first.t
   const winStart = coversAll ? first.t : fromMs
-  // Capital de départ CONSCIENT DES DÉPÔTS (pas une interpolation linéaire naïve)
-  const startCapital = coversAll ? 0 : (capitalAt(vals.map((v) => ({ t: v.t, capital: v.capital })), flows, fromMs) ?? first.capital)
+  // Capital de départ CONSCIENT DES DÉPÔTS (pas une interpolation linéaire naïve).
+  // Fallback = dernier capital connu : si la fenêtre est ENTIÈREMENT postérieure au
+  // dernier relevé (capitalAt renvoie null car fromMs > last.t), on reporte à plat le
+  // dernier capital → gain de période = 0 (cohérent), pas le capital du 1er relevé.
+  const startCapital = coversAll ? 0 : (capitalAt(vals.map((v) => ({ t: v.t, capital: v.capital })), flows, fromMs) ?? last.capital)
   // apports = flux survenus dans la fenêtre
   const apports = entries.reduce((s, e) => (coversAll || e.t > fromMs ? s + e.contribution : s), 0)
   // capital actuel = dernier relevé + dépôts postérieurs (non encore valorisés)

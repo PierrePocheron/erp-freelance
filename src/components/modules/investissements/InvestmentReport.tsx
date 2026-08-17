@@ -108,7 +108,7 @@ export function InvestmentReport({ platforms }: { platforms: PlatformData[] }) {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="mx-auto max-w-5xl space-y-6 print:max-w-none">
       <div className="print:hidden">
         <Link href="/investissements" className="mb-3 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
           <ChevronLeft className="h-4 w-4" /> Investissements
@@ -271,8 +271,8 @@ export function InvestmentReport({ platforms }: { platforms: PlatformData[] }) {
 
 function Kpi({ label, value, sub, tone, strong }: { label: string; value: string; sub?: string; tone?: "pos" | "neg"; strong?: boolean }) {
   return (
-    <div className="rounded-lg border border-border/50 px-3 py-2">
-      <p className="text-[11px] text-muted-foreground">{label}</p>
+    <div className="min-w-0 rounded-lg border border-border/50 px-3 py-2">
+      <p className="truncate text-[11px] text-muted-foreground">{label}</p>
       <p className={cn("mt-0.5 tabular-nums", strong ? "text-lg font-bold" : "text-sm font-semibold",
         tone === "pos" && "text-emerald-600 dark:text-emerald-400", tone === "neg" && "text-red-600 dark:text-red-400")}>{value}</p>
       {sub && <p className={cn("text-[11px] tabular-nums", tone === "pos" ? "text-emerald-600/80 dark:text-emerald-400/80" : tone === "neg" ? "text-red-600/80 dark:text-red-400/80" : "text-muted-foreground")}>{sub}</p>}

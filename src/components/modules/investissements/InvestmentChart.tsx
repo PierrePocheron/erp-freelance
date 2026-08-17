@@ -149,17 +149,26 @@ export function InvestmentChart({ platforms, range, onRangeChange }: { platforms
     return { left, right, span, yMin, yMax, plotW, plotH, xOf, yOf, lines, yTicks, dateTicks, dateLabels, empty: false as const }
   }, [width, hasData, series, range, now])
 
-  // Survol : temps sous le curseur + valeurs interpolées par plateforme
+  // Survol : on SNAPPE à la date de relevé la plus proche du curseur et on affiche les
+  // VRAIS montants saisis (pas une valeur interpolée jour par jour, qui n'est qu'une
+  // déduction). Les dépôts (flux) ne sont pas des points de lecture → seuls les relevés.
   const hover = useMemo(() => {
     if (!geo || geo.empty || hoverX === null) return null
-    const t = geo.left + ((hoverX - PAD.left) / geo.plotW) * geo.span
-    if (t < geo.left || t > geo.right) return null
+    const cursorT = geo.left + ((hoverX - PAD.left) / geo.plotW) * geo.span
+    const snapDates = [...new Set(series.flatMap((s) => s.pts.map((p) => p.t)).filter((t) => t >= geo.left && t <= geo.right))]
+    if (snapDates.length === 0) return null
+    let snapT = snapDates[0]
+    for (const t of snapDates) if (Math.abs(t - cursorT) < Math.abs(snapT - cursorT)) snapT = t
     const rows = series
-      .map((s) => ({ name: s.name, color: s.color, v: valueAt(s.pts, s.flows, t), y: 0 }))
-      .filter((r): r is { name: string; color: string; v: number; y: number } => r.v !== null)
+      .map((s) => {
+        const exact = s.pts.find((p) => p.t === snapT) // relevé réel à cette date
+        const v = exact ? exact.v : valueAt(s.pts, s.flows, snapT)
+        return { name: s.name, color: s.color, v, exact: !!exact, y: 0 }
+      })
+      .filter((r): r is { name: string; color: string; v: number; exact: boolean; y: number } => r.v !== null)
       .map((r) => ({ ...r, y: geo.yOf(r.v) }))
     if (rows.length === 0) return null
-    return { t, x: geo.xOf(t), rows }
+    return { t: snapT, x: geo.xOf(snapT), rows }
   }, [geo, hoverX, series])
 
   function onMove(e: React.MouseEvent<SVGSVGElement>) {
@@ -246,9 +255,9 @@ export function InvestmentChart({ platforms, range, onRangeChange }: { platforms
             {/* Tooltip */}
             {hover && (
               <div
-                className="pointer-events-none absolute z-10 rounded-lg border border-border bg-card/95 p-2 shadow-lg backdrop-blur"
+                className="pointer-events-none absolute z-10 min-w-[172px] rounded-lg border border-border bg-card/95 p-2 shadow-lg backdrop-blur"
                 style={{
-                  left: Math.min(Math.max(hover.x + 12, 8), (width || 300) - 160),
+                  left: Math.min(Math.max(hover.x + 12, 8), (width || 300) - 184),
                   top: PAD.top,
                 }}
               >
@@ -260,7 +269,7 @@ export function InvestmentChart({ platforms, range, onRangeChange }: { platforms
                     <div key={i} className="flex items-center gap-1.5 text-xs">
                       <span className="h-2 w-2 rounded-full" style={{ backgroundColor: r.color }} />
                       <span className="truncate">{r.name}</span>
-                      <span className="ml-auto font-semibold tabular-nums amount-sensitive">{fmtEur(r.v)}</span>
+                      <span className="ml-auto whitespace-nowrap pl-2 font-semibold tabular-nums amount-sensitive">{fmtEur(r.v)}</span>
                     </div>
                   ))}
                 </div>

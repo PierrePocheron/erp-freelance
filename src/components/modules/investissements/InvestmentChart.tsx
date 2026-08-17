@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react"
 import { cn } from "@/lib/utils"
-import { fmtEur, RANGES, type RangeKey } from "@/lib/investments"
+import { fmtEur, RANGES, capitalAt, type RangeKey } from "@/lib/investments"
 
 type ChartPlatform = { id: string; name: string; color: string; entries: { date: string; capital: number | null; contribution: number }[] }
 type Pt = { t: number; v: number }
@@ -11,14 +11,9 @@ type Flow = { t: number; amount: number }
 const H = 360
 const PAD = { left: 56, right: 16, top: 12, bottom: 30 }
 
-/** Valeur interpolée (linéaire) d'une série au temps t ; null si hors de sa plage. */
-function valueAt(pts: Pt[], t: number): number | null {
-  if (pts.length === 0 || t < pts[0].t || t > pts[pts.length - 1].t) return null
-  for (let i = 0; i < pts.length - 1; i++) {
-    const a = pts[i], b = pts[i + 1]
-    if (t >= a.t && t <= b.t) return b.t === a.t ? b.v : a.v + ((t - a.t) / (b.t - a.t)) * (b.v - a.v)
-  }
-  return pts[pts.length - 1].v
+/** Valeur de la courbe au temps t, consciente des dépôts (cf. capitalAt) ; null hors plage. */
+function valueAt(pts: Pt[], flows: Flow[], t: number): number | null {
+  return capitalAt(pts.map((p) => ({ t: p.t, capital: p.v })), flows, t)
 }
 
 /**
@@ -112,7 +107,7 @@ export function InvestmentChart({ platforms, range, onRangeChange }: { platforms
     const vals: number[] = []
     for (const s of series) {
       for (const p of s.pts) if (p.t >= left && p.t <= right) vals.push(p.v)
-      const vl = valueAt(s.pts, left)
+      const vl = valueAt(s.pts, s.flows, left)
       if (vl !== null) vals.push(vl)
     }
     if (vals.length === 0) return { left, right, span, empty: true as const }
@@ -130,7 +125,7 @@ export function InvestmentChart({ platforms, range, onRangeChange }: { platforms
     const lines = series.map((s) => {
       const inRange = s.pts.filter((p) => p.t >= left && p.t <= right)
       const valPoints: Pt[] = []
-      const vl = valueAt(s.pts, left)
+      const vl = valueAt(s.pts, s.flows, left)
       if (vl !== null && (inRange.length === 0 || inRange[0].t > left)) valPoints.push({ t: left, v: vl })
       valPoints.push(...inRange)
       const seg = buildStepped(valPoints, s.flows) // dépôts = marches verticales
@@ -160,7 +155,7 @@ export function InvestmentChart({ platforms, range, onRangeChange }: { platforms
     const t = geo.left + ((hoverX - PAD.left) / geo.plotW) * geo.span
     if (t < geo.left || t > geo.right) return null
     const rows = series
-      .map((s) => ({ name: s.name, color: s.color, v: valueAt(s.pts, t), y: 0 }))
+      .map((s) => ({ name: s.name, color: s.color, v: valueAt(s.pts, s.flows, t), y: 0 }))
       .filter((r): r is { name: string; color: string; v: number; y: number } => r.v !== null)
       .map((r) => ({ ...r, y: geo.yOf(r.v) }))
     if (rows.length === 0) return null

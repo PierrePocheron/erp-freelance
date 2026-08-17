@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { useEffect, useLayoutEffect, useRef, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import pkg from "../../../package.json"
 import {
   LayoutDashboard,
@@ -72,22 +72,14 @@ export const navItems: NavItem[] = [
 
 const STORAGE_KEY = "erp-sidebar-expanded"
 
-// useLayoutEffect côté serveur émet un warning → variante isomorphe (mesure DOM
-// avant peinture pour éviter tout saut de l'indicateur au montage).
-const useIsoLayoutEffect = typeof window !== "undefined" ? useLayoutEffect : useEffect
-
 export function Sidebar() {
   const pathname = usePathname()
   const [expanded, setExpanded] = useState(false)
   const [mounted, setMounted] = useState(false)
   const { isActive } = useModules()
-
-  const navRef = useRef<HTMLElement>(null)
-  // Indicateur de sélection glissant : position/taille de l'item actif, animées en CSS.
-  const [indicator, setIndicator] = useState<{ top: number; left: number; width: number; height: number } | null>(null)
-
-  // Signature des items visibles → re-mesure quand les modules actifs changent.
-  const visibleKey = navItems.filter((i) => !i.moduleId || isActive(i.moduleId)).map((i) => i.href).join(",")
+  const asideRef = useRef<HTMLElement>(null)
+  // Infobulle au survol en mode replié : nom du module, ancrée à droite de la sidebar.
+  const [tip, setTip] = useState<{ label: string; top: number; left: number } | null>(null)
 
   useEffect(() => {
     const stored = localStorage.getItem(STORAGE_KEY)
@@ -95,29 +87,6 @@ export function Sidebar() {
     if (stored !== null) setExpanded(stored === "true")
     setMounted(true)
   }, [])
-
-  // Mesure l'item actif et positionne l'indicateur (glisse via la transition CSS).
-  useIsoLayoutEffect(() => {
-    const nav = navRef.current
-    if (!nav) return
-    const measure = () => {
-      const el = nav.querySelector<HTMLElement>("[data-active]")
-      setIndicator(el ? { top: el.offsetTop, left: el.offsetLeft, width: el.offsetWidth, height: el.offsetHeight } : null)
-    }
-    measure()
-    // La largeur/hauteur de la pastille ne sont PAS animées en CSS (cf. transition-[top,left]).
-    // Pendant l'ouverture/fermeture du volet, l'<aside> anime sa largeur : un ResizeObserver
-    // re-mesure l'item actif à chaque frame → la pastille épouse l'item en temps réel.
-    // Sans ça, la mesure synchrone du montage tombait à t=0 de la transition de largeur et
-    // figeait la pastille sur la largeur repliée (bug « pastille icône seule » au chargement).
-    const ro = new ResizeObserver(measure)
-    ro.observe(nav)
-    window.addEventListener("resize", measure)
-    return () => {
-      ro.disconnect()
-      window.removeEventListener("resize", measure)
-    }
-  }, [pathname, expanded, mounted, visibleKey])
 
   function toggle() {
     setExpanded((v) => {
@@ -145,6 +114,7 @@ export function Sidebar() {
 
   return (
     <aside
+      ref={asideRef}
       className={cn(
         "hidden sm:flex relative z-20 h-screen shrink-0 flex-col border-r border-border/50 bg-background/80 backdrop-blur-sm transition-all duration-200",
         expanded ? "w-52" : "w-24"
@@ -170,22 +140,15 @@ export function Sidebar() {
           )}
         </button>
       </div>
+      {/* Trait qui isole le logo de la navigation */}
+      <div aria-hidden className="mx-3 mb-1 h-px bg-border/60" />
 
-      {/* Nav — groupée par section ; repliée = grille 2 colonnes, dépliée = liste labellisée */}
-      <nav ref={navRef} data-tour="sidebar" className="relative flex flex-1 flex-col gap-1 px-2 overflow-y-auto min-h-0">
-        {/* Indicateur de sélection : une seule pastille qui glisse jusqu'au module actif.
-            Ancrée à la <nav> (position:relative) → suit le scroll de la liste. Le nom des
-            items réduits passe par l'attribut `title` natif (plus de tooltip custom). */}
-        {indicator && (
-          <div
-            aria-hidden
-            className="pointer-events-none absolute -z-10 rounded-xl bg-primary transition-[top,left] duration-300 ease-out motion-reduce:transition-none"
-            style={{ top: indicator.top, left: indicator.left, width: indicator.width, height: indicator.height }}
-          />
-        )}
+      {/* Nav — groupée par section ; repliée = grille 2 colonnes, dépliée = liste labellisée.
+          Page active = surbrillance douce (fond léger) ; nom des icônes réduites via `title`. */}
+      <nav data-tour="sidebar" className="flex flex-1 flex-col gap-1 px-2 overflow-y-auto min-h-0">
         {segments.map((seg, si) => (
           <div key={si} className="flex flex-col">
-            {si > 0 && <div aria-hidden className="my-1.5 h-px bg-border/60" />}
+            {si > 0 && <div aria-hidden className="my-1 h-px bg-border/60" />}
             {seg.group && (
               <div className={cn(
                 "pb-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground/70",
@@ -209,13 +172,19 @@ export function Sidebar() {
                     data-tour={href === "/settings" ? "settings" : undefined}
                     data-active={isCurrent || undefined}
                     aria-current={isCurrent ? "page" : undefined}
-                    title={expanded ? undefined : label}
+                    aria-label={!expanded ? label : undefined}
+                    onMouseEnter={!expanded ? (e) => {
+                      const r = e.currentTarget.getBoundingClientRect()
+                      const a = asideRef.current?.getBoundingClientRect()
+                      setTip({ label, top: r.top + r.height / 2, left: (a?.right ?? 96) + 8 })
+                    } : undefined}
+                    onMouseLeave={!expanded ? () => setTip(null) : undefined}
                     className={cn(
-                      "group flex h-9 items-center rounded-xl transition-colors",
-                      expanded ? "w-full gap-3 px-2.5" : "w-9 justify-center",
+                      "flex items-center rounded-xl transition-colors",
+                      expanded ? "h-9 w-full gap-3 px-2.5" : "h-9 w-9 justify-center",
                       isCurrent
-                        ? "text-primary-foreground"
-                        : "text-muted-foreground hover:bg-accent hover:text-foreground",
+                        ? "bg-accent font-medium text-foreground"
+                        : "text-muted-foreground hover:bg-accent/60 hover:text-foreground",
                     )}
                   >
                     <Icon className="h-5 w-5 shrink-0" />
@@ -229,7 +198,7 @@ export function Sidebar() {
       </nav>
 
       {/* Recherche Cmd+K */}
-      <div className="px-2 pb-1">
+      <div className={cn("px-2 pb-1", !expanded && "flex justify-center")}>
         <button
           data-tour="search"
           onClick={() => window.dispatchEvent(new CustomEvent(OPEN_COMMAND_PALETTE_EVENT))}
@@ -270,6 +239,16 @@ export function Sidebar() {
           <p className="px-2.5 pt-1 text-[10px] text-muted-foreground/40 font-mono select-none">v{pkg.version}</p>
         )}
       </div>
+
+      {/* Infobulle de survol (mode replié) — ancrée à droite de la sidebar, alignée sur l'icône */}
+      {tip && !expanded && (
+        <div
+          className="pointer-events-none fixed z-[999] -translate-y-1/2 whitespace-nowrap rounded-md border border-border bg-popover px-2 py-1 text-xs text-popover-foreground shadow-md"
+          style={{ left: tip.left, top: tip.top }}
+        >
+          {tip.label}
+        </div>
+      )}
     </aside>
   )
 }

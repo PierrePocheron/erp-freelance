@@ -140,8 +140,10 @@ export default async function GraphPage() {
     nodes.push({
       id:       "hub-perso",
       type:     "SOURCE",
-      label:    "Perso",
+      label:    "Perso - Moi",
       parentId: null,
+      // Replié au chargement, comme le hub Prospection : un seul nœud central
+      defaultCollapsed: true,
       meta: {
         href:     "/contacts",
         color:    "#2dd4bf", // teal — identique aux nœuds PERSONAL

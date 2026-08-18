@@ -1031,6 +1031,13 @@ export async function setRecurringInvoiceLines(
 
 // ── Email ─────────────────────────────────────────────────────────────────────
 
+// URL de base de l'app pour les liens absolus dans les emails (liens PDF de devis/
+// factures). NextAuth v5 lit AUTH_URL ; on garde NEXTAUTH_URL en repli au cas où
+// seul l'ancien nom serait défini sur l'hébergeur — évite un lien « undefined/… ».
+function appBaseUrl() {
+  return process.env.AUTH_URL ?? process.env.NEXTAUTH_URL ?? ""
+}
+
 export async function resendQuoteEmail(quoteId: string, _userId: string) {
   const userId = await requireAuth()
   await enforceRateLimit(`email:${userId}`, 10, 60_000) // 10 emails/min max
@@ -1044,7 +1051,7 @@ export async function resendQuoteEmail(quoteId: string, _userId: string) {
   const { Resend } = await import("resend")
   const resend = new Resend(process.env.RESEND_API_KEY)
 
-  const pdfUrl = `${process.env.NEXTAUTH_URL}/api/pdf/devis/${quoteId}`
+  const pdfUrl = `${appBaseUrl()}/api/pdf/devis/${quoteId}`
 
   const { error } = await resend.emails.send({
     from: "ERP Freelance <noreply@resend.dev>",
@@ -1076,7 +1083,7 @@ export async function sendQuoteEmail(quoteId: string, _userId: string) {
   const { Resend } = await import("resend")
   const resend = new Resend(process.env.RESEND_API_KEY)
 
-  const pdfUrl = `${process.env.NEXTAUTH_URL}/api/pdf/devis/${quoteId}`
+  const pdfUrl = `${appBaseUrl()}/api/pdf/devis/${quoteId}`
 
   const { error } = await resend.emails.send({
     from: "ERP Freelance <noreply@resend.dev>",
@@ -1109,7 +1116,7 @@ export async function sendInvoiceEmail(invoiceId: string, _userId: string) {
   const { Resend } = await import("resend")
   const resend = new Resend(process.env.RESEND_API_KEY)
 
-  const pdfUrl = `${process.env.NEXTAUTH_URL}/api/pdf/facture/${invoiceId}`
+  const pdfUrl = `${appBaseUrl()}/api/pdf/facture/${invoiceId}`
 
   const { data, error } = await resend.emails.send({
     from: "ERP Freelance <noreply@resend.dev>",
@@ -1151,7 +1158,7 @@ export async function sendInvoiceReminder(invoiceId: string, _userId: string) {
   const { Resend } = await import("resend")
   const resend = new Resend(process.env.RESEND_API_KEY)
 
-  const pdfUrl = `${process.env.NEXTAUTH_URL}/api/pdf/facture/${invoiceId}`
+  const pdfUrl = `${appBaseUrl()}/api/pdf/facture/${invoiceId}`
   const isLate = invoice.status === "LATE"
   const daysLate = invoice.dueDate
     ? Math.ceil((Date.now() - new Date(invoice.dueDate).getTime()) / 86400000)

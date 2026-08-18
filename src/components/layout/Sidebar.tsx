@@ -56,14 +56,14 @@ export const navItems: NavItem[] = [
   { href: "/revenus",    icon: Wallet,           label: "Revenus",    moduleId: "revenus",     group: "finances" },
   { href: "/depenses",   icon: TrendingDown,     label: "Dépenses",   moduleId: "depenses",    group: "finances" },
   { href: "/impots",     icon: Landmark,         label: "Impôts",     moduleId: "impots",      group: "finances" },
+  { href: "/investissements", icon: LineChart,   label: "Investissements", moduleId: "investissements", group: "finances" },
   { href: "/projets",    icon: Code2,            label: "Projets",    moduleId: "projets",     group: "travail" },
   { href: "/taches",     icon: CheckSquare,      label: "Tâches",     moduleId: "taches",      group: "travail" },
-  { href: "/calendrier", icon: Calendar,         label: "Calendrier", moduleId: "calendrier",  group: "travail" },
   { href: "/graph",      icon: Network,          label: "Graph",      moduleId: "graph",       group: "travail" },
+  { href: "/entretiens", icon: Briefcase,        label: "Entretiens", moduleId: "entretien",   group: "travail" },
+  { href: "/competences",icon: Brain,            label: "Compétences",moduleId: "competences", group: "travail" },
   { href: "/sante",      icon: Heart,            label: "Santé",      moduleId: "sante",       group: "perso" },
-  { href: "/entretiens", icon: Briefcase,        label: "Entretiens", moduleId: "entretien",   group: "perso" },
-  { href: "/competences",icon: Brain,            label: "Compétences",moduleId: "competences", group: "perso" },
-  { href: "/investissements", icon: LineChart,   label: "Investissements", moduleId: "investissements", group: "perso" },
+  { href: "/calendrier", icon: Calendar,         label: "Calendrier", moduleId: "calendrier",  group: "perso" },
   { href: "/settings",   icon: Settings,         label: "Paramètres" },
 ]
 

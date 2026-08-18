@@ -189,15 +189,19 @@ export function useModules() {
     [activeModules]
   )
 
+  // `persist` déclenche un dispatchEvent synchrone qui resynchronise les AUTRES
+  // instances du hook (Sidebar…) via leur setState — il ne doit donc JAMAIS être
+  // appelé depuis l'updater de setActiveModules (qui s'exécute pendant le rendu :
+  // sinon « Cannot update Sidebar while rendering ModulesPanel »). On calcule le
+  // prochain set à partir de `activeModules`, on persiste, puis on set — comme
+  // enableAll/setModules ci-dessous.
   const toggle = useCallback((id: ModuleId) => {
-    setActiveModules(prev => {
-      const next = new Set(prev)
-      if (next.has(id)) next.delete(id)
-      else next.add(id)
-      persist([...next])
-      return next
-    })
-  }, [])
+    const next = new Set(activeModules)
+    if (next.has(id)) next.delete(id)
+    else next.add(id)
+    persist([...next])
+    setActiveModules(next)
+  }, [activeModules])
 
   const enableAll = useCallback(() => {
     const all = new Set<ModuleId>(ALL_MODULE_IDS)

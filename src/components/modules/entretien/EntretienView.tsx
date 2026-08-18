@@ -101,17 +101,19 @@ export function EntretienView({
     // eslint-disable-next-line react-hooks/purity -- « maintenant » pour situer passé/futur
     const now = Date.now()
     const windowStart = now - 21 * 86_400_000
-    type TL = { appId: string; company: string; position: string; label: string; time: number; type: string; future: boolean }
+    // `pending` = action en ATTENTE (le prochain point / retour attendu), par opposition à
+    // un événement déjà survenu. Une action en attente dont la date est passée = EN RETARD.
+    type TL = { appId: string; company: string; position: string; label: string; time: number; type: string; future: boolean; pending: boolean }
     const items: TL[] = []
     for (const a of applications) {
       for (const e of a.events) {
         if (e.cancelledAt) continue
         const t = new Date(e.date).getTime()
-        if (t >= windowStart) items.push({ appId: a.id, company: a.companyName, position: a.position, label: e.title, time: t, type: e.type, future: t > now })
+        if (t >= windowStart) items.push({ appId: a.id, company: a.companyName, position: a.position, label: e.title, time: t, type: e.type, future: t > now, pending: false })
       }
       if (a.nextActionAt) {
         const t = new Date(a.nextActionAt).getTime()
-        if (t >= windowStart) items.push({ appId: a.id, company: a.companyName, position: a.position, label: a.nextActionLabel ?? "Rendez-vous", time: t, type: "OTHER", future: t > now })
+        if (t >= windowStart) items.push({ appId: a.id, company: a.companyName, position: a.position, label: a.nextActionLabel ?? "Rendez-vous", time: t, type: "OTHER", future: t > now, pending: true })
       }
     }
     return items.sort((x, y) => x.time - y.time)
@@ -330,7 +332,7 @@ function Timeline({
   items,
   onOpen,
 }: {
-  items: { appId: string; company: string; position: string; label: string; time: number; type: string; future: boolean }[]
+  items: { appId: string; company: string; position: string; label: string; time: number; type: string; future: boolean; pending: boolean }[]
   onOpen: (id: string) => void
 }) {
   const firstFutureIdx = items.findIndex((i) => i.future)
@@ -354,6 +356,8 @@ function Timeline({
           const cfg = EVENT_TYPE_CONFIG[it.type] ?? EVENT_TYPE_CONFIG.OTHER
           const dt = new Date(it.time)
           const hasTime = dt.getHours() !== 0 || dt.getMinutes() !== 0
+          // Action en attente dont la date est passée = en retard → rouge (comme sur les cartes)
+          const overdue = it.pending && !it.future
           return (
             <Fragment key={`${it.appId}-${it.time}-${i}`}>
               {i === firstFutureIdx && (
@@ -368,10 +372,10 @@ function Timeline({
                 <span
                   className={cn(
                     "relative z-10 flex h-7 w-7 shrink-0 items-center justify-center rounded-full border-2 border-card text-sm shadow-sm",
-                    it.future ? "bg-amber-500/15 ring-1 ring-amber-500/40" : "bg-muted"
+                    it.future ? "bg-amber-500/15 ring-1 ring-amber-500/40" : overdue ? "bg-red-500/15 ring-1 ring-red-500/40" : "bg-muted"
                   )}
                 >
-                  {it.future ? "📅" : cfg.icon}
+                  {it.future ? "📅" : overdue ? "⏳" : cfg.icon}
                 </span>
                 <button
                   type="button"
@@ -380,11 +384,13 @@ function Timeline({
                 >
                   <div className="flex items-baseline justify-between gap-2">
                     <p className="text-sm font-semibold leading-tight truncate group-hover:text-primary transition-colors">{it.company}</p>
-                    <span className={cn("shrink-0 text-[11px] tabular-nums", it.future ? "text-amber-600 font-medium" : "text-muted-foreground")}>
+                    <span className={cn("shrink-0 text-[11px] tabular-nums", it.future ? "text-amber-600 font-medium" : overdue ? "text-red-600 dark:text-red-400 font-medium" : "text-muted-foreground")}>
                       {fmtShort(dt)}{hasTime ? ` · ${dt.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}` : ""}
                     </span>
                   </div>
-                  <p className="mt-0.5 text-xs text-muted-foreground leading-snug line-clamp-2">{it.label}</p>
+                  <p className={cn("mt-0.5 text-xs leading-snug line-clamp-2", overdue ? "text-red-600 dark:text-red-400" : "text-muted-foreground")}>
+                    {overdue ? "⏳ En attente · " : ""}{it.label}
+                  </p>
                 </button>
               </li>
             </Fragment>

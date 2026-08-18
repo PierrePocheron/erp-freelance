@@ -52,7 +52,7 @@ export const navItems: NavItem[] = [
   { href: "/contacts",   icon: Users,           label: "Contacts",   moduleId: "contacts",    group: "crm" },
   { href: "/prospection",icon: Target,          label: "Prospection",moduleId: "prospection", group: "crm" },
   { href: "/societes",   icon: Building2,       label: "Sociétés",   moduleId: "societes",    group: "crm" },
-  { href: "/facturation",icon: FileText,         label: "Facturation",moduleId: "facturation", group: "finances" },
+  { href: "/facturation",icon: FileText,         label: "Facturation",moduleId: "facturation", group: "crm" },
   { href: "/revenus",    icon: Wallet,           label: "Revenus",    moduleId: "revenus",     group: "finances" },
   { href: "/depenses",   icon: TrendingDown,     label: "Dépenses",   moduleId: "depenses",    group: "finances" },
   { href: "/impots",     icon: Landmark,         label: "Impôts",     moduleId: "impots",      group: "finances" },

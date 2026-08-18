@@ -232,20 +232,20 @@ export function InvestmentReport({ platforms, userName }: { platforms: PlatformD
                       {annual.map((r) => (
                         <tr key={r.year} className="border-b border-border/40 font-medium last:border-0">
                           <td className="whitespace-nowrap px-3 py-1.5">{r.year}</td>
-                          <td className="px-3 py-1.5 text-right tabular-nums">{fmtEur2(r.value)}</td>
-                          <td className="px-3 py-1.5 text-right font-normal tabular-nums text-blue-600 dark:text-blue-400">
+                          <td className="px-3 py-1.5 text-right tabular-nums amount-sensitive">{fmtEur2(r.value)}</td>
+                          <td className="px-3 py-1.5 text-right font-normal tabular-nums text-blue-600 dark:text-blue-400 amount-sensitive">
                             {r.deposits ? `+${fmtEur2(r.deposits)}` : "—"}
                           </td>
-                          <td className="px-3 py-1.5 text-right font-normal tabular-nums text-amber-600 dark:text-amber-400">
+                          <td className="px-3 py-1.5 text-right font-normal tabular-nums text-amber-600 dark:text-amber-400 amount-sensitive">
                             {r.withdrawals ? fmtEur2(r.withdrawals) : "—"}
                           </td>
-                          <td className={cn("px-3 py-1.5 text-right tabular-nums", r.gain >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400")}>
+                          <td className={cn("px-3 py-1.5 text-right tabular-nums amount-sensitive", r.gain >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400")}>
                             {r.gain >= 0 ? "+" : ""}{fmtEur2(r.gain)}
                           </td>
                           <td className={cn("px-3 py-1.5 text-right tabular-nums", r.returnPct >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400")}>
                             {fmtPctSigned(r.returnPct)}
                           </td>
-                          <td className={cn("px-3 py-1.5 text-right tabular-nums font-normal", r.cumulGain >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400")}>
+                          <td className={cn("px-3 py-1.5 text-right tabular-nums font-normal amount-sensitive", r.cumulGain >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400")}>
                             {r.cumulGain >= 0 ? "+" : ""}{fmtEur2(r.cumulGain)}
                           </td>
                         </tr>
@@ -275,20 +275,20 @@ export function InvestmentReport({ platforms, userName }: { platforms: PlatformD
                     {monthly.map((r) => (
                       <tr key={r.ym} className="border-b border-border/40 last:border-0">
                         <td className="whitespace-nowrap px-3 py-1.5 capitalize">{r.label}</td>
-                        <td className="px-3 py-1.5 text-right tabular-nums">{fmtEur2(r.value)}</td>
-                        <td className="px-3 py-1.5 text-right tabular-nums text-blue-600 dark:text-blue-400">
+                        <td className="px-3 py-1.5 text-right tabular-nums amount-sensitive">{fmtEur2(r.value)}</td>
+                        <td className="px-3 py-1.5 text-right tabular-nums text-blue-600 dark:text-blue-400 amount-sensitive">
                           {r.deposits ? `+${fmtEur2(r.deposits)}` : "—"}
                         </td>
-                        <td className="px-3 py-1.5 text-right tabular-nums text-amber-600 dark:text-amber-400">
+                        <td className="px-3 py-1.5 text-right tabular-nums text-amber-600 dark:text-amber-400 amount-sensitive">
                           {r.withdrawals ? fmtEur2(r.withdrawals) : "—"}
                         </td>
-                        <td className={cn("px-3 py-1.5 text-right tabular-nums", r.gain >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400")}>
+                        <td className={cn("px-3 py-1.5 text-right tabular-nums amount-sensitive", r.gain >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400")}>
                           {r.gain >= 0 ? "+" : ""}{fmtEur2(r.gain)}
                         </td>
                         <td className={cn("px-3 py-1.5 text-right tabular-nums", r.returnPct >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400")}>
                           {fmtPctSigned(r.returnPct)}
                         </td>
-                        <td className={cn("px-3 py-1.5 text-right tabular-nums", r.cumulGain >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400")}>
+                        <td className={cn("px-3 py-1.5 text-right tabular-nums amount-sensitive", r.cumulGain >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400")}>
                           {r.cumulGain >= 0 ? "+" : ""}{fmtEur2(r.cumulGain)}
                         </td>
                       </tr>
@@ -317,11 +317,11 @@ export function InvestmentReport({ platforms, userName }: { platforms: PlatformD
                     {perPlatform.map(({ p, s }) => (
                       <tr key={p.id} className="border-b border-border/40 last:border-0">
                         <td className="whitespace-nowrap px-3 py-1.5">{metaForType(p.type).icon} {p.name}</td>
-                        <td className="px-3 py-1.5 text-right tabular-nums">{fmtEur2(s.start)}</td>
-                        <td className="px-3 py-1.5 text-right tabular-nums text-blue-600 dark:text-blue-400">{s.deposits ? `+${fmtEur2(s.deposits)}` : "—"}</td>
-                        <td className="px-3 py-1.5 text-right tabular-nums text-amber-600 dark:text-amber-400">{s.withdrawals ? fmtEur2(s.withdrawals) : "—"}</td>
-                        <td className="px-3 py-1.5 text-right tabular-nums font-medium">{fmtEur2(s.end)}</td>
-                        <td className={cn("px-3 py-1.5 text-right tabular-nums", s.gain >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400")}>
+                        <td className="px-3 py-1.5 text-right tabular-nums amount-sensitive">{fmtEur2(s.start)}</td>
+                        <td className="px-3 py-1.5 text-right tabular-nums text-blue-600 dark:text-blue-400 amount-sensitive">{s.deposits ? `+${fmtEur2(s.deposits)}` : "—"}</td>
+                        <td className="px-3 py-1.5 text-right tabular-nums text-amber-600 dark:text-amber-400 amount-sensitive">{s.withdrawals ? fmtEur2(s.withdrawals) : "—"}</td>
+                        <td className="px-3 py-1.5 text-right tabular-nums font-medium amount-sensitive">{fmtEur2(s.end)}</td>
+                        <td className={cn("px-3 py-1.5 text-right tabular-nums amount-sensitive", s.gain >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400")}>
                           {s.gain >= 0 ? "+" : ""}{fmtEur2(s.gain)}
                         </td>
                         <td className={cn("px-3 py-1.5 text-right tabular-nums", s.perf >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400")}>
@@ -348,7 +348,7 @@ function Kpi({ label, value, sub, tone, strong }: { label: string; value: string
   return (
     <div className="min-w-0 rounded-lg border border-border/50 px-3 py-2">
       <p className="truncate text-[11px] text-muted-foreground">{label}</p>
-      <p className={cn("mt-0.5 tabular-nums", strong ? "text-lg font-bold" : "text-sm font-semibold",
+      <p className={cn("mt-0.5 tabular-nums amount-sensitive", strong ? "text-lg font-bold" : "text-sm font-semibold",
         tone === "pos" && "text-emerald-600 dark:text-emerald-400", tone === "neg" && "text-red-600 dark:text-red-400")}>{value}</p>
       {sub && <p className={cn("text-[11px] tabular-nums", tone === "pos" ? "text-emerald-600/80 dark:text-emerald-400/80" : tone === "neg" ? "text-red-600/80 dark:text-red-400/80" : "text-muted-foreground")}>{sub}</p>}
     </div>

@@ -19,7 +19,34 @@ type EmailTemplate = {
   updatedAt: Date | string
 }
 
-export function EmailTemplatesView({ templates }: { templates: EmailTemplate[] }) {
+function TemplateStat({ stat }: { stat?: { prospects: number; replied: number } }) {
+  if (!stat || stat.prospects === 0) {
+    return <p className="mt-1.5 border-t border-border/40 pt-2 text-[11px] text-muted-foreground/60">Pas encore d&apos;envoi tracé</p>
+  }
+  const rate = Math.round((stat.replied / stat.prospects) * 100)
+  return (
+    <div
+      className="mt-1.5 flex items-center gap-2 border-t border-border/40 pt-2 text-[11px] text-muted-foreground"
+      title="Prospects dont ce modèle est le dernier email envoyé, et part d'entre eux passés au statut « Répondu » ou plus."
+    >
+      <span className="tabular-nums">{stat.prospects} prospect{stat.prospects > 1 ? "s" : ""}</span>
+      <span aria-hidden>·</span>
+      <span className="tabular-nums">{stat.replied} réponse{stat.replied > 1 ? "s" : ""}</span>
+      <span
+        className={cn(
+          "ml-auto rounded px-1.5 py-0.5 font-medium tabular-nums",
+          rate >= 20 ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+            : rate > 0 ? "bg-amber-500/10 text-amber-600 dark:text-amber-400"
+            : "bg-muted text-muted-foreground"
+        )}
+      >
+        {rate}%
+      </span>
+    </div>
+  )
+}
+
+export function EmailTemplatesView({ templates, stats = {} }: { templates: EmailTemplate[]; stats?: Record<string, { prospects: number; replied: number }> }) {
   const router = useRouter()
   const [editingId, setEditingId] = useState<string | "new" | null>(null)
   const [name, setName] = useState("")
@@ -259,6 +286,7 @@ export function EmailTemplatesView({ templates }: { templates: EmailTemplate[] }
               </div>
               <p className="text-xs text-muted-foreground truncate">Objet : {t.subject}</p>
               <p className="text-xs text-muted-foreground/70 line-clamp-3 whitespace-pre-line">{t.body}</p>
+              <TemplateStat stat={stats[t.id]} />
             </div>
           ))}
         </div>

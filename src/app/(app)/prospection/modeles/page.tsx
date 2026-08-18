@@ -1,11 +1,14 @@
 import Link from "next/link"
 import { ChevronLeft } from "lucide-react"
-import { getOrCreateDefaultEmailTemplates } from "@/actions/prospection"
+import { getOrCreateDefaultEmailTemplates, getEmailTemplateStats } from "@/actions/prospection"
 import { EmailTemplatesView } from "@/components/modules/prospection/EmailTemplatesView"
 
 export default async function EmailTemplatesPage() {
-  // Provisionne 3 modèles de départ au premier passage
-  const templates = await getOrCreateDefaultEmailTemplates()
+  // Provisionne 3 modèles de départ au premier passage + stats de réponse par modèle
+  const [templates, stats] = await Promise.all([
+    getOrCreateDefaultEmailTemplates(),
+    getEmailTemplateStats(),
+  ])
 
   return (
     <div className="space-y-6">
@@ -22,7 +25,7 @@ export default async function EmailTemplatesPage() {
         </p>
       </div>
 
-      <EmailTemplatesView templates={templates} />
+      <EmailTemplatesView templates={templates} stats={stats} />
     </div>
   )
 }

@@ -353,6 +353,49 @@ export async function getOrCreateDefaultEmailTemplates() {
   })
 }
 
+export type EmailTemplateStat = { prospects: number; replied: number }
+
+/**
+ * Taux de réponse par modèle d'email — attribution « dernier modèle envoyé ».
+ *
+ * Pour chaque prospect ayant au moins un email tracé sur un modèle (Interaction
+ * avec emailTemplateId), on retient le modèle de son envoi le plus récent
+ * (last-touch), puis on regarde s'il a répondu — défini par un statut ayant
+ * dépassé « Contacté » : REPLIED, IN_DISCUSSION ou WON. Le taux d'un modèle vaut
+ * donc « prospects passés à Répondu+ » / « prospects dont c'est le dernier modèle
+ * envoyé ». Les envois d'un modèle supprimé (emailTemplateId null) sont ignorés —
+ * ils ne figurent plus dans la liste affichée.
+ */
+export async function getEmailTemplateStats(): Promise<Record<string, EmailTemplateStat>> {
+  const userId = await requireAuth()
+  const interactions = await prisma.interaction.findMany({
+    where: { emailTemplateId: { not: null }, client: { userId } },
+    orderBy: { date: "asc" },
+    select: {
+      clientId: true,
+      emailTemplateId: true,
+      client: { select: { prospectStatus: true } },
+    },
+  })
+
+  // Dernier modèle envoyé par prospect : trié par date croissante, la dernière
+  // écriture dans la map l'emporte (= l'interaction la plus récente).
+  const lastByClient = new Map<string, { templateId: string; status: ProspectStatus }>()
+  for (const i of interactions) {
+    if (!i.emailTemplateId) continue
+    lastByClient.set(i.clientId, { templateId: i.emailTemplateId, status: i.client.prospectStatus })
+  }
+
+  const RESPONDED: ProspectStatus[] = ["REPLIED", "IN_DISCUSSION", "WON"]
+  const stats: Record<string, EmailTemplateStat> = {}
+  for (const { templateId, status } of lastByClient.values()) {
+    const s = (stats[templateId] ??= { prospects: 0, replied: 0 })
+    s.prospects++
+    if (RESPONDED.includes(status)) s.replied++
+  }
+  return stats
+}
+
 export async function createEmailTemplate(data: { name: string; subject: string; body: string }) {
   const userId = await requireAuth()
   const name = data.name.trim()

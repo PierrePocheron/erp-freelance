@@ -7,7 +7,8 @@ import { ExternalLink, Copy, Check, SkipForward, AlertTriangle } from "lucide-re
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { markProspectsContacted } from "@/actions/prospection"
-import { renderTemplate, TEMPLATE_VARIABLES } from "@/lib/email-template"
+import { renderTemplate, TEMPLATE_VARIABLES, bodyToHtml } from "@/lib/email-template"
+import { gmailComposeUrl, copyEmailBody } from "@/lib/gmail"
 
 // Libellé lisible d'une clé de variable (ex. "prenom" → "Prénom")
 const VAR_LABEL: Record<string, string> = Object.fromEntries(
@@ -53,21 +54,22 @@ export function GmailPrepDialog({
   const current = withEmail[index] ?? null
   const rendered = template && current ? renderTemplate(template, current) : null
 
-  function gmailComposeUrl(): string {
-    if (!current || !rendered) return "#"
-    const params = new URLSearchParams({
-      view: "cm",
-      fs: "1",
-      to: current.email!,
-      su: rendered.subject,
-      body: rendered.body,
-    })
-    return `https://mail.google.com/mail/?${params.toString()}`
+  async function copy(text: string, label: string) {
+    try {
+      await navigator.clipboard.writeText(text)
+      toast.success(`${label} copié`)
+    } catch {
+      toast.error("Copie impossible")
+    }
   }
 
-  function copy(text: string, label: string) {
-    navigator.clipboard.writeText(text)
-    toast.success(`${label} copié`)
+  // Copie enrichie : text/html (gras conservé au collage dans Gmail) + text/plain.
+  async function copyBody() {
+    if (await copyEmailBody(rendered!.body)) {
+      toast.success("Corps copié — collez dans Gmail, la mise en forme est conservée")
+    } else {
+      toast.error("Copie impossible")
+    }
   }
 
   function advance() {
@@ -84,7 +86,7 @@ export function GmailPrepDialog({
   function markSentAndNext() {
     if (!current || !template) return
     startTransition(async () => {
-      await markProspectsContacted([current.id], "EMAIL", `Email "${template.name}" envoyé via Gmail`)
+      await markProspectsContacted([current.id], "EMAIL", `Email "${template.name}" envoyé via Gmail`, { id: template.id, name: template.name })
       setSentCount((c) => c + 1)
       advance()
     })
@@ -149,12 +151,16 @@ export function GmailPrepDialog({
                     <span className="font-medium text-foreground">{current.name}</span> &lt;{current.email}&gt;
                   </p>
                   <p className="text-sm font-medium">{rendered.subject}</p>
-                  <p className="text-xs text-muted-foreground whitespace-pre-line max-h-40 overflow-y-auto leading-relaxed">{rendered.body}</p>
+                  {/* Aperçu avec le gras rendu (le contenu est échappé côté bodyToHtml) */}
+                  <div
+                    className="text-xs text-muted-foreground max-h-40 overflow-y-auto leading-relaxed [&_p]:mb-2 [&_p:last-child]:mb-0 [&_b]:text-foreground [&_b]:font-semibold"
+                    dangerouslySetInnerHTML={{ __html: bodyToHtml(rendered.body) }}
+                  />
                 </div>
 
                 <div className="flex flex-wrap items-center gap-2">
                   <a
-                    href={gmailComposeUrl()}
+                    href={gmailComposeUrl({ to: current.email!, subject: rendered.subject, body: rendered.body })}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors"
@@ -168,8 +174,9 @@ export function GmailPrepDialog({
                     <Copy className="h-3 w-3" /> Objet
                   </button>
                   <button
-                    onClick={() => copy(rendered.body, "Corps")}
+                    onClick={copyBody}
                     className="inline-flex items-center gap-1.5 h-8 px-2.5 rounded-lg border border-input text-xs hover:bg-muted transition-colors"
+                    title="Copie le corps en conservant la mise en forme (gras) au collage dans Gmail"
                   >
                     <Copy className="h-3 w-3" /> Corps
                   </button>

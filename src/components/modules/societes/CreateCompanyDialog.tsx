@@ -14,6 +14,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { createCompany } from "@/actions/crm"
+import { toast } from "sonner"
 
 type FiscalSourceOption = {
   id: string
@@ -30,12 +31,10 @@ const BUCKET_LABELS: Record<string, string> = {
 }
 
 export function CreateCompanyDialog({
-  userId,
   fiscalSources = [],
   open: controlledOpen,
   onOpenChange: controlledOnOpenChange,
 }: {
-  userId: string
   fiscalSources?: FiscalSourceOption[]
   open?: boolean
   onOpenChange?: (v: boolean) => void
@@ -55,23 +54,27 @@ export function CreateCompanyDialog({
     e.preventDefault()
     const fd = new FormData(e.currentTarget)
     startTransition(async () => {
-      const company = await createCompany({
-        name: (fd.get("name") as string).trim(),
-        companyType: (fd.get("companyType") as string) || null,
-        siret: (fd.get("siret") as string) || undefined,
-        vatNumber: (fd.get("vatNumber") as string) || undefined,
-        email: (fd.get("email") as string) || undefined,
-        phone: (fd.get("phone") as string) || undefined,
-        website: (fd.get("website") as string) || undefined,
-        address: (fd.get("address") as string) || undefined,
-        postalCode: (fd.get("postalCode") as string) || undefined,
-        city: (fd.get("city") as string) || undefined,
-        country: (fd.get("country") as string) || undefined,
-        notes: (fd.get("notes") as string) || undefined,
-        fiscalSourceId: (fd.get("fiscalSourceId") as string) || null,
-      })
-      handleOpenChange(false)
-      router.push(`/societes/${company.id}`)
+      try {
+        const company = await createCompany({
+          name: (fd.get("name") as string).trim(),
+          companyType: (fd.get("companyType") as string) || null,
+          siret: (fd.get("siret") as string) || undefined,
+          vatNumber: (fd.get("vatNumber") as string) || undefined,
+          email: (fd.get("email") as string) || undefined,
+          phone: (fd.get("phone") as string) || undefined,
+          website: (fd.get("website") as string) || undefined,
+          address: (fd.get("address") as string) || undefined,
+          postalCode: (fd.get("postalCode") as string) || undefined,
+          city: (fd.get("city") as string) || undefined,
+          country: (fd.get("country") as string) || undefined,
+          notes: (fd.get("notes") as string) || undefined,
+          fiscalSourceId: (fd.get("fiscalSourceId") as string) || null,
+        })
+        handleOpenChange(false)
+        router.push(`/societes/${company.id}`)
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Impossible de créer la société.")
+      }
     })
   }
 

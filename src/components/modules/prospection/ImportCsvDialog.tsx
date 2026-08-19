@@ -78,6 +78,7 @@ export function ImportCsvDialog() {
       setMapping(p.headers.map(guessField))
       setStep(2)
     }
+    reader.onerror = () => toast.error("Lecture du fichier impossible")
     reader.readAsText(file)
   }
 

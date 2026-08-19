@@ -2,6 +2,7 @@
 
 import { useRef, useState, useTransition } from "react"
 import { Upload, Loader2 } from "lucide-react"
+import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 
 export function SignedUploadButton({ action }: { action: (fileUrl: string) => Promise<void> }) {
@@ -19,16 +20,26 @@ export function SignedUploadButton({ action }: { action: (fileUrl: string) => Pr
       fd.append("file", file)
       fd.append("folder", "signed-quotes")
       const res = await fetch("/api/upload", { method: "POST", body: fd })
+      // Vérifier le statut HTTP avant de parser : une erreur (413, 500…) peut
+      // renvoyer du non-JSON, ce qui ferait échouer res.json() de façon opaque.
+      if (!res.ok) throw new Error(`Upload échoué (HTTP ${res.status})`)
       const json = await res.json()
-      if (!json.url) throw new Error("Upload failed")
+      if (!json.url) throw new Error("Réponse d'upload invalide")
 
       startTransition(async () => {
-        await action(json.url)
+        try {
+          await action(json.url)
+        } catch {
+          toast.error("Échec de l'enregistrement du devis signé")
+        }
       })
-    } catch (err) {
-      console.error(err)
+    } catch {
+      toast.error("Échec de l'upload du devis signé")
     } finally {
       setUploading(false)
+      // Réinitialiser l'input pour permettre de re-sélectionner le même fichier
+      // après un échec (sinon onChange ne se redéclenche pas).
+      e.target.value = ""
     }
   }
 

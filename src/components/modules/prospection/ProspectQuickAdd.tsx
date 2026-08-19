@@ -235,8 +235,12 @@ function BatchAdd({ onClose, onDone }: { onClose: () => void; onDone: (count: nu
     const all = current ? [...pending, current] : pending
     if (all.length === 0) return
     startAdding(async () => {
-      for (const p of all) {
-        await createProspect(p)
+      // Créations indépendantes → en parallèle plutôt qu'en série.
+      try {
+        await Promise.all(all.map((p) => createProspect(p)))
+      } catch {
+        toast.error("Certains prospects n'ont pas pu être ajoutés")
+        return
       }
       setPending([])
       setInput("")

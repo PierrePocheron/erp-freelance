@@ -4,6 +4,7 @@ import { useState, useTransition } from "react"
 import { X, Trash2 } from "lucide-react"
 import { toast } from "sonner"
 import { createConsultation, updateConsultation, deleteConsultation } from "@/actions/sante"
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
 import { PRACTITIONER_LABELS } from "./HealthView"
 import type { HConsultation, HEvent } from "./HealthView"
 import type { PractitionerType } from "@/generated/prisma/enums"
@@ -29,7 +30,7 @@ export function ConsultationDialog({
   const [date,             setDate]             = useState(toISO(item?.date) || toISO(new Date()))
   const [practitionerName, setPractitionerName] = useState(item?.practitionerName || "")
   const [practitionerType, setPractitionerType] = useState<PractitionerType>(
-    (item?.practitionerType as PractitionerType) || "OTHER"
+    item?.practitionerType || "OTHER"
   )
   const [title,       setTitle]       = useState(item?.title || "")
   const [notes,       setNotes]       = useState(item?.notes || "")
@@ -43,31 +44,39 @@ export function ConsultationDialog({
     if (!practitionerName.trim() || !title.trim()) return
     const costNum = cost ? parseFloat(cost) : null
     start(async () => {
-      if (item) {
-        await updateConsultation(item.id, {
-          date, practitionerName, practitionerType, title, notes,
-          cost: costNum, hasDocument, documentRef,
-          healthEventId: healthEventId || null,
-        })
-        toast.success("Consultation mise à jour")
-      } else {
-        await createConsultation({
-          date, practitionerName, practitionerType, title, notes,
-          cost: costNum, hasDocument, documentRef,
-          healthEventId: healthEventId || null,
-        })
-        toast.success("Consultation enregistrée")
+      try {
+        if (item) {
+          await updateConsultation(item.id, {
+            date, practitionerName, practitionerType, title, notes,
+            cost: costNum, hasDocument, documentRef,
+            healthEventId: healthEventId || null,
+          })
+          toast.success("Consultation mise à jour")
+        } else {
+          await createConsultation({
+            date, practitionerName, practitionerType, title, notes,
+            cost: costNum, hasDocument, documentRef,
+            healthEventId: healthEventId || null,
+          })
+          toast.success("Consultation enregistrée")
+        }
+        onClose()
+      } catch {
+        toast.error("Échec de l'enregistrement de la consultation. Réessayez.")
       }
-      onClose()
     })
   }
 
   function handleDelete() {
     if (!item) return
     start(async () => {
-      await deleteConsultation(item.id)
-      toast.success("Consultation supprimée")
-      onClose()
+      try {
+        await deleteConsultation(item.id)
+        toast.success("Consultation supprimée")
+        onClose()
+      } catch {
+        toast.error("Échec de la suppression de la consultation. Réessayez.")
+      }
     })
   }
 
@@ -79,10 +88,10 @@ export function ConsultationDialog({
   })
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/50">
-      <div className="w-full max-w-md rounded-2xl bg-background border border-border shadow-xl max-h-[90vh] overflow-y-auto">
+    <Dialog open onOpenChange={(o) => { if (!o) onClose() }}>
+      <DialogContent showCloseButton={false} className="sm:max-w-md max-h-[90vh] overflow-y-auto p-0 gap-0">
         <div className="flex items-center justify-between px-5 py-4 border-b border-border/50 sticky top-0 bg-background">
-          <h2 className="text-sm font-semibold">{item ? "Modifier" : "Ajouter"} une consultation</h2>
+          <DialogTitle className="text-sm font-semibold">{item ? "Modifier" : "Ajouter"} une consultation</DialogTitle>
           <button onClick={onClose} className="text-muted-foreground hover:text-foreground transition-colors">
             <X className="h-4 w-4" />
           </button>
@@ -102,7 +111,7 @@ export function ConsultationDialog({
               <label className="text-xs font-medium text-muted-foreground">Praticien *</label>
               <input
                 value={practitionerName} onChange={e => setPractitionerName(e.target.value)} required
-                placeholder="Ex : Mickael Nguyen"
+                placeholder="Ex : Dr Dupont"
                 className="mt-1 w-full h-9 rounded-lg border border-input bg-background px-3 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
               />
             </div>
@@ -227,7 +236,7 @@ export function ConsultationDialog({
             </div>
           </div>
         </form>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   )
 }

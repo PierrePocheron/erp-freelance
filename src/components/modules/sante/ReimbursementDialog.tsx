@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react"
 import { X, Trash2 } from "lucide-react"
 import { toast } from "sonner"
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
 import { createReimbursement, updateReimbursement, deleteReimbursement } from "@/actions/sante"
 import type { HReimbursement, HConsultation } from "./HealthView"
 import type { ReimbursementSource, ReimbursementStatus } from "@/generated/prisma/enums"
@@ -16,23 +17,21 @@ const fmtShort = (d: Date | string) =>
 export function ReimbursementDialog({
   item,
   consultations,
-  defaultConsultationId,
   onClose,
 }: {
   item?: HReimbursement
   consultations: HConsultation[]
-  defaultConsultationId?: string
   onClose: () => void
 }) {
   const [isPending, start] = useTransition()
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [amount,         setAmount]         = useState(item?.amount?.toString() || "")
-  const [source,         setSource]         = useState<ReimbursementSource>((item?.source as ReimbursementSource) || "SECU")
-  const [status,         setStatus]         = useState<ReimbursementStatus>((item?.status as ReimbursementStatus) || "PENDING")
+  const [source,         setSource]         = useState<ReimbursementSource>(item?.source || "SECU")
+  const [status,         setStatus]         = useState<ReimbursementStatus>(item?.status || "PENDING")
   const [expectedDate,   setExpectedDate]   = useState(toISO(item?.expectedDate))
   const [receivedAt,     setReceivedAt]     = useState(toISO(item?.receivedAt) || toISO(new Date()))
   const [notes,          setNotes]          = useState(item?.notes || "")
-  const [consultationId, setConsultationId] = useState(item?.consultationId || defaultConsultationId || "")
+  const [consultationId, setConsultationId] = useState(item?.consultationId || "")
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -46,31 +45,39 @@ export function ReimbursementDialog({
       consultationId: consultationId || null,
     }
     start(async () => {
-      if (item) {
-        await updateReimbursement(item.id, payload)
-        toast.success("Remboursement mis à jour")
-      } else {
-        await createReimbursement(payload)
-        toast.success(status === "PENDING" ? "Remboursement attendu enregistré" : "Remboursement enregistré")
+      try {
+        if (item) {
+          await updateReimbursement(item.id, payload)
+          toast.success("Remboursement mis à jour")
+        } else {
+          await createReimbursement(payload)
+          toast.success(status === "PENDING" ? "Remboursement attendu enregistré" : "Remboursement enregistré")
+        }
+        onClose()
+      } catch {
+        toast.error("Échec de l'enregistrement du remboursement. Réessayez.")
       }
-      onClose()
     })
   }
 
   function handleDelete() {
     if (!item) return
     start(async () => {
-      await deleteReimbursement(item.id)
-      toast.success("Remboursement supprimé")
-      onClose()
+      try {
+        await deleteReimbursement(item.id)
+        toast.success("Remboursement supprimé")
+        onClose()
+      } catch {
+        toast.error("Échec de la suppression du remboursement. Réessayez.")
+      }
     })
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/50">
-      <div className="w-full max-w-md rounded-2xl bg-background border border-border shadow-xl max-h-[90vh] overflow-y-auto">
+    <Dialog open onOpenChange={(o) => { if (!o) onClose() }}>
+      <DialogContent showCloseButton={false} className="sm:max-w-md max-h-[90vh] overflow-y-auto p-0 gap-0">
         <div className="flex items-center justify-between px-5 py-4 border-b border-border/50 sticky top-0 bg-background">
-          <h2 className="text-sm font-semibold">{item ? "Modifier" : "Ajouter"} un remboursement</h2>
+          <DialogTitle className="text-sm font-semibold">{item ? "Modifier" : "Ajouter"} un remboursement</DialogTitle>
           <button onClick={onClose} className="text-muted-foreground hover:text-foreground transition-colors">
             <X className="h-4 w-4" />
           </button>
@@ -217,7 +224,7 @@ export function ReimbursementDialog({
             </div>
           </div>
         </form>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   )
 }

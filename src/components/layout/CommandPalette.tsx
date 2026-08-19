@@ -36,6 +36,8 @@ const ALL_NAV_ITEMS: NavItem[] = [
   { label: "Graph",                href: "/graph",                  icon: "🕸️", keywords: ["graph", "graphe", "reseau", "réseau", "relation", "network"],                                   moduleId: "graph"       },
   { label: "Santé",                href: "/sante",                  icon: "🏥", keywords: ["sante", "santé", "medecin", "médecin", "consultation", "blessure", "maladie", "remboursement"], moduleId: "sante"       },
   { label: "Entretiens",           href: "/entretiens",             icon: "💼", keywords: ["entretien", "candidature", "job", "emploi", "recrutement", "interview"],                        moduleId: "entretien"   },
+  { label: "Compétences",          href: "/competences",            icon: "🧠", keywords: ["competence", "compétence", "connaissance", "techno", "technologie", "skill", "stack", "question", "apprendre", "hard skill", "soft skill"], moduleId: "competences" },
+  { label: "Investissements",      href: "/investissements",        icon: "📈", keywords: ["investissement", "invest", "placement", "capital", "crowdlending", "crowdfunding", "immo", "bricks", "pea", "rentabilite", "rendement", "portefeuille", "robocash"], moduleId: "investissements" },
   { label: "Paramètres",           href: "/settings",               icon: "⚙️", keywords: ["parametres", "settings", "profil", "logo", "couleur", "iban", "siret", "entreprise", "conditions", "cgv"] },
 ]
 
@@ -54,6 +56,8 @@ const TYPE_ICON: Record<string, string> = {
   recurring_expense:    "🔁",
   prospect:             "🎯",
   revenue:              "💰",
+  skill:                "🧠",
+  investment_platform:  "📈",
 }
 
 const TYPE_LABEL: Record<string, string> = {
@@ -71,6 +75,8 @@ const TYPE_LABEL: Record<string, string> = {
   recurring_expense:    "Dépense récurrente",
   prospect:             "Prospect",
   revenue:              "Revenu",
+  skill:                "Compétence",
+  investment_platform:  "Investissement",
 }
 
 /**
@@ -97,6 +103,7 @@ export function CommandPalette() {
   const [searching, setSearching] = useState(false)
   const [isPending, startTransition] = useTransition()
   const inputRef = useRef<HTMLInputElement>(null)
+  const prevFocusRef = useRef<HTMLElement | null>(null)
   const router = useRouter()
   const { activeModules, isActive } = useModules()
 
@@ -123,12 +130,17 @@ export function CommandPalette() {
 
   useEffect(() => {
     if (open) {
+      // Mémorise l'élément focalisé avant ouverture pour le restaurer à la fermeture.
+      prevFocusRef.current = document.activeElement as HTMLElement | null
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setQuery("")
       setResults([])
       setSelected(0)
       setSearching(false)
       setTimeout(() => inputRef.current?.focus(), 30)
+    } else {
+      // Retour du focus au déclencheur à la fermeture (si l'élément existe encore).
+      prevFocusRef.current?.focus?.()
     }
   }, [open])
 
@@ -167,6 +179,9 @@ export function CommandPalette() {
 
   function handleKeyDown(e: React.KeyboardEvent) {
     if (e.key === "Escape") { setOpen(false); return }
+    // Piège de focus : seul l'input est focalisable dans la palette (la liste se
+    // parcourt aux flèches), donc on neutralise Tab pour garder le focus dedans.
+    if (e.key === "Tab") { e.preventDefault(); return }
     if (e.key === "ArrowDown") { e.preventDefault(); setSelected((s) => (s + 1) % Math.max(total, 1)) }
     if (e.key === "ArrowUp") { e.preventDefault(); setSelected((s) => (s - 1 + Math.max(total, 1)) % Math.max(total, 1)) }
     if (e.key === "Enter" && listItems[selected]) { navigate(listItems[selected].href) }
@@ -182,6 +197,9 @@ export function CommandPalette() {
     >
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
       <div
+        role="dialog"
+        aria-modal="true"
+        aria-label="Recherche et navigation"
         className="relative w-full max-w-md mx-4 rounded-xl border border-border bg-card shadow-2xl overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
@@ -192,6 +210,7 @@ export function CommandPalette() {
           <input
             ref={inputRef}
             autoFocus
+            aria-label="Rechercher ou naviguer"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={handleKeyDown}

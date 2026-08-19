@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react"
 import {
-  User, Building2, Landmark, LayoutGrid, Plug, Database, Search, X,
+  User, Building2, Landmark, LayoutGrid, Plug, Database, Search, X, Send, Palette,
 } from "lucide-react"
 
 // ── Catégories (style Réglages Apple) ─────────────────────────────────────────
@@ -10,7 +10,7 @@ import {
 // libellé, la description et les mots-clés (accents ignorés).
 
 export type SectionId =
-  | "profil" | "emetteurs" | "fiscalite" | "modules" | "integrations" | "donnees"
+  | "profil" | "apparence" | "emetteurs" | "fiscalite" | "modules" | "prospection" | "integrations" | "donnees"
 
 type SectionMeta = {
   id:          SectionId
@@ -28,6 +28,11 @@ const SECTIONS: SectionMeta[] = [
     keywords: ["nom", "email", "siret", "adresse", "telephone", "site", "numerotation", "prefixe", "format", "devis", "facture", "conditions", "cgv", "logo", "couleur", "pdf", "iban", "bic"],
   },
   {
+    id: "apparence", label: "Apparence", icon: Palette, iconBg: "bg-indigo-500",
+    description: "Thème clair ou sombre",
+    keywords: ["theme", "apparence", "sombre", "clair", "nuit", "jour", "dark", "light", "mode", "couleur", "affichage"],
+  },
+  {
     id: "emetteurs", label: "Émetteurs", icon: Building2, iconBg: "bg-amber-500",
     description: "Vos sociétés émettrices de devis et factures",
     keywords: ["emetteur", "societe", "raison sociale", "forme juridique", "banque", "iban", "bic", "reglement", "mentions legales", "tva", "defaut"],
@@ -41,6 +46,11 @@ const SECTIONS: SectionMeta[] = [
     id: "modules", label: "Modules", icon: LayoutGrid, iconBg: "bg-emerald-500",
     description: "Activer ou masquer les modules de l'application",
     keywords: ["modules", "activer", "desactiver", "sante", "graph", "entretiens", "revenus", "calendrier", "onboarding"],
+  },
+  {
+    id: "prospection", label: "Prospection", icon: Send, iconBg: "bg-orange-500",
+    description: "Relances : délai avant relance et modèle par défaut",
+    keywords: ["prospection", "relance", "relances", "email", "mail", "demarchage", "delai", "modele", "rappel", "suivi"],
   },
   {
     id: "integrations", label: "Intégrations", icon: Plug, iconBg: "bg-sky-500",
@@ -89,11 +99,12 @@ export function SettingsShell({ nodes }: { nodes: Record<SectionId, React.ReactN
             value={query}
             onChange={e => setQuery(e.target.value)}
             placeholder="Rechercher un paramètre…"
+            aria-label="Rechercher un paramètre"
             className="bg-transparent text-sm outline-none flex-1 min-w-0 placeholder:text-muted-foreground/50"
           />
           {query && (
-            <button onClick={() => setQuery("")} className="text-muted-foreground hover:text-foreground shrink-0">
-              <X className="h-3.5 w-3.5" />
+            <button type="button" onClick={() => setQuery("")} aria-label="Effacer la recherche" className="text-muted-foreground hover:text-foreground shrink-0">
+              <X className="h-3.5 w-3.5" aria-hidden="true" />
             </button>
           )}
         </div>

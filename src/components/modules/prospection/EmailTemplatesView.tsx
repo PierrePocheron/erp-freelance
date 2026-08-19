@@ -2,10 +2,10 @@
 
 import { useEffect, useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
-import { Plus, Pencil, Trash2, Mail, X, Check, GripVertical } from "lucide-react"
+import { Plus, Pencil, Trash2, Mail, X, Check, GripVertical, Archive, ArchiveRestore } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { createEmailTemplate, updateEmailTemplate, deleteEmailTemplate, reorderEmailTemplates } from "@/actions/prospection"
+import { createEmailTemplate, updateEmailTemplate, deleteEmailTemplate, reorderEmailTemplates, setEmailTemplateArchived } from "@/actions/prospection"
 import { TEMPLATE_VARIABLES } from "@/lib/email-template"
 import { cn } from "@/lib/utils"
 import { toast } from "sonner"
@@ -15,10 +15,38 @@ type EmailTemplate = {
   name: string
   subject: string
   body: string
+  archivedAt: Date | string | null
   updatedAt: Date | string
 }
 
-export function EmailTemplatesView({ templates }: { templates: EmailTemplate[] }) {
+function TemplateStat({ stat }: { stat?: { prospects: number; replied: number } }) {
+  if (!stat || stat.prospects === 0) {
+    return <p className="mt-1.5 border-t border-border/40 pt-2 text-[11px] text-muted-foreground/60">Pas encore d&apos;envoi tracé</p>
+  }
+  const rate = Math.round((stat.replied / stat.prospects) * 100)
+  return (
+    <div
+      className="mt-1.5 flex items-center gap-2 border-t border-border/40 pt-2 text-[11px] text-muted-foreground"
+      title="Prospects dont ce modèle est le dernier email envoyé, et part d'entre eux passés au statut « Répondu » ou plus."
+    >
+      <span className="tabular-nums">{stat.prospects} prospect{stat.prospects > 1 ? "s" : ""}</span>
+      <span aria-hidden>·</span>
+      <span className="tabular-nums">{stat.replied} réponse{stat.replied > 1 ? "s" : ""}</span>
+      <span
+        className={cn(
+          "ml-auto rounded px-1.5 py-0.5 font-medium tabular-nums",
+          rate >= 20 ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+            : rate > 0 ? "bg-amber-500/10 text-amber-600 dark:text-amber-400"
+            : "bg-muted text-muted-foreground"
+        )}
+      >
+        {rate}%
+      </span>
+    </div>
+  )
+}
+
+export function EmailTemplatesView({ templates, stats = {} }: { templates: EmailTemplate[]; stats?: Record<string, { prospects: number; replied: number }> }) {
   const router = useRouter()
   const [editingId, setEditingId] = useState<string | "new" | null>(null)
   const [name, setName] = useState("")
@@ -53,7 +81,24 @@ export function EmailTemplatesView({ templates }: { templates: EmailTemplate[] }
   function handleDrop() {
     if (dragId === null) return
     setDragId(null)
-    const orderedIds = items.map((t) => t.id)
+    const orderedIds = items.filter((t) => !t.archivedAt).map((t) => t.id)
+    startTransition(async () => {
+      await reorderEmailTemplates(orderedIds)
+    })
+  }
+
+  // Alternative clavier au glisser-déposer : déplace un modèle actif d'un cran
+  // (flèches haut/bas sur la poignée), même action de réordonnancement.
+  function moveActive(id: string, dir: -1 | 1) {
+    const activeItems = items.filter((t) => !t.archivedAt)
+    const idx = activeItems.findIndex((t) => t.id === id)
+    const target = idx + dir
+    if (idx === -1 || target < 0 || target >= activeItems.length) return
+    const reordered = [...activeItems]
+    const [moved] = reordered.splice(idx, 1)
+    reordered.splice(target, 0, moved)
+    setItems([...reordered, ...items.filter((t) => t.archivedAt)])
+    const orderedIds = reordered.map((t) => t.id)
     startTransition(async () => {
       await reorderEmailTemplates(orderedIds)
     })
@@ -97,6 +142,16 @@ export function EmailTemplatesView({ templates }: { templates: EmailTemplate[] }
     })
   }
 
+  function archive(id: string, archived: boolean) {
+    startTransition(async () => {
+      await setEmailTemplateArchived(id, archived)
+      toast.success(archived ? "Modèle archivé" : "Modèle désarchivé")
+      router.refresh()
+    })
+  }
+
+  const active = items.filter((t) => !t.archivedAt)
+  const archived = items.filter((t) => t.archivedAt)
   const editorOpen = editingId !== null
 
   return (
@@ -166,7 +221,7 @@ export function EmailTemplatesView({ templates }: { templates: EmailTemplate[] }
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
-          {items.map((t) => (
+          {active.map((t) => (
             <div
               key={t.id}
               onDragOver={(e) => handleDragOver(e, t.id)}
@@ -182,9 +237,14 @@ export function EmailTemplatesView({ templates }: { templates: EmailTemplate[] }
                   draggable
                   onDragStart={() => setDragId(t.id)}
                   onDragEnd={() => setDragId(null)}
+                  onKeyDown={(e) => {
+                    if (e.key === "ArrowUp") { e.preventDefault(); moveActive(t.id, -1) }
+                    else if (e.key === "ArrowDown") { e.preventDefault(); moveActive(t.id, 1) }
+                  }}
                   className="cursor-grab active:cursor-grabbing text-muted-foreground/30 hover:text-muted-foreground transition-colors shrink-0 touch-none"
                   title="Glisser pour réordonner"
-                  aria-label="Réordonner le modèle"
+                  aria-label="Réordonner le modèle (flèches haut et bas)"
+                  aria-keyshortcuts="ArrowUp ArrowDown"
                 >
                   <GripVertical className="h-4 w-4" />
                 </button>
@@ -196,6 +256,13 @@ export function EmailTemplatesView({ templates }: { templates: EmailTemplate[] }
                     title="Modifier"
                   >
                     <Pencil className="h-3.5 w-3.5" />
+                  </button>
+                  <button
+                    onClick={() => archive(t.id, true)}
+                    className="p-1.5 rounded text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors"
+                    title="Archiver (masquer des envois, garder l'historique)"
+                  >
+                    <Archive className="h-3.5 w-3.5" />
                   </button>
                   {confirmDeleteId === t.id ? (
                     <>
@@ -219,8 +286,44 @@ export function EmailTemplatesView({ templates }: { templates: EmailTemplate[] }
               </div>
               <p className="text-xs text-muted-foreground truncate">Objet : {t.subject}</p>
               <p className="text-xs text-muted-foreground/70 line-clamp-3 whitespace-pre-line">{t.body}</p>
+              <TemplateStat stat={stats[t.id]} />
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Modèles archivés — masqués des sélecteurs d'envoi, conservés pour l'historique */}
+      {archived.length > 0 && (
+        <div className="space-y-2 pt-2">
+          <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Archivés ({archived.length})</h2>
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3">
+            {archived.map((t) => (
+              <div key={t.id} className="group flex items-center gap-2 rounded-xl border border-border/40 bg-muted/20 p-3 opacity-75">
+                <p className="text-sm font-medium truncate flex-1">{t.name}</p>
+                <button
+                  onClick={() => archive(t.id, false)}
+                  className="p-1.5 rounded text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors shrink-0"
+                  title="Désarchiver (le remettre dans les envois)"
+                >
+                  <ArchiveRestore className="h-3.5 w-3.5" />
+                </button>
+                {confirmDeleteId === t.id ? (
+                  <div className="flex items-center gap-1 shrink-0">
+                    <button onClick={() => remove(t.id)} className="text-[10px] font-medium text-destructive hover:opacity-80 px-1">Suppr.</button>
+                    <button onClick={() => setConfirmDeleteId(null)} className="text-[10px] text-muted-foreground px-1">Non</button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => setConfirmDeleteId(t.id)}
+                    className="p-1.5 rounded text-muted-foreground/40 hover:text-destructive hover:bg-destructive/10 transition-colors shrink-0"
+                    title="Supprimer définitivement"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
         </div>
       )}
     </div>

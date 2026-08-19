@@ -4,7 +4,7 @@ import { useMemo, useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
 import {
   AlertTriangle, CheckCircle2, ChevronDown, ChevronRight, FlaskConical, PenLine,
-  Send, Undo2, XCircle, Save, Inbox,
+  Send, Undo2, XCircle, Save, Inbox, ExternalLink, Copy,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -17,8 +17,11 @@ import {
   cancelEmailDraft,
   sendReadyDrafts,
   sendDraftTest,
+  markDraftSentManually,
+  setDraftDeliveryError,
 } from "@/actions/email-drafts"
 import { residualTemplateVars, isValidEmailAddress } from "@/lib/email-template"
+import { gmailComposeUrl, copyEmailBody } from "@/lib/gmail"
 import { WEBSITE_TYPE_CONFIG } from "./status-config"
 import type { WebsiteType } from "@/generated/prisma/enums"
 
@@ -31,7 +34,8 @@ export type DraftItem = {
   status: string // EmailDraftStatus
   sentAt: Date | string | null
   createdAt: Date | string
-  client: { name: string; company: string | null; email: string | null; websiteType: string | null }
+  deliveryError: string | null
+  client: { name: string; company: string | null; email: string | null; websiteType: string | null; websiteUrl: string | null }
   template: { name: string } | null
 }
 
@@ -52,12 +56,12 @@ export function EmailDraftsView({
 }) {
   const router = useRouter()
   const [confirmOpen, setConfirmOpen] = useState(false)
-  const [sentSectionOpen, setSentSectionOpen] = useState(false)
   const [isSending, startSending] = useTransition()
 
   const active = useMemo(() => drafts.filter((d) => d.status === "DRAFT" || d.status === "READY"), [drafts])
   const ready = useMemo(() => active.filter((d) => d.status === "READY"), [active])
-  const draftCount = active.length - ready.length
+  const toReview = useMemo(() => active.filter((d) => d.status === "DRAFT"), [active])
+  const draftCount = toReview.length
   const sentRecent = useMemo(() => drafts.filter((d) => d.status === "SENT"), [drafts])
 
   // Repli des cartes : replié par défaut (liste compacte), sauf s'il n'y a
@@ -141,8 +145,8 @@ export function EmailDraftsView({
         </div>
       </div>
 
-      {/* ── File active ── */}
-      {active.length === 0 ? (
+      {/* ── Sections repliables : À relire → Relus → Envoyés ── */}
+      {active.length === 0 && sentRecent.length === 0 ? (
         <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border py-10 text-center">
           <Inbox className="h-6 w-6 text-muted-foreground/50 mb-2" />
           <p className="text-sm text-muted-foreground">Aucun brouillon en file</p>
@@ -151,7 +155,7 @@ export function EmailDraftsView({
           </p>
         </div>
       ) : (
-        <div className="space-y-2">
+        <div className="space-y-4">
           {active.length > 1 && (
             <div className="flex justify-end">
               <button
@@ -163,45 +167,29 @@ export function EmailDraftsView({
               </button>
             </div>
           )}
-          {active.map((d) => (
-            <DraftCard
-              key={d.id}
-              draft={d}
-              open={openIds.has(d.id)}
-              onToggle={() => toggleOpen(d.id)}
-              onChanged={() => router.refresh()}
-            />
-          ))}
-        </div>
-      )}
 
-      {/* ── Envoyés récemment (repliée) ── */}
-      {sentRecent.length > 0 && (
-        <div className="rounded-xl border border-border/50 bg-card">
-          <button
-            onClick={() => setSentSectionOpen((v) => !v)}
-            className="flex w-full items-center gap-2 px-4 py-3 min-h-10 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
-          >
-            {sentSectionOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-            Envoyés récemment ({sentRecent.length})
-          </button>
-          {sentSectionOpen && (
-            <div className="divide-y divide-border/40 border-t border-border/40">
+          {/* À relire — toujours en premier, déplié par défaut */}
+          <DraftSection title="À relire" count={toReview.length} icon={PenLine} tone="amber" defaultOpen>
+            {toReview.map((d) => (
+              <DraftCard key={d.id} draft={d} open={openIds.has(d.id)} onToggle={() => toggleOpen(d.id)} onChanged={() => router.refresh()} />
+            ))}
+          </DraftSection>
+
+          {/* Relus — prêts à envoyer */}
+          <DraftSection title="Relus — prêts à envoyer" count={ready.length} icon={CheckCircle2} tone="emerald" defaultOpen>
+            {ready.map((d) => (
+              <DraftCard key={d.id} draft={d} open={openIds.has(d.id)} onToggle={() => toggleOpen(d.id)} onChanged={() => router.refresh()} />
+            ))}
+          </DraftSection>
+
+          {/* Envoyés récemment (7 j) — replié par défaut, avec la date d'envoi */}
+          <DraftSection title="Envoyés récemment" count={sentRecent.length} icon={Send} tone="muted">
+            <div className="divide-y divide-border/40 rounded-lg border border-border/50 overflow-hidden">
               {sentRecent.map((d) => (
-                <div key={d.id} className="px-4 py-2.5 text-sm">
-                  <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
-                    <span className="font-medium">{d.client.name}</span>
-                    {d.client.company && <span className="text-xs text-muted-foreground">{d.client.company}</span>}
-                    <span className="text-xs text-muted-foreground">→ {d.emailTo}</span>
-                    <span className="ml-auto text-xs text-muted-foreground whitespace-nowrap">
-                      {d.sentAt ? fmtDateTime(d.sentAt) : ""}
-                    </span>
-                  </div>
-                  <p className="text-xs text-muted-foreground truncate mt-0.5">{d.subject}</p>
-                </div>
+                <SentDraftRow key={d.id} draft={d} onChanged={() => router.refresh()} />
               ))}
             </div>
-          )}
+          </DraftSection>
         </div>
       )}
 
@@ -242,12 +230,93 @@ export function EmailDraftsView({
   )
 }
 
+/** Section repliable groupant des brouillons par statut (à relire / relus / envoyés). */
+function DraftSection({
+  title, count, icon: Icon, tone, defaultOpen = false, children,
+}: {
+  title: string
+  count: number
+  icon: React.ElementType
+  tone: "amber" | "emerald" | "muted"
+  defaultOpen?: boolean
+  children: React.ReactNode
+}) {
+  const [open, setOpen] = useState(defaultOpen)
+  if (count === 0) return null
+  const toneCls = tone === "amber" ? "text-amber-600" : tone === "emerald" ? "text-emerald-600" : "text-muted-foreground"
+  return (
+    <div className="space-y-2">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="flex w-full items-center gap-2 text-sm font-semibold text-foreground/90 hover:text-foreground transition-colors"
+        aria-expanded={open}
+      >
+        {open ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
+        <Icon className={cn("h-4 w-4", toneCls)} />
+        <span>{title}</span>
+        <span className="font-normal text-muted-foreground">({count})</span>
+      </button>
+      {open && <div className="space-y-2 pl-0.5">{children}</div>}
+    </div>
+  )
+}
+
 /**
  * Carte d'un brouillon : destinataire/sujet/corps éditables, badge ambre si
  * variables manquantes, « Marquer relu » verrouillé tant que le mail n'est pas
  * complet. Toute édition (y compris via « Marquer relu » sur un texte modifié)
  * repasse d'abord par updateEmailDraft — le serveur re-vérifie tout.
  */
+/**
+ * Ligne d'un brouillon envoyé (section « Envoyés récemment »). Permet de
+ * signaler après coup une erreur de distribution (mail rejeté / non distribué)
+ * — badge rouge + bascule.
+ */
+function SentDraftRow({ draft, onChanged }: { draft: DraftItem; onChanged: () => void }) {
+  const [isPending, start] = useTransition()
+  const bounced = !!draft.deliveryError
+
+  const toggle = () =>
+    start(async () => {
+      try {
+        await setDraftDeliveryError(draft.id, bounced ? null : "Email non distribué (rejeté par le serveur du destinataire)")
+        onChanged()
+      } catch {
+        toast.error("Action impossible")
+      }
+    })
+
+  return (
+    <div className={cn("px-4 py-2.5 text-sm", bounced && "bg-red-500/5")}>
+      <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+        <span className="font-medium">{draft.client.name}</span>
+        {draft.client.company && <span className="text-xs text-muted-foreground">{draft.client.company}</span>}
+        <span className="text-xs text-muted-foreground">→ {draft.emailTo}</span>
+        {bounced && (
+          <span className="inline-flex items-center gap-1 rounded-full border border-red-500/30 bg-red-500/10 px-2 py-0.5 text-[10px] font-medium text-red-600 dark:text-red-400">
+            <AlertTriangle className="h-3 w-3" /> Non distribué
+          </span>
+        )}
+        <span className="ml-auto text-xs text-muted-foreground whitespace-nowrap">
+          {draft.sentAt ? fmtDateTime(draft.sentAt) : ""}
+        </span>
+      </div>
+      <div className="mt-0.5 flex items-center justify-between gap-2">
+        <p className={cn("truncate text-xs", bounced ? "text-red-600/80 dark:text-red-400/80" : "text-muted-foreground")}>
+          {bounced ? draft.deliveryError : draft.subject}
+        </p>
+        <button
+          onClick={toggle}
+          disabled={isPending}
+          className="shrink-0 text-[11px] text-muted-foreground underline decoration-dotted underline-offset-2 hover:text-foreground disabled:opacity-50"
+        >
+          {bounced ? "Marquer distribué" : "Signaler non distribué"}
+        </button>
+      </div>
+    </div>
+  )
+}
+
 function DraftCard({ draft, open, onToggle, onChanged }: { draft: DraftItem; open: boolean; onToggle: () => void; onChanged: () => void }) {
   const [emailTo, setEmailTo] = useState(draft.emailTo ?? "")
   const [subject, setSubject] = useState(draft.subject)
@@ -312,6 +381,16 @@ function DraftCard({ draft, open, onToggle, onChanged }: { draft: DraftItem; ope
     run(() => cancelEmailDraft(draft.id), "Brouillon annulé (ne sera pas envoyé)")
   }
 
+  // ── Envoi manuel via Gmail (chemin sans Resend) ──
+  const openGmail = () =>
+    window.open(gmailComposeUrl({ to: emailTo.trim(), subject, body }), "_blank", "noopener,noreferrer")
+  const copyRich = async () => {
+    const ok = await copyEmailBody(body)
+    if (ok) toast.success("Corps copié — collez dans Gmail (Cmd/Ctrl+V), le gras est conservé")
+    else toast.error("Copie impossible")
+  }
+  const markSent = () => run(() => markDraftSentManually(draft.id), `« ${draft.client.name} » marqué envoyé`)
+
   const showMissingBadge = liveResidual.length > 0 || (storedMissing.length > 0 && !dirty)
 
   return (
@@ -362,10 +441,25 @@ function DraftCard({ draft, open, onToggle, onChanged }: { draft: DraftItem; ope
 
       {!open ? null : (
       <div className="px-4 pb-4 space-y-3 border-t border-border/40 pt-3">
-      {draft.template && (
-        <span className="inline-block text-[10px] text-muted-foreground/70 rounded-full border border-border px-1.5 py-0.5">
-          {draft.template.name}
-        </span>
+      {(draft.template || draft.client.websiteUrl) && (
+        <div className="flex flex-wrap items-center gap-1.5">
+          {draft.template && (
+            <span className="inline-block text-[10px] text-muted-foreground/70 rounded-full border border-border px-1.5 py-0.5">
+              {draft.template.name}
+            </span>
+          )}
+          {draft.client.websiteUrl && (
+            <a
+              href={draft.client.websiteUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 text-[10px] font-medium text-primary rounded-full border border-primary/30 px-1.5 py-0.5 hover:bg-primary/10 transition-colors"
+              title={`Ouvrir le site : ${draft.client.websiteUrl}`}
+            >
+              <ExternalLink className="h-2.5 w-2.5" /> Voir le site
+            </a>
+          )}
+        </div>
       )}
 
       {showMissingBadge && (
@@ -437,6 +531,35 @@ function DraftCard({ draft, open, onToggle, onChanged }: { draft: DraftItem; ope
             <Undo2 className="h-3.5 w-3.5" /> Repasser en brouillon
           </Button>
         )}
+        {/* Envoi manuel via Gmail (Resend indisponible avec une adresse @gmail.com) */}
+        <Button
+          variant="outline"
+          onClick={openGmail}
+          disabled={isPending || !emailOk}
+          className="gap-1.5 h-10 sm:h-8"
+          title={emailOk ? "Ouvre Gmail avec ce mail pré-rempli (texte brut)" : "Destinataire vide ou invalide"}
+        >
+          <ExternalLink className="h-3.5 w-3.5" /> Ouvrir dans Gmail
+        </Button>
+        <Button
+          variant="outline"
+          onClick={copyRich}
+          disabled={isPending}
+          className="gap-1.5 h-10 sm:h-8"
+          title="Copie le corps avec le gras conservé — à coller dans Gmail (Cmd/Ctrl+V)"
+        >
+          <Copy className="h-3.5 w-3.5" /> Copier (gras)
+        </Button>
+        <Button
+          variant="outline"
+          onClick={markSent}
+          disabled={isPending || dirty || !emailOk}
+          className="gap-1.5 h-10 sm:h-8"
+          title={dirty ? "Enregistrez d'abord vos modifications" : !emailOk ? "Destinataire vide ou invalide" : "Marquer envoyé (après l'avoir envoyé depuis Gmail)"}
+        >
+          <CheckCircle2 className="h-3.5 w-3.5" /> Marquer envoyé
+        </Button>
+
         {/* Test dans SA boîte (compte connecté) — jamais vers le prospect */}
         <Button
           variant="outline"

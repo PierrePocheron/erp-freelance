@@ -5,6 +5,7 @@ import { Plus, Heart, Stethoscope, Wallet, Syringe, Clock, Check } from "lucide-
 import { toast } from "sonner"
 import { cn } from "@/lib/utils"
 import { markReimbursementReceived, resolveHealthEvent } from "@/actions/sante"
+import type { HealthEventType, PractitionerType, ReimbursementSource, ReimbursementStatus } from "@/generated/prisma/enums"
 import { HealthEventDialog }      from "./HealthEventDialog"
 import { ConsultationDialog }     from "./ConsultationDialog"
 import { ReimbursementDialog }    from "./ReimbursementDialog"
@@ -12,12 +13,12 @@ import { ReimbursementDialog }    from "./ReimbursementDialog"
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 export type HEvent = {
-  id: string; date: Date | string; type: string
+  id: string; date: Date | string; type: HealthEventType
   title: string; description: string | null; bodyPart: string | null
   resolvedAt: Date | string | null; createdAt: Date | string; updatedAt: Date | string
 }
 export type HConsultation = {
-  id: string; date: Date | string; practitionerName: string; practitionerType: string
+  id: string; date: Date | string; practitionerName: string; practitionerType: PractitionerType
   title: string; notes: string | null; cost: number | null
   hasDocument: boolean; documentRef: string | null; healthEventId: string | null
   createdAt: Date | string; updatedAt: Date | string
@@ -25,7 +26,7 @@ export type HConsultation = {
   reimbursements: HReimbursement[]
 }
 export type HReimbursement = {
-  id: string; amount: number; source: string; status: string
+  id: string; amount: number; source: ReimbursementSource; status: ReimbursementStatus
   expectedDate: Date | string | null; receivedAt: Date | string | null; notes: string | null
   consultationId: string | null; createdAt: Date | string; updatedAt: Date | string
   consultation?: { id: string; title: string; practitionerName: string } | null
@@ -38,10 +39,10 @@ export function reimbursementDate(r: HReimbursement): Date {
 
 // ── Config ─────────────────────────────────────────────────────────────────────
 
-export const EVENT_TYPE_CONFIG: Record<string, { label: string; icon: string; cls: string; dot: string }> = {
-  INJURY:  { label: "Blessure",  icon: "🩸", cls: "bg-red-500/15 text-red-600 border-red-500/20",      dot: "bg-red-500"     },
-  ILLNESS: { label: "Maladie",   icon: "🩸", cls: "bg-orange-500/15 text-orange-600 border-orange-500/20", dot: "bg-orange-500" },
-  OTHER:   { label: "Autre",     icon: "🩸", cls: "bg-muted text-muted-foreground border-border",         dot: "bg-gray-400"    },
+export const EVENT_TYPE_CONFIG: Record<string, { label: string; icon: string; cls: string }> = {
+  INJURY:  { label: "Blessure",  icon: "🩸", cls: "bg-red-500/15 text-red-600 border-red-500/20"      },
+  ILLNESS: { label: "Maladie",   icon: "🩸", cls: "bg-orange-500/15 text-orange-600 border-orange-500/20" },
+  OTHER:   { label: "Autre",     icon: "🩸", cls: "bg-muted text-muted-foreground border-border"         },
 }
 
 export const PRACTITIONER_LABELS: Record<string, string> = {
@@ -76,8 +77,8 @@ export function HealthView({
   currentYear: number
 }) {
   const [tab, setTab] = useState<"timeline" | "blessures" | "consultations" | "remboursements">("timeline")
-  const [, startMark]    = useTransition()
-  const [, startResolve] = useTransition()
+  const [markPending, startMark]       = useTransition()
+  const [resolvePending, startResolve] = useTransition()
 
   // Dialogs
   const [eventDialog, setEventDialog]   = useState<{ open: boolean; item?: HEvent }>({ open: false })
@@ -85,16 +86,26 @@ export function HealthView({
   const [reimburseDialog, setReimburseDialog] = useState<{ open: boolean; item?: HReimbursement }>({ open: false })
 
   function markReceived(id: string) {
+    if (markPending) return
     startMark(async () => {
-      await markReimbursementReceived(id)
-      toast.success("Remboursement marqué reçu")
+      try {
+        await markReimbursementReceived(id)
+        toast.success("Remboursement marqué reçu")
+      } catch {
+        toast.error("Impossible de marquer le remboursement comme reçu. Réessayez.")
+      }
     })
   }
 
   function quickResolve(id: string) {
+    if (resolvePending) return
     startResolve(async () => {
-      await resolveHealthEvent(id)
-      toast.success("Événement marqué résolu")
+      try {
+        await resolveHealthEvent(id)
+        toast.success("Événement marqué résolu")
+      } catch {
+        toast.error("Impossible de marquer l'événement comme résolu. Réessayez.")
+      }
     })
   }
 
@@ -116,6 +127,16 @@ export function HealthView({
     ...reimbursements.map((r)=> ({ kind: "reimburse" as const, date: reimbursementDate(r), data: r })),
   ].sort((a, b) => b.date.getTime() - a.date.getTime())
 
+  // ── Onglets : invariants calculés une seule fois (hors du .map) ───────────────
+  const activeEvents = events.filter(e => !e.resolvedAt)
+  const tabLabels = { timeline: "Tout", blessures: "Blessures", consultations: "Consultations", remboursements: "Remboursements" }
+  const tabCounts = {
+    timeline: timeline.length,
+    blessures: activeEvents.length,
+    consultations: consultations.length,
+    remboursements: reimbursements.length,
+  }
+
   // ── Rendu d'une entrée timeline ───────────────────────────────────────────────
 
   function renderEntry(entry: TEntry) {
@@ -128,7 +149,7 @@ export function HealthView({
           onClick={() => setEventDialog({ open: true, item: e })}
           className="w-full text-left flex items-start gap-3 rounded-xl border border-border/50 bg-card p-3 hover:border-border hover:shadow-sm transition-all group"
         >
-          <span className="text-xl shrink-0 mt-0.5">{cfg.icon}</span>
+          <span aria-hidden="true" className="text-xl shrink-0 mt-0.5">{cfg.icon}</span>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-0.5 flex-wrap">
               <span className={cn("rounded-full border px-2 py-0.5 text-[10px] font-semibold", cfg.cls)}>
@@ -148,10 +169,7 @@ export function HealthView({
             <span className="text-xs text-muted-foreground">{fmtShort(e.date)}</span>
             {!e.resolvedAt && (
               <span
-                role="button"
-                tabIndex={0}
                 onClick={(ev) => { ev.stopPropagation(); quickResolve(e.id) }}
-                onKeyDown={(ev) => { if (ev.key === "Enter" || ev.key === " ") { ev.stopPropagation(); quickResolve(e.id) } }}
                 className="text-[10px] font-medium text-emerald-600 hover:text-emerald-700 hover:underline cursor-pointer"
               >
                 Marquer résolu
@@ -174,7 +192,7 @@ export function HealthView({
           onClick={() => setConsultDialog({ open: true, item: c })}
           className="w-full text-left flex items-start gap-3 rounded-xl border border-border/50 bg-card p-3 hover:border-border hover:shadow-sm transition-all group"
         >
-          <span className="text-xl shrink-0 mt-0.5">🥼</span>
+          <span aria-hidden="true" className="text-xl shrink-0 mt-0.5">🥼</span>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-0.5 flex-wrap">
               <span className="rounded-full border border-blue-500/20 bg-blue-500/15 text-blue-600 px-2 py-0.5 text-[10px] font-semibold">
@@ -185,7 +203,7 @@ export function HealthView({
             <p className="text-sm font-semibold group-hover:text-primary transition-colors">{c.practitionerName}</p>
             <p className="text-xs text-muted-foreground">{c.title}</p>
             {c.healthEvent && (
-              <p className="text-[10px] text-muted-foreground/60 mt-0.5">
+              <p className="text-xs text-muted-foreground mt-0.5">
                 🩸 {c.healthEvent.title}
               </p>
             )}
@@ -194,16 +212,16 @@ export function HealthView({
             <span className="text-xs text-muted-foreground block">{fmtShort(c.date)}</span>
             {c.cost != null && (
               <>
-                <span className="text-xs font-medium block">{c.cost.toFixed(0)} € payé</span>
+                <span className="text-xs font-medium block amount-sensitive">{c.cost.toFixed(0)} € payé</span>
                 {settled ? (
                   <span className="text-[10px] text-emerald-600 block">✓ Remboursé</span>
                 ) : (
                   <>
                     {pending > 0 && (
-                      <span className="text-[10px] text-amber-600 block">{pending.toFixed(0)} € attendu</span>
+                      <span className="text-[10px] text-amber-600 block amount-sensitive">{pending.toFixed(0)} € attendu</span>
                     )}
                     {remaining - pending > 0.01 && (
-                      <span className="text-[10px] text-muted-foreground block">
+                      <span className="text-[10px] text-muted-foreground block amount-sensitive">
                         {(remaining - pending).toFixed(0)} € à charge
                       </span>
                     )}
@@ -225,7 +243,13 @@ export function HealthView({
         role="button"
         tabIndex={0}
         onClick={() => setReimburseDialog({ open: true, item: r })}
-        onKeyDown={(e) => { if (e.key === "Enter") setReimburseDialog({ open: true, item: r }) }}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") setReimburseDialog({ open: true, item: r })
+          else if (e.key === " " && e.target === e.currentTarget) {
+            e.preventDefault()
+            setReimburseDialog({ open: true, item: r })
+          }
+        }}
         className={cn(
           "w-full text-left flex items-start gap-3 rounded-xl border p-3 hover:shadow-sm transition-all group cursor-pointer",
           isPending
@@ -233,7 +257,7 @@ export function HealthView({
             : "border-emerald-500/20 bg-emerald-500/5 hover:border-emerald-500/40"
         )}
       >
-        <span className="text-xl shrink-0 mt-0.5">{isPending ? "⏳" : "💸"}</span>
+        <span aria-hidden="true" className="text-xl shrink-0 mt-0.5">{isPending ? "⏳" : "💸"}</span>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-0.5 flex-wrap">
             <span className={cn(
@@ -252,7 +276,7 @@ export function HealthView({
             </span>
           </div>
           <p className={cn(
-            "text-sm font-semibold transition-colors",
+            "text-sm font-semibold transition-colors amount-sensitive",
             isPending ? "text-amber-700 group-hover:text-amber-600" : "text-emerald-700 group-hover:text-emerald-600"
           )}>
             {isPending ? "" : "+"}{r.amount.toFixed(2)} €
@@ -339,12 +363,12 @@ export function HealthView({
           <StatCard
             icon={<Wallet className="h-4 w-4 text-amber-500" />}
             label={`Dépensé ${currentYear}`}
-            value={`${stats.spentThisYear.toFixed(2)} €`}
+            value={<span className="amount-sensitive">{stats.spentThisYear.toFixed(2)} €</span>}
           />
           <StatCard
             icon={<Heart className="h-4 w-4 text-emerald-500" />}
             label={`Remboursé ${currentYear}`}
-            value={`${stats.reimbursedThisYear.toFixed(2)} €`}
+            value={<span className="amount-sensitive">{stats.reimbursedThisYear.toFixed(2)} €</span>}
             positive
           />
           <StatCard
@@ -362,7 +386,7 @@ export function HealthView({
               <div className="flex items-center gap-2">
                 <Clock className="h-4 w-4 text-amber-600" />
                 <div>
-                  <p className="text-sm font-semibold text-amber-700 dark:text-amber-400">
+                  <p className="text-sm font-semibold text-amber-700 dark:text-amber-400 amount-sensitive">
                     {pendingTotal.toFixed(2)} € en attente de remboursement
                   </p>
                   <p className="text-xs text-muted-foreground">
@@ -374,13 +398,13 @@ export function HealthView({
                 {pendingSecu > 0 && (
                   <div className="text-right">
                     <p className="text-muted-foreground">Sécu</p>
-                    <p className="font-semibold text-amber-700 dark:text-amber-400">{pendingSecu.toFixed(2)} €</p>
+                    <p className="font-semibold text-amber-700 dark:text-amber-400 amount-sensitive">{pendingSecu.toFixed(2)} €</p>
                   </div>
                 )}
                 {pendingMutuelle > 0 && (
                   <div className="text-right">
                     <p className="text-muted-foreground">Mutuelle</p>
-                    <p className="font-semibold text-amber-700 dark:text-amber-400">{pendingMutuelle.toFixed(2)} €</p>
+                    <p className="font-semibold text-amber-700 dark:text-amber-400 amount-sensitive">{pendingMutuelle.toFixed(2)} €</p>
                   </div>
                 )}
               </div>
@@ -390,33 +414,23 @@ export function HealthView({
 
         {/* Tabs */}
         <div className="flex items-center gap-1 border-b border-border/50">
-          {(["timeline", "blessures", "consultations", "remboursements"] as const).map((t) => {
-            const activeEvents = events.filter(e => !e.resolvedAt)
-            const labels = { timeline: "Tout", blessures: "Blessures", consultations: "Consultations", remboursements: "Remboursements" }
-            const counts = {
-              timeline: timeline.length,
-              blessures: activeEvents.length,
-              consultations: consultations.length,
-              remboursements: reimbursements.length,
-            }
-            return (
-              <button
-                key={t}
-                onClick={() => setTab(t)}
-                className={cn(
-                  "pb-2 px-3 text-sm font-medium border-b-2 transition-colors",
-                  tab === t
-                    ? "border-primary text-foreground"
-                    : "border-transparent text-muted-foreground hover:text-foreground"
-                )}
-              >
-                {labels[t]}
-                {counts[t] > 0 && (
-                  <span className="ml-1.5 text-xs text-muted-foreground">({counts[t]})</span>
-                )}
-              </button>
-            )
-          })}
+          {(["timeline", "blessures", "consultations", "remboursements"] as const).map((t) => (
+            <button
+              key={t}
+              onClick={() => setTab(t)}
+              className={cn(
+                "pb-2 px-3 text-sm font-medium border-b-2 transition-colors",
+                tab === t
+                  ? "border-primary text-foreground"
+                  : "border-transparent text-muted-foreground hover:text-foreground"
+              )}
+            >
+              {tabLabels[t]}
+              {tabCounts[t] > 0 && (
+                <span className="ml-1.5 text-xs text-muted-foreground">({tabCounts[t]})</span>
+              )}
+            </button>
+          ))}
         </div>
 
         {/* Content */}
@@ -511,7 +525,7 @@ export function HealthView({
 function StatCard({
   icon, label, value, positive, highlight,
 }: {
-  icon: React.ReactNode; label: string; value: string | number; positive?: boolean; highlight?: boolean
+  icon: React.ReactNode; label: string; value: React.ReactNode; positive?: boolean; highlight?: boolean
 }) {
   return (
     <div className={cn(
@@ -529,7 +543,7 @@ function StatCard({
 function EmptyState({ onEvent, onConsult }: { onEvent: () => void; onConsult: () => void }) {
   return (
     <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border py-12 text-center gap-3">
-      <span className="text-4xl">🏥</span>
+      <span aria-hidden="true" className="text-4xl">🏥</span>
       <div>
         <p className="text-sm font-medium">Aucun événement de santé</p>
         <p className="text-xs text-muted-foreground mt-1">Commencez par enregistrer une blessure ou une consultation</p>

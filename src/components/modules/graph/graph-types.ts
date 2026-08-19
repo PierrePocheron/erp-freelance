@@ -1,4 +1,4 @@
-export type NodeType = "SOURCE" | "COMPANY" | "CLIENT" | "PROSPECT" | "PERSONAL" | "PROJECT" | "INVOICE" | "QUOTE" | "REVENUE" | "RESALE" | "APPLICATION"
+export type NodeType = "SOURCE" | "COMPANY" | "CLIENT" | "PROSPECT" | "PERSONAL" | "PROJECT" | "INVOICE" | "QUOTE" | "REVENUE" | "RESALE" | "APPLICATION" | "SKILL" | "QUESTION"
 
 export type RawNode = {
   id:         string
@@ -37,6 +37,8 @@ export const NODE_RADIUS: Record<NodeType, number> = {
   REVENUE:     11,
   RESALE:      10,
   APPLICATION: 12,
+  SKILL:       14,
+  QUESTION:    10,
 }
 
 export const NODE_BASE_COLORS: Record<NodeType, string> = {
@@ -51,6 +53,8 @@ export const NODE_BASE_COLORS: Record<NodeType, string> = {
   REVENUE:     "#fb923c", // orange — revenu reçu ou attendu
   RESALE:      "#14b8a6", // teal — revente d'objets perso (Vinted/LBC/Momox)
   APPLICATION: "#818cf8", // indigo — candidature / entretien
+  SKILL:       "#a3e635", // lime — compétence / connaissance (module Compétences)
+  QUESTION:    "#f472b6", // pink — question technique d'entretien
 }
 
 export const REVENUE_STATUS_COLOR: Record<string, string> = {
@@ -111,6 +115,8 @@ export const NODE_TYPE_LABELS: Record<NodeType, string> = {
   REVENUE:     "Revenu",
   RESALE:      "Revente",
   APPLICATION: "Candidature",
+  SKILL:       "Compétence",
+  QUESTION:    "Question",
 }
 
 export function nodeColor(node: RawNode): string {

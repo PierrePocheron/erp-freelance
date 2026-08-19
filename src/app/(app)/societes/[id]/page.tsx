@@ -2,6 +2,7 @@ import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { notFound, redirect } from "next/navigation"
 import Link from "next/link"
+import { SetBreadcrumbLabel } from "@/components/layout/BreadcrumbContext"
 import {
   ChevronLeft, Building2, Mail, Phone, Globe, MapPin,
   Users, FolderOpen, Trash2, ExternalLink, Receipt, FileText,
@@ -147,9 +148,16 @@ export default async function CompanyDetailPage({
   const netAmount = (inv: { totalHT: number; depositDeducted: number }) =>
     inv.totalHT - inv.depositDeducted
 
-  const totalPaid    = invoices.filter(i => i.status === "PAID").reduce((s, i) => s + netAmount(i), 0)
-  const totalPending = invoices.filter(i => i.status === "SENT").reduce((s, i) => s + netAmount(i), 0)
-  const totalLate    = invoices.filter(i => i.status === "LATE").reduce((s, i) => s + netAmount(i), 0)
+  const paidInvoices = invoices.filter(i => i.status === "PAID")
+  const sentInvoices = invoices.filter(i => i.status === "SENT")
+  const lateInvoices = invoices.filter(i => i.status === "LATE")
+  const paidCount = paidInvoices.length
+  const sentCount = sentInvoices.length
+  const lateCount = lateInvoices.length
+
+  const totalPaid    = paidInvoices.reduce((s, i) => s + netAmount(i), 0)
+  const totalPending = sentInvoices.reduce((s, i) => s + netAmount(i), 0)
+  const totalLate    = lateInvoices.reduce((s, i) => s + netAmount(i), 0)
   const totalBilled  = totalPaid + totalPending + totalLate  // émises (hors brouillon)
 
   const nbInvoices   = invoices.length
@@ -176,52 +184,9 @@ export default async function CompanyDetailPage({
 
   const totalEstimatedH = company.projects.reduce((s, p) => s + (p.estimatedHours ?? 0), 0)
 
-  // ── Labels / couleurs ─────────────────────────────────────────────────────────
-
-  const projectStatusLabel: Record<string, string> = {
-    ACTIVE: "En cours", COMPLETED: "Terminé", ON_HOLD: "En pause",
-    CANCELLED: "Annulé", DRAFT: "Brouillon", PAUSED: "En pause", ARCHIVED: "Archivé",
-  }
-  const projectStatusColor: Record<string, string> = {
-    ACTIVE: "text-emerald-600 bg-emerald-500/10",
-    COMPLETED: "text-blue-600 bg-blue-500/10",
-    PAUSED: "text-amber-600 bg-amber-500/10",
-    ON_HOLD: "text-amber-600 bg-amber-500/10",
-    CANCELLED: "text-red-600 bg-red-500/10",
-    ARCHIVED: "text-muted-foreground bg-muted",
-    DRAFT: "text-muted-foreground bg-muted",
-  }
-
-  const invoiceStatusLabel: Record<string, string> = {
-    DRAFT: "Brouillon", ISSUED: "Émise", SENT: "Envoyée", PAID: "Payée", LATE: "En retard",
-  }
-  const invoiceStatusColor: Record<string, string> = {
-    DRAFT: "text-muted-foreground bg-muted",
-    ISSUED: "text-violet-600 bg-violet-500/10",
-    SENT:  "text-blue-600 bg-blue-500/10",
-    PAID:  "text-emerald-600 bg-emerald-500/10",
-    LATE:  "text-red-600 bg-red-500/10",
-  }
-
-  const quoteStatusLabel: Record<string, string> = {
-    DRAFT: "Brouillon", VALIDATED: "Validé", SENT: "Envoyé",
-    ACCEPTED: "Accepté", IN_PROGRESS: "En cours", SIGNED: "Signé", REJECTED: "Refusé",
-    WAITING_DEPOSIT: "Acompte att.", DEPOSIT_RECEIVED: "Acompte reçu",
-  }
-  const quoteStatusColor: Record<string, string> = {
-    DRAFT: "text-muted-foreground bg-muted",
-    VALIDATED: "text-violet-600 bg-violet-500/10",
-    SENT: "text-blue-600 bg-blue-500/10",
-    ACCEPTED: "text-emerald-600 bg-emerald-500/10",
-    IN_PROGRESS: "text-indigo-600 bg-indigo-500/10",
-    SIGNED: "text-teal-600 bg-teal-500/10",
-    REJECTED: "text-red-600 bg-red-500/10",
-    WAITING_DEPOSIT: "text-amber-600 bg-amber-500/10",
-    DEPOSIT_RECEIVED: "text-emerald-600 bg-emerald-500/10",
-  }
-
   return (
     <div className="space-y-6">
+      <SetBreadcrumbLabel value={id} label={company.name} />
       {/* En-tête */}
       <div>
         <Link
@@ -257,7 +222,8 @@ export default async function CompanyDetailPage({
             icon={<TrendingUp className="h-4 w-4 text-emerald-600" />}
             label="CA encaissé"
             value={`${fmt(totalPaid)} €`}
-            sub={`${invoices.filter(i => i.status === "PAID").length} facture${invoices.filter(i => i.status === "PAID").length !== 1 ? "s" : ""} payée${invoices.filter(i => i.status === "PAID").length !== 1 ? "s" : ""}`}
+            sensitive
+            sub={`${paidCount} facture${paidCount !== 1 ? "s" : ""} payée${paidCount !== 1 ? "s" : ""}`}
             color="emerald"
           />
           {totalPending > 0 && (
@@ -265,7 +231,8 @@ export default async function CompanyDetailPage({
               icon={<Clock className="h-4 w-4 text-blue-600" />}
               label="En attente"
               value={`${fmt(totalPending)} €`}
-              sub={`${invoices.filter(i => i.status === "SENT").length} envoyée${invoices.filter(i => i.status === "SENT").length !== 1 ? "s" : ""}`}
+              sensitive
+              sub={`${sentCount} envoyée${sentCount !== 1 ? "s" : ""}`}
               color="blue"
             />
           )}
@@ -274,7 +241,8 @@ export default async function CompanyDetailPage({
               icon={<AlertTriangle className="h-4 w-4 text-red-600" />}
               label="En retard"
               value={`${fmt(totalLate)} €`}
-              sub={`${invoices.filter(i => i.status === "LATE").length} facture${invoices.filter(i => i.status === "LATE").length !== 1 ? "s" : ""}`}
+              sensitive
+              sub={`${lateCount} facture${lateCount !== 1 ? "s" : ""}`}
               color="red"
             />
           )}
@@ -412,7 +380,7 @@ export default async function CompanyDetailPage({
                           {invoiceStatusLabel[inv.status] ?? inv.status}
                         </span>
                       </td>
-                      <td className="px-5 py-3 text-right font-medium tabular-nums">
+                      <td className="px-5 py-3 text-right font-medium tabular-nums amount-sensitive">
                         {fmt(netAmount(inv))} €
                       </td>
                       <td className="px-5 py-3 text-right text-muted-foreground text-xs hidden md:table-cell">
@@ -476,7 +444,7 @@ export default async function CompanyDetailPage({
                           {quoteStatusLabel[q.status] ?? q.status}
                         </span>
                       </td>
-                      <td className="px-5 py-3 text-right font-medium tabular-nums">
+                      <td className="px-5 py-3 text-right font-medium tabular-nums amount-sensitive">
                         {fmt(q.totalHT)} €
                       </td>
                       <td className="px-5 py-3 text-right text-muted-foreground text-xs hidden md:table-cell">
@@ -540,12 +508,21 @@ export default async function CompanyDetailPage({
                 {tasks.map((t) => (
                   <div key={t.id} className="flex items-center gap-3 px-5 py-3 hover:bg-muted/30 transition-colors">
                     {/* Priorité */}
-                    <span className={`h-1.5 w-1.5 rounded-full shrink-0 ${
-                      t.priority === "URGENT" ? "bg-red-500" :
-                      t.priority === "HIGH"   ? "bg-amber-500" :
-                      t.priority === "MEDIUM" ? "bg-blue-400" :
-                      "bg-muted-foreground/40"
-                    }`} />
+                    <span
+                      role="img"
+                      aria-label={`Priorité ${
+                        t.priority === "URGENT" ? "urgente" :
+                        t.priority === "HIGH"   ? "haute" :
+                        t.priority === "MEDIUM" ? "moyenne" :
+                        "basse"
+                      }`}
+                      className={`h-1.5 w-1.5 rounded-full shrink-0 ${
+                        t.priority === "URGENT" ? "bg-red-500" :
+                        t.priority === "HIGH"   ? "bg-amber-500" :
+                        t.priority === "MEDIUM" ? "bg-blue-400" :
+                        "bg-muted-foreground/40"
+                      }`}
+                    />
                     <div className="flex-1 min-w-0">
                       <p className="text-sm truncate">{t.title}</p>
                       {(t.project || t.client) && (
@@ -650,7 +627,7 @@ export default async function CompanyDetailPage({
                       <span className={`h-1.5 w-1.5 rounded-full shrink-0 ${cfg.dot}`} />
                       <div className="flex-1 min-w-0">
                         <p className="text-xs font-medium truncate">{a.position}</p>
-                        <p className="text-[10px] text-muted-foreground truncate">{a.companyName}</p>
+                        <p className="text-xs text-muted-foreground truncate">{a.companyName}</p>
                       </div>
                       <span className={`text-[10px] rounded-full border px-1.5 py-0.5 shrink-0 ${cfg.cls}`}>
                         {cfg.short}
@@ -679,13 +656,13 @@ export default async function CompanyDetailPage({
                       <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />
                       CA encaissé
                     </span>
-                    <span className="font-semibold text-emerald-600">{fmt(totalPaid)} €</span>
+                    <span className="font-semibold text-emerald-600 amount-sensitive">{fmt(totalPaid)} €</span>
                   </div>
                 )}
                 {totalBilled > 0 && totalBilled !== totalPaid && (
                   <div className="flex items-center justify-between text-sm">
                     <span className="text-muted-foreground">Total émis</span>
-                    <span className="font-medium">{fmt(totalBilled)} €</span>
+                    <span className="font-medium amount-sensitive">{fmt(totalBilled)} €</span>
                   </div>
                 )}
                 {totalPending > 0 && (
@@ -694,7 +671,7 @@ export default async function CompanyDetailPage({
                       <Clock className="h-3.5 w-3.5 text-blue-500" />
                       En attente
                     </span>
-                    <span className="font-medium text-blue-600">{fmt(totalPending)} €</span>
+                    <span className="font-medium text-blue-600 amount-sensitive">{fmt(totalPending)} €</span>
                   </div>
                 )}
                 {totalLate > 0 && (
@@ -703,7 +680,7 @@ export default async function CompanyDetailPage({
                       <AlertTriangle className="h-3.5 w-3.5 text-red-500" />
                       En retard
                     </span>
-                    <span className="font-semibold text-red-600">{fmt(totalLate)} €</span>
+                    <span className="font-semibold text-red-600 amount-sensitive">{fmt(totalLate)} €</span>
                   </div>
                 )}
 
@@ -830,16 +807,59 @@ const FISCAL_BUCKET_LABELS: Record<string, string> = {
   OTHER:         "Autre",
 }
 
+const projectStatusLabel: Record<string, string> = {
+  ACTIVE: "En cours", COMPLETED: "Terminé", ON_HOLD: "En pause",
+  CANCELLED: "Annulé", DRAFT: "Brouillon", PAUSED: "En pause", ARCHIVED: "Archivé",
+}
+const projectStatusColor: Record<string, string> = {
+  ACTIVE: "text-emerald-600 bg-emerald-500/10",
+  COMPLETED: "text-blue-600 bg-blue-500/10",
+  PAUSED: "text-amber-600 bg-amber-500/10",
+  ON_HOLD: "text-amber-600 bg-amber-500/10",
+  CANCELLED: "text-red-600 bg-red-500/10",
+  ARCHIVED: "text-muted-foreground bg-muted",
+  DRAFT: "text-muted-foreground bg-muted",
+}
+
+const invoiceStatusLabel: Record<string, string> = {
+  DRAFT: "Brouillon", ISSUED: "Émise", SENT: "Envoyée", PAID: "Payée", LATE: "En retard",
+}
+const invoiceStatusColor: Record<string, string> = {
+  DRAFT: "text-muted-foreground bg-muted",
+  ISSUED: "text-violet-600 bg-violet-500/10",
+  SENT:  "text-blue-600 bg-blue-500/10",
+  PAID:  "text-emerald-600 bg-emerald-500/10",
+  LATE:  "text-red-600 bg-red-500/10",
+}
+
+const quoteStatusLabel: Record<string, string> = {
+  DRAFT: "Brouillon", VALIDATED: "Validé", SENT: "Envoyé",
+  ACCEPTED: "Accepté", IN_PROGRESS: "En cours", SIGNED: "Signé", REJECTED: "Refusé",
+  WAITING_DEPOSIT: "Acompte att.", DEPOSIT_RECEIVED: "Acompte reçu",
+}
+const quoteStatusColor: Record<string, string> = {
+  DRAFT: "text-muted-foreground bg-muted",
+  VALIDATED: "text-violet-600 bg-violet-500/10",
+  SENT: "text-blue-600 bg-blue-500/10",
+  ACCEPTED: "text-emerald-600 bg-emerald-500/10",
+  IN_PROGRESS: "text-indigo-600 bg-indigo-500/10",
+  SIGNED: "text-teal-600 bg-teal-500/10",
+  REJECTED: "text-red-600 bg-red-500/10",
+  WAITING_DEPOSIT: "text-amber-600 bg-amber-500/10",
+  DEPOSIT_RECEIVED: "text-emerald-600 bg-emerald-500/10",
+}
+
 // ── Composant KPI ─────────────────────────────────────────────────────────────
 
 function KpiCard({
-  icon, label, value, sub, color,
+  icon, label, value, sub, color, sensitive,
 }: {
   icon: React.ReactNode
   label: string
   value: string
   sub?: string
   color: "emerald" | "blue" | "red" | "amber" | "muted"
+  sensitive?: boolean
 }) {
   const valueColor = {
     emerald: "text-emerald-600",
@@ -855,7 +875,7 @@ function KpiCard({
         {icon}
         {label}
       </div>
-      <p className={`text-xl font-bold tabular-nums ${valueColor}`}>{value}</p>
+      <p className={`text-xl font-bold tabular-nums ${valueColor}${sensitive ? " amount-sensitive" : ""}`}>{value}</p>
       {sub && <p className="text-xs text-muted-foreground">{sub}</p>}
     </div>
   )

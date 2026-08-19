@@ -14,7 +14,7 @@ const features = [
 
 export default function LoginPage() {
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center px-4">
+    <main className="min-h-screen bg-background flex items-center justify-center px-4">
 
       {/* Halo décoratif */}
       <div className="pointer-events-none fixed inset-0 flex items-center justify-center overflow-hidden">
@@ -26,7 +26,7 @@ export default function LoginPage() {
         {/* ── Logo + titre ─────────────────────────────────────────────────── */}
         <div className="flex flex-col items-center gap-3 text-center">
           <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary shadow-md">
-            <Server className="h-6 w-6 text-primary-foreground" />
+            <Server className="h-6 w-6 text-primary-foreground" aria-hidden />
           </div>
           <div>
             <h1 className="text-2xl font-bold tracking-tight">ERP Freelance</h1>
@@ -46,7 +46,7 @@ export default function LoginPage() {
                          transition-all duration-200
                          hover:border-border hover:bg-accent hover:text-foreground hover:shadow-sm hover:-translate-y-0.5"
             >
-              <Icon className="h-3 w-3 transition-transform duration-200 group-hover:scale-110" />
+              <Icon className="h-3 w-3 transition-transform duration-200 group-hover:scale-110" aria-hidden />
               {label}
             </div>
           ))}
@@ -63,12 +63,12 @@ export default function LoginPage() {
 
           <GoogleSignInButton />
 
-          <p className="text-center text-xs text-muted-foreground/50">
+          <p className="text-center text-xs text-muted-foreground">
             Accès privé · données jamais partagées
           </p>
         </div>
 
       </div>
-    </div>
+    </main>
   )
 }

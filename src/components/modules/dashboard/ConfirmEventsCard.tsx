@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useTransition } from "react"
+import { useId, useState, useTransition } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
@@ -81,14 +81,15 @@ function ConfirmSection({
 }: {
   label: string; count: number; open: boolean; onToggle: () => void; children: React.ReactNode
 }) {
+  const panelId = useId()
   return (
     <div>
-      <button onClick={onToggle} className="flex items-center gap-2 w-full px-5 py-2.5 hover:bg-muted/40 transition-colors">
+      <button onClick={onToggle} aria-expanded={open} aria-controls={panelId} className="flex items-center gap-2 w-full px-5 py-2.5 hover:bg-muted/40 transition-colors">
         <span className="text-sm font-medium">{label}</span>
         <span className="text-xs text-muted-foreground">({count})</span>
         <ChevronDown className={cn("ml-auto h-3.5 w-3.5 text-muted-foreground transition-transform", open && "rotate-180")} />
       </button>
-      {open && <div className="px-2 pb-2 space-y-1">{children}</div>}
+      {open && <div id={panelId} className="px-2 pb-2 space-y-1">{children}</div>}
     </div>
   )
 }
@@ -117,6 +118,7 @@ function CancelWithReason({ onConfirm }: { onConfirm: (reason: string) => void }
         value={reason}
         onChange={(e) => setReason(e.target.value)}
         placeholder="Raison (optionnel)"
+        aria-label="Raison de l'annulation"
         className="h-6 w-32 rounded border border-input bg-background px-1.5 text-[11px] focus:outline-none focus:ring-1 focus:ring-ring"
       />
       <button onClick={() => onConfirm(reason)} className="text-[10px] font-medium text-destructive hover:opacity-80 px-1">

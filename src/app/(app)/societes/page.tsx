@@ -60,12 +60,12 @@ export default async function SocietesPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="sm:hidden text-2xl font-bold tracking-tight">Sociétés</h1>
+          <h1 className="sm:sr-only text-2xl font-bold tracking-tight">Sociétés</h1>
           <p className="text-sm text-muted-foreground">
             {companies.length} société{companies.length !== 1 ? "s" : ""}
           </p>
         </div>
-        <CreateCompanyDialog userId={userId} fiscalSources={fiscalSources} />
+        <CreateCompanyDialog fiscalSources={fiscalSources} />
       </div>
 
       {/* Carte Sources fiscales */}

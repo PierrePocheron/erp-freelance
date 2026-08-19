@@ -2,6 +2,7 @@ import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { notFound } from "next/navigation"
 import Link from "next/link"
+import { SetBreadcrumbLabel } from "@/components/layout/BreadcrumbContext"
 import { ChevronLeft, Download, Send, CheckCircle2, FileCheck2, Ban, Copy, Landmark } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { LineItemsEditor } from "@/components/modules/facturation/LineItemsEditor"
@@ -74,6 +75,7 @@ export default async function FactureDetailPage({
 
   return (
     <div className="max-w-4xl space-y-6">
+      <SetBreadcrumbLabel value={id} label={invoice.number} />
       <Link href="/facturation/factures" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
         <ChevronLeft className="h-4 w-4" /> Factures
       </Link>
@@ -189,15 +191,15 @@ export default async function FactureDetailPage({
         <div className="rounded-xl border border-border/50 bg-muted/30 p-4 space-y-1 text-sm">
           <div className="flex justify-between">
             <span className="text-muted-foreground">Total HT</span>
-            <span>{invoice.totalHT.toLocaleString("fr-FR")} €</span>
+            <span className="amount-sensitive">{invoice.totalHT.toLocaleString("fr-FR")} €</span>
           </div>
           <div className="flex justify-between text-muted-foreground">
             <span>Acompte déduit</span>
-            <span>- {invoice.depositDeducted.toLocaleString("fr-FR")} €</span>
+            <span className="amount-sensitive">- {invoice.depositDeducted.toLocaleString("fr-FR")} €</span>
           </div>
           <div className="flex justify-between font-bold border-t border-border pt-1">
             <span>Net à payer</span>
-            <span>{netAmount.toLocaleString("fr-FR")} €</span>
+            <span className="amount-sensitive">{netAmount.toLocaleString("fr-FR")} €</span>
           </div>
         </div>
       )}
@@ -226,21 +228,21 @@ export default async function FactureDetailPage({
             <div className="space-y-1.5 text-sm max-w-xs ml-auto">
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Total HT</span>
-                <span>{invoice.totalHT.toLocaleString("fr-FR", { minimumFractionDigits: 2 })} €</span>
+                <span className="amount-sensitive">{invoice.totalHT.toLocaleString("fr-FR", { minimumFractionDigits: 2 })} €</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Total TVA</span>
-                <span>{totalTVA.toLocaleString("fr-FR", { minimumFractionDigits: 2 })} €</span>
+                <span className="amount-sensitive">{totalTVA.toLocaleString("fr-FR", { minimumFractionDigits: 2 })} €</span>
               </div>
               {invoice.depositDeducted > 0 && (
                 <div className="flex justify-between text-muted-foreground">
                   <span>Acompte déduit</span>
-                  <span>- {invoice.depositDeducted.toLocaleString("fr-FR", { minimumFractionDigits: 2 })} €</span>
+                  <span className="amount-sensitive">- {invoice.depositDeducted.toLocaleString("fr-FR", { minimumFractionDigits: 2 })} €</span>
                 </div>
               )}
               <div className="flex justify-between font-bold border-t border-border pt-1.5">
                 <span>Total TTC</span>
-                <span className="text-primary text-base">{(totalTTC - invoice.depositDeducted).toLocaleString("fr-FR", { minimumFractionDigits: 2 })} €</span>
+                <span className="text-primary text-base amount-sensitive">{(totalTTC - invoice.depositDeducted).toLocaleString("fr-FR", { minimumFractionDigits: 2 })} €</span>
               </div>
             </div>
           </div>

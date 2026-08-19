@@ -127,8 +127,8 @@ export function ProjectCard({ project, showBilling = false }: Props) {
                 <div className="flex items-center justify-between text-xs">
                   <span className="text-muted-foreground">Facturation</span>
                   <span>
-                    <span className="font-medium">{fmtEur(project.billing.totalEncaisse)}</span>
-                    <span className="text-muted-foreground"> / {fmtEur(project.billing.totalFacture)}</span>
+                    <span className="font-medium amount-sensitive">{fmtEur(project.billing.totalEncaisse)}</span>
+                    <span className="text-muted-foreground amount-sensitive"> / {fmtEur(project.billing.totalFacture)}</span>
                   </span>
                 </div>
                 <div className="h-1.5 rounded-full bg-muted overflow-hidden">
@@ -144,8 +144,8 @@ export function ProjectCard({ project, showBilling = false }: Props) {
                 <div className="flex items-center justify-between text-xs">
                   <span className="text-muted-foreground">Revenus</span>
                   <span>
-                    <span className="font-medium">{fmtEur(project.revenue.revenuRecu)}</span>
-                    <span className="text-muted-foreground"> / {fmtEur(project.revenue.totalRevenu)}</span>
+                    <span className="font-medium amount-sensitive">{fmtEur(project.revenue.revenuRecu)}</span>
+                    <span className="text-muted-foreground amount-sensitive"> / {fmtEur(project.revenue.totalRevenu)}</span>
                   </span>
                 </div>
                 <div className="h-1.5 rounded-full bg-muted overflow-hidden">

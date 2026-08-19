@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useTransition } from "react"
+import { useState, useTransition, useEffect, useRef } from "react"
 import { Bell, X, CheckCheck } from "lucide-react"
 import Link from "next/link"
 import { cn } from "@/lib/utils"
@@ -32,28 +32,45 @@ function fmtDate(d: Date | string) {
 }
 
 export function NotificationBell({
-  userId,
   notifications,
 }: {
-  userId: string
   notifications: Notification[]
 }) {
   const [open, setOpen] = useState(false)
   const [isPending, startTransition] = useTransition()
   const router = useRouter()
+  const bellRef = useRef<HTMLButtonElement>(null)
+  const panelRef = useRef<HTMLDivElement>(null)
 
   const unreadCount = notifications.filter((n) => !n.isRead).length
 
+  useEffect(() => {
+    if (!open) return
+    // Ouverture : focus déplacé dans le panneau (gestion du focus du dialog).
+    panelRef.current?.focus()
+    const bell = bellRef.current // capturé pour le cleanup (bouton stable)
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") setOpen(false)
+    }
+    document.addEventListener("keydown", onKeyDown)
+    return () => {
+      document.removeEventListener("keydown", onKeyDown)
+      // Fermeture : retour du focus à la cloche (le cleanup ne s'exécute qu'au
+      // passage ouvert → fermé, jamais au montage initial).
+      bell?.focus()
+    }
+  }, [open])
+
   function handleMarkRead(id: string) {
     startTransition(async () => {
-      await markNotificationRead(id, userId)
+      await markNotificationRead(id)
       router.refresh()
     })
   }
 
   function handleMarkAll() {
     startTransition(async () => {
-      await markAllNotificationsRead(userId)
+      await markAllNotificationsRead()
       router.refresh()
     })
   }
@@ -66,6 +83,7 @@ export function NotificationBell({
   return (
     <div className="relative">
       <button
+        ref={bellRef}
         type="button"
         onClick={() => setOpen((v) => !v)}
         className={cn(
@@ -73,10 +91,13 @@ export function NotificationBell({
           open ? "bg-accent" : "text-muted-foreground hover:bg-accent hover:text-foreground"
         )}
         title="Notifications"
+        aria-haspopup="dialog"
+        aria-expanded={open}
+        aria-label={unreadCount > 0 ? `Notifications, ${unreadCount} non lue${unreadCount > 1 ? "s" : ""}` : "Notifications"}
       >
         <Bell className="h-4 w-4" />
         {unreadCount > 0 && (
-          <span className="absolute -top-0.5 -right-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-rose-500 text-[10px] font-bold text-white leading-none">
+          <span className="absolute -top-0.5 -right-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-rose-600 text-[10px] font-bold text-white leading-none">
             {unreadCount > 9 ? "9+" : unreadCount}
           </span>
         )}
@@ -91,12 +112,18 @@ export function NotificationBell({
           />
 
           {/* Panel */}
-          <div className="absolute right-0 top-10 z-50 w-80 rounded-xl border border-border bg-popover shadow-xl overflow-hidden">
+          <div
+            ref={panelRef}
+            role="dialog"
+            aria-label="Notifications"
+            tabIndex={-1}
+            className="absolute right-0 top-10 z-50 w-80 rounded-xl border border-border bg-popover shadow-xl overflow-hidden outline-none"
+          >
             <div className="flex items-center justify-between px-4 py-3 border-b border-border">
               <span className="text-sm font-semibold">
                 Notifications
                 {unreadCount > 0 && (
-                  <span className="ml-2 rounded-full bg-rose-500 text-white text-[10px] font-bold px-1.5 py-0.5">
+                  <span className="ml-2 rounded-full bg-rose-600 text-white text-[10px] font-bold px-1.5 py-0.5">
                     {unreadCount}
                   </span>
                 )}
@@ -118,6 +145,7 @@ export function NotificationBell({
                   type="button"
                   onClick={() => setOpen(false)}
                   className="text-muted-foreground hover:text-foreground transition-colors"
+                  aria-label="Fermer les notifications"
                 >
                   <X className="h-4 w-4" />
                 </button>
@@ -141,17 +169,17 @@ export function NotificationBell({
                         )}
                       >
                         <div className="mt-1 shrink-0">
-                          {!notif.isRead && (
-                            <span className="block h-2 w-2 rounded-full bg-primary" />
-                          )}
-                          {notif.isRead && (
-                            <span className="block h-2 w-2 rounded-full bg-transparent" />
-                          )}
+                          <span
+                            className={cn(
+                              "block h-2 w-2 rounded-full",
+                              notif.isRead ? "bg-transparent" : "bg-primary"
+                            )}
+                          />
                         </div>
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-medium leading-snug">{notif.title}</p>
                           <p className="text-xs text-muted-foreground mt-0.5 leading-snug">{notif.body}</p>
-                          <p className="text-[10px] text-muted-foreground mt-1">{fmtDate(notif.createdAt)}</p>
+                          <p suppressHydrationWarning className="text-[10px] text-muted-foreground mt-1">{fmtDate(notif.createdAt)}</p>
                         </div>
                         {!notif.isRead && (
                           <button

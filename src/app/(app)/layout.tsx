@@ -1,7 +1,8 @@
-import { auth, signOut } from "@/lib/auth"
+import { auth } from "@/lib/auth"
 import { redirect } from "next/navigation"
 import { Sidebar } from "@/components/layout/Sidebar"
 import { AppHeader } from "@/components/layout/AppHeader"
+import { BreadcrumbProvider } from "@/components/layout/BreadcrumbContext"
 import { MobileBottomNav } from "@/components/layout/MobileBottomNav"
 import { InstallPwaPrompt } from "@/components/layout/InstallPwaPrompt"
 import { TimerBanner } from "@/components/layout/TimerBanner"
@@ -9,7 +10,9 @@ import { CommandPalette } from "@/components/layout/CommandPalette"
 import { OnboardingGate } from "@/components/modules/onboarding/OnboardingGate"
 import { NewModulesGate } from "@/components/modules/onboarding/NewModulesGate"
 import { UiTour } from "@/components/modules/onboarding/UiTour"
+import { ModuleScope } from "@/components/layout/ModuleScope"
 import { NotificationBell } from "@/components/modules/notifications/NotificationBell"
+import { AmountsPrivacyToggle } from "@/components/ui/amounts-privacy-toggle"
 import { ensureSelfClient } from "@/actions/user"
 import { getRunningTimer } from "@/actions/timetracking"
 import { ensureUrssafReminderTask } from "@/actions/urssaf"
@@ -43,29 +46,34 @@ export default async function AppLayout({
       .then((profile) => ensureUrssafReminderTask(userId, profile?.urssafFrequency ?? "QUARTERLY")),
   ])
 
-  async function logout() {
-    "use server"
-    await signOut({ redirectTo: "/login" })
-  }
-
   return (
-    <div className="flex h-screen overflow-hidden">
+    <div className="flex h-screen overflow-hidden print:h-auto print:overflow-visible">
+      {/* Scope par compte des clés modules/onboarding — doit être rendu avant le reste */}
+      <ModuleScope userId={userId} />
       <Sidebar />
-      <div className="relative flex flex-1 flex-col overflow-hidden">
+      <div className="relative flex flex-1 flex-col overflow-hidden print:overflow-visible">
         <TimerBanner initialTimer={runningTimer} userId={userId} />
-        {/* Header fixe (desktop) : titre du module + cloche + déconnexion —
-            il ne défile jamais, comme la sidebar */}
-        <AppHeader logoutAction={logout}>
-          <NotificationBell userId={userId} notifications={notifications} />
-        </AppHeader>
-        {/* id consommé par MobileBottomNav : masquage au scroll des boutons
-            flottants (c'est ce conteneur qui scrolle, pas window) */}
-        <main id="app-main" className="flex-1 overflow-y-auto p-3 sm:p-6 pb-24 sm:pb-6">{children}</main>
+        {/* Provider du fil d'Ariane : enveloppe header ET contenu pour que les
+            pages de détail (children) publient le nom de leur entité et que le
+            header (AppBreadcrumbs) le lise. */}
+        <BreadcrumbProvider>
+          {/* Header fixe (desktop) : fil d'Ariane + « Masquer les montants » + cloche —
+              il ne défile jamais, comme la sidebar. La déconnexion est dans Réglages. */}
+          <AppHeader>
+            <span data-tour="notifications" className="inline-flex">
+              <NotificationBell notifications={notifications} />
+            </span>
+          </AppHeader>
+          {/* id consommé par MobileBottomNav : masquage au scroll des boutons
+              flottants (c'est ce conteneur qui scrolle, pas window) */}
+          <main id="app-main" className="flex-1 overflow-y-auto p-3 sm:p-6 pb-24 sm:pb-6 print:overflow-visible print:p-0 print:pb-0">{children}</main>
+        </BreadcrumbProvider>
         {/* Cloche de notifications flottante — mobile uniquement (le header
             desktop porte la sienne) */}
         <div className="absolute top-3 right-4 z-50 sm:hidden">
-          <div className="rounded-lg border border-border/50 bg-background/80 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-background/60">
-            <NotificationBell userId={userId} notifications={notifications} />
+          <div className="flex items-center gap-0.5 rounded-lg border border-border/50 bg-background/80 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-background/60">
+            <AmountsPrivacyToggle />
+            <NotificationBell notifications={notifications} />
           </div>
         </div>
       </div>

@@ -11,6 +11,7 @@ import { QuickActionsBar } from "@/components/modules/dashboard/QuickActionsBar"
 import { ProdMonitorCard } from "@/components/modules/dashboard/ProdMonitorCard"
 import { PendingIncomeCard } from "@/components/modules/dashboard/PendingIncomeCard"
 import { JobHuntCard } from "@/components/modules/dashboard/JobHuntCard"
+import { InvestmentsCard } from "@/components/modules/dashboard/InvestmentsCard"
 import { ConfirmEventsCard } from "@/components/modules/dashboard/ConfirmEventsCard"
 import { InProgressTasksCard } from "@/components/modules/dashboard/InProgressTasksCard"
 import { IncompleteDataSheet } from "@/components/modules/dashboard/IncompleteDataSheet"
@@ -22,9 +23,9 @@ import { STATUS_CONFIG, PIPELINE_STATUSES } from "@/components/modules/prospecti
 export default async function DashboardPage() {
   const session = await auth()
   const userId = session!.user.id
-  const firstName = session?.user?.name?.split(" ")[0] ?? "vous"
+  const firstName = session!.user.name?.split(" ")[0] ?? "vous"
 
-  const enabledModules = await getActiveModules()
+  const enabledModules = await getActiveModules(userId)
   const has = (id: string) => enabledModules.has(id as never)
 
   /* eslint-disable react-hooks/purity */
@@ -163,8 +164,12 @@ export default async function DashboardPage() {
     }),
     prisma.product.findMany({
       where: { userId, isActive: true },
+      select: {
+        id: true, name: true, description: true, unitPrice: true,
+        unit: true, isActive: true, billingType: true, defaultTaxRate: true,
+      },
       orderBy: { name: "asc" },
-    }) as unknown as Array<{ id: string; name: string; description: string | null; unitPrice: number; unit: string; isActive: boolean; billingType: string; defaultTaxRate: number }>,
+    }),
     prisma.quote.findMany({
       where: { userId, status: { notIn: ["DRAFT", "REJECTED"] } },
       select: {
@@ -303,9 +308,11 @@ export default async function DashboardPage() {
       include: { category: { select: { name: true, color: true } } },
       orderBy: { startDate: "asc" },
     }),
-    // Données à compléter — agrégé pour la mise en avant dashboard
+    // Données à compléter — agrégé pour la mise en avant dashboard.
+    // Les PROSPECT sont exclus : leur complétude se gère sur la page Prospection,
+    // pas dans le bandeau « à compléter » du dashboard (demande de Pierre).
     prisma.client.findMany({
-      where: { userId, type: { not: "SELF" } },
+      where: { userId, type: { notIn: ["SELF", "PROSPECT"] } },
       select: { id: true, name: true, company: true, firstName: true, lastName: true, email: true, phone: true },
     }),
     prisma.company.findMany({
@@ -500,7 +507,22 @@ export default async function DashboardPage() {
   }
 
   const hour = new Date().getHours()
-  const greeting = hour < 12 ? "Bonjour" : hour < 18 ? "Bonjour" : "Bonsoir"
+  const greeting = hour < 18 ? "Bonjour" : "Bonsoir"
+
+  // Module Investissements — résumé (fetch séparé, seulement si le module est actif)
+  const investPlatforms = has("investissements")
+    ? await prisma.investmentPlatform.findMany({
+        where: { userId },
+        orderBy: { createdAt: "asc" },
+        include: { entries: { orderBy: { date: "asc" }, select: { date: true, capital: true, contribution: true } } },
+      })
+    : []
+  const investPlatformItems = investPlatforms.map((p) => ({
+    id: p.id,
+    name: p.name,
+    type: p.type,
+    entries: p.entries.map((e) => ({ date: e.date.toISOString(), capital: e.capital, contribution: e.contribution })),
+  }))
 
   return (
     <>
@@ -515,11 +537,13 @@ export default async function DashboardPage() {
 
     {/* Dashboard complet — desktop uniquement */}
     <div className="hidden sm:block space-y-8">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">{greeting}, {firstName} 👋</h1>
-        <p className="text-muted-foreground text-sm">
-          {new Date().toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
-        </p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">{greeting}, {firstName} 👋</h1>
+          <p className="text-muted-foreground text-sm">
+            {new Date().toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
+          </p>
+        </div>
       </div>
 
       {/* Raccourcis */}
@@ -528,7 +552,7 @@ export default async function DashboardPage() {
       {/* KPI row */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
         {has("projets")     && <KPICard href="/projets"              icon={<Code2 className="h-4 w-4" />}     label="Projets actifs"  value={activeProjects}                                        color="indigo" />}
-        {has("facturation") && <KPICard href="/facturation/factures" icon={<TrendingUp className="h-4 w-4" />} label="En attente"       value={`${totalPending.toLocaleString("fr-FR")} €`}           color="blue"  />}
+        {has("facturation") && <KPICard href="/facturation/factures" icon={<TrendingUp className="h-4 w-4" />} label="En attente"       value={<span className="amount-sensitive">{totalPending.toLocaleString("fr-FR")} €</span>} color="blue"  />}
         {has("facturation") && <KPICard href="/facturation/factures" icon={<AlertCircle className="h-4 w-4" />} label="En retard"       value={lateInvoices}                                          color={lateInvoices > 0 ? "red" : "muted"} />}
         {has("facturation") && <KPICard href="/facturation/devis"    icon={<Clock className="h-4 w-4" />}      label="Devis envoyés"   value={pendingQuotes}                                         color="amber" />}
         {has("contacts")    && <KPICard href="/contacts"             icon={<Bell className="h-4 w-4" />}       label="Rappels"         value={upcomingReminders.length}                              color={upcomingReminders.some(r => new Date(r.dueDate) < new Date()) ? "red" : "muted"} />}
@@ -546,20 +570,20 @@ export default async function DashboardPage() {
               <Link href="/facturation/factures" className="group flex items-center gap-1.5 text-xs">
                 <Receipt className="h-3.5 w-3.5 text-violet-500 shrink-0" />
                 <span className="text-muted-foreground group-hover:text-foreground transition-colors">AE</span>
-                <span className="font-semibold tabular-nums text-violet-600">{encaisseAE.toLocaleString("fr-FR")} €</span>
+                <span className="font-semibold tabular-nums text-violet-600 amount-sensitive">{encaisseAE.toLocaleString("fr-FR")} €</span>
               </Link>
             )}
             {has("revenus") && (
               <Link href="/revenus" className="group flex items-center gap-1.5 text-xs">
                 <Wallet className="h-3.5 w-3.5 text-teal-500 shrink-0" />
                 <span className="text-muted-foreground group-hover:text-foreground transition-colors">Autres</span>
-                <span className="font-semibold tabular-nums text-teal-600">{encaisseAutres.toLocaleString("fr-FR")} €</span>
+                <span className="font-semibold tabular-nums text-teal-600 amount-sensitive">{encaisseAutres.toLocaleString("fr-FR")} €</span>
               </Link>
             )}
             <span className="ml-auto flex items-center gap-1.5 text-xs shrink-0">
               <TrendingUp className="h-3.5 w-3.5 text-emerald-500" />
               <span className="text-muted-foreground">Total</span>
-              <span className="font-bold tabular-nums text-emerald-600">{encaisseTotal.toLocaleString("fr-FR")} €</span>
+              <span className="font-bold tabular-nums text-emerald-600 amount-sensitive">{encaisseTotal.toLocaleString("fr-FR")} €</span>
             </span>
           </div>
         )}
@@ -859,16 +883,19 @@ export default async function DashboardPage() {
           {has("projets") && <ProdMonitorCard prods={prods} />}
 
           {/* Entretiens — candidatures actives */}
-          {has("entretien") && <JobHuntCard applications={jobAppItems} activeCount={jobAppItems.length} />}
+          {has("entretien") && <JobHuntCard applications={jobAppItems} />}
+
+          {/* Investissements — résumé capital / bénéfices */}
+          {has("investissements") && <InvestmentsCard platforms={investPlatformItems} />}
 
           {/* Pipeline Prospects */}
           {has("prospection") && dashboardProspects.length > 0 && (
             <div className="rounded-xl border border-border/50 bg-card overflow-hidden">
               <div className="flex items-center justify-between px-4 py-3 border-b border-border/50">
-                <div className="flex items-center gap-2 text-sm font-semibold">
+                <h2 className="flex items-center gap-2 text-sm font-semibold">
                   <span className="text-muted-foreground"><Target className="h-4 w-4" /></span>
                   Prospection
-                </div>
+                </h2>
                 <Link href="/prospection" className="text-xs text-primary hover:underline">Voir tout →</Link>
               </div>
               <div className="p-3 space-y-3">
@@ -1027,7 +1054,7 @@ function KPICard({
   href: string
   icon: React.ReactNode
   label: string
-  value: string | number
+  value: React.ReactNode
   color: "indigo" | "blue" | "amber" | "red" | "emerald" | "muted"
 }) {
   const colorMap = {
@@ -1059,10 +1086,10 @@ function Section({
   return (
     <div className="rounded-xl border border-border/50 bg-card overflow-hidden">
       <div className="flex items-center justify-between px-4 py-3 border-b border-border/50">
-        <div className="flex items-center gap-2 text-sm font-semibold">
+        <h2 className="flex items-center gap-2 text-sm font-semibold">
           <span className="text-muted-foreground">{icon}</span>
           {title}
-        </div>
+        </h2>
         <Link href={href} className="text-xs text-primary hover:underline">Voir tout →</Link>
       </div>
       <div className="p-2">{children}</div>

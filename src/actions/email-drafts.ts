@@ -186,6 +186,62 @@ export async function deleteEmailDraft(id: string) {
   revalidateDraftPaths()
 }
 
+/**
+ * Envoi manuel via Gmail : le mail est réellement envoyé par Pierre depuis sa
+ * boîte (Resend indisponible avec une adresse @gmail.com). Cette action ne fait
+ * que refléter l'envoi côté ERP — même traçabilité que l'envoi Resend :
+ * Interaction EMAIL (avec le modèle tracé), bump TO_CONTACT → CONTACTED,
+ * brouillon marqué SENT + sentAt. À déclencher après avoir cliqué « Envoyé »
+ * dans Gmail. Idempotent si déjà SENT.
+ */
+export async function markDraftSentManually(id: string) {
+  const userId = await requireAuth()
+  const draft = await prisma.emailDraft.findFirst({
+    where: { id, userId },
+    include: { template: { select: { id: true, name: true } } },
+  })
+  if (!draft) throw new Error("Brouillon introuvable")
+  if (draft.status === "SENT") return
+  if (draft.status === "CANCELLED") throw new Error("Ce brouillon a été annulé")
+  if (!isValidEmailAddress(draft.emailTo)) {
+    throw new Error("Destinataire vide ou invalide — renseignez un email valide avant de marquer envoyé")
+  }
+
+  const now = new Date()
+  await prisma.interaction.create({
+    data: {
+      clientId: draft.clientId,
+      date: now,
+      channel: "EMAIL" as InteractionChannel,
+      summary: `Email « ${draft.subject} » envoyé via Gmail (brouillon relu)`,
+      emailTemplateId: draft.templateId ?? undefined,
+      emailTemplateName: draft.template?.name ?? undefined,
+    },
+  })
+  await prisma.client.updateMany({
+    where: { id: draft.clientId, userId, prospectStatus: "TO_CONTACT" },
+    data: { prospectStatus: "CONTACTED" },
+  })
+  await prisma.emailDraft.update({ where: { id: draft.id }, data: { status: "SENT", sentAt: now } })
+  revalidateDraftPaths()
+}
+
+/**
+ * Note (ou efface) une erreur de distribution sur un brouillon : le mail est
+ * bien parti mais a été rejeté / non distribué (bounce). `note` vide/null efface
+ * l'erreur. Scopé par userId (anti-IDOR).
+ */
+export async function setDraftDeliveryError(id: string, note: string | null) {
+  const userId = await requireAuth()
+  const trimmed = note?.trim() || null
+  const { count } = await prisma.emailDraft.updateMany({
+    where: { id, userId },
+    data: { deliveryError: trimmed },
+  })
+  if (count === 0) throw new Error("Brouillon introuvable")
+  revalidateDraftPaths()
+}
+
 // ── Envoi des brouillons relus (Resend) ──────────────────────────────────────
 
 const RESEND_BATCH_SIZE = 100 // limite de l'API batch Resend

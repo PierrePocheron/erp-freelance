@@ -4,9 +4,14 @@ import { useState, useMemo, useCallback, useRef, useEffect, useTransition } from
 import dynamic from "next/dynamic"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { X, Maximize2, ExternalLink, Search, CheckCircle2, Clock, AlertCircle } from "lucide-react"
+import { X, Maximize2, ExternalLink, Search, CheckCircle2, Clock, AlertCircle, Brain } from "lucide-react"
+import { toast } from "sonner"
 import type { RawNode, RawLink, NodeType } from "./graph-types"
 import { NODE_TYPE_LABELS, NODE_BASE_COLORS, nodeColor } from "./graph-types"
+import type { GraphMethods } from "./ForceGraphCanvas"
+import { updateInvoiceStatus } from "@/actions/facturation"
+import { markRevenueReceived, updateRevenue } from "@/actions/revenue"
+import { updateCompany, updateClientAll } from "@/actions/crm"
 
 // ── Labels français des statuts ───────────────────────────────────────────────
 const STATUS_FR: Record<string, string> = {
@@ -21,11 +26,11 @@ const STATUS_FR: Record<string, string> = {
   WISHLIST: "Repéré", APPLIED: "Candidaté", SCREENING: "Pré-qualif",
   INTERVIEW: "Entretien", TECHNICAL: "Test technique", FINAL: "Entretien final",
   OFFER: "Offre reçue", WITHDRAWN: "Désisté", GHOSTED: "Sans réponse",
+  // Compétences
+  TO_ACQUIRE: "À acquérir", LEARNING: "En apprentissage", MASTERED: "Maîtrisée",
+  // Questions techniques
+  TO_REVIEW: "À revoir", REVIEWED: "Revue",
 }
-import type { GraphMethods } from "./ForceGraphCanvas"
-import { updateInvoiceStatus } from "@/actions/facturation"
-import { markRevenueReceived, updateRevenue } from "@/actions/revenue"
-import { updateCompany, updateClientAll } from "@/actions/crm"
 
 // ── Dynamic import — jamais rendu côté serveur ──────────────────────────────
 const ForceGraphCanvas = dynamic(
@@ -79,7 +84,7 @@ function getDescendants(nodeId: string, allNodes: RawNode[]): Set<string> {
 
 // ── Type filter toggles ───────────────────────────────────────────────────────
 
-const ALL_TYPES: NodeType[] = ["SOURCE", "COMPANY", "CLIENT", "PROSPECT", "PERSONAL", "PROJECT", "INVOICE", "QUOTE", "REVENUE", "RESALE", "APPLICATION"]
+const ALL_TYPES: NodeType[] = ["SOURCE", "COMPANY", "CLIENT", "PROSPECT", "PERSONAL", "PROJECT", "INVOICE", "QUOTE", "REVENUE", "RESALE", "APPLICATION", "SKILL", "QUESTION"]
 
 const TYPE_DOT: Record<NodeType, string> = {
   SOURCE:      NODE_BASE_COLORS.SOURCE,
@@ -93,11 +98,31 @@ const TYPE_DOT: Record<NodeType, string> = {
   REVENUE:     NODE_BASE_COLORS.REVENUE,
   RESALE:      NODE_BASE_COLORS.RESALE,
   APPLICATION: NODE_BASE_COLORS.APPLICATION,
+  SKILL:       NODE_BASE_COLORS.SKILL,
+  QUESTION:    NODE_BASE_COLORS.QUESTION,
 }
 
 function getDisplayColor(node: RawNode): string {
   if (node.meta.color) return node.meta.color
   return nodeColor(node)
+}
+
+// Choisit un texte noir ou blanc selon la luminance du fond pour rester lisible
+// (WCAG AA) sur les badges de statut : certaines couleurs sont très pâles
+// (#fed7aa, #a7f3d0, #99f6e4…) et rendaient le texte blanc illisible, d'autres
+// sont sombres (#7c3aed, #6b7280) et exigent du blanc. Seuil de croisement WCAG
+// black/white ≈ 0.179 sur la luminance relative sRGB.
+function readableTextColor(hex: string): string {
+  const h = hex.replace("#", "")
+  const toLin = (c: number) => {
+    const s = c / 255
+    return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4
+  }
+  const lum =
+    0.2126 * toLin(parseInt(h.slice(0, 2), 16)) +
+    0.7152 * toLin(parseInt(h.slice(2, 4), 16)) +
+    0.0722 * toLin(parseInt(h.slice(4, 6), 16))
+  return lum > 0.179 ? "#0f172a" : "#ffffff"
 }
 
 // ── Main component ────────────────────────────────────────────────────────────
@@ -116,7 +141,7 @@ export function GraphView({ rawNodes, rawLinks }: { rawNodes: RawNode[]; rawLink
   )
   const [hiddenTypes, setHidden]    = useState<Set<NodeType>>(new Set())
   const [selected, setSelected]     = useState<RawNode | null>(null)
-  const [activeFilter, setActiveFilter]       = useState<"pending" | "incomplete" | null>(null)
+  const [activeFilter, setActiveFilter]       = useState<"pending" | "incomplete" | "skills" | null>(null)
   // Valeur combinée "company:<id>" | "client:<id>" — un revenu personnel (remboursement
   // d'un proche) n'a souvent qu'un contact, pas de société.
   const [assignParent,   setAssignParent]     = useState("")
@@ -209,6 +234,26 @@ export function GraphView({ rawNodes, rawLinks }: { rawNodes: RawNode[]; rawLink
   // ── Quick filter : nœuds ciblés + tous leurs ancêtres ──────────────────
   const filterVisibleIds = useMemo(() => {
     if (!activeFilter) return null
+    // Préset « Compétences » : sous-graphe compétences + questions + les projets
+    // et entretiens directement reliés (voisins d'arête), sans remonter jusqu'aux
+    // sociétés/clients pour rester focalisé sur « compétences/projets/questions/entretiens ».
+    if (activeFilter === "skills") {
+      const skillNodes   = rawNodes.filter(n => n.type === "SKILL" || n.type === "QUESTION")
+      const skillNodeIds = new Set(skillNodes.map(n => n.id))
+      const result = new Set<string>()
+      skillNodes.forEach(n => {
+        result.add(n.id)
+        getAncestors(n.id, nodeMap).forEach(a => result.add(a)) // compétences parentes + hub
+      })
+      const resolveId = (v: unknown): string =>
+        typeof v === "object" && v !== null ? (v as { id: string }).id : v as string
+      rawLinks.forEach(l => {
+        const s = resolveId(l.source), t = resolveId(l.target)
+        if (skillNodeIds.has(s) && !skillNodeIds.has(t)) result.add(t)
+        if (skillNodeIds.has(t) && !skillNodeIds.has(s)) result.add(s)
+      })
+      return result
+    }
     const seeds: string[] = []
     if (activeFilter === "pending") {
       rawNodes.forEach(n => {
@@ -222,7 +267,7 @@ export function GraphView({ rawNodes, rawLinks }: { rawNodes: RawNode[]; rawLink
     const result = new Set(seeds)
     seeds.forEach(id => getAncestors(id, nodeMap).forEach(a => result.add(a)))
     return result
-  }, [activeFilter, rawNodes, nodeMap])
+  }, [activeFilter, rawNodes, rawLinks, nodeMap])
 
   // Zoom to fit dès qu'on entre en mode focus
   useEffect(() => {
@@ -246,7 +291,7 @@ export function GraphView({ rawNodes, rawLinks }: { rawNodes: RawNode[]; rawLink
       visIds.has(resolveId(l.source)) && visIds.has(resolveId(l.target))
     )
     return { nodes: visNodes, links: visLinks }
-  }, [rawNodes, rawLinks, nodeMap, collapsedIds, hiddenTypes, focusVisibleIds])
+  }, [rawNodes, rawLinks, nodeMap, collapsedIds, hiddenTypes, focusVisibleIds, filterVisibleIds])
 
   // ── IDs atténués et mis en valeur pour le canvas ─────────────────────────
   const dimmedIds = useMemo(() => {
@@ -312,13 +357,18 @@ export function GraphView({ rawNodes, rawLinks }: { rawNodes: RawNode[]; rawLink
   function handleMarkPaid(node: RawNode) {
     startTransition(async () => {
       const dbId = node.id.replace(/^(invoice|revenue)-/, "")
-      if (node.type === "INVOICE") {
-        await updateInvoiceStatus(dbId, "", "PAID")
-      } else if (node.type === "REVENUE") {
-        await markRevenueReceived(dbId, new Date(), "VIREMENT")
+      try {
+        if (node.type === "INVOICE") {
+          await updateInvoiceStatus(dbId, "", "PAID")
+        } else if (node.type === "REVENUE") {
+          const res = await markRevenueReceived(dbId, new Date(), "VIREMENT")
+          if (res?.error) { toast.error(res.error); return }
+        }
+        setSelected(null)
+        router.refresh()
+      } catch {
+        toast.error("Échec de la validation du paiement.")
       }
-      setSelected(null)
-      router.refresh()
     })
   }
 
@@ -329,9 +379,14 @@ export function GraphView({ rawNodes, rawLinks }: { rawNodes: RawNode[]; rawLink
     const dbId = selected.id.replace(/^revenue-/, "")
     const [kind, parentId] = assignParent.split(":")
     startTransition(async () => {
-      await updateRevenue(dbId, kind === "client" ? { clientId: parentId } : { companyId: parentId })
-      setSelected(null)
-      router.refresh()
+      try {
+        const res = await updateRevenue(dbId, kind === "client" ? { clientId: parentId } : { companyId: parentId })
+        if (res?.error) { toast.error(res.error); return }
+        setSelected(null)
+        router.refresh()
+      } catch {
+        toast.error("Échec de l'enregistrement.")
+      }
     })
   }
 
@@ -339,9 +394,13 @@ export function GraphView({ rawNodes, rawLinks }: { rawNodes: RawNode[]; rawLink
     if (!selected || !quickWebsite.trim()) return
     const dbId = selected.id.replace(/^company-/, "")
     startTransition(async () => {
-      await updateCompany(dbId, { website: quickWebsite.trim() })
-      setSelected(null)
-      router.refresh()
+      try {
+        await updateCompany(dbId, { website: quickWebsite.trim() })
+        setSelected(null)
+        router.refresh()
+      } catch {
+        toast.error("Échec de l'enregistrement du site web.")
+      }
     })
   }
 
@@ -351,14 +410,18 @@ export function GraphView({ rawNodes, rawLinks }: { rawNodes: RawNode[]; rawLink
     if (!hasInput) return
     const dbId = selected.id.replace(/^client-/, "")
     startTransition(async () => {
-      await updateClientAll(dbId, {
-        ...(quickFirstName.trim() ? { firstName: quickFirstName.trim() } : {}),
-        ...(quickLastName.trim()  ? { lastName: quickLastName.trim() }   : {}),
-        ...(quickEmail.trim()     ? { email: quickEmail.trim() }         : {}),
-        ...(quickPhone.trim()     ? { phone: quickPhone.trim() }         : {}),
-      })
-      setSelected(null)
-      router.refresh()
+      try {
+        await updateClientAll(dbId, {
+          ...(quickFirstName.trim() ? { firstName: quickFirstName.trim() } : {}),
+          ...(quickLastName.trim()  ? { lastName: quickLastName.trim() }   : {}),
+          ...(quickEmail.trim()     ? { email: quickEmail.trim() }         : {}),
+          ...(quickPhone.trim()     ? { phone: quickPhone.trim() }         : {}),
+        })
+        setSelected(null)
+        router.refresh()
+      } catch {
+        toast.error("Échec de l'enregistrement du contact.")
+      }
     })
   }
 
@@ -400,6 +463,7 @@ export function GraphView({ rawNodes, rawLinks }: { rawNodes: RawNode[]; rawLink
         "[background-size:26px_26px]",
       ].join(" ")}
     >
+      <h1 className="sr-only">Graphe des relations</h1>
 
       {/* ── Canvas ─────────────────────────────────────────────────────────── */}
       <div ref={containerRef} className="flex-1 h-full">
@@ -440,6 +504,7 @@ export function GraphView({ rawNodes, rawLinks }: { rawNodes: RawNode[]; rawLink
               <input
                 ref={searchInputRef}
                 type="text"
+                aria-label="Rechercher un nœud"
                 placeholder="Rechercher…"
                 value={searchQuery}
                 onChange={e => {
@@ -452,8 +517,8 @@ export function GraphView({ rawNodes, rawLinks }: { rawNodes: RawNode[]; rawLink
                 className="bg-transparent text-xs outline-none flex-1 min-w-0 placeholder:text-muted-foreground/50"
               />
               {searchQuery ? (
-                <button onMouseDown={clearSearch} className="text-muted-foreground hover:text-foreground shrink-0">
-                  <X className="h-3 w-3" />
+                <button onMouseDown={clearSearch} aria-label="Effacer la recherche" className="text-muted-foreground hover:text-foreground shrink-0">
+                  <X className="h-3 w-3" aria-hidden="true" />
                 </button>
               ) : (
                 <kbd className="text-[10px] text-muted-foreground/40 bg-muted/60 border border-border/50 px-1 py-0.5 rounded font-mono leading-none shrink-0">/</kbd>
@@ -476,7 +541,7 @@ export function GraphView({ rawNodes, rawLinks }: { rawNodes: RawNode[]; rawLink
                     <span className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: getDisplayColor(n) }} />
                     <span className="flex-1 min-w-0">
                       <span className="font-medium block truncate">{n.label}</span>
-                      {n.meta.subtitle && <span className="text-muted-foreground block truncate">{n.meta.subtitle}</span>}
+                      {n.meta.subtitle && <span className={`text-muted-foreground block truncate${n.meta.subtitle.includes("€") ? " amount-sensitive" : ""}`}>{n.meta.subtitle}</span>}
                     </span>
                     <span className="text-muted-foreground/50 text-[10px] shrink-0">{NODE_TYPE_LABELS[n.type]}</span>
                   </button>
@@ -525,6 +590,26 @@ export function GraphView({ rawNodes, rawLinks }: { rawNodes: RawNode[]; rawLink
               {rawNodes.filter(n => n.incomplete).length}
             </span>
           </button>
+          {rawNodes.some(n => n.type === "SKILL") && (
+            <button
+              onClick={() => {
+                setActiveFilter(f => f === "skills" ? null : "skills")
+                // Le hub Compétences démarre replié : on le déplie en activant le préset
+                setCollapsed(prev => { const next = new Set(prev); next.delete("hub-competences"); return next })
+              }}
+              className={`flex items-center gap-2 w-full rounded-lg px-2.5 py-1.5 text-xs font-medium transition-colors ${
+                activeFilter === "skills"
+                  ? "bg-lime-500/15 text-lime-700 dark:text-lime-400 border border-lime-500/30"
+                  : "hover:bg-muted/60 text-muted-foreground border border-transparent"
+              }`}
+            >
+              <Brain className="h-3.5 w-3.5 shrink-0" />
+              Compétences & questions
+              <span className="ml-auto text-[10px] opacity-60">
+                {rawNodes.filter(n => n.type === "SKILL").length}
+              </span>
+            </button>
+          )}
         </div>
 
         {/* ── Type filters ─────────────────────────────────────────────────── */}
@@ -568,7 +653,7 @@ export function GraphView({ rawNodes, rawLinks }: { rawNodes: RawNode[]; rawLink
             <Maximize2 className="h-3.5 w-3.5" />
             Centrer
           </button>
-          <p className="text-[10px] text-muted-foreground/50 leading-tight">
+          <p className="text-xs text-muted-foreground/80 leading-tight">
             Clic — panneau<br/>Double-clic — réduire
           </p>
         </div>
@@ -597,16 +682,17 @@ export function GraphView({ rawNodes, rawLinks }: { rawNodes: RawNode[]; rawLink
                     {NODE_TYPE_LABELS[selected.type]}
                   </span>
                 </div>
-                <h3 className="font-semibold text-sm leading-tight">{selected.label}</h3>
+                <h2 className="font-semibold text-sm leading-tight">{selected.label}</h2>
                 {selected.meta.subtitle && (
-                  <p className="text-xs text-muted-foreground mt-0.5 truncate">{selected.meta.subtitle}</p>
+                  <p className={`text-xs text-muted-foreground mt-0.5 truncate${selected.meta.subtitle.includes("€") ? " amount-sensitive" : ""}`}>{selected.meta.subtitle}</p>
                 )}
               </div>
               <button
                 onClick={() => setSelected(null)}
+                aria-label="Fermer le panneau"
                 className="shrink-0 text-muted-foreground hover:text-foreground"
               >
-                <X className="h-4 w-4" />
+                <X className="h-4 w-4" aria-hidden="true" />
               </button>
             </div>
 
@@ -619,7 +705,7 @@ export function GraphView({ rawNodes, rawLinks }: { rawNodes: RawNode[]; rawLink
                   {selected.meta.details.map((d, i) => (
                     <div key={i} className="flex items-center justify-between">
                       <span className="text-xs text-muted-foreground">{d.label}</span>
-                      <span className="text-xs font-medium">{d.value}</span>
+                      <span className={`text-xs font-medium${d.value.includes("€") ? " amount-sensitive" : ""}`}>{d.value}</span>
                     </div>
                   ))}
                 </div>
@@ -645,8 +731,11 @@ export function GraphView({ rawNodes, rawLinks }: { rawNodes: RawNode[]; rawLink
                 <div className="flex items-center gap-2">
                   <span className="text-xs text-muted-foreground">Statut</span>
                   <span
-                    className="inline-block rounded-full px-2 py-0.5 text-[10px] font-medium text-white"
-                    style={{ backgroundColor: getDisplayColor(selected) + "cc" }}
+                    className="inline-block rounded-full px-2 py-0.5 text-[10px] font-medium"
+                    style={{
+                      backgroundColor: getDisplayColor(selected),
+                      color: readableTextColor(getDisplayColor(selected)),
+                    }}
                   >
                     {STATUS_FR[selected.status] ?? selected.status}
                   </span>
@@ -671,6 +760,7 @@ export function GraphView({ rawNodes, rawLinks }: { rawNodes: RawNode[]; rawLink
                       <select
                         value={assignParent}
                         onChange={e => setAssignParent(e.target.value)}
+                        aria-label="Affecter à une société ou un contact"
                         className="w-full rounded-lg border border-input bg-background px-2.5 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-primary"
                       >
                         <option value="">— Choisir une société ou un contact…</option>
@@ -715,6 +805,7 @@ export function GraphView({ rawNodes, rawLinks }: { rawNodes: RawNode[]; rawLink
                       <input
                         type="url"
                         value={quickWebsite}
+                        aria-label="Site web"
                         onChange={e => setQuickWebsite(e.target.value)}
                         onKeyDown={e => e.key === "Enter" && handleQuickSaveCompany()}
                         placeholder="https://exemple.com"
@@ -739,6 +830,7 @@ export function GraphView({ rawNodes, rawLinks }: { rawNodes: RawNode[]; rawLink
                         <input
                           type="text"
                           value={quickFirstName}
+                          aria-label="Prénom"
                           onChange={e => setQuickFirstName(e.target.value)}
                           placeholder="Prénom"
                           className="w-full rounded-lg border border-input bg-background px-2.5 py-1.5 text-xs placeholder:text-muted-foreground/40 focus:outline-none focus:ring-1 focus:ring-primary"
@@ -746,6 +838,7 @@ export function GraphView({ rawNodes, rawLinks }: { rawNodes: RawNode[]; rawLink
                         <input
                           type="text"
                           value={quickLastName}
+                          aria-label="Nom"
                           onChange={e => setQuickLastName(e.target.value)}
                           placeholder="Nom"
                           className="w-full rounded-lg border border-input bg-background px-2.5 py-1.5 text-xs placeholder:text-muted-foreground/40 focus:outline-none focus:ring-1 focus:ring-primary"
@@ -754,6 +847,7 @@ export function GraphView({ rawNodes, rawLinks }: { rawNodes: RawNode[]; rawLink
                       <input
                         type="email"
                         value={quickEmail}
+                        aria-label="Adresse e-mail"
                         onChange={e => setQuickEmail(e.target.value)}
                         placeholder="email@exemple.com"
                         className="w-full rounded-lg border border-input bg-background px-2.5 py-1.5 text-xs placeholder:text-muted-foreground/40 focus:outline-none focus:ring-1 focus:ring-primary"
@@ -761,6 +855,7 @@ export function GraphView({ rawNodes, rawLinks }: { rawNodes: RawNode[]; rawLink
                       <input
                         type="tel"
                         value={quickPhone}
+                        aria-label="Téléphone"
                         onChange={e => setQuickPhone(e.target.value)}
                         onKeyDown={e => e.key === "Enter" && handleQuickSaveClient()}
                         placeholder="+33 6 …"
@@ -784,7 +879,7 @@ export function GraphView({ rawNodes, rawLinks }: { rawNodes: RawNode[]; rawLink
               {selected.amount !== undefined && (
                 <div className="rounded-xl border border-border p-3 text-center">
                   <p className="text-xs text-muted-foreground mb-0.5">Montant HT</p>
-                  <p className="text-lg font-bold tabular-nums">
+                  <p className="text-lg font-bold tabular-nums amount-sensitive">
                     {selected.amount.toLocaleString("fr-FR", { minimumFractionDigits: 0 })} €
                   </p>
                 </div>

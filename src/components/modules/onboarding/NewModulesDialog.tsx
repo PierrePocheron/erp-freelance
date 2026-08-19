@@ -3,6 +3,7 @@
 import { useState } from "react"
 import { Check, PartyPopper } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
 import type { ModuleId, NewModulesInfo } from "@/hooks/use-modules"
 
 /**
@@ -30,11 +31,15 @@ export function NewModulesDialog({
     })
   }
 
+  // Fermeture (Échap / clic sur l'overlay / bouton natif) = « Plus tard » : on
+  // n'active aucun nouveau module. Dialog base-ui → piège de focus, aria-modal,
+  // retour du focus gérés automatiquement.
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+    <Dialog open onOpenChange={(o) => { if (!o) onValidate([]) }}>
       {/* max-h + flex-col : sur mobile, une longue liste de modules scrolle
-          au milieu au lieu d'être coupée (header et footer restent visibles) */}
-      <div className="w-full max-w-lg max-h-[85dvh] flex flex-col rounded-2xl bg-background border border-border shadow-2xl overflow-hidden">
+          au milieu (header et footer restent visibles). p-0/gap-0 : chaque section
+          gère son propre padding (comme avant la migration base-ui). */}
+      <DialogContent showCloseButton={false} className="sm:max-w-lg max-h-[85dvh] flex flex-col overflow-hidden p-0 gap-0">
         {/* Header */}
         <div className="px-6 py-5 border-b border-border/50">
           <div className="flex items-center gap-2.5">
@@ -42,9 +47,9 @@ export function NewModulesDialog({
               <PartyPopper className="h-4.5 w-4.5 text-primary" />
             </div>
             <div>
-              <h2 className="text-lg font-bold tracking-tight">
+              <DialogTitle className="text-lg font-bold tracking-tight">
                 {info.modules.length > 1 ? "Nouveaux modules" : "Nouveau module"}
-              </h2>
+              </DialogTitle>
               <p className="text-sm text-muted-foreground">
                 {info.fromVersion ? `Mise à jour v${info.fromVersion} → v${info.toVersion}` : `Version v${info.toVersion}`}
               </p>
@@ -102,7 +107,7 @@ export function NewModulesDialog({
           </button>
           </div>
         </div>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   )
 }

@@ -44,9 +44,15 @@ export function ExpenseDonutChart({
     )
   }
 
+  const chartLabel =
+    `Répartition des dépenses par catégorie, total ${total.toLocaleString("fr-FR", { maximumFractionDigits: 0 })} € : ` +
+    arcs
+      .map((a) => `${a.label} ${a.value.toLocaleString("fr-FR", { maximumFractionDigits: 0 })} € (${Math.round(a.fraction * 100)} %)`)
+      .join(", ")
+
   return (
     <div className="relative inline-flex items-center justify-center shrink-0" style={{ width: size, height: size }}>
-      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="-rotate-90">
+      <svg role="img" aria-label={chartLabel} width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="-rotate-90">
         <circle
           cx={size / 2} cy={size / 2} r={radius}
           fill="none" stroke="currentColor" strokeWidth={strokeWidth}
@@ -73,7 +79,7 @@ export function ExpenseDonutChart({
         {hoveredArc ? (
           <>
             <p className="text-xs text-muted-foreground truncate max-w-full">{hoveredArc.label}</p>
-            <p className="text-lg font-bold tabular-nums" style={{ color: hoveredArc.color }}>
+            <p className="text-lg font-bold tabular-nums amount-sensitive" style={{ color: hoveredArc.color }}>
               {hoveredArc.value.toLocaleString("fr-FR", { maximumFractionDigits: 0 })} €
             </p>
             <p className="text-[10px] text-muted-foreground">{Math.round(hoveredArc.fraction * 100)}%</p>
@@ -81,7 +87,7 @@ export function ExpenseDonutChart({
         ) : (
           <>
             <p className="text-xs text-muted-foreground">Total</p>
-            <p className="text-lg font-bold tabular-nums">
+            <p className="text-lg font-bold tabular-nums amount-sensitive">
               {total.toLocaleString("fr-FR", { maximumFractionDigits: 0 })} €
             </p>
           </>

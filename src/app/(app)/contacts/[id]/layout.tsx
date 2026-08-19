@@ -6,6 +6,7 @@ import { ChevronLeft } from "lucide-react"
 import { ClientTabs } from "@/components/modules/crm/ClientTabs"
 import { ClientTypeSelect } from "@/components/modules/crm/ClientTypeSelect"
 import { ProspectStatusSelect } from "@/components/modules/prospection/ProspectStatusSelect"
+import { SetBreadcrumbLabel } from "@/components/layout/BreadcrumbContext"
 import type { Metadata } from "next"
 
 export async function generateMetadata({
@@ -52,6 +53,8 @@ export default async function ClientLayout({
 
   return (
     <div className="space-y-5">
+      {/* Nomme le crumb dynamique du fil d'Ariane (ex. « Contacts > Jean Dupont ») */}
+      <SetBreadcrumbLabel value={id} label={client.name} />
       <div>
         <Link
           href="/contacts"

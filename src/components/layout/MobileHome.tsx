@@ -52,6 +52,7 @@ export function MobileHome({ pendingAmount, toConfirmCount, incomplete }: Mobile
       {/* Recherche — ouvre la CommandPalette (mêmes fonctionnalités que ⌘K) */}
       <button
         type="button"
+        data-tour="mobile-search"
         onClick={() => window.dispatchEvent(new CustomEvent(OPEN_COMMAND_PALETTE_EVENT))}
         className="flex w-full items-center gap-3 rounded-xl border border-border/50 bg-card px-4 py-3 text-sm text-muted-foreground transition-colors active:bg-accent"
       >
@@ -64,7 +65,7 @@ export function MobileHome({ pendingAmount, toConfirmCount, incomplete }: Mobile
         <h2 className="px-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
           Modules
         </h2>
-        <div className="grid grid-cols-4 gap-2">
+        <div data-tour="mobile-grid" className="grid grid-cols-4 gap-2">
           {tiles.map(({ href, icon: Icon, label }) => (
             <Link
               key={href}
@@ -115,6 +116,7 @@ export function MobileHome({ pendingAmount, toConfirmCount, incomplete }: Mobile
                 label="En attente de réception"
                 value={`${pendingAmount.toLocaleString("fr-FR")} €`}
                 valueClass="text-amber-600"
+                sensitive
               />
             )}
 
@@ -138,13 +140,14 @@ export function MobileHome({ pendingAmount, toConfirmCount, incomplete }: Mobile
 }
 
 function InfoCard({
-  href, icon, label, value, valueClass,
+  href, icon, label, value, valueClass, sensitive,
 }: {
   href: string
   icon: React.ReactNode
   label: string
   value: string | number
   valueClass?: string
+  sensitive?: boolean
 }) {
   return (
     <Link
@@ -153,7 +156,7 @@ function InfoCard({
     >
       {icon}
       <span className="flex-1 text-sm font-medium">{label}</span>
-      <span className={cn("text-sm font-bold tabular-nums", valueClass)}>{value}</span>
+      <span className={cn("text-sm font-bold tabular-nums", sensitive && "amount-sensitive", valueClass)}>{value}</span>
       <ChevronRight className="h-4 w-4 text-muted-foreground" />
     </Link>
   )

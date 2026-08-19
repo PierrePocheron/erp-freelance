@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useTransition } from "react"
+import { useState, useTransition, useId } from "react"
 import { useRouter } from "next/navigation"
 import { Plus, Pencil, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -11,7 +11,8 @@ import {
 import { DatePartsField } from "@/components/ui/date-parts-field"
 import { createExpense, updateExpense, deleteExpense, createRecurringExpense, convertExpenseToRecurring } from "@/actions/expense"
 import { ExpenseCategoryCombobox, type ExpenseCategory } from "./ExpenseCategoryCombobox"
-import { FREQUENCY_LABELS } from "./RecurringExpenseDialog"
+import { FREQUENCY_LABELS } from "@/lib/expense-constants"
+import { toDateInput } from "@/lib/dates"
 
 export type ExpenseForEdit = {
   id: string
@@ -34,6 +35,7 @@ export function ExpenseDialog({
   expense?: ExpenseForEdit
 }) {
   const router = useRouter()
+  const fieldId = useId()
   const isEdit = !!expense
   const [open, setOpen] = useState(false)
   const [isPending, startTransition] = useTransition()
@@ -42,7 +44,7 @@ export function ExpenseDialog({
   const [label, setLabel]           = useState(expense?.label ?? "")
   const [merchant, setMerchant]     = useState(expense?.merchant ?? "")
   const [amount, setAmount]         = useState(expense ? String(expense.amount) : "")
-  const [date, setDate]             = useState(() => new Date(expense?.date ?? new Date()).toISOString().slice(0, 10))
+  const [date, setDate]             = useState(() => toDateInput(new Date(expense?.date ?? new Date())))
   const [scope, setScope]           = useState<"PRO" | "PERSO">(expense?.scope ?? "PERSO")
   const [categoryId, setCategoryId] = useState(expense?.categoryId ?? "")
   const [notes, setNotes]           = useState(expense?.notes ?? "")
@@ -58,7 +60,7 @@ export function ExpenseDialog({
     setLabel("")
     setMerchant("")
     setAmount("")
-    setDate(new Date().toISOString().slice(0, 10))
+    setDate(toDateInput(new Date()))
     setScope("PERSO")
     setCategoryId("")
     setNotes("")
@@ -90,7 +92,7 @@ export function ExpenseDialog({
       } else if (isRecurring) {
         await createRecurringExpense({
           ...shared, frequency, dateToConfirm,
-          nextGenerationDate: new Date(`${date || new Date().toISOString().slice(0, 10)}T00:00:00`),
+          nextGenerationDate: new Date(`${date || toDateInput(new Date())}T00:00:00`),
         })
       } else {
         await createExpense({ ...shared, date: new Date(`${date}T00:00:00`) })
@@ -130,17 +132,17 @@ export function ExpenseDialog({
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-3">
           <div className="space-y-1">
-            <label className="text-xs text-muted-foreground">Libellé</label>
-            <Input value={label} onChange={e => setLabel(e.target.value)} placeholder="Courses, essence, forfait mobile…" required />
+            <label htmlFor={`${fieldId}-libelle`} className="text-xs text-muted-foreground">Libellé</label>
+            <Input id={`${fieldId}-libelle`} value={label} onChange={e => setLabel(e.target.value)} placeholder="Courses, essence, forfait mobile…" required />
           </div>
           <div className="space-y-1">
-            <label className="text-xs text-muted-foreground">Société / enseigne</label>
-            <Input value={merchant} onChange={e => setMerchant(e.target.value)} placeholder="Décathlon, Sephora…" />
+            <label htmlFor={`${fieldId}-merchant`} className="text-xs text-muted-foreground">Société / enseigne</label>
+            <Input id={`${fieldId}-merchant`} value={merchant} onChange={e => setMerchant(e.target.value)} placeholder="Décathlon, Sephora…" />
             <p className="text-[11px] text-muted-foreground">Affichée en préfixe du libellé — sans elle, la dépense reste « à compléter »</p>
           </div>
           <div className="space-y-1">
-            <label className="text-xs text-muted-foreground">Montant (€)</label>
-            <Input type="text" inputMode="decimal" value={amount} onChange={e => setAmount(e.target.value)} placeholder="0.00" required />
+            <label htmlFor={`${fieldId}-amount`} className="text-xs text-muted-foreground">Montant (€)</label>
+            <Input id={`${fieldId}-amount`} type="text" inputMode="decimal" value={amount} onChange={e => setAmount(e.target.value)} placeholder="0.00" required />
           </div>
           <div className="space-y-1">
             <label className="text-xs text-muted-foreground">{!isEdit && isRecurring ? "Prochaine échéance" : "Date"}</label>
@@ -155,8 +157,9 @@ export function ExpenseDialog({
 
           {showFrequency && (
             <div className="space-y-1">
-              <label className="text-xs text-muted-foreground">Fréquence</label>
+              <label htmlFor={`${fieldId}-frequency`} className="text-xs text-muted-foreground">Fréquence</label>
               <select
+                id={`${fieldId}-frequency`}
                 value={frequency}
                 onChange={e => setFrequency(e.target.value as typeof frequency)}
                 className="flex h-9 w-full rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
@@ -185,8 +188,9 @@ export function ExpenseDialog({
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
-              <label className="text-xs text-muted-foreground">Portée</label>
+              <label htmlFor={`${fieldId}-scope`} className="text-xs text-muted-foreground">Portée</label>
               <select
+                id={`${fieldId}-scope`}
                 value={scope}
                 onChange={e => setScope(e.target.value as "PRO" | "PERSO")}
                 className="flex h-9 w-full rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
@@ -196,13 +200,13 @@ export function ExpenseDialog({
               </select>
             </div>
             <div className="space-y-1">
-              <label className="text-xs text-muted-foreground">Catégorie</label>
-              <ExpenseCategoryCombobox categories={categories} value={categoryId} onChange={setCategoryId} />
+              <label htmlFor={`${fieldId}-category`} className="text-xs text-muted-foreground">Catégorie</label>
+              <ExpenseCategoryCombobox id={`${fieldId}-category`} categories={categories} value={categoryId} onChange={setCategoryId} />
             </div>
           </div>
           <div className="space-y-1">
-            <label className="text-xs text-muted-foreground">Notes (optionnel)</label>
-            <Input value={notes} onChange={e => setNotes(e.target.value)} placeholder="Détail, référence…" />
+            <label htmlFor={`${fieldId}-notes`} className="text-xs text-muted-foreground">Notes (optionnel)</label>
+            <Input id={`${fieldId}-notes`} value={notes} onChange={e => setNotes(e.target.value)} placeholder="Détail, référence…" />
           </div>
 
           <div className="flex items-center justify-between pt-1">

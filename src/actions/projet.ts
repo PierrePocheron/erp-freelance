@@ -76,6 +76,7 @@ const CreateProjectSchema = z.object({
   description: z.string().optional(),
   companyId: z.string().optional(),
   contactId: z.string().optional(),
+  jobApplicationId: z.string().optional(),
   category: z.enum(["DEV", "ETUDE", "EVENEMENTIEL", "FORMATION", "PROSPECTION", "AUTRE"]).optional(),
   startDate: z.string().optional(),
   endDate: z.string().optional(),
@@ -86,10 +87,17 @@ export async function createProject(_userId: string, formData: FormData) {
   const userId = await requireAuth()
   const parsed = CreateProjectSchema.parse(Object.fromEntries(formData))
   const contactId = parsed.contactId || null
+  // Anti-IDOR : ne retenir le jobApplicationId que s'il appartient à l'utilisateur
+  let jobApplicationId: string | null = null
+  if (parsed.jobApplicationId) {
+    const app = await prisma.jobApplication.findFirst({ where: { id: parsed.jobApplicationId, userId }, select: { id: true } })
+    jobApplicationId = app?.id ?? null
+  }
   const project = await prisma.project.create({
     data: {
       userId,
       companyId: parsed.companyId || null,
+      jobApplicationId,
       // clientId conservé pour compat facturation (Phase 2 le retirera)
       clientId: contactId,
       name: parsed.name,
@@ -106,6 +114,20 @@ export async function createProject(_userId: string, formData: FormData) {
   })
   revalidatePath("/projets")
   return project
+}
+
+/** Rattache (ou détache) un projet à un entretien. Scopé userId des deux côtés (anti-IDOR). */
+export async function updateProjectJobApplication(projectId: string, jobApplicationId: string | null) {
+  const userId = await requireAuth()
+  if (jobApplicationId) {
+    const app = await prisma.jobApplication.findFirst({ where: { id: jobApplicationId, userId }, select: { id: true } })
+    if (!app) throw new Error("Entretien introuvable")
+  }
+  await prisma.project.findFirstOrThrow({ where: { id: projectId, userId } })
+  await prisma.project.update({ where: { id: projectId }, data: { jobApplicationId } })
+  revalidatePath(`/projets/${projectId}`)
+  revalidatePath("/projets")
+  if (jobApplicationId) revalidatePath(`/entretiens/${jobApplicationId}`)
 }
 
 export async function updateProjectCompany(projectId: string, companyId: string | null) {
@@ -811,13 +833,17 @@ export async function updateJournalEntry(id: string, projectId: string, content:
 }
 
 export async function deleteJournalEntry(id: string, projectId: string) {
-  await prisma.journalEntry.delete({ where: { id } })
+  const userId = await requireAuth()
+  await prisma.journalEntry.deleteMany({ where: { id, project: { userId } } })
   revalidatePath(`/projets/${projectId}`)
 }
 
 // ── Deliverables ───────────────────────────────────────────────────────────
 
 export async function createDeliverable(projectId: string, formData: FormData) {
+  const userId = await requireAuth()
+  const proj = await prisma.project.findFirst({ where: { id: projectId, userId }, select: { id: true } })
+  if (!proj) throw new Error("Projet introuvable")
   await prisma.deliverable.create({
     data: {
       projectId,
@@ -835,7 +861,12 @@ export async function updateDeliverableStatus(
   projectId: string,
   status: "TO_DELIVER" | "DELIVERED" | "VALIDATED"
 ) {
-  await prisma.deliverable.update({ where: { id: deliverableId }, data: { status } })
+  const userId = await requireAuth()
+  const { count } = await prisma.deliverable.updateMany({
+    where: { id: deliverableId, project: { userId } },
+    data: { status },
+  })
+  if (count === 0) throw new Error("Livrable introuvable")
   revalidatePath(`/projets/${projectId}`)
 }
 

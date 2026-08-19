@@ -85,7 +85,7 @@ export function RevenueBars({
         </div>
 
         <span className="ml-auto text-xs text-muted-foreground tabular-nums">
-          {yearTotal > 0 ? yearTotal.toLocaleString("fr-FR") + " € encaissé" : "factures payées"}
+          {yearTotal > 0 ? <span className="amount-sensitive">{yearTotal.toLocaleString("fr-FR")} € encaissé</span> : "factures payées"}
         </span>
       </div>
 
@@ -119,7 +119,7 @@ export function RevenueBars({
               >
                 <p className="font-semibold text-foreground">{MONTHS_FR[m]} {year}</p>
                 <p className={cn("tabular-nums", v > 0 ? "text-primary font-medium" : "text-muted-foreground")}>
-                  {v > 0 ? v.toLocaleString("fr-FR") + " €" : "Aucun encaissement"}
+                  {v > 0 ? <span className="amount-sensitive">{v.toLocaleString("fr-FR")} €</span> : "Aucun encaissement"}
                 </p>
                 {clickable && clickHint && (
                   <p className="text-muted-foreground mt-0.5">{clickHint}</p>

@@ -12,6 +12,10 @@ export const fmtDate = (d: Date | string) =>
 export const fmtDateTime = (d: Date | string) =>
   new Date(d).toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })
 
+// Valeur pour un <input type="date"> (YYYY-MM-DD) — chaîne vide si date absente.
+export const toDateInputValue = (d: Date | string | null | undefined) =>
+  d ? new Date(d).toISOString().split("T")[0] : ""
+
 export const STATUS_CONFIG = {
   WISHLIST:  { label: "Repéré",       short: "Repéré",     cls: "bg-slate-500/15 text-slate-600 border-slate-500/20 dark:text-slate-400", dot: "bg-slate-400",   color: "#94a3b8" },
   APPLIED:   { label: "Candidaté",    short: "Candidaté",  cls: "bg-blue-500/15 text-blue-600 border-blue-500/20",                        dot: "bg-blue-400",    color: "#3b82f6" },
@@ -34,7 +38,8 @@ export const PIPELINE_STATUSES: JobAppStatus[] = [
 ]
 // Étapes de résultat (clôture).
 export const OUTCOME_STATUSES: JobAppStatus[] = ["ACCEPTED", "REJECTED", "WITHDRAWN", "GHOSTED"]
-export const CLOSED_STATUSES: JobAppStatus[] = ["ACCEPTED", "REJECTED", "WITHDRAWN", "GHOSTED"]
+// Statuts de clôture = statuts de résultat (source unique pour éviter la divergence).
+export const CLOSED_STATUSES: JobAppStatus[] = OUTCOME_STATUSES
 
 export const EVENT_TYPE_CONFIG: Record<string, { label: string; icon: string }> = {
   APPLICATION:    { label: "Candidature",    icon: "📨" },
@@ -46,4 +51,20 @@ export const EVENT_TYPE_CONFIG: Record<string, { label: string; icon: string }> 
   TECHNICAL_TEST: { label: "Test technique", icon: "⌨️" },
   OFFER:          { label: "Offre",          icon: "🎯" },
   OTHER:          { label: "Autre",          icon: "•"  },
+}
+
+// Format d'un rendez-vous (présentiel / distanciel / visio…) — utile sur tous les process.
+export const MEETING_FORMATS: { value: string; label: string; icon: string }[] = [
+  { value: "PRESENTIEL", label: "Présentiel",          icon: "🏢" },
+  { value: "TELEPHONE",  label: "Téléphonique",        icon: "📞" },
+  { value: "TEAMS",      label: "Visio — Teams",       icon: "🎥" },
+  { value: "ZOOM",       label: "Visio — Zoom",        icon: "🎥" },
+  { value: "MEET",       label: "Visio — Google Meet", icon: "🎥" },
+  { value: "VISIO",      label: "Visio (autre)",       icon: "🎥" },
+  { value: "DISTANCIEL", label: "Distanciel",          icon: "💻" },
+]
+
+/** Config d'un format de RDV depuis sa valeur stockée (ou null si absent/inconnu). */
+export function meetingFormat(value: string | null | undefined) {
+  return value ? MEETING_FORMATS.find((f) => f.value === value) ?? null : null
 }

@@ -30,6 +30,7 @@ model User {
   emailLogs         EmailLog[]
   emailTemplates    EmailTemplate[]
   callTemplates     CallTemplate[]
+  interviewAnswers  InterviewAnswer[]
   pushSubscriptions PushSubscription[]
   calendarEvents      CalendarEvent[]
   calendarCategories  CalendarCategory[]
@@ -55,6 +56,9 @@ model User {
   jobApplications     JobApplication[]
   urssafDeclarations  UrssafDeclaration[]
   emailDrafts         EmailDraft[]
+  skills              Skill[]
+  interviewQuestions  InterviewQuestion[]
+  investmentPlatforms InvestmentPlatform[]
 }
 
 model ProjectIdea {
@@ -102,6 +106,10 @@ model UserProfile {
   // Seuil de fraîcheur de la synchro auto à l'ouverture (minutes) : pas de
   // nouvelle synchro si la dernière remonte à moins que ça. 0 = toujours synchroniser.
   calendarSyncThresholdMin Int @default(30)
+
+  // ── Prospection ─────────────────────────────────────────────────────────
+  followUpDelayDays  Int     @default(7) // délai (jours) avant de proposer une relance
+  followUpTemplateId String?             // modèle d'email pré-sélectionné pour les relances
 
   // ── Fiscalité / imposition ──────────────────────────────────────────────
   legalStatus          String               @default("AUTO_ENTREPRENEUR") // AUTO_ENTREPRENEUR | EI | EURL | SASU | OTHER
@@ -410,6 +418,7 @@ model Client {
   revenues          Revenue[]          @relation("RevenueClient")
   recurringRevenues RecurringRevenue[] @relation("RecurringRevenueClient")
   jobApplications   JobApplication[]   @relation("RecruiterApplications")
+  jobEventLinks     JobApplicationEvent[] @relation("EventContact")
   emailLogs         EmailLog[]
   emailDrafts       EmailDraft[]
 
@@ -424,9 +433,12 @@ model Interaction {
   summary   String
   response  String?
   emailUrl  String?            // lien profond vers le mail (Gmail...) pour y accéder en 1 clic
+  emailTemplateId   String?    // modèle d'email utilisé (traçabilité envois/relances)
+  emailTemplateName String?    // snapshot du nom du modèle (survit à archivage/suppression)
   createdAt DateTime           @default(now())
 
-  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  client        Client         @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  emailTemplate EmailTemplate? @relation(fields: [emailTemplateId], references: [id], onDelete: SetNull)
 }
 
 model Reminder {
@@ -566,6 +578,7 @@ model Project {
   // clientId reste nullable pour compatibilité facturation (Phase 2 le supprimera)
   clientId       String?
   companyId      String?
+  jobApplicationId String?     // entretien d'où provient le projet (ex. challenge technique)
   name           String
   description    String?
   status         ProjectStatus @default(ACTIVE)
@@ -580,6 +593,7 @@ model Project {
   user              User               @relation(fields: [userId], references: [id], onDelete: Cascade)
   client            Client?            @relation("ProjectClient", fields: [clientId], references: [id], onDelete: SetNull)
   company           Company?           @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  jobApplication    JobApplication?    @relation(fields: [jobApplicationId], references: [id], onDelete: SetNull)
   contactLinks      ProjectContact[]
   milestones        Milestone[]
   tasks             Task[]
@@ -596,8 +610,10 @@ model Project {
   members           ProjectMember[]
   revenues          Revenue[]          @relation("RevenueProject")
   recurringRevenues RecurringRevenue[] @relation("RecurringRevenueProject")
+  skills            ProjectSkill[]
 
   @@index([companyId])
+  @@index([jobApplicationId])
 }
 
 enum ProjectMemberRole {
@@ -685,6 +701,7 @@ model Task {
   // Rappel de déclaration URSSAF auto-généré : "2026-T2". Marquée DONE
   // automatiquement quand la déclaration correspondante est déclarée/payée.
   urssafPeriod   String?
+  skillId        String?      // bloc « Travailler cette compétence » (module Compétences)
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
 
@@ -696,6 +713,7 @@ model Task {
   subTasks    Task[]       @relation("SubTasks")
   timeEntries TimeEntry[]
   taskTags    TaskTag[]    @relation("TaskToTaskTag")
+  skill       Skill?       @relation(fields: [skillId], references: [id], onDelete: SetNull)
 
   @@index([userId, urssafPeriod])
 }
@@ -1081,11 +1099,13 @@ model EmailTemplate {
   subject   String
   body      String
   sortOrder Int      @default(0) // ordre d'affichage personnalisé (drag & drop)
+  archivedAt DateTime?          // archivé = masqué des sélecteurs, conservé pour l'historique
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  user   User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-  drafts EmailDraft[]
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  drafts       EmailDraft[]
+  interactions Interaction[]
 
   @@index([userId])
 }
@@ -1103,6 +1123,26 @@ model CallTemplate {
   updatedAt DateTime @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+/// Réponse-type / FAQ de préparation d'entretien : une question fréquente et sa
+/// réponse préparée, cherchables par mots-clés. Équivalent « entretien » des
+/// modèles de prospection (question + réponse libre, catégorie optionnelle).
+model InterviewAnswer {
+  id        String   @id @default(cuid())
+  userId    String
+  question  String
+  answer    String
+  category  String?                  // ex: Présentation, Motivation, Technique, Salaire
+  pinned    Boolean  @default(false)  // épinglée en tête
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user         User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  applications JobApplication[] @relation("AnswerApplications") // candidatures où ce modèle a été utilisé
 
   @@index([userId])
 }
@@ -1128,6 +1168,9 @@ model EmailDraft {
   missingVars String?          // clés {{var}} restées vides à la génération, séparées par des virgules
   status      EmailDraftStatus @default(DRAFT)
   sentAt      DateTime?
+  // Erreur de distribution notée manuellement après envoi (email rejeté / non
+  // distribué). Non-null = le mail a bouncé ; le texte est le détail affiché.
+  deliveryError String?
   createdAt   DateTime         @default(now())
   updatedAt   DateTime         @updatedAt
 
@@ -1561,7 +1604,16 @@ model JobApplication {
   appliedAt   DateTime?                           // date de candidature
   nextActionAt    DateTime?                        // prochain point / RDV
   nextActionLabel String?                          // libellé du prochain point
+  nextActionFormat String?                         // format du RDV (présentiel, téléphonique, visio Teams/Zoom/Meet, distanciel…)
   closedAt    DateTime?                           // date de clôture (accepté/refusé/désisté)
+
+  // Dossier de compétences — parfois demandé après le premier entretien
+  competencyDossierValidated Boolean @default(false) // rempli/validé par le candidat
+  competencyDossierUrl       String?                 // lien pour le consulter
+
+  // Synchro vers l'agenda Google (push unidirectionnel du prochain point planifié)
+  googleEventId  String?
+  googleSyncedAt DateTime?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1570,6 +1622,10 @@ model JobApplication {
   company Company?              @relation(fields: [companyId], references: [id], onDelete: SetNull)
   contact Client?               @relation("RecruiterApplications", fields: [contactId], references: [id], onDelete: SetNull)
   events  JobApplicationEvent[]
+  usedAnswers InterviewAnswer[] @relation("AnswerApplications") // modèles/réponses utilisés sur ce process
+  requiredSkills JobApplicationSkill[]  // stack demandée par le poste
+  questions      InterviewQuestion[]    // questions posées lors de ce process
+  projects       Project[]              // projets rattachés (ex. challenge technique)
 
   @@index([userId])
   @@index([companyId])
@@ -1581,6 +1637,7 @@ model JobApplicationEvent {
   id            String       @id @default(cuid())
   userId        String
   applicationId String
+  contactId     String?                    // interlocuteur de ce point (un recrutement a souvent plusieurs contacts)
   date          DateTime
   type          JobEventType @default(OTHER)
   title         String
@@ -1591,9 +1648,11 @@ model JobApplicationEvent {
   createdAt DateTime @default(now())
 
   application JobApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  contact     Client?        @relation("EventContact", fields: [contactId], references: [id], onDelete: SetNull)
 
   @@index([userId])
   @@index([applicationId])
+  @@index([contactId])
 }
 
 // ─── Fiscalité — déclarations URSSAF (auto-entrepreneur) ─────────────────────
@@ -1668,4 +1727,164 @@ model UrssafDeclarationLine {
   revenue     Revenue?          @relation(fields: [revenueId], references: [id], onDelete: SetNull)
 
   @@index([declarationId])
+}
+
+// ─── Compétences & connaissances ──────────────────────────────────────────────
+
+enum SkillType {
+  HARD
+  SOFT
+}
+
+enum SkillStatus {
+  TO_ACQUIRE // à acquérir
+  LEARNING   // en cours d'acquisition
+  MASTERED   // maîtrisée
+}
+
+enum ProjectSkillRole {
+  USED       // techno réellement utilisée sur le projet
+  TO_ACQUIRE // compétence à acquérir via ce projet
+}
+
+enum QuestionStatus {
+  TO_REVIEW
+  REVIEWED
+}
+
+/// Compétence (hard ou soft), organisée en arbre : Catégorie › Techno › Sous-sujet.
+model Skill {
+  id              String      @id @default(cuid())
+  userId          String
+  parentId        String?     // arbre (null = racine / catégorie de plus haut niveau)
+  name            String
+  type            SkillType   @default(HARD)
+  level           Int         @default(0)  // 0 Aucune · 1 Notions · 2 Junior · 3 Confirmé · 4 Avancé · 5 Expert
+  targetVersion   String?     // version visée sur le nœud (ex. "Spring 4")
+  status          SkillStatus @default(TO_ACQUIRE)
+  yearsExperience Float?      // années d'expérience
+  notes           String?     // notes / ressources (base de connaissances)
+  sortOrder       Int         @default(0)
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  user     User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  parent   Skill?  @relation("SkillTree", fields: [parentId], references: [id], onDelete: SetNull)
+  children Skill[] @relation("SkillTree")
+
+  projects        ProjectSkill[]
+  jobApplications JobApplicationSkill[]
+  questions       QuestionSkill[]
+  tasks           Task[]
+
+  @@index([userId])
+  @@index([parentId])
+}
+
+/// Lien Projet ↔ Compétence : version réellement utilisée + rôle (utilisée / à acquérir).
+model ProjectSkill {
+  id        String           @id @default(cuid())
+  projectId String
+  skillId   String
+  version   String?          // version utilisée dans CE projet (ex. "4 + FRN")
+  role      ProjectSkillRole @default(USED)
+  note      String?
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  skill   Skill   @relation(fields: [skillId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, skillId])
+  @@index([skillId])
+}
+
+/// Lien Entretien ↔ Compétence : stack demandée par le poste.
+model JobApplicationSkill {
+  id            String @id @default(cuid())
+  applicationId String
+  skillId       String
+
+  application JobApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  skill       Skill          @relation(fields: [skillId], references: [id], onDelete: Cascade)
+
+  @@unique([applicationId, skillId])
+  @@index([skillId])
+}
+
+/// Question technique (d'entretien ou de culture) à retenir / revoir.
+model InterviewQuestion {
+  id            String         @id @default(cuid())
+  userId        String
+  applicationId String?        // entretien d'où provient la question
+  question      String
+  answer        String?        // réponse / notes à revoir
+  difficulty    Int?           // 1 facile · 2 moyen · 3 difficile
+  status        QuestionStatus @default(TO_REVIEW)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  user        User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  application JobApplication? @relation(fields: [applicationId], references: [id], onDelete: SetNull)
+  skills      QuestionSkill[]
+
+  @@index([userId])
+  @@index([applicationId])
+}
+
+/// Lien Question ↔ Compétence (le(s) thème(s) de la question).
+model QuestionSkill {
+  id         String @id @default(cuid())
+  questionId String
+  skillId    String
+
+  question InterviewQuestion @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  skill    Skill             @relation(fields: [skillId], references: [id], onDelete: Cascade)
+
+  @@unique([questionId, skillId])
+  @@index([skillId])
+}
+
+// ── Module Investissements ────────────────────────────────────────────────────
+// Valeurs « preset » historiques du type de plateforme. Le champ InvestmentPlatform.type
+// est désormais une chaîne LIBRE (types personnalisés saisis par l'utilisateur) : cet enum
+// n'est plus référencé par un champ, il documente les codes presets connus (mappés à une
+// icône/couleur dans INVESTMENT_TYPE_META). Conservé pour ne pas DROP le type Postgres.
+enum InvestmentType {
+  CROWDLENDING   // Prêts entre particuliers (P2P lending)
+  CROWDFUNDING   // Financement participatif
+  IMMOBILIER     // Immobilier participatif (ex. Bricks)
+  PEA            // Plan d'Épargne en Actions / Bourse
+  AUTRE
+}
+
+model InvestmentPlatform {
+  id        String         @id @default(cuid())
+  userId    String
+  name      String
+  type      String         @default("CROWDLENDING")  // preset (cf. enum InvestmentType) ou type personnalisé libre
+  url       String?                            // lien d'accès rapide à la plateforme
+  currency  String         @default("EUR")
+  notes     String?
+  sortOrder Int            @default(0)
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+
+  user    User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  entries InvestmentEntry[]
+
+  @@index([userId])
+}
+
+model InvestmentEntry {
+  id           String   @id @default(cuid())
+  platformId   String
+  date         DateTime                        // date de l'entrée (relevé ou dépôt)
+  capital      Float?                          // valorisation totale (relevé) ; null pour un dépôt/retrait pur
+  contribution Float    @default(0)            // apport net de la poche (+ dépôt / − retrait) ; 0 pour un relevé pur
+  note         String?
+  createdAt    DateTime @default(now())
+
+  platform InvestmentPlatform @relation(fields: [platformId], references: [id], onDelete: Cascade)
+
+  @@index([platformId])
+  @@index([platformId, date])
 }

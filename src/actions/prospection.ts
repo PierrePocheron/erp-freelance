@@ -125,7 +125,12 @@ export async function updateProspectsStatusBulk(clientIds: string[], status: Pro
  * (canal choisi) sur chacun, et avance le statut TO_CONTACT → CONTACTED
  * (les statuts plus avancés ne sont pas rétrogradés).
  */
-export async function markProspectsContacted(clientIds: string[], channel: InteractionChannel, note?: string) {
+export async function markProspectsContacted(
+  clientIds: string[],
+  channel: InteractionChannel,
+  note?: string,
+  template?: { id: string; name: string } | null,
+) {
   const userId = await requireAuth()
   // Anti-IDOR : ne retient que les ids appartenant réellement à l'utilisateur.
   const owned = await prisma.client.findMany({
@@ -144,6 +149,8 @@ export async function markProspectsContacted(clientIds: string[], channel: Inter
       date: now,
       channel,
       summary: note?.trim() || `${channelLabels[channel] ?? "Contact"} de prospection`,
+      emailTemplateId: template?.id ?? null,
+      emailTemplateName: template?.name ?? null,
     })),
   })
   await prisma.client.updateMany({
@@ -280,21 +287,24 @@ export async function deleteProspects(clientIds: string[]) {
 // signature Gmail de Pierre, PAS dans le corps → Gmail l'ajoute automatiquement.
 const DEFAULT_EMAIL_TEMPLATES = [
   {
-    name: "1er contact — offre mensuelle",
-    subject: "Une idée pour améliorer votre site",
+    name: "1er contact — appel 10 min + démo",
+    subject: "J'ai commencé un nouveau site pour {{societe}}",
     sortOrder: 0,
     body: `Bonjour,
 
-Développeur web indépendant depuis plusieurs années, j'accompagne les PME et TPE dans leurs projets web.
+Je m'appelle Pierre, développeur web indépendant à Lyon. J'accompagne des TPE et des artisans depuis plusieurs années sur leurs projets web et l'amélioration de leur site internet.
 
-Je suis tombé sur votre site ({{site}}) et j'ai des idées concrètes pour le rendre plus moderne, plus rapide et mieux visible sur Google.
+Je suis tombé sur le vôtre ({{societe}}) et il m'a donné envie de m'y pencher, j'ai déjà commencé à vous préparer une nouvelle version, plus moderne et plus rapide, ainsi qu'un pré-audit de votre site actuel, afin de vous montrer concrètement ce que ça pourrait donner.
 
-Je propose une formule tout compris au mois — création, hébergement, maintenance et mises à jour — sans les engagements de plusieurs années qu'on voit souvent ailleurs.
+Beaucoup de commerces paient chaque mois pour un site qui ne leur rapporte pas grand-chose. Je trouve ça dommage, et surtout ça peut être bien mieux, pour bien moins cher.
 
-Est-ce que ça vous dirait d'en discuter 15 min, sans engagement ? Je vous montre ce qu'on pourrait faire ensemble.
+Est-ce qu'on pourrait **s'appeler une dizaine de minutes** ? Je vous présente rapidement mon travail et ce que j'ai commencé pour vous.
 
-Bonne journée,
-Pierre — Pedro Dev, développeur web à Lyon`,
+C'est sans aucun engagement et rassurez-vous, je ne suis pas là pour vous vendre quelque chose dont vous n'avez pas besoin. L'idée, c'est simplement d'échanger sur comment améliorer votre site et présence sur le web tout en payant moins.
+
+Si ça vous dit, répondez-moi avec un créneau qui vous arrange (ou votre numéro) et je vous rappelle.
+
+Bonne journée,`,
   },
   {
     name: "Relance (J+5)",
@@ -343,6 +353,49 @@ export async function getOrCreateDefaultEmailTemplates() {
   })
 }
 
+export type EmailTemplateStat = { prospects: number; replied: number }
+
+/**
+ * Taux de réponse par modèle d'email — attribution « dernier modèle envoyé ».
+ *
+ * Pour chaque prospect ayant au moins un email tracé sur un modèle (Interaction
+ * avec emailTemplateId), on retient le modèle de son envoi le plus récent
+ * (last-touch), puis on regarde s'il a répondu — défini par un statut ayant
+ * dépassé « Contacté » : REPLIED, IN_DISCUSSION ou WON. Le taux d'un modèle vaut
+ * donc « prospects passés à Répondu+ » / « prospects dont c'est le dernier modèle
+ * envoyé ». Les envois d'un modèle supprimé (emailTemplateId null) sont ignorés —
+ * ils ne figurent plus dans la liste affichée.
+ */
+export async function getEmailTemplateStats(): Promise<Record<string, EmailTemplateStat>> {
+  const userId = await requireAuth()
+  const interactions = await prisma.interaction.findMany({
+    where: { emailTemplateId: { not: null }, client: { userId } },
+    orderBy: { date: "asc" },
+    select: {
+      clientId: true,
+      emailTemplateId: true,
+      client: { select: { prospectStatus: true } },
+    },
+  })
+
+  // Dernier modèle envoyé par prospect : trié par date croissante, la dernière
+  // écriture dans la map l'emporte (= l'interaction la plus récente).
+  const lastByClient = new Map<string, { templateId: string; status: ProspectStatus }>()
+  for (const i of interactions) {
+    if (!i.emailTemplateId) continue
+    lastByClient.set(i.clientId, { templateId: i.emailTemplateId, status: i.client.prospectStatus })
+  }
+
+  const RESPONDED: ProspectStatus[] = ["REPLIED", "IN_DISCUSSION", "WON"]
+  const stats: Record<string, EmailTemplateStat> = {}
+  for (const { templateId, status } of lastByClient.values()) {
+    const s = (stats[templateId] ??= { prospects: 0, replied: 0 })
+    s.prospects++
+    if (RESPONDED.includes(status)) s.replied++
+  }
+  return stats
+}
+
 export async function createEmailTemplate(data: { name: string; subject: string; body: string }) {
   const userId = await requireAuth()
   const name = data.name.trim()
@@ -368,6 +421,22 @@ export async function deleteEmailTemplate(templateId: string) {
   const userId = await requireAuth()
   await prisma.emailTemplate.deleteMany({ where: { id: templateId, userId } })
   revalidatePath("/prospection/modeles")
+}
+
+/**
+ * Archive / désarchive un modèle. Un modèle archivé est masqué des sélecteurs
+ * d'envoi mais conservé (l'historique des envois continue de pointer dessus).
+ * À utiliser quand on refond un modèle plutôt que de l'écraser.
+ */
+export async function setEmailTemplateArchived(templateId: string, archived: boolean) {
+  const userId = await requireAuth()
+  const updated = await prisma.emailTemplate.updateMany({
+    where: { id: templateId, userId },
+    data: { archivedAt: archived ? new Date() : null },
+  })
+  if (updated.count === 0) throw new Error("Non autorisé")
+  revalidatePath("/prospection/modeles")
+  revalidatePath("/prospection")
 }
 
 /**
@@ -517,6 +586,8 @@ export async function sendProspectionEmails(templateId: string, clientIds: strin
             date: now,
             channel: "EMAIL" as InteractionChannel,
             summary: `Email "${template.name}" envoyé via l'ERP`,
+            emailTemplateId: template.id,
+            emailTemplateName: template.name,
           })),
         })
         await prisma.client.updateMany({
@@ -579,6 +650,7 @@ export async function logProspectAction(
   clientId: string,
   kind: Exclude<ProspectEventKind, "STATUS_CHANGE">,
   note?: string,
+  template?: { id: string; name: string } | null,
 ) {
   const userId = await requireAuth()
   const current = await prisma.client.findFirst({
@@ -613,7 +685,11 @@ export async function logProspectAction(
       },
     })
     await tx.interaction.create({
-      data: { clientId, date: now, channel: interaction.channel, summary: interaction.summary },
+      data: {
+        clientId, date: now, channel: interaction.channel, summary: interaction.summary,
+        emailTemplateId: template?.id ?? null,
+        emailTemplateName: template?.name ?? null,
+      },
     })
     return ev
   })

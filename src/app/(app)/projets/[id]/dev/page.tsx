@@ -48,8 +48,11 @@ export default async function ProjectDevPage({
   const session = await auth()
   const userId = session!.user.id
 
-  // Migration one-shot : si des anciennes tâches-groupe existent, les convertir en tags
-  const hasGroups = await prisma.task.count({ where: { projectId: id, isGroup: true } })
+  // Migration one-shot : si des anciennes tâches-groupe existent, les convertir en tags.
+  // Scopé au propriétaire (relation project.userId) pour ne pas exécuter de requête
+  // non filtrée avant le contrôle d'accès : un non-propriétaire obtient 0 → aucune
+  // migration déclenchée, puis notFound() via le findFirst scopé ci-dessous.
+  const hasGroups = await prisma.task.count({ where: { projectId: id, isGroup: true, project: { userId } } })
   if (hasGroups > 0) {
     await migrateGroupsToTags(id)
     redirect(`/projets/${id}/dev`)
@@ -172,7 +175,7 @@ export default async function ProjectDevPage({
                     const next = d.status === "TO_DELIVER" ? "DELIVERED" : d.status === "DELIVERED" ? "VALIDATED" : "TO_DELIVER"
                     await updateDeliverableStatus(d.id, id, next)
                   }}>
-                    <button type="submit" className="text-muted-foreground hover:text-primary">
+                    <button type="submit" aria-label={`Changer le statut du livrable ${d.name}`} className="text-muted-foreground hover:text-primary">
                       {d.status === "VALIDATED" ? <CheckCircle2 className="h-4 w-4 text-emerald-500" /> : d.status === "DELIVERED" ? <Clock className="h-4 w-4 text-amber-500" /> : <Circle className="h-4 w-4" />}
                     </button>
                   </form>

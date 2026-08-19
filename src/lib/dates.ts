@@ -3,6 +3,17 @@
 
 const DAY_MS = 24 * 60 * 60 * 1000
 
+// Formate une Date en "YYYY-MM-DD" en heure LOCALE, pour pré-remplir un champ date
+// (<input type="date"> ou champ maison). NE PAS utiliser toISOString().slice(0,10) :
+// il bascule l'instant en UTC, donc une date stockée à minuit local en fuseau UTC+
+// (Paris) recule d'un jour à l'affichage — et se corrompt à chaque ré-enregistrement,
+// car la sauvegarde, elle, reconstruit la date en heure locale (`${v}T00:00:00`).
+export function toDateInput(date: Date): string {
+  const d = new Date(date)
+  const pad = (n: number) => String(n).padStart(2, "0")
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+}
+
 // Ajoute n mois à une date en clonant (ne mute pas l'argument). S'appuie sur
 // Date.setMonth, qui gère le report d'année et la normalisation des jours.
 export function addMonths(date: Date, months: number): Date {

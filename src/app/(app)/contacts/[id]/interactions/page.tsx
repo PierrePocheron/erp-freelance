@@ -55,12 +55,13 @@ export default async function ClientInteractionsPage({
             className="space-y-3"
           >
             <div className="space-y-1">
-              <label className="text-xs text-muted-foreground">Date</label>
-              <Input name="date" type="date" defaultValue={today} required className="h-8" />
+              <label htmlFor="interaction-date" className="text-xs text-muted-foreground">Date</label>
+              <Input id="interaction-date" name="date" type="date" defaultValue={today} required className="h-8" />
             </div>
             <div className="space-y-1">
-              <label className="text-xs text-muted-foreground">Canal</label>
+              <label htmlFor="interaction-channel" className="text-xs text-muted-foreground">Canal</label>
               <select
+                id="interaction-channel"
                 name="channel"
                 className="flex h-8 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
               >
@@ -70,8 +71,9 @@ export default async function ClientInteractionsPage({
               </select>
             </div>
             <div className="space-y-1">
-              <label className="text-xs text-muted-foreground">Résumé *</label>
+              <label htmlFor="interaction-summary" className="text-xs text-muted-foreground">Résumé *</label>
               <textarea
+                id="interaction-summary"
                 name="summary"
                 rows={3}
                 required
@@ -80,8 +82,9 @@ export default async function ClientInteractionsPage({
               />
             </div>
             <div className="space-y-1">
-              <label className="text-xs text-muted-foreground">Réponse / Suite</label>
+              <label htmlFor="interaction-response" className="text-xs text-muted-foreground">Réponse / Suite</label>
               <textarea
+                id="interaction-response"
                 name="response"
                 rows={2}
                 placeholder="Action prévue, réponse attendue..."
@@ -89,8 +92,9 @@ export default async function ClientInteractionsPage({
               />
             </div>
             <div className="space-y-1">
-              <label className="text-xs text-muted-foreground">Lien vers le mail (optionnel)</label>
+              <label htmlFor="interaction-emailUrl" className="text-xs text-muted-foreground">Lien vers le mail (optionnel)</label>
               <Input
+                id="interaction-emailUrl"
                 name="emailUrl"
                 type="url"
                 placeholder="https://mail.google.com/mail/u/0/#inbox/..."

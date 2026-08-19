@@ -40,7 +40,16 @@ export async function resolveEmitter(opts: {
 }): Promise<{ emitter: EmitterBlock; accentColor: string | null; branding: PdfBranding }> {
   const { userId, emitterProfileId, userName, userEmail } = opts
 
-  const p = await prisma.userProfile.findUnique({ where: { userId } }).catch(() => null)
+  // Les deux lectures sont indépendantes (le branding vient de UserProfile, le
+  // bloc émetteur de EmitterProfile) → on les lance en parallèle pour économiser
+  // un aller-retour DB à chaque génération de PDF.
+  const [p, e] = await Promise.all([
+    prisma.userProfile.findUnique({ where: { userId } }).catch(() => null),
+    emitterProfileId
+      ? prisma.emitterProfile.findFirst({ where: { id: emitterProfileId, userId } })
+      : Promise.resolve(null),
+  ])
+
   const branding: PdfBranding = {
     // Défauts dynamiques : initiales de l'utilisateur (logo) et raison
     // sociale/nom (sous-titre) — un profil vierge produit déjà un PDF marqué.
@@ -49,29 +58,26 @@ export async function resolveEmitter(opts: {
     backgroundColor: p?.pdfBackgroundColor ?? null,
   }
 
-  if (emitterProfileId) {
-    const e = await prisma.emitterProfile.findFirst({ where: { id: emitterProfileId, userId } })
-    if (e) {
-      return {
-        accentColor: e.pdfAccentColor,
-        branding,
-        emitter: {
-          name: userName ?? "Freelance",
-          email: e.email ?? userEmail ?? "",
-          // À défaut de raison sociale, on retombe sur le libellé interne pour
-          // ne pas laisser le bloc sans marque.
-          companyName: e.companyName?.trim() || e.name,
-          address: e.address,
-          postalCode: e.postalCode,
-          city: e.city,
-          siret: e.siret,
-          phone: e.phone,
-          website: e.website,
-          bankName: e.bankName,
-          iban: e.iban,
-          bic: e.bic,
-        },
-      }
+  if (e) {
+    return {
+      accentColor: e.pdfAccentColor,
+      branding,
+      emitter: {
+        name: userName ?? "Freelance",
+        email: e.email ?? userEmail ?? "",
+        // À défaut de raison sociale, on retombe sur le libellé interne pour
+        // ne pas laisser le bloc sans marque.
+        companyName: e.companyName?.trim() || e.name,
+        address: e.address,
+        postalCode: e.postalCode,
+        city: e.city,
+        siret: e.siret,
+        phone: e.phone,
+        website: e.website,
+        bankName: e.bankName,
+        iban: e.iban,
+        bic: e.bic,
+      },
     }
   }
 

@@ -1,9 +1,10 @@
 "use client"
 
-import { useState, useTransition } from "react"
+import { useId, useState, useTransition } from "react"
 import { X, Trash2 } from "lucide-react"
 import { toast } from "sonner"
 import { createHealthEvent, updateHealthEvent, deleteHealthEvent } from "@/actions/sante"
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
 import type { HEvent } from "./HealthView"
 import type { HealthEventType } from "@/generated/prisma/enums"
 
@@ -19,59 +20,70 @@ export function HealthEventDialog({
 }) {
   const [isPending, start] = useTransition()
   const [date,          setDate]          = useState(toISO(item?.date) || toISO(new Date()))
-  const [type,          setType]          = useState<HealthEventType>(item?.type as HealthEventType || "INJURY")
+  const [type,          setType]          = useState<HealthEventType>(item?.type || "INJURY")
   const [title,         setTitle]         = useState(item?.title || "")
   const [description,   setDescription]   = useState(item?.description || "")
   const [bodyPart,      setBodyPart]      = useState(item?.bodyPart || "")
   const [resolvedAt,    setResolvedAt]    = useState(toISO(item?.resolvedAt))
   const [confirmDelete, setConfirmDelete] = useState(false)
+  const uid = useId()
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!title.trim()) return
     start(async () => {
-      if (item) {
-        await updateHealthEvent(item.id, { date, type, title, description, bodyPart, resolvedAt: resolvedAt || null })
-        toast.success("Événement mis à jour")
-      } else {
-        await createHealthEvent({ date, type, title, description, bodyPart })
-        toast.success("Événement enregistré")
+      try {
+        if (item) {
+          await updateHealthEvent(item.id, { date, type, title, description, bodyPart, resolvedAt: resolvedAt || null })
+          toast.success("Événement mis à jour")
+        } else {
+          await createHealthEvent({ date, type, title, description, bodyPart })
+          toast.success("Événement enregistré")
+        }
+        onClose()
+      } catch {
+        toast.error("Échec de l'enregistrement de l'événement. Réessayez.")
       }
-      onClose()
     })
   }
 
   function handleDelete() {
     if (!item) return
     start(async () => {
-      await deleteHealthEvent(item.id)
-      toast.success("Événement supprimé")
-      onClose()
+      try {
+        await deleteHealthEvent(item.id)
+        toast.success("Événement supprimé")
+        onClose()
+      } catch {
+        toast.error("Échec de la suppression de l'événement. Réessayez.")
+      }
     })
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/50">
-      <div className="w-full max-w-md rounded-2xl bg-background border border-border shadow-xl">
+    <Dialog open onOpenChange={(o) => { if (!o) onClose() }}>
+      <DialogContent showCloseButton={false} className="sm:max-w-md max-h-[85dvh] flex flex-col overflow-y-auto p-0 gap-0">
         <div className="flex items-center justify-between px-5 py-4 border-b border-border/50">
-          <h2 className="text-sm font-semibold">{item ? "Modifier" : "Ajouter"} une blessure / maladie</h2>
-          <button onClick={onClose} className="text-muted-foreground hover:text-foreground transition-colors">
-            <X className="h-4 w-4" />
+          <DialogTitle className="text-sm font-semibold">{item ? "Modifier" : "Ajouter"} une blessure / maladie</DialogTitle>
+          <button onClick={onClose} aria-label="Fermer" className="text-muted-foreground hover:text-foreground transition-colors">
+            <X className="h-4 w-4" aria-hidden="true" />
           </button>
         </div>
 
         <form onSubmit={handleSubmit} className="p-5 space-y-4">
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="text-xs font-medium text-muted-foreground">Date</label>
+              <label htmlFor={`${uid}-date`} className="text-xs font-medium text-muted-foreground">Date</label>
               <input
+                id={`${uid}-date`}
                 type="date" value={date} onChange={e => setDate(e.target.value)} required
                 className="mt-1 w-full h-9 rounded-lg border border-input bg-background px-3 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
               />
             </div>
             <div>
-              <label className="text-xs font-medium text-muted-foreground">Type</label>
+              <label htmlFor={`${uid}-type`} className="text-xs font-medium text-muted-foreground">Type</label>
               <select
+                id={`${uid}-type`}
                 value={type} onChange={e => setType(e.target.value as HealthEventType)}
                 className="mt-1 w-full h-9 rounded-lg border border-input bg-background px-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
               >
@@ -83,8 +95,9 @@ export function HealthEventDialog({
           </div>
 
           <div>
-            <label className="text-xs font-medium text-muted-foreground">Titre *</label>
+            <label htmlFor={`${uid}-title`} className="text-xs font-medium text-muted-foreground">Titre *</label>
             <input
+              id={`${uid}-title`}
               value={title} onChange={e => setTitle(e.target.value)} required
               placeholder="Ex : Douleur lombaires, Grippe, Ligament croisé…"
               className="mt-1 w-full h-9 rounded-lg border border-input bg-background px-3 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
@@ -92,8 +105,9 @@ export function HealthEventDialog({
           </div>
 
           <div>
-            <label className="text-xs font-medium text-muted-foreground">Localisation (partie du corps)</label>
+            <label htmlFor={`${uid}-bodypart`} className="text-xs font-medium text-muted-foreground">Localisation (partie du corps)</label>
             <input
+              id={`${uid}-bodypart`}
               value={bodyPart} onChange={e => setBodyPart(e.target.value)}
               placeholder="Ex : dos, genou gauche, coude droit…"
               className="mt-1 w-full h-9 rounded-lg border border-input bg-background px-3 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
@@ -101,8 +115,9 @@ export function HealthEventDialog({
           </div>
 
           <div>
-            <label className="text-xs font-medium text-muted-foreground">Description / contexte</label>
+            <label htmlFor={`${uid}-description`} className="text-xs font-medium text-muted-foreground">Description / contexte</label>
             <textarea
+              id={`${uid}-description`}
               value={description} onChange={e => setDescription(e.target.value)} rows={3}
               placeholder="Circonstances, symptômes, contexte…"
               className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring resize-none"
@@ -111,8 +126,9 @@ export function HealthEventDialog({
 
           {item && (
             <div>
-              <label className="text-xs font-medium text-muted-foreground">Date de résolution (si guéri)</label>
+              <label htmlFor={`${uid}-resolved`} className="text-xs font-medium text-muted-foreground">Date de résolution (si guéri)</label>
               <input
+                id={`${uid}-resolved`}
                 type="date" value={resolvedAt} onChange={e => setResolvedAt(e.target.value)}
                 className="mt-1 w-full h-9 rounded-lg border border-input bg-background px-3 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
               />
@@ -159,7 +175,7 @@ export function HealthEventDialog({
             </div>
           </div>
         </form>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   )
 }

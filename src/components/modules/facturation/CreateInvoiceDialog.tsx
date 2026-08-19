@@ -185,12 +185,12 @@ export function CreateInvoiceDialog({
                 <div className="rounded-lg border border-border/50 bg-muted/30 px-3 py-2.5 space-y-1 text-sm">
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Montant HT</span>
-                    <span className="font-medium">{fmtEur(selectedQuote.totalHT)}</span>
+                    <span className="font-medium amount-sensitive">{fmtEur(selectedQuote.totalHT)}</span>
                   </div>
                   {selectedQuote.depositPercent > 0 && (
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">Acompte ({selectedQuote.depositPercent}%)</span>
-                      <span>{fmtEur(selectedQuote.totalHT * selectedQuote.depositPercent / 100)}</span>
+                      <span className="amount-sensitive">{fmtEur(selectedQuote.totalHT * selectedQuote.depositPercent / 100)}</span>
                     </div>
                   )}
                 </div>

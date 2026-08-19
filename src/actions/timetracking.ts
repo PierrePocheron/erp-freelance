@@ -12,6 +12,10 @@ async function requireAuth(): Promise<string> {
 
 export async function startTimer(taskId: string, _userId: string, projectId: string) {
   const userId = await requireAuth()
+  // Vérifier que la tâche appartient bien à l'utilisateur (anti-IDOR) avant d'y
+  // rattacher une entrée de temps.
+  const task = await prisma.task.findFirst({ where: { id: taskId, userId }, select: { id: true } })
+  if (!task) throw new Error("Tâche introuvable")
   // Arrêter tout chrono en cours pour cet utilisateur
   const running = await prisma.timeEntry.findFirst({
     where: { userId, endedAt: null },

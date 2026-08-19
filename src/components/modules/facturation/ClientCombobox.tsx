@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useRef, useEffect, useCallback } from "react"
+import { useId, useState, useRef, useEffect, useCallback } from "react"
 import { createPortal } from "react-dom"
 import { Check, Plus, ChevronDown, Loader2, X } from "lucide-react"
 import { createQuickClient } from "@/actions/crm"
@@ -27,6 +27,7 @@ export function ClientCombobox({ userId, clients, value, onChange }: Props) {
   const [dropdownStyle, setDropdownStyle] = useState<React.CSSProperties>({})
   const inputRef = useRef<HTMLInputElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
+  const listboxId = useId()
 
   const selected = allClients.find((c) => c.id === value)
 
@@ -124,6 +125,11 @@ export function ClientCombobox({ userId, clients, value, onChange }: Props) {
       <div className="relative">
         <input
           ref={inputRef}
+          role="combobox"
+          aria-expanded={open}
+          aria-controls={open ? listboxId : undefined}
+          aria-autocomplete="list"
+          aria-haspopup="listbox"
           value={open ? query : (selected ? clientLabel(selected) : query)}
           onChange={(e) => {
             setQuery(e.target.value)
@@ -161,7 +167,7 @@ export function ClientCombobox({ userId, clients, value, onChange }: Props) {
           style={dropdownStyle}
           className="rounded-md border border-border bg-popover shadow-lg overflow-hidden"
         >
-          <div className="max-h-52 overflow-y-auto">
+          <div id={listboxId} role="listbox" className="max-h-52 overflow-y-auto">
             {filtered.length === 0 && !showCreate && (
               <p className="px-3 py-2.5 text-sm text-muted-foreground">Aucun client trouvé</p>
             )}
@@ -170,7 +176,12 @@ export function ClientCombobox({ userId, clients, value, onChange }: Props) {
               <button
                 key={c.id}
                 type="button"
+                role="option"
+                aria-selected={c.id === value}
                 onPointerDown={(e) => { e.preventDefault(); handleSelect(c.id) }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") { e.preventDefault(); handleSelect(c.id) }
+                }}
                 className="flex items-center gap-2.5 w-full px-3 py-2 text-sm text-left hover:bg-muted/60 transition-colors"
               >
                 <Check
@@ -196,6 +207,9 @@ export function ClientCombobox({ userId, clients, value, onChange }: Props) {
                 <button
                   type="button"
                   onPointerDown={(e) => { e.preventDefault(); handleCreate() }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") { e.preventDefault(); handleCreate() }
+                  }}
                   disabled={creating}
                   className="flex items-center gap-2 w-full px-3 py-2.5 text-sm text-primary font-medium hover:bg-primary/8 transition-colors disabled:opacity-50"
                 >

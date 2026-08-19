@@ -5,7 +5,6 @@ import { TrendingUp, Clock, AlertCircle, CheckCircle2, Settings } from "lucide-r
 import { markLateInvoices } from "@/actions/facturation"
 import { MonthlyRevenueChart } from "@/components/modules/facturation/MonthlyRevenueChart"
 import { FacturationQuickActions } from "@/components/modules/facturation/FacturationQuickActions"
-import { AmountsPrivacyToggle } from "@/components/ui/amounts-privacy-toggle"
 
 // Helpers d'affichage cohérents avec la liste des factures
 const faNumber = (n: string) => (/^fa/i.test(n.trim()) ? n : `FA${n}`)
@@ -140,7 +139,6 @@ export default async function FacturationOverviewPage({
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <AmountsPrivacyToggle />
           <FacturationQuickActions
             userId={userId}
             clients={quickClients}
@@ -225,7 +223,7 @@ export default async function FacturationOverviewPage({
                     +{Math.ceil((Date.now() - new Date(inv.dueDate).getTime()) / 86400000)}j
                   </span>
                 )}
-                <span className="font-bold text-red-500 tabular-nums whitespace-nowrap">
+                <span className="font-bold text-red-500 tabular-nums whitespace-nowrap amount-sensitive">
                   {fmtEur(invoicePaid(inv))} / {fmtEur(inv.totalHT - inv.depositDeducted)} €
                 </span>
               </Link>
@@ -270,7 +268,7 @@ export default async function FacturationOverviewPage({
                     <td className="px-4 py-2.5">
                       <InvoiceStatusBadge status={inv.status} />
                     </td>
-                    <td className="px-4 py-2.5 text-right font-medium">
+                    <td className="px-4 py-2.5 text-right font-medium amount-sensitive">
                       {fmtEur(inv.totalHT - inv.depositDeducted)} €
                     </td>
                     <td className="px-4 py-2.5 text-xs whitespace-nowrap">
@@ -279,7 +277,7 @@ export default async function FacturationOverviewPage({
                         const paid = invoicePaid(inv)
                         const full = inv.status === "PAID" || (paid > 0 && paid >= net - 0.01)
                         return (
-                          <span className={`font-medium ${paid <= 0 ? "text-muted-foreground/50" : full ? "text-emerald-600" : "text-amber-600"}`}>
+                          <span className={`font-medium amount-sensitive ${paid <= 0 ? "text-muted-foreground/50" : full ? "text-emerald-600" : "text-amber-600"}`}>
                             {fmtEur(paid)} <span className="font-normal text-muted-foreground/70">/ {fmtEur(net)} €</span>
                           </span>
                         )
@@ -332,7 +330,7 @@ export default async function FacturationOverviewPage({
                     <td className="px-4 py-2.5">
                       <QuoteStatusBadge status={q.status} />
                     </td>
-                    <td className="px-4 py-2.5 text-right font-medium">{fmtEur(q.totalHT)} €</td>
+                    <td className="px-4 py-2.5 text-right font-medium amount-sensitive">{fmtEur(q.totalHT)} €</td>
                     <td className="px-4 py-2.5 text-xs text-muted-foreground hidden sm:table-cell">
                       {q.sentAt ? fmtDay(q.sentAt) : "—"}
                     </td>

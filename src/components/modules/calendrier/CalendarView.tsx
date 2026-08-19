@@ -9,6 +9,7 @@ import {
   Settings2, KeyRound, CheckSquare, Square,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { toDateInput } from "@/lib/dates"
 import Link from "next/link"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
@@ -398,6 +399,30 @@ function timeStringFromDate(d: Date, allDay: boolean | undefined): string {
 
 // ── Dialog Nouvel Événement ───────────────────────────────────────────────────
 
+/** Sélecteur de catégorie sous forme de puces colorées (partagé entre les dialogs). */
+function CategoryPicker({ value, onChange, categories }: {
+  value: string
+  onChange: (id: string) => void
+  categories: CalendarCategory[]
+}) {
+  return (
+    <div className="space-y-1.5">
+      <label className="text-xs font-medium text-muted-foreground">Catégorie</label>
+      <div className="flex flex-wrap gap-1.5">
+        {categories.map(cat => (
+          <button key={cat.id} type="button" onClick={() => onChange(cat.id)}
+            className={cn("inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors",
+              value === cat.id ? "border-current" : "border-border text-muted-foreground hover:border-current hover:opacity-80")}
+            style={value === cat.id ? { color: cat.color, borderColor: cat.color, backgroundColor: cat.color + "20" } : {}}>
+            <span className="h-1.5 w-1.5 rounded-full shrink-0" style={{ backgroundColor: cat.color }} />
+            {cat.name}
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 function EventFormFields({
   title, setTitle,
   date, setDate,
@@ -458,21 +483,7 @@ function EventFormFields({
 
       {/* Catégorie */}
       {categories.length > 0 && (
-        <div className="space-y-1.5">
-          <label className="text-xs font-medium text-muted-foreground">Catégorie</label>
-          <div className="flex flex-wrap gap-1.5">
-            {categories.map(cat => (
-              <button key={cat.id} type="button" onClick={() => setCategoryId(cat.id)}
-                className={cn("inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors",
-                  categoryId === cat.id ? "border-current" : "border-border text-muted-foreground hover:border-current hover:opacity-80")}
-                style={categoryId === cat.id ? { color: cat.color, borderColor: cat.color, backgroundColor: cat.color + "20" } : {}}
-              >
-                <span className="h-1.5 w-1.5 rounded-full shrink-0" style={{ backgroundColor: cat.color }} />
-                {cat.name}
-              </button>
-            ))}
-          </div>
-        </div>
+        <CategoryPicker value={categoryId} onChange={setCategoryId} categories={categories} />
       )}
 
       {/* Projet */}
@@ -540,7 +551,7 @@ function NewEventDialog({
   const [rattachement, setRattachement] = useState<Rattachement>("none")
   const [nature, setNature]         = useState<CalNature>("event")
   const [title, setTitle]           = useState("")
-  const [date, setDate]             = useState(defaultDate.toISOString().slice(0, 10))
+  const [date, setDate]             = useState(toDateInput(defaultDate))
   const [time, setTime]             = useState("")
   const [allDay, setAllDay]         = useState(false)
   const [endDate, setEndDate]       = useState("")   // journée entière multi-jours (opt.)
@@ -561,7 +572,7 @@ function NewEventDialog({
       setRattachement("none"); setNature("event")
       setTitle(""); setDescription(""); setProjectId(""); setClientId(""); setError("")
       setChannel("EMAIL"); setPriority("MEDIUM")
-      setDate(defaultDate.toISOString().slice(0, 10))
+      setDate(toDateInput(defaultDate))
       setTime(timeStringFromDate(defaultDate, undefined))
       setAllDay(false); setEndDate("")
       setCategoryId(categories[0]?.id ?? "")
@@ -743,20 +754,7 @@ function NewEventDialog({
 
           {/* Catégorie (événement / note uniquement) */}
           {showCategory && categories.length > 0 && (
-            <div className="space-y-1.5">
-              <label className="text-xs font-medium text-muted-foreground">Catégorie</label>
-              <div className="flex flex-wrap gap-1.5">
-                {categories.map(cat => (
-                  <button key={cat.id} type="button" onClick={() => setCategoryId(cat.id)}
-                    className={cn("inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors",
-                      categoryId === cat.id ? "border-current" : "border-border text-muted-foreground hover:border-current hover:opacity-80")}
-                    style={categoryId === cat.id ? { color: cat.color, borderColor: cat.color, backgroundColor: cat.color + "20" } : {}}>
-                    <span className="h-1.5 w-1.5 rounded-full shrink-0" style={{ backgroundColor: cat.color }} />
-                    {cat.name}
-                  </button>
-                ))}
-              </div>
-            </div>
+            <CategoryPicker value={categoryId} onChange={setCategoryId} categories={categories} />
           )}
 
           {nature === "note" && (
@@ -802,7 +800,7 @@ function EventDetailDialog({
   const d0 = new Date(event.date)
 
   const [title, setTitle]             = useState(event.title)
-  const [date, setDate]               = useState(d0.toISOString().slice(0, 10))
+  const [date, setDate]               = useState(toDateInput(d0))
   const [time, setTime]               = useState(timeStringFromDate(d0, event.allDay))
   const [description, setDescription] = useState(event.description ?? "")
   const [categoryId, setCategoryId]   = useState(event.categoryId ?? "")
@@ -1325,10 +1323,10 @@ export function CalendarView({
       {/* pr-12 : réserve la place du bouton flottant de notifications (haut-droite) */}
       <div className="flex items-center gap-2 shrink-0 flex-wrap pr-12">
         <div className="flex items-center gap-1">
-          <button onClick={() => navigate(-1)} className="rounded-lg border border-border p-1.5 hover:bg-muted transition-colors">
+          <button aria-label="Période précédente" onClick={() => navigate(-1)} className="rounded-lg border border-border p-1.5 hover:bg-muted transition-colors">
             <ChevronLeft className="h-4 w-4" />
           </button>
-          <button onClick={() => navigate(1)} className="rounded-lg border border-border p-1.5 hover:bg-muted transition-colors">
+          <button aria-label="Période suivante" onClick={() => navigate(1)} className="rounded-lg border border-border p-1.5 hover:bg-muted transition-colors">
             <ChevronRight className="h-4 w-4" />
           </button>
           <button onClick={goToToday} className="rounded-lg border border-border px-2.5 py-1.5 text-xs font-medium hover:bg-muted transition-colors">
@@ -1340,7 +1338,7 @@ export function CalendarView({
 
         {/* Dernière synchro Google, visible directement dans la barre */}
         {hasGoogleCalendar && (
-          <span className="hidden md:inline text-[11px] text-muted-foreground whitespace-nowrap">
+          <span aria-live="polite" className="hidden md:inline text-[11px] text-muted-foreground whitespace-nowrap">
             {isSyncing ? "Synchro en cours…"
               : lastSyncAt ? `Synchro ${formatLastSync(lastSyncAt)}`
               : "Jamais synchronisé"}
@@ -1510,7 +1508,7 @@ export function CalendarView({
 
       {/* ── Bandeau d'erreur de synchronisation ──────────────────────────── */}
       {syncStatus === "error" && syncError && (
-        <div className="shrink-0 flex items-start gap-2 rounded-lg border border-red-500/30 bg-red-500/5 px-3 py-2 text-xs text-red-700">
+        <div role="alert" className="shrink-0 flex items-start gap-2 rounded-lg border border-red-500/30 bg-red-500/5 px-3 py-2 text-xs text-red-700">
           <AlertCircle className="h-4 w-4 shrink-0 mt-px" />
           <div className="flex-1 min-w-0 space-y-1">
             <p className="font-medium">Échec de la synchronisation Google Calendar</p>
@@ -1721,6 +1719,7 @@ function MonthView({
                       e.stopPropagation()
                       onEventClick(ev)
                     }}
+                    title={ev.isLate ? "En retard" : undefined}
                     className={cn(
                       "flex items-center gap-1 rounded px-1 py-px text-[10px] leading-tight truncate cursor-pointer hover:opacity-80 group",
                       ev.isLate ? "bg-red-500/10" : "bg-muted/50",
@@ -1987,7 +1986,7 @@ function TimeGridView({
           {Array.from({ length: HOUR_END - HOUR_START }, (_, i) => (
             <div key={i} style={{ top: i * HOUR_HEIGHT }}
               className="absolute w-full flex items-start justify-end pr-2 pt-0.5">
-              <span className="text-[10px] text-muted-foreground/50 tabular-nums leading-none">
+              <span className="text-[10px] text-muted-foreground/70 tabular-nums leading-none">
                 {String(HOUR_START + i).padStart(2, "0")}h
               </span>
             </div>
@@ -2050,7 +2049,9 @@ function TimeGridView({
               )}
 
               {/* Zone d'ajout rapide : suit le curseur et crée à l'heure pointée */}
-              <button type="button" className="absolute inset-0 w-full z-0 cursor-pointer"
+              <button type="button"
+                aria-label={`Ajouter un événement le ${date.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" })}`}
+                className="absolute inset-0 w-full z-0 cursor-pointer"
                 onMouseMove={e => { if (!draggingId) setHoverSlot({ colIdx: di, ...calcSlotAt(e, false) }) }}
                 onMouseLeave={() => setHoverSlot(s => (s?.colIdx === di ? null : s))}
                 onClick={e => {
@@ -2264,7 +2265,19 @@ function EventList({
         )
 
         if (editable && onEventClick) {
-          return <div key={ev.id} onClick={() => onEventClick(ev)}>{inner}</div>
+          return (
+            <div
+              key={ev.id}
+              role="button"
+              tabIndex={0}
+              onClick={() => onEventClick(ev)}
+              onKeyDown={e => {
+                if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onEventClick(ev) }
+              }}
+            >
+              {inner}
+            </div>
+          )
         }
         return ev.href
           ? <Link key={ev.id} href={ev.href} onClick={onNavigate}>{inner}</Link>

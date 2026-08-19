@@ -70,14 +70,14 @@ function PaidInfo({
 
   return (
     <div className={`flex flex-col gap-0.5 ${alignCls}`}>
-      <span className={`text-xs font-medium ${none ? "text-muted-foreground/50" : full ? "text-emerald-600" : "text-amber-600"}`}>
+      <span className={`amount-sensitive text-xs font-medium ${none ? "text-muted-foreground/50" : full ? "text-emerald-600" : "text-amber-600"}`}>
         {fmtEur(paid)} <span className="font-normal text-muted-foreground/70">/ {fmtEur(net)}</span>
       </span>
       {hasRecords ? (
         <span className="text-[11px] text-muted-foreground leading-tight">
           {payments.map((p, i) => (
             <span key={i} className="block">
-              {payments.length > 1 && `${fmtEur(p.amount)} · `}
+              {payments.length > 1 && <><span className="amount-sensitive">{fmtEur(p.amount)}</span> · </>}
               {fmtDay(p.paidAt)}
             </span>
           ))}
@@ -425,7 +425,7 @@ export function FacturesListView({
               >
                 {f.label}
                 {f.value !== "ALL" && (
-                  <span className="ml-1 text-[10px] opacity-60">
+                  <span className="ml-1 text-xs">
                     ({invoices.filter((i) => i.status === f.value).length})
                   </span>
                 )}
@@ -521,7 +521,7 @@ export function FacturesListView({
                       <span className={`rounded-full border px-2 py-0.5 text-xs font-medium whitespace-nowrap ${status.cls}`}>{status.label}</span>
                     </td>
                     <td className="px-4 py-3 text-right font-medium">
-                      {(inv.totalHT - inv.depositDeducted).toLocaleString("fr-FR")} €
+                      <span className="amount-sensitive">{(inv.totalHT - inv.depositDeducted).toLocaleString("fr-FR")} €</span>
                     </td>
                     <td className="px-4 py-3">
                       <PaidInfo payments={inv.payments} net={inv.totalHT - inv.depositDeducted} status={inv.status} paidAt={inv.paidAt} />
@@ -588,7 +588,7 @@ export function FacturesListView({
                 </div>
                 <div className="pt-1 border-t border-border/50 space-y-1">
                   <div className="flex items-end justify-between">
-                    <span className={`text-xl font-bold tabular-nums ${isLate ? "text-red-600" : ""}`}>
+                    <span className={`amount-sensitive text-xl font-bold tabular-nums ${isLate ? "text-red-600" : ""}`}>
                       {amount.toLocaleString("fr-FR")} €
                     </span>
                     <span className="text-xs text-muted-foreground">

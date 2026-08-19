@@ -6,14 +6,15 @@ import {
   ArrowLeft, ChevronLeft, ChevronRight, ExternalLink, Phone, PhoneMissed,
   Mail, ThumbsUp, ThumbsDown, CalendarCheck, Trophy, XCircle, Plus,
   Pencil, Trash2, Globe, MapPin, User, Gauge, Check, StickyNote,
-  Send, NotebookPen, AlertTriangle, ChevronDown,
+  NotebookPen, AlertTriangle, ChevronDown, Copy,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { toast } from "sonner"
 import { STATUS_CONFIG, WEBSITE_TYPE_CONFIG } from "./status-config"
-import { SendEmailDialog, type EmailTemplateOption, type SendTarget } from "./SendEmailDialog"
+import type { EmailTemplateOption, SendTarget } from "./SendEmailDialog"
 import { PrepareDraftsDialog } from "./PrepareDraftsDialog"
 import { renderTemplate } from "@/lib/email-template"
+import { gmailComposeUrl, copyEmailBody } from "@/lib/gmail"
 import {
   logProspectAction, updateProspectStatus,
   createProspectNote, updateProspectNote, deleteProspectNote,
@@ -106,12 +107,10 @@ export function ProspectionModeView({
   prospects,
   templates,
   callTemplates,
-  emailFromConfigured,
 }: {
   prospects: ModeProspect[]
   templates: EmailTemplateOption[]
   callTemplates: { id: string; name: string; script: string }[]
-  emailFromConfigured: boolean
 }) {
   // Liste FIGÉE au montage : la session reste sur les X prospects choisis au
   // départ, quoi qu'il arrive côté serveur. Un rafraîchissement post-action
@@ -122,9 +121,8 @@ export function ProspectionModeView({
   const [index, setIndex] = useState(0)
   const [isPending, startTransition] = useTransition()
 
-  // Carte email : modèle choisi + dialogs d'envoi/brouillon
+  // Carte email : modèle choisi + dialog de génération de brouillon
   const [templateId, setTemplateId] = useState("")
-  const [sendOpen, setSendOpen] = useState(false)
   const [draftsOpen, setDraftsOpen] = useState(false)
 
   // Carte script d'appel : modèle d'appel choisi (affiché pour lecture pendant
@@ -195,8 +193,11 @@ export function ProspectionModeView({
 
   function runAction(kind: Exclude<ProspectEventKind, "STATUS_CHANGE">, note?: string) {
     const id = prospect.id
+    // Pour « Email envoyé », on trace le modèle sélectionné dans la carte email.
+    const t = kind === "EMAIL_SENT" ? templates.find((x) => x.id === templateId) : undefined
+    const tmpl = t ? { id: t.id, name: t.name } : null
     startTransition(async () => {
-      const { status: newStatus, event } = await logProspectAction(id, kind, note)
+      const { status: newStatus, event } = await logProspectAction(id, kind, note, tmpl)
       setStatusById((prev) => ({ ...prev, [id]: newStatus }))
       setEventsById((prev) => ({ ...prev, [id]: [event as ModeEvent, ...(prev[id] ?? [])] }))
       markHandled(id)
@@ -221,24 +222,6 @@ export function ProspectionModeView({
       markHandled(id)
       toast.success(`Statut : ${STATUS_CONFIG[target].label}`)
     })
-  }
-
-  // Après un envoi Resend : reflète localement ce que fait le serveur
-  // (événement EMAIL_SENT + passage TO_CONTACT → CONTACTED), sans re-fetch.
-  function handleEmailSent() {
-    const id = prospect.id
-    const from = statusById[id]
-    const to: ProspectStatus = from === "TO_CONTACT" ? "CONTACTED" : from
-    const local: ModeEvent = {
-      id: `local-${Date.now()}`, kind: "EMAIL_SENT",
-      fromStatus: from !== to ? from : null,
-      toStatus: from !== to ? to : null,
-      note: selectedTemplate ? `Email « ${selectedTemplate.name} »` : null,
-      date: new Date(),
-    }
-    setEventsById((prev) => ({ ...prev, [id]: [local, ...(prev[id] ?? [])] }))
-    if (from !== to) setStatusById((prev) => ({ ...prev, [id]: to }))
-    markHandled(id)
   }
 
   // ── Appel : script sélectionné + formulaire « a répondu » ──────────────────
@@ -354,6 +337,27 @@ export function ProspectionModeView({
     [selectedCall, sendTarget]
   )
 
+  // Ouvre Gmail (compose) pré-rempli pour le prospect courant — texte brut,
+  // le gras du modèle est retiré (une URL Gmail ne porte pas de mise en forme).
+  // Ouvrir ≠ envoyer : on ne marque rien, Pierre valide « Email envoyé » après.
+  function openInGmail() {
+    if (!selectedTemplate || !preview) return
+    if (!prospect.email?.trim()) { toast.error(`${prospect.name} n'a pas d'email`); return }
+    window.open(
+      gmailComposeUrl({ to: prospect.email, subject: preview.subject, body: preview.body }),
+      "_blank", "noopener,noreferrer",
+    )
+    if (preview.missing.length > 0) toast.warning(`Gmail ouvert — variables vides : ${preview.missing.join(", ")}`)
+  }
+
+  // Copie le corps mis en forme (gras conservé au collage dans Gmail).
+  async function copyBodyRich() {
+    if (!preview) return
+    const ok = await copyEmailBody(preview.body)
+    if (ok) toast.success("Corps copié — collez dans Gmail (Cmd/Ctrl+V), le gras est conservé")
+    else toast.error("Copie impossible")
+  }
+
   return (
     <div className="space-y-5">
       {/* ── Barre de session : retour, progression (traités), navigation ── */}
@@ -404,7 +408,7 @@ export function ProspectionModeView({
           <div className="rounded-xl border border-border/50 bg-card p-5 space-y-4">
             <div className="flex items-start justify-between gap-3 flex-wrap">
               <div>
-                <h1 className="text-2xl font-bold tracking-tight leading-tight flex items-center gap-2">
+                <h1 className="text-3xl font-bold tracking-tight leading-tight flex items-center gap-2">
                   {prospect.name}
                   {handled.has(prospect.id) && <Check className="h-5 w-5 text-emerald-500" aria-label="Traité pendant cette session" />}
                 </h1>
@@ -541,24 +545,35 @@ export function ProspectionModeView({
                   </div>
                 )}
 
-                <div className="flex gap-2">
+                <div className="flex flex-wrap gap-2">
                   <button
-                    onClick={() => setSendOpen(true)}
+                    onClick={openInGmail}
                     disabled={!templateId}
-                    className="flex-1 inline-flex items-center justify-center gap-1.5 h-9 px-3 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 disabled:opacity-40 transition-opacity"
-                    title={emailFromConfigured ? "Envoyer via Resend après récapitulatif" : "Adresse d'envoi non configurée — préparez un brouillon"}
+                    className="flex-1 min-w-40 inline-flex items-center justify-center gap-1.5 h-9 px-3 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 disabled:opacity-40 transition-opacity"
+                    title="Ouvre Gmail avec le mail pré-rempli (texte brut)"
                   >
-                    <Send className="h-3.5 w-3.5" /> Envoyer
+                    <ExternalLink className="h-3.5 w-3.5" /> Ouvrir dans Gmail
+                  </button>
+                  <button
+                    onClick={copyBodyRich}
+                    disabled={!templateId}
+                    className="inline-flex items-center justify-center gap-1.5 h-9 px-3 rounded-lg border border-input text-sm font-medium hover:bg-muted/50 disabled:opacity-40 transition-colors"
+                    title="Copie le corps en gardant le gras — à coller dans Gmail (Cmd/Ctrl+V)"
+                  >
+                    <Copy className="h-3.5 w-3.5" /> Copier (gras)
                   </button>
                   <button
                     onClick={() => setDraftsOpen(true)}
                     disabled={!templateId}
-                    className="flex-1 inline-flex items-center justify-center gap-1.5 h-9 px-3 rounded-lg border border-input text-sm font-medium hover:bg-muted/50 disabled:opacity-40 transition-colors"
+                    className="inline-flex items-center justify-center gap-1.5 h-9 px-3 rounded-lg border border-input text-sm font-medium hover:bg-muted/50 disabled:opacity-40 transition-colors"
                     title="Génère un brouillon relisable dans la file — rien n'est envoyé"
                   >
                     <NotebookPen className="h-3.5 w-3.5" /> Brouillon
                   </button>
                 </div>
+                <p className="text-[11px] text-muted-foreground/70">
+                  « Ouvrir dans Gmail » pré-remplit le mail (texte brut). Pour garder le gras, cliquez « Copier (gras) » puis collez dans Gmail (Cmd/Ctrl+V).
+                </p>
               </>
             )}
           </div>
@@ -768,7 +783,7 @@ export function ProspectionModeView({
                           {item.note.title}
                         </p>
                         <span className="flex items-center gap-1.5">
-                          <span className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <span className="flex items-center gap-1 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity">
                             <button onClick={() => openEditNote(item.note)} className="text-muted-foreground hover:text-foreground transition-colors" title="Modifier la note">
                               <Pencil className="h-3.5 w-3.5" />
                             </button>
@@ -789,16 +804,7 @@ export function ProspectionModeView({
         </div>
       </div>
 
-      {/* Dialogs partagés avec le tableau — circuit d'envoi contrôlé */}
-      <SendEmailDialog
-        open={sendOpen}
-        onOpenChange={setSendOpen}
-        templates={templates}
-        targets={[sendTarget]}
-        emailFromConfigured={emailFromConfigured}
-        onSent={handleEmailSent}
-        initialTemplateId={templateId}
-      />
+      {/* Génération de brouillon (relecture en file) — partagé avec le tableau */}
       <PrepareDraftsDialog
         open={draftsOpen}
         onOpenChange={setDraftsOpen}

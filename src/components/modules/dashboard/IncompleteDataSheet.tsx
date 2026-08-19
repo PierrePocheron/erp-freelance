@@ -255,7 +255,7 @@ function RevenueRow({
           <Wallet className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
           <span className="truncate">{revenue.label}</span>
         </p>
-        <span className="shrink-0 text-xs font-semibold tabular-nums">
+        <span className="shrink-0 text-xs font-semibold tabular-nums amount-sensitive">
           {revenue.amount.toLocaleString("fr-FR")} €
         </span>
       </div>
@@ -312,7 +312,7 @@ function RecurringRow({ expense, onDone }: { expense: IncompleteRecurring; onDon
           <Repeat className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
           <span className="truncate">{expense.label}</span>
         </p>
-        <span className="shrink-0 text-xs font-semibold tabular-nums">
+        <span className="shrink-0 text-xs font-semibold tabular-nums amount-sensitive">
           {expense.amount.toLocaleString("fr-FR")} €
         </span>
       </div>

@@ -18,6 +18,10 @@ function urlBase64ToUint8Array(base64: string): Uint8Array<ArrayBuffer> {
 }
 
 async function subscribeDevice(): Promise<void> {
+  const vapidKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY
+  if (!vapidKey) {
+    throw new Error("Clé VAPID publique manquante (NEXT_PUBLIC_VAPID_PUBLIC_KEY à configurer côté serveur)")
+  }
   const registration = await navigator.serviceWorker.register("/sw.js")
   await navigator.serviceWorker.ready
   const existing = await registration.pushManager.getSubscription()
@@ -25,7 +29,7 @@ async function subscribeDevice(): Promise<void> {
     existing ??
     (await registration.pushManager.subscribe({
       userVisibleOnly: true,
-      applicationServerKey: urlBase64ToUint8Array(process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY!),
+      applicationServerKey: urlBase64ToUint8Array(vapidKey),
     }))
   const json = subscription.toJSON()
   await savePushSubscription({
@@ -69,12 +73,17 @@ export function PushNotificationsCard() {
         setShow(false)
         return
       }
+      // L'abonnement (SW + pushManager + enregistrement serveur) EST l'activation.
       await subscribeDevice()
-      await sendTestPush()
       toast.success("Notifications activées ✓")
       setShow(false)
-    } catch {
-      toast.error("Impossible d'activer les notifications")
+      // Notification de test : best-effort — si l'envoi serveur échoue (clé VAPID
+      // privée manquante en prod…), l'activation reste valide, on ne la bloque pas.
+      sendTestPush().catch((e) => console.error("Test push échoué :", e))
+    } catch (e) {
+      console.error("Activation des notifications échouée :", e)
+      const msg = e instanceof Error ? e.message : "erreur inconnue"
+      toast.error(`Impossible d'activer les notifications : ${msg}`)
     } finally {
       setBusy(false)
     }

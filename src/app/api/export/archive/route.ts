@@ -44,7 +44,8 @@ export async function GET() {
     select: { id: true, number: true, pdfUrl: true, status: true },
   })
   const facturesDir = docs.folder("factures")!
-  for (const inv of invoices) {
+  // Fetch/rendu indépendants → en parallèle (JSZip.file() est synchrone).
+  await Promise.all(invoices.map(async (inv) => {
     let buffer: Buffer | null = null
     if (inv.pdfUrl) buffer = await fetchToBuffer(inv.pdfUrl)
     if (!buffer) {
@@ -55,7 +56,7 @@ export async function GET() {
       }
     }
     if (buffer) facturesDir.file(`${safe(inv.number)}.pdf`, buffer)
-  }
+  }))
 
   // 3. Devis signés téléversés.
   const quotes = await prisma.quote.findMany({
@@ -64,10 +65,10 @@ export async function GET() {
   })
   if (quotes.length) {
     const devisDir = docs.folder("devis-signes")!
-    for (const q of quotes) {
+    await Promise.all(quotes.map(async (q) => {
       const buffer = await fetchToBuffer(q.signedFileUrl!)
       if (buffer) devisDir.file(`${safe(q.number)}.${extFromUrl(q.signedFileUrl!, "pdf")}`, buffer)
-    }
+    }))
   }
 
   // 4. Fichiers clients téléversés, regroupés par client.
@@ -77,13 +78,13 @@ export async function GET() {
   })
   if (clientFiles.length) {
     const filesDir = docs.folder("fichiers-clients")!
-    for (const f of clientFiles) {
+    await Promise.all(clientFiles.map(async (f) => {
       const buffer = await fetchToBuffer(f.fileUrl)
       if (buffer) {
         const clientDir = filesDir.folder(safe(f.client.name))!
         clientDir.file(safe(f.name) || `fichier.${extFromUrl(f.fileUrl, "bin")}`, buffer)
       }
-    }
+    }))
   }
 
   const content = await zip.generateAsync({ type: "nodebuffer" })

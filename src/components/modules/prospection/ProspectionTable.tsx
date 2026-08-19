@@ -1,17 +1,15 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react"
-import { useSearchParams } from "next/navigation"
-import { Search, X, Mail, MailPlus, Phone, Trash2, ChevronLeft, ChevronRight, Send, ExternalLink, NotebookPen, Play } from "lucide-react"
+import { useRouter, useSearchParams } from "next/navigation"
+import { Search, X, Mail, MailPlus, Phone, Trash2, ChevronLeft, ChevronRight, Send, ExternalLink, NotebookPen, Play, PenLine, CheckCircle2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { toast } from "sonner"
 import { useSortState, cmp } from "@/hooks/use-sortable"
 import { Th } from "@/components/ui/sortable-header"
-import { Sheet, SheetContent } from "@/components/ui/sheet"
-import { ClientPanel } from "@/components/modules/crm/ClientPanel"
-import { getClientPanel } from "@/actions/crm"
 import { markProspectsContacted, updateProspectsStatusBulk, deleteProspects } from "@/actions/prospection"
 import { renderTemplate } from "@/lib/email-template"
+import { gmailComposeUrl } from "@/lib/gmail"
 import { STATUS_CONFIG, ALL_STATUSES, WEBSITE_TYPE_CONFIG, SOURCE_LABELS } from "./status-config"
 import { ProspectStatusSelect } from "./ProspectStatusSelect"
 import { ProspectInterestSelect } from "./ProspectInterestSelect"
@@ -47,9 +45,26 @@ type Prospect = {
   createdAt: Date | string
   _count: { interactions: number }
   interactions: { date: Date | string; channel: string }[]
+  // Meilleur statut de brouillon email de ce prospect (indicateur de liste)
+  draftStatus?: "DRAFT" | "READY" | "SENT" | null
 }
 
-type PanelData = Awaited<ReturnType<typeof getClientPanel>>
+// Indicateur visuel « un brouillon existe » à gauche de chaque ligne.
+const DRAFT_INDICATOR: Record<"DRAFT" | "READY" | "SENT", { icon: React.ElementType; cls: string; label: string }> = {
+  DRAFT: { icon: PenLine,      cls: "text-amber-500",           label: "Brouillon à relire" },
+  READY: { icon: CheckCircle2, cls: "text-emerald-500",         label: "Brouillon relu — prêt à envoyer" },
+  SENT:  { icon: Send,         cls: "text-muted-foreground/40", label: "Mail (brouillon) envoyé" },
+}
+
+function DraftIndicator({ status }: { status: "DRAFT" | "READY" | "SENT" }) {
+  const di = DRAFT_INDICATOR[status]
+  const Icon = di.icon
+  return (
+    <span title={di.label} className="shrink-0 inline-flex">
+      <Icon className={cn("h-3.5 w-3.5", di.cls)} aria-label={di.label} />
+    </span>
+  )
+}
 
 const PAGE_SIZES = [25, 50, 100, 0] // 0 = tous
 const PAGE_SIZE_KEY = "erp-prospection-pagesize"
@@ -59,12 +74,10 @@ const fmtShort = (d: Date | string) =>
 
 export function ProspectionTable({
   prospects,
-  userId,
   templates,
   emailFromConfigured,
 }: {
   prospects: Prospect[]
-  userId: string
   templates: EmailTemplateOption[]
   emailFromConfigured: boolean
 }) {
@@ -114,19 +127,7 @@ export function ProspectionTable({
   const [gmailPrepOpen, setGmailPrepOpen] = useState(false)
   const [prepareDraftsOpen, setPrepareDraftsOpen] = useState(false)
 
-  // Panel contact
-  const [panelOpen, setPanelOpen] = useState(false)
-  const [panelData, setPanelData] = useState<PanelData>(null)
-  const [isPanelPending, startPanel] = useTransition()
-
-  function openClient(clientId: string) {
-    setPanelOpen(true)
-    setPanelData(null)
-    startPanel(async () => {
-      const data = await getClientPanel(clientId, userId)
-      setPanelData(data)
-    })
-  }
+  const router = useRouter()
 
   // Filtre secondaire « avec email / téléphone » (cartes stats), via l'URL.
   const avec = searchParams.get("avec") // "email" | "phone" | null
@@ -193,11 +194,12 @@ export function ProspectionTable({
   const safePage = Math.min(page, totalPages)
   const paged = pageSize === 0 ? filtered : filtered.slice((safePage - 1) * pageSize, safePage * pageSize)
 
-  // Reset pagination quand les filtres changent
+  // Reset pagination quand les filtres changent (statusFilter est déjà remis à 1
+  // au rendu via prevFilterKey, inutile ici).
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setPage(1)
-  }, [statusFilter, siteTypeFilter, sourceFilter, needle])
+  }, [siteTypeFilter, sourceFilter, interestFilter, needle])
 
   // ── Sélection ─────────────────────────────────────────────────────────────
   const pagedIds = paged.map((p) => p.id)
@@ -247,14 +249,7 @@ export function ProspectionTable({
       return
     }
     const rendered = renderTemplate(template, p)
-    const params = new URLSearchParams({
-      view: "cm",
-      fs: "1",
-      to: p.email,
-      su: rendered.subject,
-      body: rendered.body,
-    })
-    window.open(`https://mail.google.com/mail/?${params.toString()}`, "_blank", "noopener,noreferrer")
+    window.open(gmailComposeUrl({ to: p.email, subject: rendered.subject, body: rendered.body }), "_blank", "noopener,noreferrer")
     if (rendered.missing.length > 0) toast.warning(`Mail généré pour ${p.name} — variables vides : ${rendered.missing.join(", ")}`)
     else toast.success(`Mail généré pour ${p.name}`)
   }
@@ -306,6 +301,7 @@ export function ProspectionTable({
       <div className="flex flex-wrap items-center gap-1.5">
         <button
           onClick={() => setStatusFilter("ALL")}
+          aria-pressed={statusFilter === "ALL"}
           className={cn(
             "rounded-full border px-2.5 py-0.5 text-xs font-medium transition-colors",
             statusFilter === "ALL" ? "bg-primary text-primary-foreground border-primary" : "border-border text-muted-foreground hover:bg-muted"
@@ -317,6 +313,7 @@ export function ProspectionTable({
           <button
             key={s}
             onClick={() => setStatusFilter(statusFilter === s ? "ALL" : s)}
+            aria-pressed={statusFilter === s}
             className={cn(
               "rounded-full border px-2.5 py-0.5 text-xs font-medium transition-opacity hover:opacity-80",
               STATUS_CONFIG[s].cls,
@@ -339,7 +336,7 @@ export function ProspectionTable({
             className="w-full h-8 rounded-lg border border-input bg-transparent pl-8 pr-7 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
           />
           {search && (
-            <button onClick={() => setSearch("")} className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors">
+            <button onClick={() => setSearch("")} aria-label="Effacer la recherche" className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors">
               <X className="h-3.5 w-3.5" />
             </button>
           )}
@@ -539,7 +536,7 @@ export function ProspectionTable({
               return (
                 <tr
                   key={p.id}
-                  onClick={() => openClient(p.id)}
+                  onClick={() => router.push(`/contacts/${p.id}`)}
                   className={cn(
                     "group cursor-pointer hover:bg-muted/40 transition-colors [&>td]:px-3 [&>td]:py-2",
                     selected.has(p.id) && "bg-primary/5"
@@ -555,6 +552,7 @@ export function ProspectionTable({
                   </td>
                   <td className="max-w-[180px]">
                     <div className="flex items-center gap-1.5">
+                      {p.draftStatus && <DraftIndicator status={p.draftStatus} />}
                       <span className="font-medium truncate" title={p.name}>{p.name}</span>
                       {p.websiteUrl && (
                         <a
@@ -653,6 +651,7 @@ export function ProspectionTable({
               <button
                 onClick={() => setPage((p) => Math.max(1, p - 1))}
                 disabled={safePage <= 1}
+                aria-label="Page précédente"
                 className="h-7 w-7 flex items-center justify-center rounded-lg border border-input hover:bg-muted transition-colors disabled:opacity-40"
               >
                 <ChevronLeft className="h-3.5 w-3.5" />
@@ -661,6 +660,7 @@ export function ProspectionTable({
               <button
                 onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
                 disabled={safePage >= totalPages}
+                aria-label="Page suivante"
                 className="h-7 w-7 flex items-center justify-center rounded-lg border border-input hover:bg-muted transition-colors disabled:opacity-40"
               >
                 <ChevronRight className="h-3.5 w-3.5" />
@@ -669,14 +669,6 @@ export function ProspectionTable({
           )}
         </div>
       </div>
-
-      {/* ── Sheet fiche contact ── */}
-      <Sheet open={panelOpen} onOpenChange={setPanelOpen}>
-        <SheetContent side="right" className="w-full sm:w-[460px] sm:max-w-[460px] p-0" showCloseButton>
-          {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-          <ClientPanel client={panelData as any} loading={isPanelPending || (panelOpen && panelData === null)} userId={userId} />
-        </SheetContent>
-      </Sheet>
 
       {/* ── Emailing ── */}
       <SendEmailDialog

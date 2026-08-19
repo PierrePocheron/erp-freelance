@@ -7,13 +7,14 @@ import { ProspectQuickAdd } from "@/components/modules/prospection/ProspectQuick
 import { ImportCsvDialog } from "@/components/modules/prospection/ImportCsvDialog"
 import { prospectionFromAddress } from "@/lib/prospection-email"
 import { StartSessionDialog } from "@/components/modules/prospection/StartSessionDialog"
+import { FollowUpsCard } from "@/components/modules/prospection/FollowUpsCard"
 import { Mail, NotebookPen, Phone } from "lucide-react"
 
 export default async function ProspectionPage() {
   const session = await auth()
   const userId = session!.user.id
 
-  const [prospects, templates, pendingDrafts] = await Promise.all([
+  const [prospects, templates, pendingDrafts, followUpCandidates, profile, draftRows] = await Promise.all([
     prisma.client.findMany({
       // Inclut les gagnés convertis en CLIENT (prospectStatus WON) : ils
       // restent visibles dans le pipeline comme trophées + réversibles.
@@ -31,13 +32,65 @@ export default async function ProspectionPage() {
       },
     }),
     prisma.emailTemplate.findMany({
-      where: { userId },
+      where: { userId, archivedAt: null }, // les modèles archivés ne sont plus proposés à l'envoi
       orderBy: [{ sortOrder: "asc" }, { updatedAt: "desc" }],
       select: { id: true, name: true, subject: true, body: true },
     }),
     // Badge de la file de brouillons : à relire (DRAFT) + relus non envoyés (READY)
     prisma.emailDraft.count({ where: { userId, status: { in: ["DRAFT", "READY"] } } }),
+    // Candidats à la relance : prospects contactés (sans réponse) ayant reçu au
+    // moins un email — on filtre ensuite en JS sur la date du DERNIER email.
+    prisma.client.findMany({
+      where: {
+        userId, type: "PROSPECT", prospectStatus: "CONTACTED",
+        interactions: { some: { channel: "EMAIL" } },
+      },
+      // Champs enrichis (audit prospect-finder) pour pouvoir rendre le modèle de
+      // relance directement depuis la carte, sans re-fetch côté client.
+      select: {
+        id: true, name: true, firstName: true, lastName: true, company: true, websiteUrl: true,
+        city: true, region: true, businessDescription: true, cms: true, seoScore: true,
+        seoIssues: true, publicationManager: true, domainCreatedAt: true, email: true, interestLevel: true,
+        interactions: {
+          where: { channel: "EMAIL" }, orderBy: { date: "desc" }, take: 1,
+          select: { date: true, emailTemplateName: true },
+        },
+      },
+    }),
+    // Réglages de prospection (délai de relance + modèle de relance par défaut)
+    prisma.userProfile.findUnique({
+      where: { userId },
+      select: { followUpDelayDays: true, followUpTemplateId: true },
+    }),
+    // Brouillons (par prospect) — pour l'indicateur visuel dans la liste
+    prisma.emailDraft.findMany({
+      where: { userId, status: { in: ["DRAFT", "READY", "SENT"] } },
+      select: { clientId: true, status: true },
+    }),
   ])
+
+  const followUpDelayDays = profile?.followUpDelayDays ?? 7
+  // eslint-disable-next-line react-hooks/purity -- rendu dynamique (page force-dynamic), la date « maintenant » est voulue
+  const followUpCutoff = new Date(Date.now() - followUpDelayDays * 24 * 3600 * 1000)
+  // Modèle de relance par défaut choisi dans les réglages (parmi les non-archivés).
+  const relanceTemplate = templates.find((t) => t.id === profile?.followUpTemplateId) ?? null
+
+  // Relance à faire = dernier email ≥ délai configuré, plus ancien en tête.
+  const followUpsDue = followUpCandidates
+    .map(({ interactions, ...p }) => ({ ...p, lastEmail: interactions[0] ?? null }))
+    .filter((p) => p.lastEmail && new Date(p.lastEmail.date) <= followUpCutoff)
+    .sort((a, b) => new Date(a.lastEmail!.date).getTime() - new Date(b.lastEmail!.date).getTime())
+
+  // Meilleur statut de brouillon par prospect (à relire > relu > envoyé)
+  const DRAFT_RANK: Record<string, number> = { DRAFT: 0, READY: 1, SENT: 2 }
+  const draftStatusByClient = new Map<string, "DRAFT" | "READY" | "SENT">()
+  for (const d of draftRows) {
+    const cur = draftStatusByClient.get(d.clientId)
+    if (!cur || DRAFT_RANK[d.status] < DRAFT_RANK[cur]) {
+      draftStatusByClient.set(d.clientId, d.status as "DRAFT" | "READY" | "SENT")
+    }
+  }
+  const prospectsWithDraft = prospects.map((p) => ({ ...p, draftStatus: draftStatusByClient.get(p.id) ?? null }))
 
   const active       = prospects.filter((p) => !["WON", "LOST"].includes(p.prospectStatus))
   const toContact    = prospects.filter((p) => p.prospectStatus === "TO_CONTACT")
@@ -90,6 +143,9 @@ export default async function ProspectionPage() {
         </div>
       </div>
 
+      {/* Rappel des relances à faire (dérivé du dernier email envoyé) */}
+      <FollowUpsCard items={followUpsDue} delayDays={followUpDelayDays} relanceTemplate={relanceTemplate} />
+
       {/* Stats — les cartes de statut filtrent le tableau instantanément
           (shallow routing via ?statut=, aucun rechargement). 9 cartes sur une
           ligne en desktop (lg), 4 en tablette, 2 en mobile. */}
@@ -110,8 +166,7 @@ export default async function ProspectionPage() {
       <ProspectQuickAdd />
 
       <ProspectionTable
-        prospects={prospects}
-        userId={userId}
+        prospects={prospectsWithDraft}
         templates={templates}
         emailFromConfigured={prospectionFromAddress() !== null}
       />

@@ -5,11 +5,19 @@ import { prisma } from "@/lib/prisma"
 import { auth } from "@/lib/auth"
 import type { JobApplicationStatus, JobEventType } from "@/generated/prisma/enums"
 import { CLOSED_STATUSES } from "@/components/modules/entretien/status-config"
+import { syncJobApplicationGoogleState, removeJobApplicationFromGoogle } from "@/lib/google-task-sync"
 
 async function requireAuth() {
   const session = await auth()
   if (!session?.user?.id) throw new Error("Non authentifié")
   return session.user.id
+}
+
+/** Anti-IDOR : ne renvoie l'id de contact que s'il appartient bien à l'utilisateur. */
+async function ownedContactId(userId: string, contactId?: string | null): Promise<string | null> {
+  if (!contactId) return null
+  const c = await prisma.client.findFirst({ where: { id: contactId, userId }, select: { id: true } })
+  return c?.id ?? null
 }
 
 type ApplicationInput = {
@@ -29,6 +37,9 @@ type ApplicationInput = {
   appliedAt?: string | null
   nextActionAt?: string | null
   nextActionLabel?: string
+  nextActionFormat?: string | null
+  competencyDossierValidated?: boolean
+  competencyDossierUrl?: string
 }
 
 function buildData(data: ApplicationInput) {
@@ -50,8 +61,33 @@ function buildData(data: ApplicationInput) {
     appliedAt: data.appliedAt ? new Date(data.appliedAt) : null,
     nextActionAt: data.nextActionAt ? new Date(data.nextActionAt) : null,
     nextActionLabel: data.nextActionLabel?.trim() || null,
+    nextActionFormat: data.nextActionFormat?.trim() || null,
+    competencyDossierValidated: data.competencyDossierValidated ?? false,
+    competencyDossierUrl: data.competencyDossierUrl?.trim() || null,
     closedAt: CLOSED_STATUSES.includes(status) ? new Date() : null,
   }
+}
+
+/**
+ * Résout la Company liée à une candidature : réutilise l'id fourni (s'il
+ * appartient à l'utilisateur), sinon une société de même nom, sinon en CRÉE une
+ * nouvelle — pour qu'un entretien saisi avec une société inconnue l'ajoute
+ * automatiquement à la liste des sociétés.
+ */
+async function resolveCompanyId(userId: string, companyName: string, companyId?: string | null): Promise<string | null> {
+  const name = companyName.trim()
+  if (!name) return null
+  if (companyId) {
+    const owned = await prisma.company.findFirst({ where: { id: companyId, userId }, select: { id: true } })
+    if (owned) return owned.id
+  }
+  const existing = await prisma.company.findFirst({
+    where: { userId, name: { equals: name, mode: "insensitive" } },
+    select: { id: true },
+  })
+  if (existing) return existing.id
+  const created = await prisma.company.create({ data: { userId, name } })
+  return created.id
 }
 
 // ── Candidatures ──────────────────────────────────────────────────────────────
@@ -67,8 +103,9 @@ export async function createJobApplication(data: ApplicationInput & { initialEve
   const userId = await requireAuth()
   if (!data.companyName.trim()) throw new Error("Le nom de la société est requis")
   if (!data.position.trim()) throw new Error("Le poste est requis")
+  const companyId = await resolveCompanyId(userId, data.companyName, data.companyId)
   const app = await prisma.jobApplication.create({
-    data: { userId, ...buildData(data) },
+    data: { userId, ...buildData({ ...data, companyId }) },
   })
   if (data.initialEvent?.title?.trim()) {
     await prisma.jobApplicationEvent.create({
@@ -82,7 +119,9 @@ export async function createJobApplication(data: ApplicationInput & { initialEve
       },
     })
   }
+  await syncJobApplicationGoogleState(userId, app.id)
   revalidatePath("/entretiens")
+  revalidatePath("/societes")
   revalidatePath("/")
   revalidatePath("/calendrier")
   return app
@@ -95,14 +134,17 @@ export async function updateJobApplication(id: string, data: ApplicationInput) {
     where: { id, userId },
     select: { status: true, closedAt: true },
   })
-  const built = buildData(data)
+  const companyId = await resolveCompanyId(userId, data.companyName, data.companyId)
+  const built = buildData({ ...data, companyId })
   // Si déjà clos et reste clos, on garde la date de clôture initiale
   if (existing && CLOSED_STATUSES.includes(existing.status) && CLOSED_STATUSES.includes(built.status) && existing.closedAt) {
     built.closedAt = existing.closedAt
   }
   await prisma.jobApplication.updateMany({ where: { id, userId }, data: built })
+  await syncJobApplicationGoogleState(userId, id)
   revalidatePath("/entretiens")
   revalidatePath(`/entretiens/${id}`)
+  revalidatePath("/societes")
   revalidatePath("/")
   revalidatePath("/calendrier")
 }
@@ -128,6 +170,7 @@ export async function updateApplicationStatus(id: string, status: JobApplication
 
 export async function deleteJobApplication(id: string) {
   const userId = await requireAuth()
+  await removeJobApplicationFromGoogle(userId, id)
   await prisma.jobApplication.deleteMany({ where: { id, userId } })
   revalidatePath("/entretiens")
   revalidatePath("/")
@@ -164,7 +207,7 @@ export async function toggleApplicationPriority(id: string) {
 
 export async function addApplicationEvent(
   applicationId: string,
-  data: { date: string; type: JobEventType; title: string; notes?: string }
+  data: { date: string; type: JobEventType; title: string; notes?: string; contactId?: string | null }
 ) {
   const userId = await requireAuth()
   const app = await prisma.jobApplication.findFirst({
@@ -176,12 +219,50 @@ export async function addApplicationEvent(
     data: {
       userId,
       applicationId,
+      contactId: await ownedContactId(userId, data.contactId),
       date: new Date(data.date),
       type: data.type,
       title: data.title.trim(),
       notes: data.notes?.trim() || null,
     },
   })
+  revalidatePath("/entretiens")
+  revalidatePath(`/entretiens/${applicationId}`)
+  revalidatePath("/calendrier")
+}
+
+/**
+ * Valide le « prochain point » planifié : l'enregistre dans l'historique comme un
+ * événement passé (titre = libellé du point, date = date prévue), puis efface le
+ * prochain point sur la candidature. En un clic depuis la fiche.
+ */
+export async function completeNextAction(applicationId: string, type: JobEventType = "OTHER", contactId?: string | null) {
+  const userId = await requireAuth()
+  const app = await prisma.jobApplication.findFirst({
+    where: { id: applicationId, userId },
+    select: { nextActionAt: true, nextActionLabel: true, contactId: true },
+  })
+  if (!app) throw new Error("Non autorisé")
+  if (!app.nextActionAt) throw new Error("Aucun prochain point à valider")
+  // Par défaut, on attribue le point au contact principal de la candidature.
+  const evContactId = await ownedContactId(userId, contactId ?? app.contactId)
+  await prisma.$transaction([
+    prisma.jobApplicationEvent.create({
+      data: {
+        userId,
+        applicationId,
+        contactId: evContactId,
+        date: app.nextActionAt,
+        type,
+        title: app.nextActionLabel?.trim() || "Rendez-vous",
+      },
+    }),
+    prisma.jobApplication.updateMany({
+      where: { id: applicationId, userId },
+      data: { nextActionAt: null, nextActionLabel: null },
+    }),
+  ])
+  await syncJobApplicationGoogleState(userId, applicationId)
   revalidatePath("/entretiens")
   revalidatePath(`/entretiens/${applicationId}`)
   revalidatePath("/calendrier")
@@ -249,7 +330,7 @@ export async function setEventOutcome(id: string, outcome: string) {
 
 export async function updateApplicationEvent(
   id: string,
-  data: { date?: string; type?: JobEventType; title?: string; notes?: string | null }
+  data: { date?: string; type?: JobEventType; title?: string; notes?: string | null; contactId?: string | null }
 ) {
   const userId = await requireAuth()
   const ev = await prisma.jobApplicationEvent.findFirst({
@@ -264,8 +345,80 @@ export async function updateApplicationEvent(
       ...(data.type !== undefined ? { type: data.type } : {}),
       ...(data.title !== undefined ? { title: data.title?.trim() || "" } : {}),
       ...(data.notes !== undefined ? { notes: data.notes?.trim() || null } : {}),
+      ...(data.contactId !== undefined ? { contactId: await ownedContactId(userId, data.contactId) } : {}),
     },
   })
   revalidatePath("/entretiens")
   revalidatePath(`/entretiens/${ev.applicationId}`)
+}
+
+// ── FAQ / réponses-types de préparation d'entretien ─────────────────────────────
+
+export async function getInterviewAnswers() {
+  const userId = await requireAuth()
+  return prisma.interviewAnswer.findMany({
+    where: { userId },
+    orderBy: [{ pinned: "desc" }, { sortOrder: "asc" }, { updatedAt: "desc" }],
+    include: { applications: { select: { id: true, companyName: true, position: true } } },
+  })
+}
+
+/** Définit les candidatures (processus) où ce modèle/réponse a été utilisé. Scoped userId. */
+export async function setAnswerApplications(answerId: string, applicationIds: string[]) {
+  const userId = await requireAuth()
+  const answer = await prisma.interviewAnswer.findFirst({ where: { id: answerId, userId }, select: { id: true } })
+  if (!answer) throw new Error("Non autorisé")
+  // Ne relie que des candidatures appartenant à l'utilisateur (anti-IDOR).
+  const owned = await prisma.jobApplication.findMany({
+    where: { id: { in: applicationIds }, userId }, select: { id: true },
+  })
+  await prisma.interviewAnswer.update({
+    where: { id: answerId },
+    data: { applications: { set: owned.map((a) => ({ id: a.id })) } },
+  })
+  revalidatePath("/entretiens/faq")
+}
+
+type InterviewAnswerInput = { question: string; answer: string; category?: string | null }
+
+export async function createInterviewAnswer(data: InterviewAnswerInput) {
+  const userId = await requireAuth()
+  const question = data.question.trim()
+  const answer = data.answer.trim()
+  if (!question) throw new Error("La question est requise")
+  if (!answer) throw new Error("La réponse est requise")
+  const created = await prisma.interviewAnswer.create({
+    data: { userId, question, answer, category: data.category?.trim() || null },
+  })
+  revalidatePath("/entretiens/faq")
+  return created.id
+}
+
+export async function updateInterviewAnswer(id: string, data: InterviewAnswerInput) {
+  const userId = await requireAuth()
+  const updated = await prisma.interviewAnswer.updateMany({
+    where: { id, userId },
+    data: {
+      question: data.question.trim(),
+      answer: data.answer.trim(),
+      category: data.category?.trim() || null,
+    },
+  })
+  if (updated.count === 0) throw new Error("Non autorisé")
+  revalidatePath("/entretiens/faq")
+}
+
+export async function deleteInterviewAnswer(id: string) {
+  const userId = await requireAuth()
+  await prisma.interviewAnswer.deleteMany({ where: { id, userId } })
+  revalidatePath("/entretiens/faq")
+}
+
+/** Épingle / désépingle une réponse (remontée en tête de liste). Scoped userId. */
+export async function toggleInterviewAnswerPinned(id: string) {
+  const userId = await requireAuth()
+  const item = await prisma.interviewAnswer.findFirst({ where: { id, userId }, select: { pinned: true } })
+  if (!item) throw new Error("Non autorisé")
+  await prisma.interviewAnswer.updateMany({ where: { id, userId }, data: { pinned: !item.pinned } })
+  revalidatePath("/entretiens/faq")
 }

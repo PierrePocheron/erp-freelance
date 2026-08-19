@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useTransition } from "react"
+import { useState, useTransition, useId } from "react"
 import { useRouter } from "next/navigation"
 import { Plus, Pencil, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -11,12 +11,9 @@ import {
 import { DatePartsField } from "@/components/ui/date-parts-field"
 import { createRecurringExpense, updateRecurringExpense, deleteRecurringExpense, createExpense, convertRecurringToExpense } from "@/actions/expense"
 import { ExpenseCategoryCombobox, type ExpenseCategory } from "./ExpenseCategoryCombobox"
+import { toDateInput } from "@/lib/dates"
 
 import { FREQUENCY_LABELS } from "@/lib/expense-constants"
-
-// Ré-export conservé pour les imports client existants ; les Server
-// Components doivent importer depuis @/lib/expense-constants directement.
-export { FREQUENCY_LABELS }
 
 export type RecurringExpenseForEdit = {
   id: string
@@ -38,6 +35,7 @@ export function RecurringExpenseDialog({
   recurringExpense?: RecurringExpenseForEdit
 }) {
   const router = useRouter()
+  const fieldId = useId()
   const isEdit = !!recurringExpense
   const [open, setOpen] = useState(false)
   const [isPending, startTransition] = useTransition()
@@ -45,9 +43,9 @@ export function RecurringExpenseDialog({
 
   const [label, setLabel]         = useState(recurringExpense?.label ?? "")
   const [amount, setAmount]       = useState(recurringExpense ? String(recurringExpense.amount) : "")
-  const [nextDate, setNextDate]   = useState(() => new Date(recurringExpense?.nextGenerationDate ?? new Date()).toISOString().slice(0, 10))
+  const [nextDate, setNextDate]   = useState(() => toDateInput(new Date(recurringExpense?.nextGenerationDate ?? new Date())))
   const [scope, setScope]         = useState<"PRO" | "PERSO">(recurringExpense?.scope ?? "PERSO")
-  const [frequency, setFrequency] = useState<string>(recurringExpense?.frequency ?? "MONTHLY")
+  const [frequency, setFrequency] = useState<"ONETIME" | "WEEKLY" | "MONTHLY" | "QUARTERLY" | "YEARLY" | "CUSTOM">(recurringExpense?.frequency ?? "MONTHLY")
   const isOneTime = frequency === "ONETIME"
   const [categoryId, setCategoryId] = useState(recurringExpense?.categoryId ?? "")
   const [notes, setNotes]         = useState(recurringExpense?.notes ?? "")
@@ -68,15 +66,15 @@ export function RecurringExpenseDialog({
       categoryId: categoryId || null,
       notes: notes.trim() || null,
     }
-    const dateObj = new Date(`${nextDate || new Date().toISOString().slice(0, 10)}T00:00:00`)
+    const dateObj = new Date(`${nextDate || toDateInput(new Date())}T00:00:00`)
 
     startTransition(async () => {
-      if (isOneTime) {
+      if (frequency === "ONETIME") {
         // Conversion / création d'une dépense ponctuelle
         if (isEdit) await convertRecurringToExpense(recurringExpense.id, { ...shared, date: dateObj })
         else await createExpense({ ...shared, date: dateObj })
       } else {
-        const payload = { ...shared, frequency: frequency as RecurringExpenseForEdit["frequency"], nextGenerationDate: dateObj, dateToConfirm }
+        const payload = { ...shared, frequency, nextGenerationDate: dateObj, dateToConfirm }
         if (isEdit) await updateRecurringExpense(recurringExpense.id, payload)
         else await createRecurringExpense(payload)
       }
@@ -114,19 +112,20 @@ export function RecurringExpenseDialog({
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-3">
           <div className="space-y-1">
-            <label className="text-xs text-muted-foreground">Libellé</label>
-            <Input value={label} onChange={e => setLabel(e.target.value)} placeholder="Loyer, Internet, Assurance…" required />
+            <label htmlFor={`${fieldId}-libelle`} className="text-xs text-muted-foreground">Libellé</label>
+            <Input id={`${fieldId}-libelle`} value={label} onChange={e => setLabel(e.target.value)} placeholder="Loyer, Internet, Assurance…" required />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
-              <label className="text-xs text-muted-foreground">Montant (€)</label>
-              <Input type="text" inputMode="decimal" value={amount} onChange={e => setAmount(e.target.value)} placeholder="0.00" required />
+              <label htmlFor={`${fieldId}-amount`} className="text-xs text-muted-foreground">Montant (€)</label>
+              <Input id={`${fieldId}-amount`} type="text" inputMode="decimal" value={amount} onChange={e => setAmount(e.target.value)} placeholder="0.00" required />
             </div>
             <div className="space-y-1">
-              <label className="text-xs text-muted-foreground">Fréquence</label>
+              <label htmlFor={`${fieldId}-frequency`} className="text-xs text-muted-foreground">Fréquence</label>
               <select
+                id={`${fieldId}-frequency`}
                 value={frequency}
-                onChange={e => setFrequency(e.target.value)}
+                onChange={e => setFrequency(e.target.value as typeof frequency)}
                 className="flex h-9 w-full rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
               >
                 <option value="ONETIME">Ponctuelle</option>
@@ -157,8 +156,9 @@ export function RecurringExpenseDialog({
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
-              <label className="text-xs text-muted-foreground">Portée</label>
+              <label htmlFor={`${fieldId}-scope`} className="text-xs text-muted-foreground">Portée</label>
               <select
+                id={`${fieldId}-scope`}
                 value={scope}
                 onChange={e => setScope(e.target.value as "PRO" | "PERSO")}
                 className="flex h-9 w-full rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
@@ -168,13 +168,13 @@ export function RecurringExpenseDialog({
               </select>
             </div>
             <div className="space-y-1">
-              <label className="text-xs text-muted-foreground">Catégorie</label>
-              <ExpenseCategoryCombobox categories={categories} value={categoryId} onChange={setCategoryId} />
+              <label htmlFor={`${fieldId}-category`} className="text-xs text-muted-foreground">Catégorie</label>
+              <ExpenseCategoryCombobox id={`${fieldId}-category`} categories={categories} value={categoryId} onChange={setCategoryId} />
             </div>
           </div>
           <div className="space-y-1">
-            <label className="text-xs text-muted-foreground">Notes (optionnel)</label>
-            <Input value={notes} onChange={e => setNotes(e.target.value)} placeholder="Détail, référence…" />
+            <label htmlFor={`${fieldId}-notes`} className="text-xs text-muted-foreground">Notes (optionnel)</label>
+            <Input id={`${fieldId}-notes`} value={notes} onChange={e => setNotes(e.target.value)} placeholder="Détail, référence…" />
           </div>
 
           <div className="flex items-center justify-between pt-1">

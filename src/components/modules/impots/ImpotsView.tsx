@@ -3,12 +3,14 @@
 import { useState, useMemo, useEffect, useTransition } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
+import { toast } from "sonner"
 import {
   Landmark, Plus, ChevronDown, ChevronUp, CheckCircle2, Clock,
   Trash2, X, AlertTriangle, Receipt, Wallet, ExternalLink, Search, Loader2,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
 import {
   createUrssafDeclaration, markUrssafDeclared, markUrssafPaid,
   deleteUrssafDeclaration, suggestDeclarationLines, type SuggestedLine,
@@ -99,7 +101,13 @@ export function ImpotsView({
   const yearDecls = declarations.filter(d => d.period.startsWith(String(year)))
   const declaredCA = yearDecls.reduce((s, d) => s + d.amountBNC + d.amountBICServices + d.amountBICSales, 0)
   const paidTotal  = yearDecls.reduce((s, d) => s + d.totalPaid, 0)
-  const nextDue    = declarations.find(d => d.status !== "PAID")?.dueDate ?? null
+  // Échéance réellement la plus proche parmi les non payées : `declarations` est
+  // trié par periodStart desc, donc .find() renverrait la période la plus récente
+  // et non la plus urgente. On prend le plus petit dueDate (ISO → tri lexical = chrono).
+  const nextDue    = declarations
+    .filter(d => d.status !== "PAID" && d.dueDate)
+    .map(d => d.dueDate as string)
+    .sort()[0] ?? null
   // Seules les lignes réellement encaissées comptent dans l'estimation "à déclarer" —
   // suggestedLines contient aussi les factures encore en attente pour qu'on puisse
   // les rattacher au bon moment, mais elles ne sont pas dues tant qu'elles ne sont pas payées.
@@ -110,6 +118,8 @@ export function ImpotsView({
       {/* Header */}
       <div className="flex items-start justify-between gap-4">
         <div>
+          {/* Titre visible en mobile ; en desktop, un h1 lu par les lecteurs d'écran (sr-only) prend le relais */}
+          <h1 className="sr-only hidden sm:block">Impôts &amp; URSSAF</h1>
           <h1 className="sm:hidden text-2xl font-bold tracking-tight flex items-center gap-2">
             <Landmark className="h-6 w-6 text-primary" />
             Impôts &amp; URSSAF
@@ -126,10 +136,10 @@ export function ImpotsView({
 
       {/* Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <StatCard label={`CA déclaré ${year}`}    value={`${fmt(declaredCA)} €`}  icon={Receipt} />
-        <StatCard label="Cotisations payées"      value={`${fmt(paidTotal)} €`}   icon={Wallet} accent="emerald" />
+        <StatCard label={`CA déclaré ${year}`}    value={`${fmt(declaredCA)} €`}  icon={Receipt} sensitive />
+        <StatCard label="Cotisations payées"      value={`${fmt(paidTotal)} €`}   icon={Wallet} accent="emerald" sensitive />
         <StatCard label={`À déclarer (${periodLabel(periodToDeclare).split(" · ")[0]})`}
-                  value={`${fmt(pendingToDeclare)} €`} icon={Clock} accent={pendingToDeclare > 0 ? "amber" : undefined} />
+                  value={`${fmt(pendingToDeclare)} €`} icon={Clock} accent={pendingToDeclare > 0 ? "amber" : undefined} sensitive />
         <StatCard label="Prochaine échéance"      value={fmtDate(nextDue)}        icon={AlertTriangle}
                   accent={nextDue && new Date(nextDue) < new Date() ? "red" : undefined} />
       </div>
@@ -185,9 +195,10 @@ export function ImpotsView({
 
 // ── Stat card ──────────────────────────────────────────────────────────────────
 
-function StatCard({ label, value, icon: Icon, accent }: {
+function StatCard({ label, value, icon: Icon, accent, sensitive }: {
   label: string; value: string; icon: React.ElementType
   accent?: "emerald" | "amber" | "red"
+  sensitive?: boolean
 }) {
   const accentCls =
     accent === "emerald" ? "text-emerald-600 dark:text-emerald-400" :
@@ -199,7 +210,7 @@ function StatCard({ label, value, icon: Icon, accent }: {
         <Icon className="h-3.5 w-3.5" />
         {label}
       </div>
-      <p className={`text-xl font-bold tabular-nums ${accentCls}`}>{value}</p>
+      <p className={`text-xl font-bold tabular-nums ${accentCls}${sensitive ? " amount-sensitive" : ""}`}>{value}</p>
     </div>
   )
 }
@@ -228,16 +239,32 @@ function DeclarationCard({ declaration: d, expanded, onToggle, onPay, rates, vlE
 
   function handleDeclare() {
     startTransition(async () => {
-      await markUrssafDeclared(d.id, new Date())
-      router.refresh()
+      try {
+        const res = await markUrssafDeclared(d.id, new Date())
+        if (res?.error) {
+          toast.error(res.error)
+          return
+        }
+        router.refresh()
+      } catch {
+        toast.error("Impossible de marquer la déclaration comme déclarée.")
+      }
     })
   }
 
   function handleDelete() {
     if (!confirm(`Supprimer la déclaration ${periodLabel(d.period)} ?`)) return
     startTransition(async () => {
-      await deleteUrssafDeclaration(d.id)
-      router.refresh()
+      try {
+        const res = await deleteUrssafDeclaration(d.id)
+        if (res?.error) {
+          toast.error(res.error)
+          return
+        }
+        router.refresh()
+      } catch {
+        toast.error("Impossible de supprimer la déclaration.")
+      }
     })
   }
 
@@ -259,14 +286,16 @@ function DeclarationCard({ declaration: d, expanded, onToggle, onPay, rates, vlE
           </div>
           <p className="text-xs text-muted-foreground mt-0.5">
             {d.status === "PAID"
-              ? `Payé ${fmt(d.totalPaid)} € le ${fmtDate(d.paidAt)}`
+              ? <>Payé <span className="amount-sensitive">{fmt(d.totalPaid)} €</span> le {fmtDate(d.paidAt)}</>
               : `Échéance ${fmtDate(d.dueDate)}`}
           </p>
         </div>
         <div className="text-right shrink-0">
-          <p className="font-bold tabular-nums">{fmt(totalCA)} €</p>
+          <p className="font-bold tabular-nums amount-sensitive">{fmt(totalCA)} €</p>
           <p className="text-xs text-muted-foreground tabular-nums">
-            {d.status === "PAID" ? `${fmt(d.totalPaid)} € URSSAF` : `~${fmt(estimate.totalDue)} € estimés`}
+            {d.status === "PAID"
+              ? <><span className="amount-sensitive">{fmt(d.totalPaid)} €</span> URSSAF</>
+              : <>~<span className="amount-sensitive">{fmt(estimate.totalDue)} €</span> estimés</>}
           </p>
         </div>
         {expanded ? <ChevronUp className="h-4 w-4 text-muted-foreground shrink-0" /> : <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />}
@@ -291,12 +320,12 @@ function DeclarationCard({ declaration: d, expanded, onToggle, onPay, rates, vlE
                         <span className="flex items-center gap-1.5 min-w-0">
                           <span className="truncate">{l.label}</span>
                           {l.invoiceId && (
-                            <Link href={`/facturation/factures/${l.invoiceId}`} className="text-primary shrink-0">
-                              <ExternalLink className="h-3 w-3" />
+                            <Link href={`/facturation/factures/${l.invoiceId}`} aria-label="Ouvrir la facture" className="text-primary shrink-0">
+                              <ExternalLink className="h-3 w-3" aria-hidden="true" />
                             </Link>
                           )}
                         </span>
-                        <span className="font-medium tabular-nums shrink-0">{fmt(l.amount)} €</span>
+                        <span className="font-medium tabular-nums shrink-0 amount-sensitive">{fmt(l.amount)} €</span>
                       </div>
                     ))}
                   </div>
@@ -305,7 +334,7 @@ function DeclarationCard({ declaration: d, expanded, onToggle, onPay, rates, vlE
                       Cotisations {rates[cat].cotisations} %{vlEnabled ? ` + VL ${rates[cat].vl} %` : ""}
                     </span>
                     <span className="font-semibold tabular-nums">
-                      {fmt(catTotal)} € → {fmt(est.cotisations + est.vl + est.cfp)} €
+                      <span className="amount-sensitive">{fmt(catTotal)} €</span> → <span className="amount-sensitive">{fmt(est.cotisations + est.vl + est.cfp)} €</span>
                     </span>
                   </div>
                 </div>
@@ -357,11 +386,11 @@ function RecapPill({ label, estimate, actual, highlight }: {
   return (
     <div className={`rounded-lg border p-2.5 ${highlight ? "border-primary/40 bg-primary/5" : "border-border bg-card"}`}>
       <p className="text-[10px] text-muted-foreground uppercase tracking-wide">{label}</p>
-      <p className="text-sm font-bold tabular-nums">
+      <p className="text-sm font-bold tabular-nums amount-sensitive">
         {actual !== null ? `${fmt(actual)} €` : `~${fmt(estimate)} €`}
       </p>
       {actual !== null && actual !== estimate && (
-        <p className="text-[10px] text-muted-foreground tabular-nums">estimé {fmt(estimate)} €</p>
+        <p className="text-[10px] text-muted-foreground tabular-nums">estimé <span className="amount-sensitive">{fmt(estimate)} €</span></p>
       )}
     </div>
   )
@@ -371,8 +400,10 @@ function RecapPill({ label, estimate, actual, highlight }: {
 
 type EditableLine = SuggestedLine & { included: boolean; key: string }
 
-let freeLineSeq = 0
-const lineKey = (l: SuggestedLine) => l.invoiceId ?? l.revenueId ?? `free-${freeLineSeq++}`
+// Les lignes suggérées portent toujours invoiceId ou revenueId (clé stable) ; le
+// fallback ne sert que par sécurité et n'incrémente plus de compteur mutable de
+// module pendant le rendu (effet de bord impur, fragile en double-invocation React).
+const lineKey = (l: SuggestedLine) => l.invoiceId ?? l.revenueId ?? crypto.randomUUID()
 
 function NewDeclarationDialog({
   defaultPeriod, suggestedLines, existingPeriods, rates, vlEnabled,
@@ -412,12 +443,19 @@ function NewDeclarationDialog({
     let cancelled = false
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setIsFetching(true)
-    suggestDeclarationLines(period).then(fresh => {
-      if (cancelled) return
-      setLines(fresh.map(l => ({ ...l, included: l.defaultIncluded, key: lineKey(l) })))
-      setLoadedPeriod(period)
-      setIsFetching(false)
-    })
+    suggestDeclarationLines(period)
+      .then(fresh => {
+        if (cancelled) return
+        setLines(fresh.map(l => ({ ...l, included: l.defaultIncluded, key: lineKey(l) })))
+        setLoadedPeriod(period)
+        setIsFetching(false)
+      })
+      .catch(() => {
+        // Sans ce catch, un rejet laissait le spinner (setIsFetching) bloqué à l'infini.
+        if (cancelled) return
+        setIsFetching(false)
+        toast.error("Impossible de charger les factures de cette période.")
+      })
     return () => { cancelled = true }
   }, [period, loadedPeriod, existingId])
 
@@ -460,7 +498,7 @@ function NewDeclarationDialog({
     setLines(prev => [...prev, {
       category: freeCat, invoiceId: null, revenueId: null,
       label: freeLabel.trim(), amount, included: true,
-      status: "PAID", defaultIncluded: true, key: `free-${freeLineSeq++}`,
+      status: "PAID", defaultIncluded: true, key: crypto.randomUUID(),
     }])
     setFreeLabel(""); setFreeAmount("")
   }
@@ -484,10 +522,10 @@ function NewDeclarationDialog({
     <DialogShell title="Nouvelle déclaration URSSAF" onClose={onClose}>
       {/* Période */}
       <div className="flex items-center justify-between gap-2">
-        <button onClick={() => setPeriod(previousPeriod(period))}
+        <button onClick={() => setPeriod(previousPeriod(period))} aria-label="Période précédente"
           className="rounded-lg border border-border px-2 py-1 text-xs hover:bg-accent">←</button>
         <span className="text-sm font-semibold">{periodLabel(period)}</span>
-        <button onClick={() => setPeriod(nextPeriod(period))}
+        <button onClick={() => setPeriod(nextPeriod(period))} aria-label="Période suivante"
           className="rounded-lg border border-border px-2 py-1 text-xs hover:bg-accent">→</button>
       </div>
 
@@ -506,12 +544,13 @@ function NewDeclarationDialog({
           {/* Recherche parmi les factures / revenus de la période */}
           {lines.length > 5 && (
             <div className="flex items-center gap-1.5 rounded-lg border border-input bg-background px-2 py-1.5">
-              <Search className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+              <Search className="h-3.5 w-3.5 text-muted-foreground shrink-0" aria-hidden="true" />
               <input
                 type="text"
                 value={search}
                 onChange={e => setSearch(e.target.value)}
                 placeholder="Filtrer par client, numéro…"
+                aria-label="Filtrer les lignes"
                 className="bg-transparent text-xs outline-none flex-1 min-w-0 placeholder:text-muted-foreground/50"
               />
             </div>
@@ -524,8 +563,9 @@ function NewDeclarationDialog({
               lisible même avec beaucoup de factures sur la période. */}
           <div className="space-y-1.5 max-h-64 overflow-y-auto relative pr-0.5">
             {isFetching && (
-              <div className="absolute inset-0 z-10 flex items-center justify-center bg-card/70 rounded-lg">
-                <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+              <div role="status" className="absolute inset-0 z-10 flex items-center justify-center bg-card/70 rounded-lg">
+                <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" aria-hidden="true" />
+                <span className="sr-only">Chargement…</span>
               </div>
             )}
             {lines.length === 0 && (
@@ -561,28 +601,29 @@ function NewDeclarationDialog({
             <Input value={freeLabel} onChange={e => setFreeLabel(e.target.value)}
               placeholder="Encaissement manuel…" className="h-8 text-xs flex-1" />
             <select value={freeCat} onChange={e => setFreeCat(e.target.value as FiscalCategory)}
+              aria-label="Catégorie fiscale"
               className="rounded-md border border-input bg-background px-1.5 py-1.5 text-[10px] shrink-0">
               {ALL_CATEGORIES.map(c => <option key={c} value={c}>{FISCAL_CATEGORY_SHORT[c]}</option>)}
             </select>
             <Input value={freeAmount} onChange={e => setFreeAmount(e.target.value)}
               placeholder="€" className="h-8 text-xs w-20" inputMode="decimal" />
-            <Button size="sm" variant="outline" onClick={addFreeLine} className="h-8 px-2 shrink-0">
-              <Plus className="h-3.5 w-3.5" />
+            <Button size="sm" variant="outline" onClick={addFreeLine} aria-label="Ajouter la ligne" className="h-8 px-2 shrink-0">
+              <Plus className="h-3.5 w-3.5" aria-hidden="true" />
             </Button>
           </div>
 
           {/* Estimation */}
           <div className="rounded-lg border border-border bg-muted/40 p-3 space-y-1 text-xs">
-            <Row label={`CA total (${included.length} ligne${included.length > 1 ? "s" : ""})`} value={`${fmt(estimate.totalCA)} €`} bold />
-            <Row label="Cotisations sociales" value={`${fmt(estimate.totalCotisations)} €`} />
-            <Row label="CFP" value={`${fmt(estimate.totalCFP)} €`} />
-            {vlEnabled && <Row label="Versement libératoire" value={`${fmt(estimate.totalVL)} €`} />}
+            <Row label={`CA total (${included.length} ligne${included.length > 1 ? "s" : ""})`} value={`${fmt(estimate.totalCA)} €`} bold sensitive />
+            <Row label="Cotisations sociales" value={`${fmt(estimate.totalCotisations)} €`} sensitive />
+            <Row label="CFP" value={`${fmt(estimate.totalCFP)} €`} sensitive />
+            {vlEnabled && <Row label="Versement libératoire" value={`${fmt(estimate.totalVL)} €`} sensitive />}
             <div className="border-t border-border pt-1">
-              <Row label="Total URSSAF estimé" value={`${fmt(estimate.totalDue)} €`} bold accent />
+              <Row label="Total URSSAF estimé" value={`${fmt(estimate.totalDue)} €`} bold accent sensitive />
             </div>
           </div>
 
-          {error && <p className="text-xs text-red-600">{error}</p>}
+          {error && <p role="alert" className="text-xs text-red-600">{error}</p>}
 
           <div className="flex justify-end gap-2">
             <Button variant="outline" size="sm" onClick={onClose}>Annuler</Button>
@@ -607,6 +648,7 @@ function DeclarationLineRow({ line: l, onToggle, onCategory }: {
       l.included ? "border-border bg-card" : "border-border/50 opacity-60"
     }`}>
       <input type="checkbox" checked={l.included} onChange={() => onToggle(l.key)}
+        aria-label={l.label}
         className="h-3.5 w-3.5 accent-[var(--primary)] shrink-0" />
       <span className="flex-1 min-w-0 text-xs truncate">{l.label}</span>
       {statusMeta && (
@@ -617,13 +659,14 @@ function DeclarationLineRow({ line: l, onToggle, onCategory }: {
       <select
         value={l.category}
         onChange={e => onCategory(l.key, e.target.value as FiscalCategory)}
+        aria-label="Catégorie fiscale"
         className="rounded-md border border-input bg-background px-1.5 py-1 text-[10px] shrink-0"
       >
         {ALL_CATEGORIES.map(c => (
           <option key={c} value={c}>{FISCAL_CATEGORY_SHORT[c]}</option>
         ))}
       </select>
-      <span className="text-xs font-semibold tabular-nums shrink-0 w-16 text-right">{fmt(l.amount)} €</span>
+      <span className="text-xs font-semibold tabular-nums shrink-0 w-16 text-right amount-sensitive">{fmt(l.amount)} €</span>
     </div>
   )
 }
@@ -684,10 +727,10 @@ function PayDialog({ declaration: d, rates, vlEnabled, onClose, onSaved }: {
       </div>
       <div className="rounded-lg border border-primary/40 bg-primary/5 p-3 flex items-center justify-between">
         <span className="text-xs font-medium">Total payé</span>
-        <span className="text-sm font-bold tabular-nums">{fmt(total)} €</span>
+        <span className="text-sm font-bold tabular-nums amount-sensitive">{fmt(total)} €</span>
       </div>
 
-      {error && <p className="text-xs text-red-600">{error}</p>}
+      {error && <p role="alert" className="text-xs text-red-600">{error}</p>}
 
       <div className="flex justify-end gap-2">
         <Button variant="outline" size="sm" onClick={onClose}>Annuler</Button>
@@ -705,20 +748,22 @@ function DialogShell({ title, onClose, children }: {
   title: string; onClose: () => void; children: React.ReactNode
 }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
-      <div
-        className="w-full max-w-lg rounded-2xl border border-border bg-card shadow-2xl p-5 space-y-4"
-        onClick={e => e.stopPropagation()}
-      >
-        <div className="flex items-center justify-between">
-          <h3 className="font-semibold text-sm">{title}</h3>
-          <button onClick={onClose} className="text-muted-foreground hover:text-foreground">
-            <X className="h-4 w-4" />
-          </button>
+    <Dialog open onOpenChange={(o) => { if (!o) onClose() }}>
+      {/* p-0/gap-0 : le conteneur interne garde son propre padding et son
+          espacement vertical (comme avant la migration base-ui). Fermeture par
+          Échap / clic sur l'overlay gérée nativement par base-ui. */}
+      <DialogContent showCloseButton={false} className="sm:max-w-lg p-0 gap-0">
+        <div className="p-5 space-y-4">
+          <div className="flex items-center justify-between">
+            <DialogTitle className="font-semibold text-sm">{title}</DialogTitle>
+            <button onClick={onClose} aria-label="Fermer" className="text-muted-foreground hover:text-foreground">
+              <X className="h-4 w-4" aria-hidden="true" />
+            </button>
+          </div>
+          {children}
         </div>
-        {children}
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   )
 }
 
@@ -733,13 +778,13 @@ function Field({ label, value, onChange }: {
   )
 }
 
-function Row({ label, value, bold, accent }: {
-  label: string; value: string; bold?: boolean; accent?: boolean
+function Row({ label, value, bold, accent, sensitive }: {
+  label: string; value: string; bold?: boolean; accent?: boolean; sensitive?: boolean
 }) {
   return (
     <div className="flex items-center justify-between">
       <span className={accent ? "font-semibold" : "text-muted-foreground"}>{label}</span>
-      <span className={`tabular-nums ${bold ? "font-bold" : "font-medium"} ${accent ? "text-primary" : ""}`}>{value}</span>
+      <span className={`tabular-nums ${bold ? "font-bold" : "font-medium"} ${accent ? "text-primary" : ""}${sensitive ? " amount-sensitive" : ""}`}>{value}</span>
     </div>
   )
 }

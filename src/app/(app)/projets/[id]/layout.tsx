@@ -12,6 +12,7 @@ import { ProjectContactsManager } from "@/components/modules/projet/ProjectConta
 import { addProjectContact, removeProjectContact, updateProjectCompany } from "@/actions/projet"
 import { getOrCreateDefaultTags } from "@/actions/tags"
 import { UserAvatar } from "@/components/ui/user-avatar"
+import { SetBreadcrumbLabel } from "@/components/layout/BreadcrumbContext"
 
 export default async function ProjectLayout({
   children,
@@ -24,7 +25,7 @@ export default async function ProjectLayout({
   const session = await auth()
   const userId = session!.user.id
 
-  const [project, allTags, projectTagIds, contacts] = await Promise.all([
+  const [project, allTags, contacts] = await Promise.all([
     prisma.project.findFirst({
       where: {
         id,
@@ -41,13 +42,11 @@ export default async function ProjectLayout({
           orderBy: { createdAt: "asc" },
         },
         user: { select: { name: true, email: true, image: true } },
+        // Tags rapatriés dans cette requête pour éviter un second findFirst sur la même ligne.
+        tags: { select: { id: true, name: true } },
       },
     }),
     getOrCreateDefaultTags().catch(() => [] as { id: string; name: string; color: string }[]),
-    prisma.project.findFirst({
-      where: { id, OR: [{ userId }, { members: { some: { userId } } }] },
-      select: { tags: { select: { id: true, name: true } } },
-    }).catch(() => null),
     prisma.client.findMany({
       where: { userId },
       orderBy: [{ name: "asc" }],
@@ -58,11 +57,12 @@ export default async function ProjectLayout({
   if (!project) notFound()
 
   const isOwner = project.userId === userId
-  const selectedTagIds = projectTagIds?.tags?.map((t) => t.id) ?? []
-  const hasDevTag = (projectTagIds?.tags ?? []).some((t) => t.name.toLowerCase() === "dev")
+  const selectedTagIds = project.tags.map((t) => t.id)
+  const hasDevTag = project.tags.some((t) => t.name.toLowerCase() === "dev")
 
   return (
     <div className="space-y-5">
+      <SetBreadcrumbLabel value={id} label={project.name} />
       <div>
         <Link
           href="/projets"

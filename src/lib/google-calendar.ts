@@ -70,17 +70,27 @@ export async function hasCalendarScope(userId: string): Promise<boolean> {
   return account.scope.includes("calendar")
 }
 
-/**
- * Retourne un access_token valide pour l'utilisateur.
- * Rafraîchit automatiquement si le token est expiré.
- * Retourne null si pas de compte Google ou pas de scope calendar.
- */
-export async function getGoogleAccessToken(userId: string): Promise<string | null> {
-  const account = await prisma.account.findFirst({
+type GoogleAccountTokens = {
+  access_token: string | null
+  refresh_token: string | null
+  expires_at: number | null
+  scope: string | null
+}
+
+/** Charge la ligne Account Google (tokens + scope) de l'utilisateur, ou null. */
+async function loadGoogleAccount(userId: string): Promise<GoogleAccountTokens | null> {
+  return prisma.account.findFirst({
     where: { userId, provider: "google" },
     select: { access_token: true, refresh_token: true, expires_at: true, scope: true },
   })
+}
 
+/**
+ * Dérive un access_token valide à partir d'une ligne Account déjà chargée,
+ * en rafraîchissant si nécessaire. Retourne null si pas de scope calendar,
+ * pas de token, ou échec du refresh.
+ */
+async function resolveAccessToken(userId: string, account: GoogleAccountTokens | null): Promise<string | null> {
   if (!account) return null
   if (!account.scope?.includes("calendar")) return null
   if (!account.access_token) return null
@@ -129,16 +139,27 @@ export async function getGoogleAccessToken(userId: string): Promise<string | nul
 }
 
 /**
+ * Retourne un access_token valide pour l'utilisateur.
+ * Rafraîchit automatiquement si le token est expiré.
+ * Retourne null si pas de compte Google ou pas de scope calendar.
+ */
+export async function getGoogleAccessToken(userId: string): Promise<string | null> {
+  return resolveAccessToken(userId, await loadGoogleAccount(userId))
+}
+
+/**
  * Vérifie l'état réel de la connexion Google Calendar : scope accordé, token
  * valide (rafraîchi si besoin), et joignabilité effective de l'API (un appel
  * léger, pour détecter une révocation côté Google qui n'aurait pas encore
  * expiré le token d'accès localement).
  */
 export async function checkGoogleCalendarStatus(userId: string): Promise<GoogleConnectionStatus> {
-  const hasScope = await hasCalendarScope(userId)
-  if (!hasScope) return { status: "disconnected" }
+  // Une seule lecture de la ligne Account : on en dérive le scope (disconnected
+  // si absent) puis le token (rafraîchi au besoin) plutôt que de la relire.
+  const account = await loadGoogleAccount(userId)
+  if (!account?.scope?.includes("calendar")) return { status: "disconnected" }
 
-  const accessToken = await getGoogleAccessToken(userId)
+  const accessToken = await resolveAccessToken(userId, account)
   if (!accessToken) {
     return { status: "error", detail: "Le jeton d'accès a expiré ou a été révoqué. Réautorisez l'accès." }
   }

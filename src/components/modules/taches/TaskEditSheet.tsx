@@ -1,10 +1,12 @@
 "use client"
 
-import { useState, useEffect, useTransition } from "react"
+import { useState, useEffect, useTransition, useId } from "react"
 import { Loader2 } from "lucide-react"
+import { toast } from "sonner"
 import { updateTaskFields } from "@/actions/projet"
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetFooter } from "@/components/ui/sheet"
 import { Button } from "@/components/ui/button"
+import { toDateInput } from "@/lib/dates"
 import { cn } from "@/lib/utils"
 
 const PRIORITY_LABELS: Record<string, string> = { LOW: "Basse", MEDIUM: "Moyenne", HIGH: "Haute", URGENT: "Urgente" }
@@ -13,6 +15,14 @@ const PRIORITY_CLS: Record<string, string> = {
   MEDIUM: "border-amber-400/60 text-amber-400 bg-amber-400/10",
   HIGH: "border-orange-500/60 text-orange-500 bg-orange-500/10",
   URGENT: "border-red-500/60 text-red-500 bg-red-500/10",
+}
+// Couleur du badge Importance (niveaux 1-4), table dédiée indexée par niveau —
+// plus de dépendance implicite à l'ordre des clés de PRIORITY_CLS.
+const IMPORTANCE_CLS: Record<number, string> = {
+  1: "border-blue-400/60 text-blue-400 bg-blue-400/10",
+  2: "border-amber-400/60 text-amber-400 bg-amber-400/10",
+  3: "border-orange-500/60 text-orange-500 bg-orange-500/10",
+  4: "border-red-500/60 text-red-500 bg-red-500/10",
 }
 
 export type TaskForEdit = {
@@ -34,18 +44,19 @@ export function TaskEditSheet({ task, open, onOpenChange }: {
   const [title, setTitle] = useState(task.title)
   const [description, setDescription] = useState(task.description ?? "")
   const [dueDate, setDueDate] = useState(
-    task.dueDate ? new Date(task.dueDate).toISOString().split("T")[0] : ""
+    task.dueDate ? toDateInput(task.dueDate) : ""
   )
   const [priority, setPriority] = useState(task.priority)
   const [importance, setImportance] = useState(task.importance)
   const [estimatedHours, setEstimatedHours] = useState(task.estimatedHours?.toString() ?? "")
+  const fieldId = useId()
 
   useEffect(() => {
     if (!open) return
     /* eslint-disable react-hooks/set-state-in-effect */
     setTitle(task.title)
     setDescription(task.description ?? "")
-    setDueDate(task.dueDate ? new Date(task.dueDate).toISOString().split("T")[0] : "")
+    setDueDate(task.dueDate ? toDateInput(task.dueDate) : "")
     setPriority(task.priority)
     setImportance(task.importance)
     setEstimatedHours(task.estimatedHours?.toString() ?? "")
@@ -54,15 +65,19 @@ export function TaskEditSheet({ task, open, onOpenChange }: {
 
   function handleSave() {
     startTransitionFn(async () => {
-      await updateTaskFields(task.id, {
-        title: title.trim() || task.title,
-        description: description.trim() || null,
-        dueDate: dueDate || null,
-        priority,
-        importance,
-        estimatedHours: estimatedHours ? parseFloat(estimatedHours) : null,
-      })
-      onOpenChange(false)
+      try {
+        await updateTaskFields(task.id, {
+          title: title.trim() || task.title,
+          description: description.trim() || null,
+          dueDate: dueDate || null,
+          priority,
+          importance,
+          estimatedHours: estimatedHours ? parseFloat(estimatedHours) : null,
+        })
+        onOpenChange(false)
+      } catch {
+        toast.error("Échec de l'enregistrement de la tâche")
+      }
     })
   }
 
@@ -75,8 +90,9 @@ export function TaskEditSheet({ task, open, onOpenChange }: {
 
         <div className="flex-1 overflow-y-auto px-6 py-4 space-y-5">
           <div className="space-y-1.5">
-            <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Titre</label>
+            <label htmlFor={`${fieldId}-title`} className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Titre</label>
             <input
+              id={`${fieldId}-title`}
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && handleSave()}
@@ -85,8 +101,9 @@ export function TaskEditSheet({ task, open, onOpenChange }: {
           </div>
 
           <div className="space-y-1.5">
-            <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Description</label>
+            <label htmlFor={`${fieldId}-description`} className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Description</label>
             <textarea
+              id={`${fieldId}-description`}
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               rows={3}
@@ -97,8 +114,9 @@ export function TaskEditSheet({ task, open, onOpenChange }: {
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1.5">
-              <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Échéance</label>
+              <label htmlFor={`${fieldId}-dueDate`} className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Échéance</label>
               <input
+                id={`${fieldId}-dueDate`}
                 type="date"
                 value={dueDate}
                 onChange={(e) => setDueDate(e.target.value)}
@@ -106,8 +124,9 @@ export function TaskEditSheet({ task, open, onOpenChange }: {
               />
             </div>
             <div className="space-y-1.5">
-              <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Heures est.</label>
+              <label htmlFor={`${fieldId}-hours`} className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Heures est.</label>
               <input
+                id={`${fieldId}-hours`}
                 type="number"
                 min="0"
                 step="0.5"
@@ -121,11 +140,13 @@ export function TaskEditSheet({ task, open, onOpenChange }: {
 
           <div className="space-y-1.5">
             <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Priorité</label>
-            <div className="flex gap-2">
+            <div className="flex gap-2" role="radiogroup" aria-label="Priorité">
               {(["LOW", "MEDIUM", "HIGH", "URGENT"] as const).map((p) => (
                 <button
                   key={p}
                   type="button"
+                  role="radio"
+                  aria-checked={priority === p}
                   onClick={() => setPriority(p)}
                   className={cn(
                     "flex-1 rounded-lg border py-1.5 text-xs font-medium transition-all",
@@ -140,15 +161,17 @@ export function TaskEditSheet({ task, open, onOpenChange }: {
 
           <div className="space-y-1.5">
             <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Importance</label>
-            <div className="flex gap-2">
+            <div className="flex gap-2" role="radiogroup" aria-label="Importance">
               {[1, 2, 3, 4].map((n) => (
                 <button
                   key={n}
                   type="button"
+                  role="radio"
+                  aria-checked={importance === n}
                   onClick={() => setImportance(n)}
                   className={cn(
                     "flex-1 rounded-lg border py-1.5 text-xs font-bold transition-all",
-                    importance === n ? PRIORITY_CLS[Object.keys(PRIORITY_CLS)[n - 1]] : "border-border text-muted-foreground hover:bg-muted/50"
+                    importance === n ? IMPORTANCE_CLS[n] : "border-border text-muted-foreground hover:bg-muted/50"
                   )}
                 >
                   {n}

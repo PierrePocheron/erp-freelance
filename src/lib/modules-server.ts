@@ -3,9 +3,11 @@ import { ALL_MODULE_IDS, MODULE_DEFS, MODULES_COOKIE, type ModuleId } from "@/li
 
 const DEFAULT_ACTIVE_IDS = MODULE_DEFS.filter(m => m.defaultActive).map(m => m.id) as ModuleId[]
 
-export async function getActiveModules(): Promise<Set<ModuleId>> {
+export async function getActiveModules(userId?: string): Promise<Set<ModuleId>> {
   const cookieStore = await cookies()
-  const cookie = cookieStore.get(MODULES_COOKIE)
+  // Cookie scopé par compte (cf. use-modules writeCookie) — deux comptes sur le
+  // même navigateur ont chacun leur sélection. Repli sur la clé globale héritée.
+  const cookie = (userId && cookieStore.get(`${MODULES_COOKIE}:${userId}`)) || cookieStore.get(MODULES_COOKIE)
   if (!cookie) return new Set(DEFAULT_ACTIVE_IDS)
   try {
     const parsed = JSON.parse(decodeURIComponent(cookie.value)) as ModuleId[]

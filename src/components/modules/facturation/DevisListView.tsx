@@ -322,7 +322,7 @@ export function DevisListView({
                     <td className="px-4 py-3">
                       <span className={`rounded-full border px-2 py-0.5 text-xs font-medium whitespace-nowrap ${status.cls}`}>{status.label}</span>
                     </td>
-                    <td className="px-4 py-3 text-right font-medium">{quote.totalHT.toLocaleString("fr-FR")} €</td>
+                    <td className="px-4 py-3 text-right font-medium amount-sensitive">{quote.totalHT.toLocaleString("fr-FR")} €</td>
                     <td className="px-4 py-3 text-xs text-muted-foreground hidden sm:table-cell">
                       {quote.sentAt ? fmtDay(quote.sentAt) : <span className="text-muted-foreground/40">—</span>}
                     </td>
@@ -380,7 +380,7 @@ export function DevisListView({
                 </div>
                 <div className="pt-1 border-t border-border/50 space-y-1">
                   <div className="flex items-end justify-between">
-                    <span className="text-xl font-bold tabular-nums">{quote.totalHT.toLocaleString("fr-FR")} €</span>
+                    <span className="text-xl font-bold tabular-nums amount-sensitive">{quote.totalHT.toLocaleString("fr-FR")} €</span>
                     <span className="text-xs text-muted-foreground">
                       {quote.sentAt ? `envoyé le ${fmtDay(quote.sentAt)}` : ""}
                     </span>

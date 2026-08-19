@@ -83,9 +83,20 @@ function assertSafeUrl(url: string): void {
   let parsed: URL
   try { parsed = new URL(url) } catch { throw new Error("URL invalide") }
   if (!["http:", "https:"].includes(parsed.protocol)) throw new Error("Protocole non autorisé")
-  if (/^(localhost|127\.|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/.test(parsed.hostname)) {
-    throw new Error("URL non autorisée")
-  }
+  // hostname peut être encadré de crochets pour l'IPv6 ([::1]) → on les retire.
+  const host = parsed.hostname.replace(/^\[|\]$/g, "").toLowerCase()
+  const isIPv6 = host.includes(":") // évite de bloquer un domaine du type "fc-barcelona.com"
+  const blocked =
+    // IPv4 privées / loopback / « ce réseau » (0.0.0.0/8) + link-local (métadonnées cloud 169.254.169.254)
+    /^(localhost|0\.|127\.|10\.|192\.168\.|169\.254\.|172\.(1[6-9]|2\d|3[01])\.)/.test(host) ||
+    // IPv6 loopback (::1), non spécifié (::), link-local (fe80::), unique-local (fc00::/7 → fc../fd..),
+    // et IPv4-mapped vers loopback (::ffff:127.x / ::ffff:0.x)
+    (isIPv6 && (
+      host === "::1" || host === "::" || host.startsWith("fe80:") ||
+      host.startsWith("fc") || host.startsWith("fd") ||
+      host.startsWith("::ffff:127.") || host.startsWith("::ffff:0.")
+    ))
+  if (blocked) throw new Error("URL non autorisée")
 }
 
 // Sonde une URL en HEAD (timeout 10s). Ne lève jamais une fois l'URL validée :

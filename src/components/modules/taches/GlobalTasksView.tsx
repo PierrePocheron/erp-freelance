@@ -11,6 +11,7 @@ import { startTask, completeTask, reopenTask, createClientTask, deleteTask, upda
 import { AddTaskForm } from "@/components/modules/projet/AddTaskForm"
 import { TaskEditSheet } from "@/components/modules/taches/TaskEditSheet"
 import { cn } from "@/lib/utils"
+import { toast } from "sonner"
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -22,7 +23,7 @@ type Task = {
   id: string
   title: string
   description: string | null
-  status: "TODO" | "IN_PROGRESS" | "DONE"
+  status: "TODO" | "IN_PROGRESS" | "DONE" | "CANCELLED"
   priority: "LOW" | "MEDIUM" | "HIGH" | "URGENT"
   importance: number
   order: number
@@ -46,10 +47,20 @@ const BADGE_CLS: Record<number, string> = {
   4: "text-red-500 border-red-500/40 bg-red-500/10",
 }
 
-const STATUS_CYCLE = {
-  TODO: "start" as const,
-  IN_PROGRESS: "complete" as const,
-  DONE: "reopen" as const,
+const STATUS_CYCLE: Record<Task["status"], "start" | "complete" | "reopen" | null> = {
+  TODO: "start",
+  IN_PROGRESS: "complete",
+  DONE: "reopen",
+  CANCELLED: null,
+}
+
+/** Tri décroissant par date de complétion (les plus récemment terminées d'abord). */
+function sortByCompletedDesc(tasks: Task[]): Task[] {
+  return [...tasks].sort((a, b) => {
+    const da = a.completedAt ? new Date(a.completedAt).getTime() : 0
+    const db = b.completedAt ? new Date(b.completedAt).getTime() : 0
+    return db - da
+  })
 }
 
 function isOverdue(task: Task) {
@@ -94,10 +105,14 @@ function QuickAddClientTask({ clientId }: { clientId: string | null }) {
     if (!title) return
     const dueDate = dateRef.current?.value || null
     startTransitionFn(async () => {
-      await createClientTask(clientId, title, dueDate)
-      if (inputRef.current) inputRef.current.value = ""
-      if (dateRef.current)  dateRef.current.value  = ""
-      inputRef.current?.focus()
+      try {
+        await createClientTask(clientId, title, dueDate)
+        if (inputRef.current) inputRef.current.value = ""
+        if (dateRef.current)  dateRef.current.value  = ""
+        inputRef.current?.focus()
+      } catch {
+        toast.error("Échec de la création de la tâche")
+      }
     })
   }
 
@@ -118,6 +133,7 @@ function QuickAddClientTask({ clientId }: { clientId: string | null }) {
       <input
         ref={inputRef}
         autoFocus
+        aria-label="Titre de la nouvelle tâche"
         placeholder="Titre de la tâche..."
         className="flex-1 h-8 text-sm px-2 rounded-md border border-border bg-background focus:outline-none focus:ring-1 focus:ring-ring"
         onKeyDown={(e) => { if (e.key === "Escape") setOpen(false) }}
@@ -132,6 +148,7 @@ function QuickAddClientTask({ clientId }: { clientId: string | null }) {
       <button
         type="submit"
         disabled={isPending}
+        aria-label="Ajouter la tâche"
         className="h-8 px-3 text-sm rounded-md bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
       >
         {isPending ? "…" : "↵"}
@@ -139,6 +156,7 @@ function QuickAddClientTask({ clientId }: { clientId: string | null }) {
       <button
         type="button"
         onClick={() => setOpen(false)}
+        aria-label="Annuler"
         className="h-8 px-2 text-sm rounded-md text-muted-foreground hover:text-foreground"
       >
         ✕
@@ -169,6 +187,10 @@ function TaskRow({ task }: { task: Task }) {
   const titleRef = useRef<HTMLInputElement>(null)
   const overdue = isOverdue(task)
   const projectId = task.project?.id ?? ""
+  const statusLabel =
+    task.status === "TODO" ? "Démarrer la tâche"
+      : task.status === "IN_PROGRESS" ? "Marquer la tâche comme terminée"
+        : "Rouvrir la tâche"
 
   const totalTime = task.timeEntries.reduce((s, e) => s + (e.duration ?? 0), 0)
   const hours = Math.floor(totalTime / 3600)
@@ -177,20 +199,38 @@ function TaskRow({ task }: { task: Task }) {
 
   function handleStatus() {
     const action = STATUS_CYCLE[task.status]
-    startTransitionFn(() => {
-      if (action === "start") return startTask(task.id, projectId)
-      if (action === "complete") return completeTask(task.id, projectId)
-      if (action === "reopen") return reopenTask(task.id, projectId)
+    startTransitionFn(async () => {
+      try {
+        if (action === "start") await startTask(task.id, projectId)
+        else if (action === "complete") await completeTask(task.id, projectId)
+        else if (action === "reopen") await reopenTask(task.id, projectId)
+      } catch {
+        toast.error("Échec de la mise à jour du statut de la tâche")
+      }
     })
   }
 
   function handleDelete() {
-    startDeleteTransition(() => deleteTask(task.id))
+    startDeleteTransition(async () => {
+      try {
+        await deleteTask(task.id)
+      } catch {
+        toast.error("Échec de la suppression de la tâche")
+      }
+    })
   }
 
   function saveTitle() {
     const val = titleRef.current?.value.trim()
-    if (val && val !== task.title) startTitleTransition(() => updateTaskFields(task.id, { title: val }))
+    if (val && val !== task.title) {
+      startTitleTransition(async () => {
+        try {
+          await updateTaskFields(task.id, { title: val })
+        } catch {
+          toast.error("Échec de l'enregistrement du titre")
+        }
+      })
+    }
     setEditingTitle(false)
   }
 
@@ -201,7 +241,7 @@ function TaskRow({ task }: { task: Task }) {
       task.status === "DONE" && "opacity-50"
     )}>
       {/* Statut */}
-      <button onClick={handleStatus} disabled={isPending} className="shrink-0 transition-colors">
+      <button onClick={handleStatus} disabled={isPending} aria-label={statusLabel} className="shrink-0 transition-colors">
         {isPending ? (
           <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
         ) : task.status === "DONE" ? (
@@ -226,6 +266,18 @@ function TaskRow({ task }: { task: Task }) {
       ) : (
         <span
           onClick={() => task.status !== "DONE" && setEditingTitle(true)}
+          role={task.status !== "DONE" ? "button" : undefined}
+          tabIndex={task.status !== "DONE" ? 0 : undefined}
+          onKeyDown={
+            task.status !== "DONE"
+              ? (e: React.KeyboardEvent<HTMLSpanElement>) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault()
+                    setEditingTitle(true)
+                  }
+                }
+              : undefined
+          }
           className={cn(
             "flex-1 text-sm truncate transition-colors min-w-0",
             task.status === "DONE"
@@ -292,10 +344,10 @@ function TaskRow({ task }: { task: Task }) {
 
       {/* Badges P/I */}
       <div className="flex items-center gap-1 shrink-0">
-        <span className={cn("h-5 w-5 rounded border text-[10px] font-bold flex items-center justify-center", BADGE_CLS[PRIORITY_NUM[task.priority]])}>
+        <span aria-label={`Priorité ${PRIORITY_NUM[task.priority]} sur 4`} className={cn("h-5 w-5 rounded border text-[10px] font-bold flex items-center justify-center", BADGE_CLS[PRIORITY_NUM[task.priority]])}>
           {PRIORITY_NUM[task.priority]}
         </span>
-        <span className={cn("h-5 w-5 rounded border text-[10px] font-bold flex items-center justify-center", BADGE_CLS[Math.max(1, Math.min(4, task.importance))])}>
+        <span aria-label={`Importance ${task.importance} sur 4`} className={cn("h-5 w-5 rounded border text-[10px] font-bold flex items-center justify-center", BADGE_CLS[Math.max(1, Math.min(4, task.importance))])}>
           {task.importance}
         </span>
       </div>
@@ -328,6 +380,34 @@ function TaskRow({ task }: { task: Task }) {
   )
 }
 
+// ── DoneTasksSection (bloc « Terminées (n) » repliable, partagé) ─────────────
+
+function DoneTasksSection({ tasks, show, onToggle, className }: {
+  tasks: Task[]
+  show: boolean
+  onToggle: () => void
+  className?: string
+}) {
+  if (tasks.length === 0) return null
+  return (
+    <div className={cn("border-t border-border/20 pt-1", className)}>
+      <button
+        type="button"
+        onClick={onToggle}
+        className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors px-2 py-1"
+      >
+        {show ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+        Terminées ({tasks.length})
+      </button>
+      {show && (
+        <div className="space-y-0.5 opacity-60">
+          {tasks.map((t) => <TaskRow key={t.id} task={t} />)}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── ProjectSubGroup (carte projet imbriquée dans client) ─────────────────────
 
 function ProjectSubGroup({ project, tasks }: { project: ProjectRef; tasks: Task[] }) {
@@ -335,19 +415,21 @@ function ProjectSubGroup({ project, tasks }: { project: ProjectRef; tasks: Task[
   const [showDone, setShowDone] = useState(false)
 
   const activeTasks = tasks.filter((t) => t.status !== "DONE")
-  const doneTasks = tasks
-    .filter((t) => t.status === "DONE")
-    .sort((a, b) => {
-      const da = a.completedAt ? new Date(a.completedAt).getTime() : 0
-      const db = b.completedAt ? new Date(b.completedAt).getTime() : 0
-      return db - da
-    })
+  const doneTasks = sortByCompletedDesc(tasks.filter((t) => t.status === "DONE"))
 
   return (
     <div className="rounded-lg border border-border/40 bg-muted/20 overflow-hidden">
       <div
         role="button"
+        tabIndex={0}
+        aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
+        onKeyDown={(e) => {
+          if (e.target === e.currentTarget && (e.key === "Enter" || e.key === " ")) {
+            e.preventDefault()
+            setOpen((v) => !v)
+          }
+        }}
         className="w-full flex items-center gap-2 px-3 py-2 hover:bg-muted/30 transition-colors cursor-pointer select-none"
       >
         {open ? <ChevronDown className="h-3.5 w-3.5 text-muted-foreground shrink-0" /> : <ChevronRight className="h-3.5 w-3.5 text-muted-foreground shrink-0" />}
@@ -376,23 +458,12 @@ function ProjectSubGroup({ project, tasks }: { project: ProjectRef; tasks: Task[
             <AddTaskForm projectId={project.id} placeholder="Nouvelle tâche..." />
           </div>
 
-          {doneTasks.length > 0 && (
-            <div className="mt-1 border-t border-border/20 pt-1">
-              <button
-                type="button"
-                onClick={() => setShowDone((v) => !v)}
-                className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors px-2 py-1"
-              >
-                {showDone ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
-                Terminées ({doneTasks.length})
-              </button>
-              {showDone && (
-                <div className="space-y-0.5 opacity-60">
-                  {doneTasks.map((t) => <TaskRow key={t.id} task={t} />)}
-                </div>
-              )}
-            </div>
-          )}
+          <DoneTasksSection
+            tasks={doneTasks}
+            show={showDone}
+            onToggle={() => setShowDone((v) => !v)}
+            className="mt-1"
+          />
         </div>
       )}
     </div>
@@ -406,13 +477,7 @@ function ClientTaskGroup({ group }: { group: ClientGroup }) {
   const [showDoneDirect, setShowDoneDirect] = useState(false)
 
   const activeDirect = group.directTasks.filter((t) => t.status !== "DONE")
-  const doneDirect = group.directTasks
-    .filter((t) => t.status === "DONE")
-    .sort((a, b) => {
-      const da = a.completedAt ? new Date(a.completedAt).getTime() : 0
-      const db = b.completedAt ? new Date(b.completedAt).getTime() : 0
-      return db - da
-    })
+  const doneDirect = sortByCompletedDesc(group.directTasks.filter((t) => t.status === "DONE"))
 
   const totalTasks =
     group.directTasks.length +
@@ -426,7 +491,15 @@ function ClientTaskGroup({ group }: { group: ClientGroup }) {
       {/* En-tête client */}
       <div
         role="button"
+        tabIndex={0}
+        aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
+        onKeyDown={(e) => {
+          if (e.target === e.currentTarget && (e.key === "Enter" || e.key === " ")) {
+            e.preventDefault()
+            setOpen((v) => !v)
+          }
+        }}
         className="w-full flex items-center gap-2 px-4 py-3 hover:bg-muted/30 transition-colors cursor-pointer select-none"
       >
         {open ? <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" /> : <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />}
@@ -467,23 +540,11 @@ function ClientTaskGroup({ group }: { group: ClientGroup }) {
                 <QuickAddClientTask clientId={group.clientId} />
               </div>
 
-              {doneDirect.length > 0 && (
-                <div className="border-t border-border/20 pt-1">
-                  <button
-                    type="button"
-                    onClick={() => setShowDoneDirect((v) => !v)}
-                    className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors px-2 py-1"
-                  >
-                    {showDoneDirect ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
-                    Terminées ({doneDirect.length})
-                  </button>
-                  {showDoneDirect && (
-                    <div className="space-y-0.5 opacity-60">
-                      {doneDirect.map((t) => <TaskRow key={t.id} task={t} />)}
-                    </div>
-                  )}
-                </div>
-              )}
+              <DoneTasksSection
+                tasks={doneDirect}
+                show={showDoneDirect}
+                onToggle={() => setShowDoneDirect((v) => !v)}
+              />
             </div>
           )}
 
@@ -616,6 +677,7 @@ export function GlobalTasksView({
               <button
                 key={s}
                 onClick={() => setStatusFilter(s)}
+                aria-pressed={statusFilter === s}
                 className={cn(
                   "px-3 py-1.5 border-r last:border-r-0 border-border transition-colors",
                   statusFilter === s ? "bg-accent font-medium" : "text-muted-foreground hover:bg-muted/50"
@@ -629,6 +691,7 @@ export function GlobalTasksView({
           {/* Filtre date */}
           <select
             value={dueDateFilter}
+            aria-label="Filtrer par échéance"
             onChange={(e) => setDueDateFilter(e.target.value as typeof dueDateFilter)}
             className="text-xs border border-border rounded-lg px-2 py-1.5 bg-background text-foreground"
           >
@@ -649,6 +712,7 @@ export function GlobalTasksView({
                 <button
                   key={tag.id}
                   onClick={() => toggleTag(tag.id)}
+                  aria-pressed={active}
                   className={cn(
                     "flex items-center gap-1 rounded-full px-2 py-0.5 text-xs border transition-all",
                     active ? "opacity-100" : "opacity-50 hover:opacity-80"

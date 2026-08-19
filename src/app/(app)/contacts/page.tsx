@@ -102,7 +102,7 @@ export default async function CRMPage() {
       </div>
 
       {/* Liste CRM — clients, perso, inactifs */}
-      <CrmList groups={groups} userId={userId} />
+      <CrmList groups={groups} />
     </div>
   )
 }

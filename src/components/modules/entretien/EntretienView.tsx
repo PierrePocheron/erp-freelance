@@ -1,20 +1,19 @@
 "use client"
 
-import { useState, useTransition } from "react"
+import { Fragment, useMemo, useState, useTransition } from "react"
 import Link from "next/link"
-import { Sheet, SheetContent } from "@/components/ui/sheet"
-import { Plus, ChevronRight, Search, X, Briefcase, ExternalLink, Star } from "lucide-react"
+import { useRouter } from "next/navigation"
+import { Plus, Search, X, Briefcase, Star, HelpCircle, Check, CalendarClock } from "lucide-react"
 import { toast } from "sonner"
 import { cn } from "@/lib/utils"
 import {
-  createJobApplication, deleteJobApplication, toggleApplicationPriority,
+  createJobApplication, deleteJobApplication, toggleApplicationPriority, completeNextAction,
 } from "@/actions/entretien"
 import {
-  STATUS_CONFIG, PIPELINE_STATUSES, OUTCOME_STATUSES, CLOSED_STATUSES,
+  STATUS_CONFIG, EVENT_TYPE_CONFIG, CLOSED_STATUSES,
   fmtShort, type JobAppStatus,
 } from "./status-config"
 import { ApplicationDialog } from "./ApplicationDialog"
-import { ApplicationPanel } from "./ApplicationPanel"
 
 export type { JobAppStatus }
 
@@ -31,6 +30,8 @@ export type JobApp = {
   url: string | null; salaryMin: number | null; salaryMax: number | null; salaryNote: string | null
   notes: string | null; priority: number; contactId: string | null
   appliedAt: Date | string | null; nextActionAt: Date | string | null; nextActionLabel: string | null
+  nextActionFormat: string | null
+  competencyDossierValidated: boolean; competencyDossierUrl: string | null
   closedAt: Date | string | null; createdAt: Date | string; updatedAt: Date | string
   contact: JobContact | null
   company: { id: string; name: string } | null
@@ -40,6 +41,16 @@ export type CompanyOption = { id: string; name: string }
 
 
 // ── EntretienView ──────────────────────────────────────────────────────────────
+
+// Date de dernière activité d'une candidature (pour trier du plus récent au plus
+// ancien) : max des dates connues — candidature, prochain point, clôture, mise à
+// jour et événements de la timeline.
+function lastActivity(a: JobApp): number {
+  const times = [a.createdAt, a.updatedAt, a.appliedAt, a.nextActionAt, a.closedAt, ...a.events.map((e) => e.date)]
+    .filter(Boolean)
+    .map((d) => new Date(d as Date | string).getTime())
+  return times.length ? Math.max(...times) : 0
+}
 
 export function EntretienView({
   applications,
@@ -52,7 +63,7 @@ export function EntretienView({
   contacts: JobContact[]
   companies: CompanyOption[]
   initialStatus?: JobAppStatus
-  stats: { active: number; upcoming: number; offers: number; accepted: number }
+  stats: { active: number; upcoming: number }
 }) {
   const [statusFilter, setStatusFilter] = useState<JobAppStatus | "ALL" | "ACTIVE">(initialStatus ?? "ACTIVE")
   const [priorityOnly, setPriorityOnly] = useState(false)
@@ -61,12 +72,9 @@ export function EntretienView({
   const [quickPosition, setQuickPosition] = useState("")
   const [isAdding, startAdding] = useTransition()
 
-  // Dialog création/édition
+  // Dialog création (l'édition se fait désormais sur la page détail)
   const [dialog, setDialog] = useState<{ open: boolean; item?: JobApp }>({ open: false })
-  // Panneau détail
-  const [panelId, setPanelId] = useState<string | null>(null)
-
-  const panelApp = applications.find((a) => a.id === panelId) ?? null
+  const router = useRouter()
 
   function handleQuickAdd(e: React.FormEvent) {
     e.preventDefault()
@@ -74,20 +82,42 @@ export function EntretienView({
     const position = quickPosition.trim()
     if (!companyName || !position) return
     startAdding(async () => {
-      await createJobApplication({ companyName, position, status: "WISHLIST" })
-      setQuickCompany("")
-      setQuickPosition("")
-      toast.success(`Candidature "${position}" ajoutée`)
+      try {
+        await createJobApplication({ companyName, position, status: "WISHLIST" })
+        setQuickCompany("")
+        setQuickPosition("")
+        toast.success(`Candidature "${position}" ajoutée`)
+      } catch {
+        toast.error("Échec de l'ajout de la candidature")
+      }
     })
   }
 
-  // Comptages par statut
-  const countByStatus = Object.fromEntries(
-    (Object.keys(STATUS_CONFIG) as JobAppStatus[]).map((s) => [
-      s, applications.filter((a) => a.status === s).length,
-    ])
-  ) as Record<JobAppStatus, number>
   const activeCount = applications.filter((a) => !CLOSED_STATUSES.includes(a.status as JobAppStatus)).length
+
+  // ── Timeline : événements passés récents (3 sem.) + prochains RDV planifiés,
+  // tous entretiens confondus, triés chronologiquement. ──
+  const timeline = useMemo(() => {
+    // eslint-disable-next-line react-hooks/purity -- « maintenant » pour situer passé/futur
+    const now = Date.now()
+    const windowStart = now - 21 * 86_400_000
+    // `pending` = action en ATTENTE (le prochain point / retour attendu), par opposition à
+    // un événement déjà survenu. Une action en attente dont la date est passée = EN RETARD.
+    type TL = { appId: string; company: string; position: string; label: string; time: number; type: string; future: boolean; pending: boolean }
+    const items: TL[] = []
+    for (const a of applications) {
+      for (const e of a.events) {
+        if (e.cancelledAt) continue
+        const t = new Date(e.date).getTime()
+        if (t >= windowStart) items.push({ appId: a.id, company: a.companyName, position: a.position, label: e.title, time: t, type: e.type, future: t > now, pending: false })
+      }
+      if (a.nextActionAt) {
+        const t = new Date(a.nextActionAt).getTime()
+        if (t >= windowStart) items.push({ appId: a.id, company: a.companyName, position: a.position, label: a.nextActionLabel ?? "Rendez-vous", time: t, type: "OTHER", future: t > now, pending: true })
+      }
+    }
+    return items.sort((x, y) => x.time - y.time)
+  }, [applications])
 
   const priorityCount = applications.filter((a) => a.priority > 0).length
   const needle = search.trim().toLowerCase()
@@ -104,6 +134,8 @@ export function EntretienView({
       a.position.toLowerCase().includes(needle) ||
       (a.location ?? "").toLowerCase().includes(needle)
     )
+    // Plus récents d'abord (par dernière activité)
+    .sort((a, b) => lastActivity(b) - lastActivity(a))
 
   return (
     <>
@@ -111,23 +143,33 @@ export function EntretienView({
         {/* Header */}
         <div className="flex items-start justify-between gap-4 flex-wrap">
           <div>
-            <h1 className="sm:hidden text-2xl font-bold tracking-tight">Entretiens</h1>
+            <h1 className="text-2xl font-bold tracking-tight sm:sr-only">Entretiens</h1>
             <p className="text-sm text-muted-foreground">Suivi des candidatures et processus de recrutement</p>
           </div>
-          <button
-            onClick={() => setDialog({ open: true })}
-            className="flex items-center gap-1.5 h-9 px-3 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors"
-          >
-            <Plus className="h-4 w-4" /> Nouvelle candidature
-          </button>
+          <div className="flex items-center gap-2">
+            <Link
+              href="/entretiens/faq"
+              className="flex items-center gap-1.5 h-9 px-3 rounded-lg border border-input text-sm text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
+              title="Réponses-types, FAQ et lettres de motivation"
+            >
+              <HelpCircle className="h-4 w-4" /> <span className="hidden sm:inline">Réponses &amp; modèles</span>
+            </Link>
+            <button
+              onClick={() => setDialog({ open: true })}
+              className="flex items-center gap-1.5 h-9 px-3 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors"
+            >
+              <Plus className="h-4 w-4" /> Nouvelle candidature
+            </button>
+          </div>
         </div>
 
-        {/* Stats */}
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <StatCard label="En cours"        value={stats.active}   onClick={() => setStatusFilter("ACTIVE")} />
-          <StatCard label="RDV à venir"     value={stats.upcoming} accent="amber" />
-          <StatCard label="Offres"          value={stats.offers}   accent="emerald" onClick={() => setStatusFilter("OFFER")} />
-          <StatCard label="Acceptées"       value={stats.accepted} accent="green"   onClick={() => setStatusFilter("ACCEPTED")} />
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_420px] items-start">
+        {/* Colonne principale */}
+        <div className="space-y-6 min-w-0">
+        {/* Stats compactes */}
+        <div className="flex flex-wrap gap-2.5">
+          <StatCard label="En cours"    value={stats.active}   onClick={() => setStatusFilter("ACTIVE")} />
+          <StatCard label="RDV à venir" value={stats.upcoming} accent="amber" />
         </div>
 
         {/* Quick add */}
@@ -180,40 +222,48 @@ export function EntretienView({
                 className="w-full h-8 rounded-lg border border-input bg-transparent pl-8 pr-7 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
               />
               {search && (
-                <button onClick={() => setSearch("")} className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+                <button onClick={() => setSearch("")} aria-label="Effacer la recherche" className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
                   <X className="h-3.5 w-3.5" />
                 </button>
               )}
             </div>
 
-            {/* Barre pipeline */}
-            <div className="overflow-x-auto pb-1 -mx-0.5 px-0.5">
-              <div className="flex items-center gap-1.5 min-w-max">
-                <FilterChip active={statusFilter === "ACTIVE"} onClick={() => setStatusFilter("ACTIVE")} label={`En cours (${activeCount})`} neutral />
-                <FilterChip active={statusFilter === "ALL"} onClick={() => setStatusFilter("ALL")} label={`Tout (${applications.length})`} neutral />
-                {priorityCount > 0 && (
-                  <button
-                    onClick={() => setPriorityOnly((v) => !v)}
-                    className={cn(
-                      "flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-medium transition-colors whitespace-nowrap",
-                      priorityOnly
-                        ? "border-amber-500/40 bg-amber-500/15 text-amber-700"
-                        : "border-border text-muted-foreground hover:border-amber-400/40 hover:text-amber-600"
-                    )}
-                  >
-                    <Star className={cn("h-2.5 w-2.5", priorityOnly && "fill-current")} />
-                    Prioritaires ({priorityCount})
-                  </button>
-                )}
-                <ChevronRight className="h-3 w-3 text-muted-foreground/30 shrink-0" />
-                {PIPELINE_STATUSES.map((s) => (
-                  <StatusChip key={s} status={s} count={countByStatus[s]} active={statusFilter === s} onClick={() => setStatusFilter(statusFilter === s ? "ACTIVE" : s)} />
-                ))}
-                <span className="mx-0.5 h-4 w-px bg-border/60 shrink-0" />
-                {OUTCOME_STATUSES.map((s) => (
-                  <StatusChip key={s} status={s} count={countByStatus[s]} active={statusFilter === s} onClick={() => setStatusFilter(statusFilter === s ? "ACTIVE" : s)} />
-                ))}
+            {/* Filtre : toggle En cours / Tout (+ prioritaires) — simple et lisible */}
+            <div className="flex items-center gap-2 flex-wrap">
+              <div className="inline-flex rounded-lg border border-border bg-muted/30 p-0.5">
+                <button
+                  onClick={() => setStatusFilter("ACTIVE")}
+                  className={cn(
+                    "rounded-md px-3 py-1 text-xs font-medium transition-colors",
+                    statusFilter !== "ALL" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  En cours ({activeCount})
+                </button>
+                <button
+                  onClick={() => setStatusFilter("ALL")}
+                  className={cn(
+                    "rounded-md px-3 py-1 text-xs font-medium transition-colors",
+                    statusFilter === "ALL" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  Tout ({applications.length})
+                </button>
               </div>
+              {priorityCount > 0 && (
+                <button
+                  onClick={() => setPriorityOnly((v) => !v)}
+                  className={cn(
+                    "inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs font-medium transition-colors",
+                    priorityOnly
+                      ? "border-amber-500/40 bg-amber-500/15 text-amber-700 dark:text-amber-400"
+                      : "border-border text-muted-foreground hover:border-amber-400/40 hover:text-amber-600"
+                  )}
+                >
+                  <Star className={cn("h-3 w-3", priorityOnly && "fill-current")} />
+                  Prioritaires ({priorityCount})
+                </button>
+              )}
             </div>
 
             {/* Cards */}
@@ -222,14 +272,23 @@ export function EntretienView({
                 {search ? `Aucun résultat pour « ${search} »` : "Aucune candidature à ce statut."}
               </p>
             ) : (
-              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 2xl:grid-cols-3">
                 {filtered.map((a) => (
-                  <ApplicationCard key={a.id} app={a} onOpen={() => setPanelId(a.id)} />
+                  <ApplicationCard key={a.id} app={a} onOpen={() => router.push(`/entretiens/${a.id}`)} />
                 ))}
               </div>
             )}
           </>
         )}
+        </div>
+
+        {/* Timeline — grande carte verticale à droite */}
+        {timeline.length > 0 && (
+          <aside className="lg:sticky lg:top-4">
+            <Timeline items={timeline} onOpen={(id) => router.push(`/entretiens/${id}`)} />
+          </aside>
+        )}
+        </div>
       </div>
 
       {/* Dialog création / édition */}
@@ -243,17 +302,6 @@ export function EntretienView({
         />
       )}
 
-      {/* Panneau détail */}
-      <Sheet open={panelId !== null} onOpenChange={(o) => { if (!o) setPanelId(null) }}>
-        <SheetContent side="right" className="w-[460px] sm:max-w-[460px] p-0" showCloseButton>
-          {panelApp && (
-            <ApplicationPanel
-              app={panelApp}
-              onEdit={() => { setDialog({ open: true, item: panelApp }); setPanelId(null) }}
-            />
-          )}
-        </SheetContent>
-      </Sheet>
     </>
   )
 }
@@ -267,48 +315,89 @@ function StatCard({
 }) {
   const color = accent === "amber" ? "text-amber-600" : accent === "emerald" ? "text-emerald-600" : accent === "green" ? "text-green-600" : ""
   const inner = (
-    <div className={cn("rounded-xl border border-border/50 bg-card p-4 space-y-1", onClick && "hover:border-border cursor-pointer transition-colors")}>
-      <p className="text-xs text-muted-foreground">{label}</p>
-      <p className={cn("text-2xl font-bold", color)}>{value}</p>
+    <div className={cn("rounded-lg border border-border/50 bg-card px-4 py-2 min-w-[112px]", onClick && "hover:border-border cursor-pointer transition-colors")}>
+      <p className="text-[11px] text-muted-foreground leading-tight">{label}</p>
+      <p className={cn("text-xl font-bold leading-tight", color)}>{value}</p>
     </div>
   )
-  return onClick ? <button onClick={onClick} className="text-left w-full">{inner}</button> : inner
+  return onClick ? <button onClick={onClick} className="text-left">{inner}</button> : inner
 }
 
-function FilterChip({ active, onClick, label, neutral }: { active: boolean; onClick: () => void; label: string; neutral?: boolean }) {
+/**
+ * Timeline transverse : événements passés récents + prochains RDV de TOUS les
+ * entretiens, sur un rail vertical. Un séparateur « Aujourd'hui » situe où on en
+ * est ; le passé est estompé (fait), le futur en ambre (à venir). Clic → fiche.
+ */
+function Timeline({
+  items,
+  onOpen,
+}: {
+  items: { appId: string; company: string; position: string; label: string; time: number; type: string; future: boolean; pending: boolean }[]
+  onOpen: (id: string) => void
+}) {
+  const firstFutureIdx = items.findIndex((i) => i.future)
+  const futureCount = items.filter((i) => i.future).length
   return (
-    <button
-      onClick={onClick}
-      className={cn(
-        "rounded-full border px-2.5 py-0.5 text-xs font-medium transition-colors whitespace-nowrap",
-        active
-          ? "bg-foreground text-background border-foreground"
-          : neutral
-            ? "border-border text-muted-foreground hover:border-foreground/30 hover:text-foreground"
-            : "border-border text-muted-foreground"
-      )}
-    >
-      {label}
-    </button>
-  )
-}
-
-function StatusChip({ status, count, active, onClick }: { status: JobAppStatus; count: number; active: boolean; onClick: () => void }) {
-  const cfg = STATUS_CONFIG[status]
-  return (
-    <button
-      onClick={onClick}
-      className={cn(
-        "rounded-full border px-2.5 py-0.5 text-xs font-medium transition-all whitespace-nowrap",
-        active
-          ? cn(cfg.cls, "ring-1 ring-current/40 scale-105")
-          : count > 0
-            ? cn(cfg.cls, "hover:scale-105")
-            : "border-border/40 text-muted-foreground/30"
-      )}
-    >
-      {cfg.label}{count > 0 ? ` (${count})` : ""}
-    </button>
+    <div className="rounded-xl border border-border/50 bg-card overflow-hidden">
+      <div className="flex items-center gap-2 px-4 py-3 border-b border-border/50">
+        <CalendarClock className="h-4 w-4 text-muted-foreground" />
+        <h2 className="text-sm font-semibold">Timeline</h2>
+        {futureCount > 0 && (
+          <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-[11px] font-medium text-amber-700 dark:text-amber-400">
+            {futureCount} à venir
+          </span>
+        )}
+        <span className="ml-auto text-xs text-muted-foreground">{items.length} évt{items.length > 1 ? "s" : ""}</span>
+      </div>
+      {/* Frise : pastille emoji par événement, CENTRÉE sur le trait vertical
+          (le trait traverse chaque pastille comme un nœud). */}
+      <ol className="relative space-y-3 px-4 py-4 max-h-[calc(100vh-9rem)] overflow-y-auto before:absolute before:left-[30px] before:top-7 before:bottom-7 before:w-px before:bg-border">
+        {items.map((it, i) => {
+          const cfg = EVENT_TYPE_CONFIG[it.type] ?? EVENT_TYPE_CONFIG.OTHER
+          const dt = new Date(it.time)
+          const hasTime = dt.getHours() !== 0 || dt.getMinutes() !== 0
+          // Action en attente dont la date est passée = en retard → rouge (comme sur les cartes)
+          const overdue = it.pending && !it.future
+          return (
+            <Fragment key={`${it.appId}-${it.time}-${i}`}>
+              {i === firstFutureIdx && (
+                <li className="flex items-center gap-2 py-0.5">
+                  <span className="h-px flex-1 bg-amber-500/40" />
+                  <span className="text-[10px] font-semibold uppercase tracking-wider text-amber-600">À venir</span>
+                  <span className="h-px flex-1 bg-amber-500/40" />
+                </li>
+              )}
+              <li className="relative flex items-start gap-3">
+                {/* Pastille = nœud sur le trait : border-card + z-10 pour « percer » la ligne */}
+                <span
+                  className={cn(
+                    "relative z-10 flex h-7 w-7 shrink-0 items-center justify-center rounded-full border-2 border-card text-sm shadow-sm",
+                    it.future ? "bg-amber-500/15 ring-1 ring-amber-500/40" : overdue ? "bg-red-500/15 ring-1 ring-red-500/40" : "bg-muted"
+                  )}
+                >
+                  {it.future ? "📅" : overdue ? "⏳" : cfg.icon}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => onOpen(it.appId)}
+                  className="group min-w-0 flex-1 pt-0.5 text-left"
+                >
+                  <div className="flex items-baseline justify-between gap-2">
+                    <p className="text-sm font-semibold leading-tight truncate group-hover:text-primary transition-colors">{it.company}</p>
+                    <span className={cn("shrink-0 text-[11px] tabular-nums", it.future ? "text-amber-600 font-medium" : overdue ? "text-red-600 dark:text-red-400 font-medium" : "text-muted-foreground")}>
+                      {fmtShort(dt)}{hasTime ? ` · ${dt.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}` : ""}
+                    </span>
+                  </div>
+                  <p className={cn("mt-0.5 text-xs leading-snug line-clamp-2", overdue ? "text-red-600 dark:text-red-400" : "text-muted-foreground")}>
+                    {overdue ? "⏳ En attente · " : ""}{it.label}
+                  </p>
+                </button>
+              </li>
+            </Fragment>
+          )
+        })}
+      </ol>
+    </div>
   )
 }
 
@@ -322,12 +411,37 @@ function ApplicationCard({ app, onOpen }: { app: JobApp; onOpen: () => void }) {
 
   function quickDelete(e: React.MouseEvent) {
     e.stopPropagation()
-    startTransition(() => deleteJobApplication(app.id))
+    startTransition(async () => {
+      try {
+        await deleteJobApplication(app.id)
+      } catch {
+        toast.error("Échec de la suppression de la candidature")
+      }
+    })
   }
 
   function togglePriority(e: React.MouseEvent) {
     e.stopPropagation()
-    startTransition(() => toggleApplicationPriority(app.id))
+    startTransition(async () => {
+      try {
+        await toggleApplicationPriority(app.id)
+      } catch {
+        toast.error("Échec de la mise à jour de la priorité")
+      }
+    })
+  }
+
+  // Valide le RDV planifié en un clic : l'archive dans l'historique + efface le point.
+  function markDone(e: React.MouseEvent) {
+    e.stopPropagation()
+    startTransition(async () => {
+      try {
+        await completeNextAction(app.id)
+        toast.success(`« ${app.companyName} » — rendez-vous marqué fait ✓`)
+      } catch {
+        toast.error("Échec de la validation du rendez-vous")
+      }
+    })
   }
 
   return (
@@ -335,7 +449,11 @@ function ApplicationCard({ app, onOpen }: { app: JobApp; onOpen: () => void }) {
       role="button"
       tabIndex={0}
       onClick={onOpen}
-      onKeyDown={(e) => { if (e.key === "Enter") onOpen() }}
+      onKeyDown={(e) => {
+        // N'ouvrir que si la carte elle-même a le focus (évite de déclencher via un bouton imbriqué).
+        if (e.target !== e.currentTarget) return
+        if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onOpen() }
+      }}
       className="group rounded-xl border border-border/50 bg-card p-3 hover:border-border hover:shadow-sm transition-all cursor-pointer"
     >
       <div className="flex items-start justify-between gap-2 mb-1.5">
@@ -357,14 +475,6 @@ function ApplicationCard({ app, onOpen }: { app: JobApp; onOpen: () => void }) {
             <Star className={cn("h-3 w-3", isPriority && "fill-current")} />
           </button>
           <span className={cn("rounded-full border px-2 py-0.5 text-[10px] font-semibold", cfg.cls)}>{cfg.short}</span>
-          <Link
-            href={`/entretiens/${app.id}`}
-            onClick={(e) => e.stopPropagation()}
-            title="Voir le process complet"
-            className="rounded-md p-0.5 text-muted-foreground/40 hover:text-primary md:opacity-0 md:group-hover:opacity-100 focus:opacity-100 transition-all"
-          >
-            <ExternalLink className="h-3 w-3" />
-          </Link>
         </div>
       </div>
 
@@ -382,6 +492,15 @@ function ApplicationCard({ app, onOpen }: { app: JobApp; onOpen: () => void }) {
           <span className="text-muted-foreground">Dernier contact {fmtShort(lastEvent.date)}</span>
         ) : (
           <span className="text-muted-foreground/50 italic">Pas encore de contact</span>
+        )}
+        {app.nextActionAt && (
+          <button
+            onClick={markDone}
+            title="Marquer ce rendez-vous comme fait (l'archive dans l'historique)"
+            className="inline-flex items-center gap-1 rounded-md border border-emerald-500/40 bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-medium text-emerald-700 dark:text-emerald-400 hover:bg-emerald-500/20 transition-colors"
+          >
+            <Check className="h-3 w-3" /> Fait
+          </button>
         )}
         {app.events.length > 0 && !confirmDelete && (
           <span className="ml-auto text-muted-foreground/60 md:opacity-0 md:group-hover:opacity-100 focus:opacity-100 transition-opacity">

@@ -3,7 +3,6 @@
 import { useMemo, useState, useTransition } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { TrendingDown, Repeat, Play, Pause, ChevronLeft, ChevronRight, CalendarClock } from "lucide-react"
-import { AmountsPrivacyToggle } from "@/components/ui/amounts-privacy-toggle"
 import { toggleRecurringExpenseActive } from "@/actions/expense"
 import { getOccurrencesInRange } from "@/lib/dates"
 import { FREQUENCY_LABELS } from "@/lib/expense-constants"
@@ -215,13 +214,12 @@ export function DepensesView({
     <div className="space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h1 className="sm:hidden text-2xl font-bold tracking-tight">Dépenses</h1>
+          <h1 className="sm:sr-only text-2xl font-bold tracking-tight">Dépenses</h1>
           <p className="text-sm text-muted-foreground mt-0.5">
             Suivi des dépenses pro et perso, par catégorie
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <AmountsPrivacyToggle />
           <ExpenseDialog categories={categories} />
         </div>
       </div>
@@ -297,7 +295,7 @@ export function DepensesView({
                 <div key={seg.id} className="flex items-center gap-2 text-xs">
                   <span className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: seg.color }} />
                   <span className="flex-1 truncate">{seg.label}</span>
-                  <span className="font-medium tabular-nums">{fmt(seg.value)} €</span>
+                  <span className="font-medium tabular-nums amount-sensitive">{fmt(seg.value)} €</span>
                 </div>
               ))}
             </div>
@@ -357,7 +355,7 @@ export function DepensesView({
                   <span className="shrink-0 text-xs text-muted-foreground whitespace-nowrap">
                     {new Date(row.e.date).toLocaleDateString("fr-FR", { day: "numeric", month: "short" })}
                   </span>
-                  <span className="shrink-0 text-sm font-medium tabular-nums w-16 text-right">{fmt(row.e.amount)} €</span>
+                  <span className="shrink-0 text-sm font-medium tabular-nums w-16 text-right amount-sensitive">{fmt(row.e.amount)} €</span>
                   {/* Colonne pause/reprise à largeur FIXE : présente sur toutes les
                       lignes (vide pour les ponctuelles) pour un alignement stable */}
                   <div className="w-4 shrink-0 flex justify-center">
@@ -408,7 +406,7 @@ export function DepensesView({
                   <span className="shrink-0 text-xs text-muted-foreground whitespace-nowrap">
                     {row.kind === "NODATE" ? "—" : row.date.toLocaleDateString("fr-FR", { day: "numeric", month: "short" })}
                   </span>
-                  <span className="shrink-0 text-sm font-medium tabular-nums w-16 text-right">{fmt(row.r.amount)} €</span>
+                  <span className="shrink-0 text-sm font-medium tabular-nums w-16 text-right amount-sensitive">{fmt(row.r.amount)} €</span>
                   <div className="w-4 shrink-0 flex justify-center">
                     <button
                       onClick={() => togglePause(row.r.id, !row.r.isActive)}

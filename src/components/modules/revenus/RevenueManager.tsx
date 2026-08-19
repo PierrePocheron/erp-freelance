@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useTransition, useMemo, useEffect } from "react"
+import { useState, useTransition, useMemo, useEffect, useId } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import Link from "next/link"
 import {
@@ -8,6 +8,7 @@ import {
   Pencil, Trash2, RefreshCw, X, Check,
   ArrowUpDown, ExternalLink, ChevronsUpDown, RotateCcw,
 } from "lucide-react"
+import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
@@ -115,6 +116,7 @@ function RevenueForm({
   onClose: () => void
   onSave: () => void
 }) {
+  const uid = useId()
   const now = new Date()
   const defaultPeriod = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`
 
@@ -183,15 +185,16 @@ function RevenueForm({
     <div className="rounded-xl border border-border/50 bg-card p-5 space-y-4 max-w-2xl">
       <div className="flex items-center justify-between">
         <h3 className="font-semibold text-sm">{initial?.id ? "Modifier" : "Nouveau revenu"}</h3>
-        <button type="button" onClick={onClose} className="text-muted-foreground hover:text-foreground">
+        <button type="button" onClick={onClose} aria-label="Fermer le formulaire" className="text-muted-foreground hover:text-foreground">
           <X className="h-4 w-4" />
         </button>
       </div>
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div className="space-y-1">
-          <label className="text-xs font-medium text-muted-foreground">Type</label>
+          <label htmlFor={`${uid}-type`} className="text-xs font-medium text-muted-foreground">Type</label>
           <select
+            id={`${uid}-type`}
             value={type}
             onChange={e => setType(e.target.value)}
             className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
@@ -203,8 +206,9 @@ function RevenueForm({
         </div>
 
         <div className="space-y-1">
-          <label className="text-xs font-medium text-muted-foreground">Période (AAAA-MM)</label>
+          <label htmlFor={`${uid}-period`} className="text-xs font-medium text-muted-foreground">Période (AAAA-MM)</label>
           <Input
+            id={`${uid}-period`}
             value={period}
             onChange={e => setPeriod(e.target.value)}
             placeholder="2026-06"
@@ -214,8 +218,9 @@ function RevenueForm({
 
         {fiscalSources.length > 0 && (
           <div className="space-y-1 sm:col-span-2">
-            <label className="text-xs font-medium text-muted-foreground">Source fiscale</label>
+            <label htmlFor={`${uid}-fiscalSource`} className="text-xs font-medium text-muted-foreground">Source fiscale</label>
             <select
+              id={`${uid}-fiscalSource`}
               value={fiscalSourceId}
               onChange={e => setFiscalSource(e.target.value)}
               className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
@@ -229,8 +234,9 @@ function RevenueForm({
         )}
 
         <div className="space-y-1 sm:col-span-2">
-          <label className="text-xs font-medium text-muted-foreground">Libellé</label>
+          <label htmlFor={`${uid}-label`} className="text-xs font-medium text-muted-foreground">Libellé</label>
           <Input
+            id={`${uid}-label`}
             value={label}
             onChange={e => setLabel(e.target.value)}
             placeholder="ex: Salaire juin 2026"
@@ -239,8 +245,9 @@ function RevenueForm({
         </div>
 
         <div className="space-y-1">
-          <label className="text-xs font-medium text-muted-foreground">Montant (€)</label>
+          <label htmlFor={`${uid}-amount`} className="text-xs font-medium text-muted-foreground">Montant (€)</label>
           <Input
+            id={`${uid}-amount`}
             type="number"
             min="0"
             step="0.01"
@@ -252,8 +259,9 @@ function RevenueForm({
         </div>
 
         <div className="space-y-1">
-          <label className="text-xs font-medium text-muted-foreground">Statut</label>
+          <label htmlFor={`${uid}-status`} className="text-xs font-medium text-muted-foreground">Statut</label>
           <select
+            id={`${uid}-status`}
             value={status}
             onChange={e => setStatus(e.target.value)}
             className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
@@ -265,8 +273,9 @@ function RevenueForm({
 
         {status === "PENDING" && (
           <div className="space-y-1">
-            <label className="text-xs font-medium text-muted-foreground">Date prévisionnelle</label>
+            <label htmlFor={`${uid}-expectedAt`} className="text-xs font-medium text-muted-foreground">Date prévisionnelle</label>
             <Input
+              id={`${uid}-expectedAt`}
               type="date"
               value={expectedAt}
               onChange={e => setExpectedAt(e.target.value)}
@@ -278,8 +287,9 @@ function RevenueForm({
         {status === "RECEIVED" && (
           <>
             <div className="space-y-1">
-              <label className="text-xs font-medium text-muted-foreground">Date de réception</label>
+              <label htmlFor={`${uid}-receivedAt`} className="text-xs font-medium text-muted-foreground">Date de réception</label>
               <Input
+                id={`${uid}-receivedAt`}
                 type="date"
                 value={receivedAt}
                 onChange={e => setReceivedAt(e.target.value)}
@@ -287,8 +297,9 @@ function RevenueForm({
               />
             </div>
             <div className="space-y-1">
-              <label className="text-xs font-medium text-muted-foreground">Moyen de paiement</label>
+              <label htmlFor={`${uid}-paymentMethod`} className="text-xs font-medium text-muted-foreground">Moyen de paiement</label>
               <select
+                id={`${uid}-paymentMethod`}
                 value={paymentMethod}
                 onChange={e => setPaymentMethod(e.target.value)}
                 className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
@@ -303,8 +314,9 @@ function RevenueForm({
         )}
 
         <div className="space-y-1 sm:col-span-2">
-          <label className="text-xs font-medium text-muted-foreground">Notes</label>
+          <label htmlFor={`${uid}-notes`} className="text-xs font-medium text-muted-foreground">Notes</label>
           <Input
+            id={`${uid}-notes`}
             value={notes}
             onChange={e => setNotes(e.target.value)}
             placeholder="Remarques optionnelles"
@@ -315,8 +327,9 @@ function RevenueForm({
         {/* Association société / contact / projet */}
         {companies.length > 0 && (
           <div className="space-y-1">
-            <label className="text-xs font-medium text-muted-foreground">Société</label>
+            <label htmlFor={`${uid}-company`} className="text-xs font-medium text-muted-foreground">Société</label>
             <select
+              id={`${uid}-company`}
               value={companyId}
               onChange={e => { setCompanyId(e.target.value); setClientId(""); setProjectId("") }}
               className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
@@ -330,8 +343,9 @@ function RevenueForm({
         )}
         {clients.length > 0 && (
           <div className="space-y-1">
-            <label className="text-xs font-medium text-muted-foreground">Contact</label>
+            <label htmlFor={`${uid}-client`} className="text-xs font-medium text-muted-foreground">Contact</label>
             <select
+              id={`${uid}-client`}
               value={clientId}
               onChange={e => { setClientId(e.target.value); setProjectId("") }}
               className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
@@ -345,8 +359,9 @@ function RevenueForm({
         )}
         {projects.length > 0 && (
           <div className="space-y-1 sm:col-span-2">
-            <label className="text-xs font-medium text-muted-foreground">Projet</label>
+            <label htmlFor={`${uid}-project`} className="text-xs font-medium text-muted-foreground">Projet</label>
             <select
+              id={`${uid}-project`}
               value={projectId}
               onChange={e => setProjectId(e.target.value)}
               className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
@@ -360,7 +375,7 @@ function RevenueForm({
         )}
       </div>
 
-      {error && <p className="text-xs text-red-500">{error}</p>}
+      {error && <p role="alert" className="text-xs text-red-500">{error}</p>}
 
       <div className="flex justify-end gap-2">
         <Button type="button" variant="outline" size="sm" onClick={onClose}>Annuler</Button>
@@ -445,7 +460,7 @@ function RecurringForm({
     <div className="rounded-xl border border-border/50 bg-card p-5 space-y-4">
       <div className="flex items-center justify-between">
         <h3 className="font-semibold text-sm">{initial?.id ? "Modifier" : "Nouveau récurrent"}</h3>
-        <button type="button" onClick={onClose} className="text-muted-foreground hover:text-foreground">
+        <button type="button" onClick={onClose} aria-label="Fermer le formulaire" className="text-muted-foreground hover:text-foreground">
           <X className="h-4 w-4" />
         </button>
       </div>
@@ -546,7 +561,7 @@ function RecurringForm({
         )}
       </div>
 
-      {error && <p className="text-xs text-red-500">{error}</p>}
+      {error && <p role="alert" className="text-xs text-red-500">{error}</p>}
 
       <div className="flex justify-end gap-2">
         <Button type="button" variant="outline" size="sm" onClick={onClose}>Annuler</Button>
@@ -694,17 +709,27 @@ export function RevenueManager({
 
   function handleDelete(id: string) {
     startDel(async () => {
-      await deleteRevenue(id)
-      setConfirmDelete(null)
-      refresh()
+      try {
+        const res = await deleteRevenue(id)
+        if (res?.error) { toast.error(res.error); return }
+        setConfirmDelete(null)
+        refresh()
+      } catch {
+        toast.error("Échec de la suppression du revenu")
+      }
     })
   }
 
   function handleDeleteRecurring(id: string) {
     startDel(async () => {
-      await deleteRecurringRevenue(id)
-      setConfirmDelete(null)
-      refresh()
+      try {
+        const res = await deleteRecurringRevenue(id)
+        if (res?.error) { toast.error(res.error); return }
+        setConfirmDelete(null)
+        refresh()
+      } catch {
+        toast.error("Échec de la suppression du modèle récurrent")
+      }
     })
   }
 
@@ -731,9 +756,15 @@ export function RevenueManager({
   function handleQuickMark(id: string) {
     setQuickMarkingId(id)
     startBulk(async () => {
-      await markRevenueReceived(id, new Date(), "OTHER")
-      setQuickMarkingId(null)
-      refresh()
+      try {
+        const res = await markRevenueReceived(id, new Date(), "OTHER")
+        if (res?.error) { toast.error(res.error); return }
+        refresh()
+      } catch {
+        toast.error("Échec du marquage du revenu")
+      } finally {
+        setQuickMarkingId(null)
+      }
     })
   }
 
@@ -741,9 +772,15 @@ export function RevenueManager({
   function handleUnmark(id: string) {
     setQuickMarkingId(id)
     startBulk(async () => {
-      await markRevenuePending(id)
-      setQuickMarkingId(null)
-      refresh()
+      try {
+        const res = await markRevenuePending(id)
+        if (res?.error) { toast.error(res.error); return }
+        refresh()
+      } catch {
+        toast.error("Échec du retour en attente")
+      } finally {
+        setQuickMarkingId(null)
+      }
     })
   }
 
@@ -751,9 +788,14 @@ export function RevenueManager({
     const ids = Array.from(selectedIds)
     if (!ids.length) return
     startBulk(async () => {
-      await bulkMarkReceived(ids, bulkDate ? new Date(bulkDate) : new Date())
-      setSelectedIds(new Set())
-      refresh()
+      try {
+        const res = await bulkMarkReceived(ids, bulkDate ? new Date(bulkDate) : new Date())
+        if (res?.error) { toast.error(res.error); return }
+        setSelectedIds(new Set())
+        refresh()
+      } catch {
+        toast.error("Échec de la validation groupée")
+      }
     })
   }
 
@@ -906,9 +948,10 @@ export function RevenueManager({
                     <div
                       role="button"
                       tabIndex={0}
+                      aria-expanded={yearExpanded}
                       className="w-full flex items-center justify-between px-1.5 py-1 cursor-pointer group"
                       onClick={() => toggleYear(year)}
-                      onKeyDown={e => e.key === "Enter" && toggleYear(year)}
+                      onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggleYear(year) } }}
                     >
                       <div className="flex items-center gap-2">
                         {yearExpanded ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
@@ -917,9 +960,9 @@ export function RevenueManager({
                       </div>
                       <div className="flex items-center gap-3">
                         {yearReceived < yearTotal && (
-                          <span className="text-xs text-amber-600">{fmt(yearTotal - yearReceived)} € en attente</span>
+                          <span className="text-xs text-amber-600 amount-sensitive">{fmt(yearTotal - yearReceived)} € en attente</span>
                         )}
-                        <span className="font-semibold text-sm tabular-nums text-emerald-600">{fmt(yearReceived)} € reçus</span>
+                        <span className="font-semibold text-sm tabular-nums text-emerald-600 amount-sensitive">{fmt(yearReceived)} € reçus</span>
                       </div>
                     </div>
 
@@ -933,11 +976,13 @@ export function RevenueManager({
 
                 return (
                   <div key={period} className="rounded-xl border border-border/50 bg-card overflow-hidden">
-                    { }
                     <div
+                      role="button"
+                      tabIndex={0}
+                      aria-expanded={expanded}
                       className="w-full flex items-center justify-between px-5 py-3.5 hover:bg-muted/30 transition-colors cursor-pointer"
                       onClick={() => togglePeriod(period)}
-                      onKeyDown={e => e.key === "Enter" && togglePeriod(period)}
+                      onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); togglePeriod(period) } }}
                     >
                       <div className="flex items-center gap-3">
                         {expanded ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
@@ -959,9 +1004,9 @@ export function RevenueManager({
                           </button>
                         )}
                         {receivedP < totalP && (
-                          <span className="text-xs text-amber-600">{fmt(totalP - receivedP)} € en attente</span>
+                          <span className="text-xs text-amber-600 amount-sensitive">{fmt(totalP - receivedP)} € en attente</span>
                         )}
-                        <span className="font-semibold text-sm tabular-nums text-emerald-600">{fmt(receivedP)} € reçus</span>
+                        <span className="font-semibold text-sm tabular-nums text-emerald-600 amount-sensitive">{fmt(receivedP)} € reçus</span>
                       </div>
                     </div>
 
@@ -1004,6 +1049,7 @@ export function RevenueManager({
                                       type="checkbox"
                                       checked={selectedIds.has(r.id)}
                                       onChange={() => toggleSelect(r.id)}
+                                      aria-label={`Sélectionner ${r.label}`}
                                       className="h-4 w-4 rounded border-border accent-emerald-600 cursor-pointer"
                                     />
                                   ) : null}
@@ -1077,7 +1123,7 @@ export function RevenueManager({
                                 </td>
 
                                 {/* Montant */}
-                                <td className="px-5 py-3 text-right font-semibold tabular-nums">
+                                <td className="px-5 py-3 text-right font-semibold tabular-nums amount-sensitive">
                                   {fmt(r.amount)} €
                                 </td>
 
@@ -1155,6 +1201,7 @@ export function RevenueManager({
                                       <button
                                         type="button"
                                         onClick={() => { setEditRevenue(r); setShowForm(false) }}
+                                        aria-label="Modifier le revenu"
                                         className="text-muted-foreground hover:text-foreground p-1 rounded"
                                       >
                                         <Pencil className="h-3.5 w-3.5" />
@@ -1175,6 +1222,7 @@ export function RevenueManager({
                                         <button
                                           type="button"
                                           onClick={() => setConfirmDelete(r.id)}
+                                          aria-label="Supprimer le revenu"
                                           className="text-muted-foreground hover:text-destructive p-1 rounded"
                                         >
                                           <Trash2 className="h-3.5 w-3.5" />
@@ -1227,7 +1275,7 @@ export function RevenueManager({
           </div>
 
           {genMessage && (
-            <div className="flex items-center gap-2 text-sm text-muted-foreground bg-muted/50 rounded-lg px-4 py-2">
+            <div role="status" aria-live="polite" className="flex items-center gap-2 text-sm text-muted-foreground bg-muted/50 rounded-lg px-4 py-2">
               <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />
               {genMessage}
             </div>
@@ -1289,11 +1337,12 @@ export function RevenueManager({
                       <td className="px-5 py-3 hidden sm:table-cell">
                         <span className="text-xs text-muted-foreground">{revenueTypeLabels[rec.type] ?? rec.type}</span>
                       </td>
-                      <td className="px-5 py-3 text-right font-semibold tabular-nums">{fmt(rec.amount)} €</td>
+                      <td className="px-5 py-3 text-right font-semibold tabular-nums amount-sensitive">{fmt(rec.amount)} €</td>
                       <td className="px-5 py-3 text-center text-muted-foreground hidden md:table-cell">{rec.dayOfMonth}</td>
                       <td className="px-5 py-3 text-center text-muted-foreground hidden md:table-cell">{rec._count.revenues}</td>
                       <td className="px-5 py-3 text-center">
                         <span className={`inline-block h-2 w-2 rounded-full ${rec.isActive ? "bg-emerald-500" : "bg-muted-foreground/30"}`} />
+                        <span className="sr-only">{rec.isActive ? "Actif" : "Inactif"}</span>
                       </td>
                       <td className="px-5 py-3 text-right">
                         <div className="flex items-center justify-end gap-1.5">
@@ -1343,7 +1392,7 @@ export function RevenueManager({
           <span className="text-sm font-semibold text-foreground whitespace-nowrap">
             {selectedIds.size} sélectionné{selectedIds.size > 1 ? "s" : ""}
           </span>
-          <span className="text-xs text-muted-foreground whitespace-nowrap">
+          <span className="text-xs text-muted-foreground whitespace-nowrap amount-sensitive">
             · {fmt(selectedTotal)} €
           </span>
           <div className="w-px h-5 bg-border shrink-0" />

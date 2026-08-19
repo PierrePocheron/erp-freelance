@@ -259,7 +259,7 @@ function LineForm({
         </div>
         <div className="ml-auto text-sm font-medium text-right">
           <span className="text-muted-foreground text-xs mr-1">Sous-total HT</span>
-          {fmtEur(subtotal)}
+          <span className="amount-sensitive">{fmtEur(subtotal)}</span>
         </div>
       </div>
 
@@ -513,7 +513,7 @@ export function CreateQuoteDialog({
                 />
                 {parseFloat(depositPercent) > 0 && totalHT > 0 && (
                   <p className="text-xs text-muted-foreground">
-                    = <span className="font-medium text-foreground">{fmtEur(totalHT * parseFloat(depositPercent) / 100)}</span>
+                    = <span className="font-medium text-foreground amount-sensitive">{fmtEur(totalHT * parseFloat(depositPercent) / 100)}</span>
                   </p>
                 )}
               </div>
@@ -571,13 +571,13 @@ export function CreateQuoteDialog({
                           )}
                         </div>
                         <div className="col-span-1 text-right text-muted-foreground">{line.quantity}</div>
-                        <div className="col-span-2 text-right text-muted-foreground">{fmtEur(line.unitPrice)}</div>
+                        <div className="col-span-2 text-right text-muted-foreground amount-sensitive">{fmtEur(line.unitPrice)}</div>
                         <div className="col-span-1 text-center">
                           <span className="text-xs rounded-full px-1.5 py-0.5 bg-muted text-muted-foreground">
                             {fmtTaxLabel(line.taxRate)}
                           </span>
                         </div>
-                        <div className="col-span-2 text-right font-semibold">
+                        <div className="col-span-2 text-right font-semibold amount-sensitive">
                           {fmtEur(line.quantity * line.unitPrice)}
                         </div>
                         <div className="col-span-1 flex items-center justify-end gap-1 md:opacity-0 md:group-hover:opacity-100 focus:opacity-100 transition-opacity">
@@ -649,7 +649,7 @@ export function CreateQuoteDialog({
                   <div className="space-y-1 min-w-52 text-sm">
                     <div className="flex justify-between gap-8">
                       <span className="text-muted-foreground">Total HT</span>
-                      <span className="font-medium">{fmtEur(totalHT)}</span>
+                      <span className="font-medium amount-sensitive">{fmtEur(totalHT)}</span>
                     </div>
                     {allZeroTax ? (
                       <p className="text-xs text-muted-foreground text-right">
@@ -663,19 +663,19 @@ export function CreateQuoteDialog({
                           .map(([rate, amount]) => (
                             <div key={rate} className="flex justify-between gap-8">
                               <span className="text-muted-foreground">TVA {fmtTaxLabel(Number(rate))}</span>
-                              <span className="text-muted-foreground">{fmtEur(amount)}</span>
+                              <span className="text-muted-foreground amount-sensitive">{fmtEur(amount)}</span>
                             </div>
                           ))}
                         <div className="border-t border-border pt-1.5 flex justify-between gap-8">
                           <span className="font-bold">Total TTC</span>
-                          <span className="font-bold text-base text-primary">{fmtEur(totalTTC)}</span>
+                          <span className="font-bold text-base text-primary amount-sensitive">{fmtEur(totalTTC)}</span>
                         </div>
                       </>
                     )}
                     {allZeroTax && (
                       <div className="border-t border-border pt-1.5 flex justify-between gap-8">
                         <span className="font-bold">Total</span>
-                        <span className="font-bold text-base text-primary">{fmtEur(totalHT)}</span>
+                        <span className="font-bold text-base text-primary amount-sensitive">{fmtEur(totalHT)}</span>
                       </div>
                     )}
                   </div>
@@ -699,9 +699,20 @@ export function CreateQuoteDialog({
           {/* Footer */}
           <div className="px-6 py-4 border-t border-border flex items-center justify-between gap-4">
             <p className="text-xs text-muted-foreground">
-              {draftLines.length === 0
-                ? "Vous pourrez ajouter des produits après création"
-                : `${draftLines.length} produit${draftLines.length > 1 ? "s" : ""} · ${fmtEur(totalHT)} HT${!allZeroTax ? ` · ${fmtEur(totalTTC)} TTC` : ""}`}
+              {draftLines.length === 0 ? (
+                "Vous pourrez ajouter des produits après création"
+              ) : (
+                <>
+                  {`${draftLines.length} produit${draftLines.length > 1 ? "s" : ""} · `}
+                  <span className="amount-sensitive">{fmtEur(totalHT)} HT</span>
+                  {!allZeroTax && (
+                    <>
+                      {" · "}
+                      <span className="amount-sensitive">{fmtEur(totalTTC)} TTC</span>
+                    </>
+                  )}
+                </>
+              )}
             </p>
             <div className="flex gap-2">
               <Button type="button" variant="outline" onClick={() => handleOpenChange(false)}>

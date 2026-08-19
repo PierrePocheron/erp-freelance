@@ -24,11 +24,12 @@ export function CompanyTypeSelect({
 
   return (
     <select
+      aria-label="Type de société"
       value={value ?? ""}
       onChange={(e) =>
         startTransition(() => updateCompanyType(companyId, e.target.value || null))
       }
-      className={`rounded-full border px-2.5 py-0.5 text-xs font-medium cursor-pointer focus:outline-none ${
+      className={`rounded-full border px-2.5 py-0.5 text-xs font-medium cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
         current ? current.className : "bg-muted/50 text-muted-foreground border-border"
       }`}
     >

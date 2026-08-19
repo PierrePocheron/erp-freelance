@@ -4,7 +4,6 @@ import Link from "next/link"
 import { redirect } from "next/navigation"
 import { ProspectionModeView } from "@/components/modules/prospection/ProspectionModeView"
 import { PIPELINE_STATUSES } from "@/components/modules/prospection/status-config"
-import { prospectionFromAddress } from "@/lib/prospection-email"
 import type { ProspectStatus, WebsiteType } from "@/generated/prisma/enums"
 
 const WEBSITE_TYPES: WebsiteType[] = ["SHOWCASE", "ECOMMERCE", "BLOG_CONTENT", "OUTDATED", "OTHER"]
@@ -85,7 +84,6 @@ export default async function ProspectionModePage({
       prospects={ordered}
       templates={templates}
       callTemplates={callTemplates}
-      emailFromConfigured={prospectionFromAddress() !== null}
     />
   )
 }

@@ -7,21 +7,19 @@ import { AMOUNTS_INIT_SCRIPT_HASH } from "@/lib/amounts-init-script"
 const { auth } = NextAuth(authConfig)
 
 export default auth((req) => {
-  const isLoggedIn = !!req.auth
-  const isAuthPage = req.nextUrl.pathname.startsWith("/login")
-
-  if (!isLoggedIn && !isAuthPage) {
-    return NextResponse.redirect(new URL("/login", req.nextUrl.origin))
-  }
-  if (isLoggedIn && isAuthPage) {
-    return NextResponse.redirect(new URL("/", req.nextUrl.origin))
-  }
-
+  // Les redirections d'auth (login ↔ pages protégées) sont l'unique responsabilité
+  // du callback `authorized` de auth.config.ts : next-auth l'exécute AVANT ce corps
+  // et, quand il renvoie un Response.redirect, ce middleware n'est PAS appelé. Ce
+  // corps ne s'exécute donc que sur les requêtes déjà autorisées — il se limite à
+  // poser les en-têtes CSP/nonce.
   const nonce = btoa(crypto.randomUUID())
   const csp = [
     "default-src 'self'",
     // Les hashes autorisent les scripts inline statiques (thème + masquage des
     // montants, hors arbre React, cf. layout.tsx) — honorés avec 'strict-dynamic'.
+    // 'unsafe-eval' : requis par le HMR / Fast Refresh de Next.js en dev (eval).
+    // La même CSP est servie en prod, où l'App Router n'en a normalement pas besoin :
+    // durcissement possible (retrait en prod) à valider avant de l'appliquer.
     `script-src 'self' 'nonce-${nonce}' '${THEME_INIT_SCRIPT_HASH}' '${AMOUNTS_INIT_SCRIPT_HASH}' 'strict-dynamic' 'unsafe-eval'`,
     // Service worker (/sw.js, push) — sans cette directive, strict-dynamic
     // le bloquerait (un SW chargé par URL ne porte pas de nonce)

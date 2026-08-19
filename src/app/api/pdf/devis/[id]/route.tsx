@@ -4,7 +4,6 @@ import { renderToBuffer } from "@react-pdf/renderer"
 import { InvoicePDF } from "@/lib/pdf"
 import { resolveEmitter } from "@/lib/emitter-resolve"
 import { NextRequest } from "next/server"
-import React from "react"
 
 export async function GET(
   _req: NextRequest,
@@ -34,42 +33,43 @@ export async function GET(
     userEmail: quote.user.email,
   })
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const element: any = React.createElement(InvoicePDF, {
-    type: "DEVIS",
-    number: quote.number,
-    createdAt: quote.createdAt,
-    expiresAt: quote.expiresAt,
-    sentAt: quote.sentAt,
-    acceptedAt: quote.acceptedAt,
-    depositPercent: quote.depositPercent,
-    generalConditions: quote.generalConditions,
-    accentColor,
-    logoText: branding.logoText,
-    logoSubtext: branding.logoSubtext,
-    backgroundColor: branding.backgroundColor,
-    emitter,
-    client: {
-      name: quote.client.name,
-      company: quote.client.company,
-      email: quote.client.email,
-      address: quote.client.address,
-      postalCode: quote.client.postalCode,
-      city: quote.client.city,
-      siret: quote.client.siret,
-    },
-    lines: quote.lines.map((l) => ({
-      description: l.description,
-      detail: l.detail,
-      quantity: l.quantity,
-      unitPrice: l.unitPrice,
-      taxRate: l.taxRate,
-      total: l.total,
-    })),
-    totalHT: quote.totalHT,
-  })
-
-  const buffer = await renderToBuffer(element)
+  // JSX typé : les props sont vérifiées contre la signature d'InvoicePDF
+  // (plus de cast `any` qui masquait une prop mal nommée / mal typée).
+  const buffer = await renderToBuffer(
+    <InvoicePDF
+      type="DEVIS"
+      number={quote.number}
+      createdAt={quote.createdAt}
+      expiresAt={quote.expiresAt}
+      sentAt={quote.sentAt}
+      acceptedAt={quote.acceptedAt}
+      depositPercent={quote.depositPercent}
+      generalConditions={quote.generalConditions}
+      accentColor={accentColor}
+      logoText={branding.logoText}
+      logoSubtext={branding.logoSubtext}
+      backgroundColor={branding.backgroundColor}
+      emitter={emitter}
+      client={{
+        name: quote.client.name,
+        company: quote.client.company,
+        email: quote.client.email,
+        address: quote.client.address,
+        postalCode: quote.client.postalCode,
+        city: quote.client.city,
+        siret: quote.client.siret,
+      }}
+      lines={quote.lines.map((l) => ({
+        description: l.description,
+        detail: l.detail,
+        quantity: l.quantity,
+        unitPrice: l.unitPrice,
+        taxRate: l.taxRate,
+        total: l.total,
+      }))}
+      totalHT={quote.totalHT}
+    />
+  )
 
   return new Response(new Uint8Array(buffer), {
     headers: {

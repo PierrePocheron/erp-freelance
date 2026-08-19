@@ -2,12 +2,20 @@ import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { NextRequest } from "next/server"
 
+/** Échappe une valeur pour une cellule CSV : guillemets + doublage des `"` afin
+ *  que `;`, retours à la ligne et guillemets internes ne cassent pas la structure.
+ *  `guard` neutralise en plus l'injection de formule (`= + - @`) sur le texte libre. */
+function csvCell(value: string, guard = false): string {
+  const safe = guard && /^[=+\-@]/.test(value) ? `'${value}` : value
+  return `"${safe.replace(/"/g, '""')}"`
+}
+
 export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ projectId: string }> }
 ) {
   const session = await auth()
-  if (!session) return new Response("Unauthorized", { status: 401 })
+  if (!session?.user?.id) return new Response("Unauthorized", { status: 401 })
 
   const { projectId } = await params
   const userId = session.user.id
@@ -29,7 +37,7 @@ export async function GET(
   if (!project) return new Response("Not found", { status: 404 })
 
   const rows: string[] = [
-    "Tâche;Date;Début;Fin;Durée (min);Durée (h)",
+    ["Tâche", "Date", "Début", "Fin", "Durée (min)", "Durée (h)"].map((h) => csvCell(h)).join(";"),
   ]
 
   for (const task of project.tasks) {
@@ -40,12 +48,19 @@ export async function GET(
       const end = new Date(entry.endedAt).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })
       const durationMin = Math.round(entry.duration / 60)
       const durationH = (entry.duration / 3600).toFixed(2).replace(".", ",")
-      const title = task.title.replace(/;/g, ",")
-      rows.push(`${title};${date};${start};${end};${durationMin};${durationH}`)
+      rows.push([
+        csvCell(task.title, true),
+        csvCell(date),
+        csvCell(start),
+        csvCell(end),
+        csvCell(String(durationMin)),
+        csvCell(durationH),
+      ].join(";"))
     }
   }
 
-  const csv = rows.join("\n")
+  // BOM UTF-8 en tête pour qu'Excel (Windows) affiche correctement les accents.
+  const csv = "﻿" + rows.join("\n")
   const filename = `temps-${project.name.replace(/[^a-z0-9]/gi, "-").toLowerCase()}.csv`
 
   return new Response(csv, {

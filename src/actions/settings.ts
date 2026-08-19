@@ -114,6 +114,25 @@ export async function saveTaxSettings(data: TaxSettingsData) {
   revalidatePath("/impots")
 }
 
+/** Réglages de prospection : délai de relance (jours) + modèle de relance par défaut. */
+export async function saveProspectionSettings(data: { followUpDelayDays: number; followUpTemplateId: string | null }) {
+  const userId = await requireAuth()
+  const days = Math.max(1, Math.min(90, Math.round(Number(data.followUpDelayDays) || 7)))
+  // Anti-IDOR : ne garde le modèle que s'il appartient à l'utilisateur.
+  let templateId: string | null = null
+  if (data.followUpTemplateId) {
+    const t = await prisma.emailTemplate.findFirst({ where: { id: data.followUpTemplateId, userId }, select: { id: true } })
+    templateId = t?.id ?? null
+  }
+  await prisma.userProfile.upsert({
+    where:  { userId },
+    create: { userId, followUpDelayDays: days, followUpTemplateId: templateId },
+    update: { followUpDelayDays: days, followUpTemplateId: templateId },
+  })
+  revalidatePath("/settings")
+  revalidatePath("/prospection")
+}
+
 export async function updateAccentColors(_userId: string, colorsJson: string) {
   const userId = await requireAuth()
   await prisma.userProfile?.upsert({

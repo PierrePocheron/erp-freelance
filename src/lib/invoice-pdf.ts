@@ -1,6 +1,6 @@
 import "server-only"
 import { prisma } from "@/lib/prisma"
-import { renderToBuffer } from "@react-pdf/renderer"
+import { renderToBuffer, type DocumentProps } from "@react-pdf/renderer"
 import { InvoicePDF } from "@/lib/pdf"
 import { resolveEmitter } from "@/lib/emitter-resolve"
 import React from "react"
@@ -26,8 +26,9 @@ export async function buildInvoicePdfBuffer(invoiceId: string, userId: string): 
     userEmail: invoice.user.email,
   })
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const element: any = React.createElement(InvoicePDF, {
+  // Props typées via celles du composant : une prop renommée/supprimée côté
+  // template est désormais détectée à la compilation.
+  const props: React.ComponentProps<typeof InvoicePDF> = {
     type: "FACTURE",
     number: invoice.number,
     createdAt: invoice.createdAt,
@@ -60,7 +61,11 @@ export async function buildInvoicePdfBuffer(invoiceId: string, userId: string): 
     notes: invoice.notes,
     generalConditions: invoice.generalConditions,
     totalHT: invoice.totalHT,
-  })
+  }
+
+  // InvoicePDF rend un <Document> racine ; le cast comble l'écart entre ses props
+  // métier et le type d'élément (ReactElement<DocumentProps>) attendu par renderToBuffer.
+  const element = React.createElement(InvoicePDF, props) as React.ReactElement<DocumentProps>
 
   return Buffer.from(await renderToBuffer(element))
 }

@@ -15,7 +15,7 @@ function fmtAmount(n: number): string {
 
 // Ordre de rendu : les nœuds parents sont peints en dernier → leur hitbox gagne
 const TYPE_Z: Record<NodeType, number> = {
-  REVENUE: 0, RESALE: 0, INVOICE: 0, QUOTE: 0, APPLICATION: 0, PROSPECT: 0, PERSONAL: 1, PROJECT: 1, CLIENT: 2, COMPANY: 3, SOURCE: 4,
+  REVENUE: 0, RESALE: 0, INVOICE: 0, QUOTE: 0, APPLICATION: 0, QUESTION: 0, PROSPECT: 0, PERSONAL: 1, PROJECT: 1, SKILL: 1, CLIENT: 2, COMPANY: 3, SOURCE: 4,
 }
 
 // ── Icône minimaliste par type ──────────────────────────────────────────────
@@ -139,6 +139,23 @@ function drawNodeIcon(
       ctx.stroke()
       break
     }
+    case "SKILL": {
+      // Ampoule : bulbe + culot (idée / connaissance acquise)
+      ctx.beginPath(); ctx.arc(cx, cy - s * 0.18, s * 0.52, 0, 2 * Math.PI); ctx.stroke()
+      ctx.beginPath()
+      ctx.moveTo(cx - s * 0.26, cy + s * 0.40)
+      ctx.lineTo(cx + s * 0.26, cy + s * 0.40)
+      ctx.moveTo(cx - s * 0.18, cy + s * 0.62)
+      ctx.lineTo(cx + s * 0.18, cy + s * 0.62)
+      ctx.stroke()
+      break
+    }
+    case "QUESTION": {
+      // Point d'interrogation seul (sans cadre, pour se distinguer du devis)
+      ctx.font = `bold ${s * 1.15}px -apple-system, sans-serif`
+      ctx.fillText("?", cx, cy + s * 0.08)
+      break
+    }
   }
 
   ctx.restore()
@@ -251,6 +268,14 @@ export const ForceGraphCanvas = forwardRef<GraphMethods, Props>(function ForceGr
       }, DBL_MS)
     }
   }, [onNodeClick, onNodeDblClick])
+
+  // Annule le timer de simple-clic en attente au démontage (navigation,
+  // re-mount du dynamic import au changement de filtre) — sinon le callback
+  // appellerait onNodeClick après démontage (setState sur parent démonté).
+  useEffect(() => () => {
+    if (singleTimer.current) clearTimeout(singleTimer.current)
+    lastClick.current = null
+  }, [])
 
   // ── Pointer hit area : uniquement le cercle principal ──────────────────────
   const paintPointerArea = useCallback((raw: NodeObject, color: string, ctx: CanvasRenderingContext2D) => {

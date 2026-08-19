@@ -10,7 +10,7 @@ async function requireAuth(): Promise<string> {
   return session.user.id
 }
 
-export async function markNotificationRead(notificationId: string, _userId: string) {
+export async function markNotificationRead(notificationId: string) {
   const userId = await requireAuth()
   await prisma.notification.updateMany({
     where: { id: notificationId, userId },
@@ -19,7 +19,7 @@ export async function markNotificationRead(notificationId: string, _userId: stri
   revalidatePath("/")
 }
 
-export async function markAllNotificationsRead(_userId: string) {
+export async function markAllNotificationsRead() {
   const userId = await requireAuth()
   await prisma.notification.updateMany({
     where: { userId, isRead: false },

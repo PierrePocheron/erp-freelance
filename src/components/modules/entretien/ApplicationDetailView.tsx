@@ -1,26 +1,28 @@
 "use client"
 
-import { useState, useTransition } from "react"
+import { Fragment, useEffect, useId, useState, useTransition } from "react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import {
   ArrowLeft, Building2, MapPin, Banknote, ExternalLink,
-  Mail, Phone, Plus, Check, CalendarClock,
-  Pencil, Trash2, Ban, RotateCcw, FileText,
+  Mail, Phone, Plus, Check, CalendarClock, User,
+  Pencil, Trash2, Ban, RotateCcw, FileText, FileCheck2, ChevronDown,
 } from "lucide-react"
 import { LinkedinIcon } from "@/components/ui/linkedin-icon"
 import { toast } from "sonner"
 import { cn } from "@/lib/utils"
 import {
-  updateApplicationStatus, addApplicationEvent,
+  updateApplicationStatus, addApplicationEvent, updateApplicationEvent,
   deleteApplicationEvent, cancelApplicationEvent,
-  uncancelApplicationEvent, setEventOutcome, updateApplicationNotes,
+  uncancelApplicationEvent, setEventOutcome,
+  updateJobApplication, deleteJobApplication, completeNextAction,
 } from "@/actions/entretien"
 import {
   STATUS_CONFIG, PIPELINE_STATUSES, OUTCOME_STATUSES, EVENT_TYPE_CONFIG,
+  MEETING_FORMATS, meetingFormat,
   fmtDate, fmtDateTime, type JobAppStatus,
 } from "./status-config"
-import { ApplicationDialog } from "./ApplicationDialog"
-import type { JobEventType } from "@/generated/prisma/enums"
+import type { JobEventType, JobApplicationStatus } from "@/generated/prisma/enums"
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -34,6 +36,7 @@ type DetailEvent = {
   outcome: string | null
   cancelledAt: Date | string | null
   createdAt: Date | string
+  contact: { id: string; name: string; linkedinUrl: string | null } | null
 }
 
 type DetailContact = {
@@ -72,12 +75,17 @@ type DetailApp = {
   appliedAt: Date | string | null
   nextActionAt: Date | string | null
   nextActionLabel: string | null
+  nextActionFormat: string | null
+  competencyDossierValidated: boolean
+  competencyDossierUrl: string | null
   closedAt: Date | string | null
   createdAt: Date | string
   updatedAt: Date | string
   contact: DetailContact | null
   company: DetailCompany
   events: DetailEvent[]
+  usedAnswers: { id: string; question: string; answer: string; category: string | null }[]
+  projects: { id: string; name: string; status: string }[]
 }
 
 type ListContact = {
@@ -86,6 +94,7 @@ type ListContact = {
   email: string | null
   phone: string | null
   company: string | null
+  companyId: string | null
   linkedinUrl: string | null
   type: string | null
 }
@@ -104,23 +113,42 @@ function salaryLabel(app: DetailApp): string | null {
   return app.salaryNote ?? null
 }
 
+const toDateInput = (d: Date | string | null | undefined) =>
+  d ? new Date(d).toISOString().split("T")[0] : ""
+
+// Styles partagés des champs en mode édition
+const inputCls = "w-full h-9 rounded-lg border border-input bg-background px-3 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+const labelCls = "text-xs font-medium text-muted-foreground"
+const cardTitleCls = "text-xs font-semibold text-muted-foreground uppercase tracking-wide"
+
+// Libellés + couleurs de statut projet (pour la carte « Projet(s) associé(s) »)
+const PROJECT_STATUS_META: Record<string, { label: string; cls: string }> = {
+  ACTIVE:    { label: "Actif",    cls: "bg-emerald-500/15 text-emerald-600" },
+  PAUSED:    { label: "En pause", cls: "bg-amber-500/15 text-amber-600" },
+  COMPLETED: { label: "Terminé",  cls: "bg-blue-500/15 text-blue-600" },
+  ARCHIVED:  { label: "Archivé",  cls: "bg-muted text-muted-foreground" },
+  CANCELLED: { label: "Annulé",   cls: "bg-red-500/15 text-red-600" },
+}
+
 // ── Pipeline stepper ───────────────────────────────────────────────────────────
 
 function PipelineStepper({ status }: { status: string }) {
   const idx = PIPELINE_STATUSES.indexOf(status as JobAppStatus)
   const isOutcome = OUTCOME_STATUSES.includes(status as JobAppStatus)
 
+  const outcomeCfg = isOutcome ? STATUS_CONFIG[status as JobAppStatus] : null
+
   return (
-    <div className="flex items-center gap-0 overflow-x-auto pb-1">
+    // Connecteurs élastiques (flex-1) : le stepper remplit la largeur disponible
+    // sans être coupé ; il ne scrolle qu'en dernier recours (écran très étroit).
+    <div className="flex items-center w-full overflow-x-auto pb-1">
       {PIPELINE_STATUSES.map((s, i) => {
         const cfg = STATUS_CONFIG[s]
         const done = idx >= 0 && i < idx
         const current = s === status
         return (
-          <div key={s} className="flex items-center shrink-0">
-            <div className={cn(
-              "flex flex-col items-center gap-0.5",
-            )}>
+          <Fragment key={s}>
+            <div className="flex flex-col items-center gap-0.5 shrink-0">
               <div className={cn(
                 "h-2 w-2 rounded-full border transition-all",
                 current ? cn(cfg.dot, "ring-2 ring-offset-1 ring-current/40 scale-125 border-transparent") :
@@ -128,31 +156,28 @@ function PipelineStepper({ status }: { status: string }) {
                 "bg-muted border-border/50"
               )} />
               <span className={cn(
-                "text-[9px] font-medium whitespace-nowrap",
-                current ? "text-foreground" : done ? "text-muted-foreground" : "text-muted-foreground/40"
+                "text-xs font-medium whitespace-nowrap px-0.5",
+                current ? "text-foreground" : done ? "text-muted-foreground" : "text-muted-foreground"
               )}>
                 {cfg.short}
               </span>
             </div>
-            {i < PIPELINE_STATUSES.length - 1 && (
+            {(i < PIPELINE_STATUSES.length - 1 || isOutcome) && (
               <div className={cn(
-                "h-px w-6 mx-1 mb-3 transition-all",
+                "h-px flex-1 min-w-[10px] mx-1 mb-3 transition-all",
                 done || current ? "bg-border" : "bg-border/30"
               )} />
             )}
-          </div>
+          </Fragment>
         )
       })}
-      {isOutcome && (
-        <>
-          <div className="h-px w-6 mx-1 mb-3 bg-border/30" />
-          <div className="flex flex-col items-center gap-0.5 shrink-0">
-            <div className={cn("h-2 w-2 rounded-full border-transparent ring-2 ring-offset-1 ring-current/40 scale-125", STATUS_CONFIG[status as JobAppStatus]?.dot)} />
-            <span className="text-[9px] font-medium text-foreground">
-              {STATUS_CONFIG[status as JobAppStatus]?.short}
-            </span>
-          </div>
-        </>
+      {isOutcome && outcomeCfg && (
+        <div className="flex flex-col items-center gap-0.5 shrink-0">
+          <div className={cn("h-2 w-2 rounded-full border-transparent ring-2 ring-offset-1 ring-current/40 scale-125", outcomeCfg.dot)} />
+          <span className="text-xs font-medium text-foreground whitespace-nowrap px-0.5">
+            {outcomeCfg.short}
+          </span>
+        </div>
       )}
     </div>
   )
@@ -162,12 +187,21 @@ function PipelineStepper({ status }: { status: string }) {
 
 function EventRow({
   ev,
+  contacts,
   onDelete,
 }: {
   ev: DetailEvent
+  contacts: ListContact[]
   onDelete: (id: string) => void
 }) {
   const [, start] = useTransition()
+
+  function handleContactChange(contactId: string) {
+    start(async () => {
+      await updateApplicationEvent(ev.id, { contactId: contactId || null })
+      toast.success(contactId ? "Interlocuteur lié au point" : "Interlocuteur retiré")
+    })
+  }
   const [showOutcomeForm, setShowOutcomeForm] = useState(false)
   const [outcomeText, setOutcomeText] = useState(ev.outcome ?? "")
   const [confirmDelete, setConfirmDelete] = useState(false)
@@ -208,9 +242,9 @@ function EventRow({
     <div className={cn(
       "relative pl-8",
     )}>
-      {/* Timeline dot */}
+      {/* Timeline dot — centré sur le trait vertical (left-[18px]) */}
       <div className={cn(
-        "absolute left-2.5 top-3 h-2.5 w-2.5 rounded-full border-2 border-background ring-1 transition-all",
+        "absolute left-3.5 top-3.5 h-2.5 w-2.5 rounded-full border-2 border-background ring-1 transition-all",
         isCancelled ? "bg-muted-foreground/30 ring-muted-foreground/20" :
         isFuture ? "bg-amber-400 ring-amber-400/40" :
         ev.outcome ? "bg-emerald-500 ring-emerald-400/40" :
@@ -314,6 +348,30 @@ function EventRow({
         <p className={cn("text-sm font-medium leading-snug", isCancelled && "line-through text-muted-foreground")}>{ev.title}</p>
         {ev.notes && <p className="text-xs text-muted-foreground leading-relaxed">{ev.notes}</p>}
 
+        {/* Interlocuteur lié à ce point (un recrutement a souvent plusieurs contacts) */}
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <User aria-hidden="true" className="h-3 w-3 text-muted-foreground shrink-0" />
+          <select
+            aria-label="Interlocuteur lié à ce point"
+            value={ev.contact?.id ?? ""}
+            onChange={(e) => handleContactChange(e.target.value)}
+            className="h-6 max-w-[200px] rounded border border-input bg-background px-1.5 text-[11px] text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+          >
+            <option value="">— Aucun interlocuteur —</option>
+            {contacts.map((c) => <option key={c.id} value={c.id}>{c.name}{c.company ? ` · ${c.company}` : ""}</option>)}
+          </select>
+          {ev.contact && (
+            <Link href={`/contacts/${ev.contact.id}`} className="text-[11px] text-muted-foreground hover:text-foreground underline underline-offset-2 transition-colors">
+              fiche
+            </Link>
+          )}
+          {ev.contact?.linkedinUrl && (
+            <a href={ev.contact.linkedinUrl} target="_blank" rel="noopener noreferrer" className="text-sky-600 hover:text-sky-700 transition-colors" title="LinkedIn">
+              <LinkedinIcon className="h-3.5 w-3.5" />
+            </a>
+          )}
+        </div>
+
         {/* Compte rendu */}
         {ev.outcome && !showOutcomeForm && (
           <div className="flex items-start gap-2 rounded-lg bg-emerald-500/5 border border-emerald-500/15 px-3 py-2">
@@ -375,14 +433,41 @@ export function ApplicationDetailView({
   contacts: ListContact[]
   companies: { id: string; name: string }[]
 }) {
+  const router = useRouter()
   const [, start] = useTransition()
+  const fid = useId()
 
   const [statusOpen, setStatusOpen] = useState(false)
-  const [showDialog, setShowDialog] = useState(false)
+  const [editing, setEditing] = useState(false)
+  const [confirmDelete, setConfirmDelete] = useState(false)
 
-  // Édition inline des notes — initialisé lazily au clic pour ne pas dupliquer la prop
-  const [editingNotes, setEditingNotes] = useState(false)
-  const [notesText, setNotesText] = useState("")
+  // Fermeture au clavier (Échap) du menu de statut.
+  useEffect(() => {
+    if (!statusOpen) return
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setStatusOpen(false) }
+    document.addEventListener("keydown", onKey)
+    return () => document.removeEventListener("keydown", onKey)
+  }, [statusOpen])
+
+  // Champs éditables inline (mode « Modifier ») — re-seedés à l'entrée en édition.
+  const [fCompany, setFCompany] = useState(app.companyName)
+  const [fCompanyId, setFCompanyId] = useState(app.companyId ?? "")
+  const [fPosition, setFPosition] = useState(app.position)
+  const [fLocation, setFLocation] = useState(app.location ?? "")
+  const [fWorkMode, setFWorkMode] = useState(app.workMode ?? "")
+  const [fSource, setFSource] = useState(app.source ?? "")
+  const [fUrl, setFUrl] = useState(app.url ?? "")
+  const [fSalaryMin, setFSalaryMin] = useState(app.salaryMin?.toString() ?? "")
+  const [fSalaryMax, setFSalaryMax] = useState(app.salaryMax?.toString() ?? "")
+  const [fSalaryNote, setFSalaryNote] = useState(app.salaryNote ?? "")
+  const [fContactId, setFContactId] = useState(app.contactId ?? "")
+  const [fApplied, setFApplied] = useState(toDateInput(app.appliedAt))
+  const [fNextAt, setFNextAt] = useState(toDateInput(app.nextActionAt))
+  const [fNextLabel, setFNextLabel] = useState(app.nextActionLabel ?? "")
+  const [fNextFormat, setFNextFormat] = useState(app.nextActionFormat ?? "")
+  const [fDossierValidated, setFDossierValidated] = useState(app.competencyDossierValidated)
+  const [fDossierUrl, setFDossierUrl] = useState(app.competencyDossierUrl ?? "")
+  const [fNotes, setFNotes] = useState(app.notes ?? "")
 
   // Add event form
   const [showAddEvent, setShowAddEvent] = useState(false)
@@ -390,10 +475,71 @@ export function ApplicationDetailView({
   const [evDate, setEvDate] = useState(() => new Date().toISOString().slice(0, 16))
   const [evTitle, setEvTitle] = useState("")
   const [evNotes, setEvNotes] = useState("")
+  const [evContactId, setEvContactId] = useState(app.contactId ?? "")
 
   const cfg = STATUS_CONFIG[app.status as JobAppStatus] ?? STATUS_CONFIG.WISHLIST
   const salary = salaryLabel(app)
   const nextOverdue = app.nextActionAt && new Date(app.nextActionAt) < new Date()
+
+  function beginEdit() {
+    setFCompany(app.companyName); setFCompanyId(app.companyId ?? "")
+    setFPosition(app.position); setFLocation(app.location ?? ""); setFWorkMode(app.workMode ?? "")
+    setFSource(app.source ?? ""); setFUrl(app.url ?? "")
+    setFSalaryMin(app.salaryMin?.toString() ?? ""); setFSalaryMax(app.salaryMax?.toString() ?? ""); setFSalaryNote(app.salaryNote ?? "")
+    setFContactId(app.contactId ?? "")
+    setFApplied(toDateInput(app.appliedAt)); setFNextAt(toDateInput(app.nextActionAt)); setFNextLabel(app.nextActionLabel ?? ""); setFNextFormat(app.nextActionFormat ?? "")
+    setFDossierValidated(app.competencyDossierValidated); setFDossierUrl(app.competencyDossierUrl ?? "")
+    setFNotes(app.notes ?? "")
+    setConfirmDelete(false)
+    setEditing(true)
+  }
+
+  // Lie automatiquement companyId si le nom saisi correspond à une société existante.
+  function onCompanyNameChange(value: string) {
+    setFCompany(value)
+    const match = companies.find((c) => c.name.toLowerCase() === value.trim().toLowerCase())
+    setFCompanyId(match?.id ?? "")
+  }
+
+  function saveEdits() {
+    if (!fCompany.trim() || !fPosition.trim()) { toast.error("Entreprise et poste sont requis"); return }
+    start(async () => {
+      await updateJobApplication(app.id, {
+        companyName: fCompany, companyId: fCompanyId || null, position: fPosition,
+        location: fLocation, workMode: fWorkMode,
+        status: app.status as JobApplicationStatus,
+        source: fSource, url: fUrl,
+        salaryMin: fSalaryMin ? parseFloat(fSalaryMin) : null,
+        salaryMax: fSalaryMax ? parseFloat(fSalaryMax) : null,
+        salaryNote: fSalaryNote,
+        contactId: fContactId || null,
+        appliedAt: fApplied || null,
+        nextActionAt: fNextAt || null,
+        nextActionLabel: fNextLabel,
+        nextActionFormat: fNextFormat || null,
+        competencyDossierValidated: fDossierValidated,
+        competencyDossierUrl: fDossierUrl,
+        notes: fNotes,
+      })
+      setEditing(false)
+      toast.success("Candidature mise à jour")
+    })
+  }
+
+  function handleDelete() {
+    start(async () => {
+      await deleteJobApplication(app.id)
+      toast.success("Candidature supprimée")
+      router.push("/entretiens")
+    })
+  }
+
+  function completeNext() {
+    start(async () => {
+      await completeNextAction(app.id)
+      toast.success("Point validé — ajouté à l'historique")
+    })
+  }
 
   function pickStatus(s: JobAppStatus) {
     setStatusOpen(false)
@@ -412,6 +558,7 @@ export function ApplicationDetailView({
         type: evType,
         title: evTitle,
         notes: evNotes || undefined,
+        contactId: evContactId || null,
       })
       setEvTitle(""); setEvNotes(""); setShowAddEvent(false)
       toast.success("Point de contact ajouté")
@@ -429,11 +576,26 @@ export function ApplicationDetailView({
     new Date(a.date).getTime() - new Date(b.date).getTime()
   )
 
+  // Contacts impliqués dans ce recrutement = tous les contacts de la société +
+  // le contact principal — un recrutement passe souvent par plusieurs personnes.
+  const involved = new Map<string, { id: string; name: string; company: string | null; linkedinUrl: string | null; email: string | null; phone: string | null }>()
+  if (app.companyId) {
+    for (const c of contacts) {
+      if (c.companyId === app.companyId) {
+        involved.set(c.id, { id: c.id, name: c.name, company: c.company, linkedinUrl: c.linkedinUrl, email: c.email, phone: c.phone })
+      }
+    }
+  }
+  if (app.contact && !involved.has(app.contact.id)) {
+    involved.set(app.contact.id, { id: app.contact.id, name: app.contact.name, company: app.contact.company, linkedinUrl: app.contact.linkedinUrl, email: app.contact.email, phone: app.contact.phone })
+  }
+  const involvedContacts = [...involved.values()]
+
 
   return (
-    <div className="max-w-2xl mx-auto space-y-6 pb-16">
-      {/* Back */}
-      <div>
+    <div className="space-y-6 pb-16">
+      {/* Retour + barre d'édition */}
+      <div className="flex items-center justify-between gap-3">
         <Link
           href="/entretiens"
           className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
@@ -441,11 +603,52 @@ export function ApplicationDetailView({
           <ArrowLeft className="h-3.5 w-3.5" />
           Retour aux candidatures
         </Link>
+        {editing ? (
+          <div className="flex items-center gap-2">
+            {confirmDelete ? (
+              <>
+                <span className="text-xs text-muted-foreground">Supprimer&nbsp;?</span>
+                <button type="button" onClick={handleDelete} className="text-xs font-medium text-destructive hover:opacity-80">Oui</button>
+                <button type="button" onClick={() => setConfirmDelete(false)} className="text-xs text-muted-foreground hover:text-foreground">Non</button>
+              </>
+            ) : (
+              <button type="button" onClick={() => setConfirmDelete(true)} title="Supprimer la candidature"
+                className="flex h-8 w-8 items-center justify-center rounded-lg text-destructive hover:bg-destructive/10 transition-colors">
+                <Trash2 className="h-4 w-4" />
+              </button>
+            )}
+            <button type="button" onClick={() => setEditing(false)}
+              className="h-8 px-3 rounded-lg border border-input text-sm text-muted-foreground hover:bg-muted/50 transition-colors">
+              Annuler
+            </button>
+            <button type="button" onClick={saveEdits}
+              className="flex items-center gap-1.5 h-8 px-3.5 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors">
+              <Check className="h-4 w-4" /> Enregistrer
+            </button>
+          </div>
+        ) : (
+          <button type="button" onClick={beginEdit}
+            className="flex items-center gap-1.5 h-8 px-3 rounded-lg border border-input text-sm text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors">
+            <Pencil className="h-3.5 w-3.5" /> Modifier
+          </button>
+        )}
       </div>
 
       {/* Header */}
       <div className="rounded-xl border border-border/50 bg-card p-5 space-y-4">
-        <div className="flex items-start justify-between gap-3">
+        {editing ? (
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div>
+              <label htmlFor={`${fid}-company`} className={labelCls}>Entreprise cible *</label>
+              <input id={`${fid}-company`} value={fCompany} onChange={(e) => onCompanyNameChange(e.target.value)} list="detail-company-suggestions" className={cn(inputCls, "mt-1")} />
+              <datalist id="detail-company-suggestions">{companies.map((c) => <option key={c.id} value={c.name} />)}</datalist>
+            </div>
+            <div>
+              <label htmlFor={`${fid}-position`} className={labelCls}>Poste / mission *</label>
+              <input id={`${fid}-position`} value={fPosition} onChange={(e) => setFPosition(e.target.value)} className={cn(inputCls, "mt-1")} />
+            </div>
+          </div>
+        ) : (
           <div className="min-w-0 space-y-0.5">
             <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
               <Building2 className="h-3 w-3" />
@@ -459,19 +662,14 @@ export function ApplicationDetailView({
             </p>
             <h1 className="text-xl font-bold leading-tight">{app.position}</h1>
           </div>
-          <button
-            onClick={() => setShowDialog(true)}
-            className="shrink-0 text-muted-foreground hover:text-foreground transition-colors p-1"
-            title="Modifier la candidature"
-          >
-            <Pencil className="h-4 w-4" />
-          </button>
-        </div>
+        )}
 
         {/* Statut */}
         <div className="relative inline-block">
           <button
             onClick={() => setStatusOpen((v) => !v)}
+            aria-haspopup="menu"
+            aria-expanded={statusOpen}
             className={cn("rounded-full border px-2.5 py-0.5 text-xs font-medium hover:opacity-80 transition-opacity", cfg.cls)}
           >
             {cfg.label} ▾
@@ -479,10 +677,12 @@ export function ApplicationDetailView({
           {statusOpen && (
             <>
               <div className="fixed inset-0 z-10" onClick={() => setStatusOpen(false)} />
-              <div className="absolute left-0 top-full mt-1 z-20 rounded-lg border border-border bg-popover shadow-md p-1 min-w-44">
+              <div role="menu" className="absolute left-0 top-full mt-1 z-20 rounded-lg border border-border bg-popover shadow-md p-1 min-w-44">
                 <p className="px-2 py-1 text-[10px] font-semibold text-muted-foreground/60 uppercase tracking-wide">Pipeline</p>
                 {PIPELINE_STATUSES.map((s) => (
                   <button key={s} onClick={() => pickStatus(s)}
+                    role="menuitem"
+                    aria-current={s === app.status || undefined}
                     className={cn("w-full text-left px-2 py-1 text-xs rounded-md hover:bg-muted transition-colors flex items-center gap-1.5", s === app.status && "font-semibold")}>
                     <span className={cn("h-1.5 w-1.5 rounded-full shrink-0", STATUS_CONFIG[s].dot)} />
                     {STATUS_CONFIG[s].label}
@@ -491,6 +691,8 @@ export function ApplicationDetailView({
                 <p className="px-2 py-1 mt-1 text-[10px] font-semibold text-muted-foreground/60 uppercase tracking-wide border-t border-border/50 pt-1.5">Résultat</p>
                 {OUTCOME_STATUSES.map((s) => (
                   <button key={s} onClick={() => pickStatus(s)}
+                    role="menuitem"
+                    aria-current={s === app.status || undefined}
                     className={cn("w-full text-left px-2 py-1 text-xs rounded-md hover:bg-muted transition-colors flex items-center gap-1.5", s === app.status && "font-semibold")}>
                     <span className={cn("h-1.5 w-1.5 rounded-full shrink-0", STATUS_CONFIG[s].dot)} />
                     {STATUS_CONFIG[s].label}
@@ -504,148 +706,273 @@ export function ApplicationDetailView({
         {/* Stepper pipeline */}
         <PipelineStepper status={app.status} />
 
-        {/* Meta */}
-        <div className="flex flex-col gap-1.5 text-sm">
-          {(app.location || app.workMode) && (
-            <div className="flex items-center gap-2 text-muted-foreground">
-              <MapPin className="h-3.5 w-3.5 shrink-0" />
-              {[app.location, app.workMode].filter(Boolean).join(" · ")}
+        {/* Détails */}
+        {editing ? (
+          <div className="space-y-3">
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div>
+                <label htmlFor={`${fid}-location`} className={labelCls}>Lieu</label>
+                <input id={`${fid}-location`} value={fLocation} onChange={(e) => setFLocation(e.target.value)} placeholder="Ex : Lyon" className={cn(inputCls, "mt-1")} />
+              </div>
+              <div>
+                <label htmlFor={`${fid}-workmode`} className={labelCls}>Mode</label>
+                <input id={`${fid}-workmode`} value={fWorkMode} onChange={(e) => setFWorkMode(e.target.value)} placeholder="Remote / Hybride / Présentiel" className={cn(inputCls, "mt-1")} />
+              </div>
             </div>
-          )}
-          {salary && (
-            <div className="flex items-center gap-2 text-muted-foreground">
-              <Banknote className="h-3.5 w-3.5 shrink-0" /> {salary}
-            </div>
-          )}
-          {app.source && (
-            <p className="text-xs text-muted-foreground">Source : {app.source}</p>
-          )}
-          {app.url && (
-            <a href={app.url} target="_blank" rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 text-xs text-primary hover:underline w-fit">
-              <ExternalLink className="h-3 w-3" /> Voir l&apos;offre
-            </a>
-          )}
-          {app.appliedAt && (
-            <p className="text-xs text-muted-foreground">Candidaté le {fmtDate(app.appliedAt)}</p>
-          )}
-        </div>
-
-        {/* Prochain point */}
-        {app.nextActionAt && (
-          <div className={cn(
-            "rounded-lg border p-2.5 flex items-center gap-2",
-            nextOverdue ? "border-red-500/30 bg-red-500/5" : "border-amber-500/30 bg-amber-500/5"
-          )}>
-            <CalendarClock className={cn("h-4 w-4 shrink-0", nextOverdue ? "text-red-500" : "text-amber-600")} />
             <div>
-              <p className="text-sm font-medium">{app.nextActionLabel ?? "Prochain point"}</p>
-              <p className={cn("text-xs", nextOverdue ? "text-red-500" : "text-amber-600")}>
-                {fmtDateTime(app.nextActionAt)}{nextOverdue ? " · en retard" : ""}
-              </p>
+              <label htmlFor={`${fid}-salary-min`} className={labelCls}>Rémunération (annuel brut €)</label>
+              <div className="mt-1 grid grid-cols-3 gap-2">
+                <input id={`${fid}-salary-min`} type="number" step="1000" min="0" value={fSalaryMin} onChange={(e) => setFSalaryMin(e.target.value)} placeholder="Min" className={inputCls} />
+                <input aria-label="Rémunération maximale (annuel brut €)" type="number" step="1000" min="0" value={fSalaryMax} onChange={(e) => setFSalaryMax(e.target.value)} placeholder="Max" className={inputCls} />
+                <input aria-label="Complément de rémunération" value={fSalaryNote} onChange={(e) => setFSalaryNote(e.target.value)} placeholder="+ variable…" className={inputCls} />
+              </div>
             </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div>
+                <label htmlFor={`${fid}-source`} className={labelCls}>Source</label>
+                <input id={`${fid}-source`} value={fSource} onChange={(e) => setFSource(e.target.value)} placeholder="LinkedIn, cooptation…" className={cn(inputCls, "mt-1")} />
+              </div>
+              <div>
+                <label htmlFor={`${fid}-contact`} className={labelCls}>Recruteur (contact)</label>
+                <select id={`${fid}-contact`} value={fContactId} onChange={(e) => setFContactId(e.target.value)} className={cn(inputCls, "mt-1")}>
+                  <option value="">— Aucun —</option>
+                  {contacts.map((c) => <option key={c.id} value={c.id}>{c.name}{c.company ? ` · ${c.company}` : ""}</option>)}
+                </select>
+              </div>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div>
+                <label htmlFor={`${fid}-url`} className={labelCls}>Lien de l&apos;offre</label>
+                <input id={`${fid}-url`} type="url" value={fUrl} onChange={(e) => setFUrl(e.target.value)} placeholder="https://…" className={cn(inputCls, "mt-1")} />
+              </div>
+              <div>
+                <label htmlFor={`${fid}-applied`} className={labelCls}>Date de candidature</label>
+                <input id={`${fid}-applied`} type="date" value={fApplied} onChange={(e) => setFApplied(e.target.value)} className={cn(inputCls, "mt-1")} />
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-1.5 text-sm">
+            {(app.location || app.workMode) && (
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <MapPin className="h-3.5 w-3.5 shrink-0" />
+                {[app.location, app.workMode].filter(Boolean).join(" · ")}
+              </div>
+            )}
+            {salary && (
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <Banknote className="h-3.5 w-3.5 shrink-0" /> <span className="amount-sensitive">{salary}</span>
+              </div>
+            )}
+            {app.source && <p className="text-xs text-muted-foreground">Source : {app.source}</p>}
+            {app.url && (
+              <a href={app.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs text-primary hover:underline w-fit">
+                <ExternalLink className="h-3 w-3" /> Voir l&apos;offre
+              </a>
+            )}
+            {app.appliedAt && <p className="text-xs text-muted-foreground">Candidaté le {fmtDate(app.appliedAt)}</p>}
+            {!app.location && !app.workMode && !salary && !app.source && !app.url && !app.appliedAt && (
+              <p className="text-xs text-muted-foreground/50 italic">Aucun détail renseigné.</p>
+            )}
           </div>
         )}
       </div>
 
-      {/* Contact recruteur */}
-      {app.contact && (
-        <div className="rounded-xl border border-border/50 bg-card p-4 space-y-3">
-          <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Recruteur</h2>
-          <div className="flex items-start justify-between gap-3">
-            <div className="space-y-0.5 min-w-0">
-              <Link
-                href={`/contacts/${app.contact.id}`}
-                className="font-semibold text-sm hover:text-primary transition-colors"
-              >
-                {app.contact.name}
-              </Link>
-              {app.contact.company && (
-                <p className="text-xs text-muted-foreground">{app.contact.company}</p>
-              )}
+      {/* ── Bento : détails complémentaires (éditables sur place) ── */}
+      <div className="gap-6 lg:columns-2 2xl:columns-3 *:mb-6 *:break-inside-avoid">
+        {/* Prochain point */}
+        <div className="rounded-xl border border-border/50 bg-card p-4 space-y-2">
+          <h2 className={cardTitleCls}>Prochain point</h2>
+          {editing ? (
+            <div className="space-y-2">
+              <input aria-label="Date du prochain point" type="date" value={fNextAt} onChange={(e) => setFNextAt(e.target.value)} className={inputCls} />
+              <input aria-label="Libellé du prochain point" value={fNextLabel} onChange={(e) => setFNextLabel(e.target.value)} placeholder="Ex : Entretien technique" className={inputCls} />
+              <select aria-label="Format du prochain point" value={fNextFormat} onChange={(e) => setFNextFormat(e.target.value)} className={inputCls}>
+                <option value="">Format — à préciser</option>
+                {MEETING_FORMATS.map((f) => <option key={f.value} value={f.value}>{f.icon} {f.label}</option>)}
+              </select>
             </div>
-            {app.contact.linkedinUrl && (
-              <a
-                href={app.contact.linkedinUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="shrink-0 rounded-md p-1.5 text-sky-600 hover:bg-sky-500/10 transition-colors"
-                title="Voir sur LinkedIn"
+          ) : app.nextActionAt ? (
+            <div className="space-y-2">
+              <div className={cn("rounded-lg border p-2.5 flex items-center gap-2", nextOverdue ? "border-red-500/30 bg-red-500/5" : "border-amber-500/30 bg-amber-500/5")}>
+                <CalendarClock className={cn("h-4 w-4 shrink-0", nextOverdue ? "text-red-500" : "text-amber-600")} />
+                <div>
+                  <p className="text-sm font-medium">{app.nextActionLabel ?? "Prochain point"}</p>
+                  <p className={cn("text-xs", nextOverdue ? "text-red-500" : "text-amber-600")}>
+                    {fmtDateTime(app.nextActionAt)}{nextOverdue ? " · en retard" : ""}
+                  </p>
+                  {meetingFormat(app.nextActionFormat) && (
+                    <p className="mt-0.5 text-xs text-muted-foreground">
+                      {meetingFormat(app.nextActionFormat)!.icon} {meetingFormat(app.nextActionFormat)!.label}
+                    </p>
+                  )}
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={completeNext}
+                className="flex w-full items-center justify-center gap-1.5 h-8 rounded-lg border border-emerald-500/30 bg-emerald-500/5 text-sm font-medium text-emerald-700 dark:text-emerald-400 hover:bg-emerald-500/10 transition-colors"
+                title="Enregistre ce point dans l'historique et l'efface du prochain point"
               >
-                <LinkedinIcon className="h-4 w-4" />
-              </a>
-            )}
-          </div>
-          <div className="flex flex-col gap-1.5">
-            {app.contact.email && (
-              <a href={`mailto:${app.contact.email}`}
-                className="flex items-center gap-2 text-xs text-muted-foreground hover:text-foreground transition-colors">
-                <Mail className="h-3.5 w-3.5 shrink-0" /> {app.contact.email}
-              </a>
-            )}
-            {app.contact.phone && (
-              <a href={`tel:${app.contact.phone}`}
-                className="flex items-center gap-2 text-xs text-muted-foreground hover:text-foreground transition-colors">
-                <Phone className="h-3.5 w-3.5 shrink-0" /> {app.contact.phone}
-              </a>
-            )}
-          </div>
-          {app.contact.notes && (
-            <p className="text-xs text-muted-foreground/70 italic leading-relaxed border-t border-border/30 pt-2">
-              {app.contact.notes}
-            </p>
+                <Check className="h-3.5 w-3.5" /> Marquer comme fait
+              </button>
+            </div>
+          ) : (
+            <p className="text-xs text-muted-foreground/50 italic">Aucun rendez-vous planifié.</p>
           )}
+        </div>
+
+        {/* Dossier de compétences — toujours affiché */}
+        <div className="rounded-xl border border-border/50 bg-card p-4 space-y-2">
+          <div className="flex items-center gap-2">
+            <FileCheck2 className={cn("h-4 w-4 shrink-0", (editing ? fDossierValidated : app.competencyDossierValidated) ? "text-emerald-600" : "text-muted-foreground")} />
+            <h2 className={cardTitleCls}>Dossier de compétences</h2>
+            {!editing && (
+              <span className={cn(
+                "ml-auto rounded-full border px-2 py-0.5 text-[11px] font-medium whitespace-nowrap",
+                app.competencyDossierValidated
+                  ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
+                  : "border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-500"
+              )}>
+                {app.competencyDossierValidated ? "Validé" : "À remplir"}
+              </span>
+            )}
+          </div>
+          {editing ? (
+            <div className="space-y-2">
+              <label className="flex items-center gap-2 text-sm cursor-pointer">
+                <input type="checkbox" checked={fDossierValidated} onChange={(e) => setFDossierValidated(e.target.checked)} className="rounded border-input accent-primary" />
+                Dossier validé
+              </label>
+              <input aria-label="Lien du dossier de compétences" type="url" value={fDossierUrl} onChange={(e) => setFDossierUrl(e.target.value)} placeholder="Lien du dossier — https://…" className={inputCls} />
+            </div>
+          ) : app.competencyDossierUrl ? (
+            <a href={app.competencyDossierUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs text-primary hover:underline w-fit">
+              <ExternalLink className="h-3 w-3" /> Consulter le dossier
+            </a>
+          ) : (
+            <p className="text-xs text-muted-foreground/50 italic">Aucun lien renseigné.</p>
+          )}
+        </div>
+
+        {/* Modèles & réponses utilisés sur ce process */}
+        <div className="rounded-xl border border-border/50 bg-card p-4 space-y-2">
+          <div className="flex items-center justify-between gap-2">
+            <h2 className={cardTitleCls}>Modèles &amp; réponses utilisés</h2>
+            <Link href="/entretiens/faq" className="text-xs text-primary hover:underline shrink-0">Gérer</Link>
+          </div>
+          {app.usedAnswers.length === 0 ? (
+            <p className="text-xs text-muted-foreground/50 italic">
+              Aucun modèle rattaché. Reliez vos réponses-types et lettres depuis « Réponses &amp; modèles ».
+            </p>
+          ) : (
+            <div className="space-y-2">
+              {app.usedAnswers.map((qa) => (
+                <details key={qa.id} className="group rounded-lg border border-border/50 p-2.5">
+                  <summary className="flex items-center gap-1.5 cursor-pointer list-none">
+                    <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" />
+                    <span className="text-sm font-medium">{qa.question}</span>
+                    {qa.category && <span className="ml-auto rounded-full border border-border px-2 py-0.5 text-[10px] font-medium text-muted-foreground whitespace-nowrap">{qa.category}</span>}
+                  </summary>
+                  <p className="mt-1.5 pl-5 text-sm text-muted-foreground/90 whitespace-pre-line leading-relaxed">{qa.answer}</p>
+                </details>
+              ))}
+            </div>
+          )}
+        </div>
+
+      {/* Contacts du recrutement (souvent plusieurs interlocuteurs) */}
+      {involvedContacts.length > 0 && (
+        <div className="rounded-xl border border-border/50 bg-card p-4 space-y-3">
+          <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+            Contacts{involvedContacts.length > 1 ? ` (${involvedContacts.length})` : ""}
+          </h2>
+          <div className="divide-y divide-border/30">
+            {involvedContacts.map((c, i) => (
+              <div key={c.id} className={cn("flex items-start justify-between gap-3", i > 0 && "pt-3 mt-3")}>
+                <div className="space-y-0.5 min-w-0">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <Link href={`/contacts/${c.id}`} className="font-semibold text-sm hover:text-primary transition-colors">
+                      {c.name}
+                    </Link>
+                    {c.id === app.contactId && (
+                      <span className="rounded-full bg-primary/10 text-primary text-[9px] font-medium px-1.5 py-0.5">principal</span>
+                    )}
+                  </div>
+                  {c.company && <p className="text-xs text-muted-foreground">{c.company}</p>}
+                  <div className="flex flex-col gap-1 pt-0.5">
+                    {c.email && (
+                      <a href={`mailto:${c.email}`} className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors">
+                        <Mail className="h-3 w-3 shrink-0" /> {c.email}
+                      </a>
+                    )}
+                    {c.phone && (
+                      <a href={`tel:${c.phone}`} className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors">
+                        <Phone className="h-3 w-3 shrink-0" /> {c.phone}
+                      </a>
+                    )}
+                  </div>
+                </div>
+                {c.linkedinUrl && (
+                  <a
+                    href={c.linkedinUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="shrink-0 rounded-md p-1.5 text-sky-600 hover:bg-sky-500/10 transition-colors"
+                    title="Voir sur LinkedIn"
+                  >
+                    <LinkedinIcon className="h-4 w-4" />
+                  </a>
+                )}
+              </div>
+            ))}
+          </div>
         </div>
       )}
 
-      {/* Notes candidature (éditables inline) */}
-      <div className="rounded-xl border border-border/50 bg-card p-4 space-y-2">
-        <div className="flex items-center justify-between">
-          <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Notes</h2>
-          {!editingNotes && (
-            <button
-              onClick={() => { setNotesText(app.notes ?? ""); setEditingNotes(true) }}
-              className="text-xs text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1"
-            >
-              <Pencil className="h-3 w-3" /> Éditer
-            </button>
-          )}
+      {/* Projet(s) associé(s) — ex. challenge technique rattaché à cet entretien */}
+      {app.projects.length > 0 && (
+        <div className="rounded-xl border border-border/50 bg-card p-4 space-y-2">
+          <h2 className={cardTitleCls}>
+            Projet{app.projects.length > 1 ? `s associés (${app.projects.length})` : " associé"}
+          </h2>
+          <div className="space-y-1">
+            {app.projects.map((p) => {
+              const st = PROJECT_STATUS_META[p.status] ?? { label: p.status, cls: "bg-muted text-muted-foreground" }
+              return (
+                <Link
+                  key={p.id}
+                  href={`/projets/${p.id}`}
+                  className="flex items-center justify-between gap-2 rounded-lg px-2 py-1.5 hover:bg-muted/50 transition-colors"
+                >
+                  <span className="font-medium text-sm truncate">{p.name}</span>
+                  <span className={cn("shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium", st.cls)}>{st.label}</span>
+                </Link>
+              )
+            })}
+          </div>
         </div>
-        {editingNotes ? (
-          <div className="space-y-2">
+      )}
+
+        {/* Notes */}
+        <div className="rounded-xl border border-border/50 bg-card p-4 space-y-2">
+          <h2 className={cardTitleCls}>Notes</h2>
+          {editing ? (
             <textarea
-              autoFocus
-              value={notesText}
-              onChange={(e) => setNotesText(e.target.value)}
+              aria-label="Notes"
+              value={fNotes}
+              onChange={(e) => setFNotes(e.target.value)}
               rows={4}
               placeholder="Contexte, impressions, points d'attention…"
               className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-ring resize-none"
             />
-            <div className="flex justify-end gap-2">
-              <button onClick={() => setEditingNotes(false)}
-                className="text-xs text-muted-foreground hover:text-foreground">
-                Annuler
-              </button>
-              <button
-                onClick={() => {
-                  start(async () => {
-                    await updateApplicationNotes(app.id, notesText)
-                    setEditingNotes(false)
-                    toast.success("Notes mises à jour")
-                  })
-                }}
-                className="rounded-md bg-primary px-3 py-1 text-xs font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
-              >
-                Enregistrer
-              </button>
-            </div>
-          </div>
-        ) : (
-          app.notes
-            ? <p className="text-sm text-muted-foreground leading-relaxed whitespace-pre-line">{app.notes}</p>
-            : <p className="text-xs text-muted-foreground/50 italic">Pas de notes.</p>
-        )}
-      </div>
+          ) : app.notes ? (
+            <p className="text-sm text-muted-foreground leading-relaxed whitespace-pre-line">{app.notes}</p>
+          ) : (
+            <p className="text-xs text-muted-foreground/50 italic">Pas de notes.</p>
+          )}
+        </div>
+      </div>{/* fin Bento */}
 
       {/* Timeline */}
       <div className="space-y-3">
@@ -655,9 +982,9 @@ export function ApplicationDetailView({
           </h2>
           <button
             onClick={() => setShowAddEvent((v) => !v)}
-            className="flex items-center gap-1 text-xs text-primary hover:underline"
+            className="flex items-center gap-1.5 h-8 px-3 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors"
           >
-            <Plus className="h-3 w-3" />
+            <Plus className="h-3.5 w-3.5" />
             Ajouter un point
           </button>
         </div>
@@ -696,6 +1023,18 @@ export function ApplicationDetailView({
                 className="flex-1 h-8 rounded-md border border-input bg-background px-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
               />
             </div>
+            <div className="flex items-center gap-2">
+              <User aria-hidden="true" className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+              <select
+                aria-label="Interlocuteur du point de contact"
+                value={evContactId}
+                onChange={(e) => setEvContactId(e.target.value)}
+                className="flex-1 h-8 rounded-md border border-input bg-background px-2 text-xs text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+              >
+                <option value="">— Interlocuteur (optionnel) —</option>
+                {contacts.map((c) => <option key={c.id} value={c.id}>{c.name}{c.company ? ` · ${c.company}` : ""}</option>)}
+              </select>
+            </div>
             <textarea
               value={evNotes} onChange={(e) => setEvNotes(e.target.value)}
               placeholder="Notes (optionnel)"
@@ -722,52 +1061,15 @@ export function ApplicationDetailView({
           </p>
         ) : (
           <div className="relative space-y-3">
-            {/* Vertical line */}
-            <div className="absolute left-[19px] top-4 bottom-4 w-px bg-border/50" />
+            {/* Vertical line — alignée sur le centre des points */}
+            <div className="absolute left-[18px] top-5 bottom-5 w-px bg-border/50" />
             {sortedEvents.map((ev) => (
-              <EventRow key={ev.id} ev={ev} onDelete={handleDeleteEvent} />
+              <EventRow key={ev.id} ev={ev} contacts={contacts} onDelete={handleDeleteEvent} />
             ))}
           </div>
         )}
       </div>
 
-      {/* Dialog édition */}
-      {showDialog && (
-        <ApplicationDialog
-          key={app.id}
-          item={{
-            id: app.id,
-            companyName: app.companyName,
-            companyId: app.companyId,
-            position: app.position,
-            location: app.location,
-            workMode: app.workMode,
-            status: app.status,
-            source: app.source,
-            url: app.url,
-            salaryMin: app.salaryMin,
-            salaryMax: app.salaryMax,
-            salaryNote: app.salaryNote,
-            notes: app.notes,
-            priority: app.priority,
-            contactId: app.contactId,
-            appliedAt: app.appliedAt,
-            nextActionAt: app.nextActionAt,
-            nextActionLabel: app.nextActionLabel,
-            closedAt: app.closedAt,
-            createdAt: app.createdAt,
-            updatedAt: app.updatedAt,
-            contact: app.contact
-              ? { id: app.contact.id, name: app.contact.name, email: app.contact.email, phone: app.contact.phone, company: app.contact.company }
-              : null,
-            company: app.company ? { id: app.company.id, name: app.company.name } : null,
-            events: [],
-          }}
-          contacts={contacts}
-          companies={companies}
-          onClose={() => setShowDialog(false)}
-        />
-      )}
     </div>
   )
 }

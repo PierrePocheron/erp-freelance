@@ -52,12 +52,23 @@ export function ProspectStatusSelect({
     })
   }
 
+  function closeAndRefocus(e: React.KeyboardEvent) {
+    if (e.key === "Escape" && open) {
+      e.stopPropagation()
+      setOpen(false)
+      buttonRef.current?.focus()
+    }
+  }
+
   return (
     <>
       <button
         ref={buttonRef}
         onClick={openMenu}
+        onKeyDown={closeAndRefocus}
         disabled={isPending}
+        aria-haspopup="menu"
+        aria-expanded={open}
         className={cn(
           "rounded-full border px-2.5 py-0.5 text-xs font-medium transition-opacity hover:opacity-75 disabled:opacity-50 whitespace-nowrap",
           current.cls
@@ -70,7 +81,7 @@ export function ProspectStatusSelect({
         <>
           {/* Backdrop de fermeture — purement visuel, masqué aux lecteurs d'écran */}
           <div aria-hidden="true" className="fixed inset-0 z-[9998]" onClick={(e) => { e.stopPropagation(); setOpen(false) }} />
-          <div style={menuStyle} className="rounded-lg border border-border bg-popover shadow-md p-1 min-w-44" onClick={(e) => e.stopPropagation()}>
+          <div style={menuStyle} role="menu" className="rounded-lg border border-border bg-popover shadow-md p-1 min-w-44" onClick={(e) => e.stopPropagation()} onKeyDown={closeAndRefocus}>
             <p className="px-2 py-1 text-[10px] font-semibold text-muted-foreground/60 uppercase tracking-wide">Pipeline</p>
             {PIPELINE_STATUSES.map((s) => (
               <button

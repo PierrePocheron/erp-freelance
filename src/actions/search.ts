@@ -7,7 +7,8 @@ export type SearchResult = {
   id: string
   type: "client" | "project" | "quote" | "invoice" | "company" | "fiscal_source"
       | "task" | "job_application" | "health_event" | "health_consultation"
-      | "expense" | "recurring_expense" | "prospect" | "revenue"
+      | "expense" | "recurring_expense" | "prospect" | "revenue" | "skill"
+      | "investment_platform"
   label: string
   sublabel?: string
   href: string
@@ -44,7 +45,7 @@ export async function searchGlobal(query: string, activeModuleIds?: string[]): P
   const [
     companies, clients, projects, quotes, invoices, fiscalSources,
     tasks, jobApplications, healthEvents, healthConsultations,
-    expenses, recurringExpenses, revenues, prospects,
+    expenses, recurringExpenses, revenues, prospects, skills, investmentPlatforms,
   ] = await Promise.all([
     has("societes") ? prisma.company.findMany({
       where: { userId, OR: [
@@ -182,7 +183,27 @@ export async function searchGlobal(query: string, activeModuleIds?: string[]): P
       take: 4,
       select: { id: true, name: true, company: true, region: true },
     }) : empty<{ id: string; name: string; company: string | null; region: string | null }>(),
+
+    has("competences") ? prisma.skill.findMany({
+      where: { userId, name: { contains: query, mode: "insensitive" } },
+      take: 4,
+      select: { id: true, name: true, type: true, level: true },
+    }) : empty<{ id: string; name: string; type: string; level: number }>(),
+
+    has("investissements") ? prisma.investmentPlatform.findMany({
+      where: { userId, OR: [
+        { name:  { contains: query, mode: "insensitive" } },
+        { notes: { contains: query, mode: "insensitive" } },
+      ]},
+      take: 4,
+      select: { id: true, name: true, type: true },
+    }) : empty<{ id: string; name: string; type: string }>(),
   ])
+
+  const INVEST_TYPE_LABELS: Record<string, string> = {
+    CROWDLENDING: "Crowdlending", CROWDFUNDING: "Crowdfunding",
+    IMMOBILIER: "Immobilier", PEA: "PEA", AUTRE: "Autre",
+  }
 
   const BUCKET_LABELS: Record<string, string> = {
     AE_URSSAF: "AE / URSSAF", NON_IMPOSABLE: "Non imposable", OTHER: "Autre",
@@ -262,6 +283,16 @@ export async function searchGlobal(query: string, activeModuleIds?: string[]): P
       label: p.company ?? p.name,
       sublabel: [p.company ? p.name : null, p.region].filter(Boolean).join(" · ") || undefined,
       href: `/contacts/${p.id}`,
+    })),
+    ...skills.map((s) => ({
+      id: s.id, type: "skill" as const,
+      label: s.name, sublabel: s.type === "SOFT" ? "Soft skill" : `Niveau ${s.level}/5`,
+      href: `/competences/${s.id}`,
+    })),
+    ...investmentPlatforms.map((p) => ({
+      id: p.id, type: "investment_platform" as const,
+      label: p.name, sublabel: INVEST_TYPE_LABELS[p.type] ?? p.type,
+      href: `/investissements/${p.id}`,
     })),
   ]
 }

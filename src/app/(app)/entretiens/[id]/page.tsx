@@ -3,6 +3,9 @@ import { prisma } from "@/lib/prisma"
 import { notFound } from "next/navigation"
 import type { Metadata } from "next"
 import { ApplicationDetailView } from "@/components/modules/entretien/ApplicationDetailView"
+import { EntretienSkillsManager } from "@/components/modules/competences/EntretienSkillsManager"
+import { EntretienQuestionsManager } from "@/components/modules/competences/EntretienQuestionsManager"
+import { SetBreadcrumbLabel } from "@/components/layout/BreadcrumbContext"
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
   const { id } = await params
@@ -25,7 +28,7 @@ export default async function EntretienDetailPage({
   const session = await auth()
   const userId = session!.user.id
 
-  const [app, contacts, companies] = await Promise.all([
+  const [app, contacts, companies, allSkills] = await Promise.all([
     prisma.jobApplication.findFirst({
       where: { id, userId },
       include: {
@@ -36,12 +39,25 @@ export default async function EntretienDetailPage({
           },
         },
         company: { select: { id: true, name: true, city: true, website: true } },
-        events: { orderBy: { date: "asc" } },
+        events: {
+          orderBy: { date: "asc" },
+          include: { contact: { select: { id: true, name: true, linkedinUrl: true } } },
+        },
+        usedAnswers: {
+          select: { id: true, question: true, answer: true, category: true },
+          orderBy: [{ pinned: "desc" }, { updatedAt: "desc" }],
+        },
+        requiredSkills: { include: { skill: { select: { id: true, name: true } } } },
+        questions: {
+          orderBy: { createdAt: "desc" },
+          select: { id: true, question: true, answer: true, difficulty: true, status: true, skills: { select: { skill: { select: { id: true, name: true } } } } },
+        },
+        projects: { select: { id: true, name: true, status: true }, orderBy: { updatedAt: "desc" } },
       },
     }),
     prisma.client.findMany({
       where: { userId, type: { not: "SELF" } },
-      select: { id: true, name: true, email: true, phone: true, company: true, linkedinUrl: true, type: true },
+      select: { id: true, name: true, email: true, phone: true, company: true, companyId: true, linkedinUrl: true, type: true },
       orderBy: [{ type: "asc" }, { name: "asc" }],
     }),
     prisma.company.findMany({
@@ -52,9 +68,29 @@ export default async function EntretienDetailPage({
       select: { id: true, name: true },
       orderBy: { name: "asc" },
     }),
+    prisma.skill.findMany({ where: { userId }, select: { id: true, name: true }, orderBy: { name: "asc" } }),
   ])
 
   if (!app) notFound()
 
-  return <ApplicationDetailView app={app} contacts={contacts} companies={companies} />
+  return (
+    <>
+      <SetBreadcrumbLabel value={id} label={app.companyName} />
+      <ApplicationDetailView app={app} contacts={contacts} companies={companies} />
+      <div className="mt-6 space-y-4 rounded-xl border border-border/50 bg-card p-4">
+        <EntretienSkillsManager
+          applicationId={app.id}
+          linkedSkills={app.requiredSkills.map((rs) => rs.skill)}
+          allSkills={allSkills}
+        />
+        <div className="border-t border-border/40" />
+        <EntretienQuestionsManager
+          applicationId={app.id}
+          applicationLabel={`${app.companyName}${app.position ? ` — ${app.position}` : ""}`}
+          questions={app.questions}
+          skillSuggestions={allSkills.map((s) => s.name)}
+        />
+      </div>
+    </>
+  )
 }

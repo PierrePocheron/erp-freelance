@@ -13,6 +13,7 @@ import { deleteCompany } from "@/actions/crm"
 import { NewContactForCompanyButton } from "@/components/modules/societes/NewContactForCompanyButton"
 import { NewProjectForCompanyButton } from "@/components/modules/societes/NewProjectForCompanyButton"
 import { CompanyTypeSelect } from "@/components/modules/societes/CompanyTypeSelect"
+import { CompanyCategoryInline } from "@/components/modules/societes/CompanyCategoryInline"
 import { STATUS_CONFIG, type JobAppStatus } from "@/components/modules/entretien/status-config"
 
 const fmt = (n: number) => n.toLocaleString("fr-FR", { minimumFractionDigits: 0, maximumFractionDigits: 0 })
@@ -27,6 +28,12 @@ export default async function CompanyDetailPage({
   const { id } = await params
   const session = await auth()
   const userId = session!.user.id
+
+  const companyCategories = await prisma.companyCategory.findMany({
+    where: { userId },
+    orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+    select: { id: true, name: true, color: true },
+  })
 
   const [company, invoices, quotes, tasks, allCompanies, allContacts] = await Promise.all([
     prisma.company.findFirst({
@@ -201,9 +208,10 @@ export default async function CompanyDetailPage({
             <Building2 className="h-5 w-5 text-primary" />
           </div>
           <div>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <h1 className="text-2xl font-bold tracking-tight">{company.name}</h1>
               <CompanyTypeSelect companyId={company.id} value={company.companyType ?? null} />
+              <CompanyCategoryInline companyId={company.id} categories={companyCategories} value={company.categoryId ?? null} />
             </div>
             {company.city && (
               <p className="text-sm text-muted-foreground flex items-center gap-1 mt-0.5">

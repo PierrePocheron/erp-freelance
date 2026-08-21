@@ -65,6 +65,7 @@ export async function createCompany(data: {
   country?: string
   notes?: string
   fiscalSourceId?: string | null
+  categoryId?: string | null
 }) {
   const userId = await requireAuth()
   const name = data.name.trim()
@@ -85,6 +86,7 @@ export async function createCompany(data: {
       country: data.country?.trim() || null,
       notes: data.notes?.trim() || null,
       fiscalSourceId: data.fiscalSourceId || null,
+      categoryId: data.categoryId || null,
     },
   })
   revalidatePath("/societes")
@@ -108,6 +110,7 @@ export async function updateCompany(
     country?: string | null
     notes?: string | null
     fiscalSourceId?: string | null
+    categoryId?: string | null
   }
 ) {
   const userId = await requireAuth()
@@ -121,6 +124,7 @@ export async function updateCompany(
     if (k in data) clean[k] = (data[k] ?? "")?.toString().trim() || null
   }
   if ("fiscalSourceId" in data) clean.fiscalSourceId = data.fiscalSourceId || null
+  if ("categoryId" in data) clean.categoryId = data.categoryId || null
   await prisma.company.update({ where: { id: companyId, userId }, data: clean as never })
 
   // Resynchronise le cache d'affichage des contacts si le nom a changé.
@@ -130,6 +134,25 @@ export async function updateCompany(
   revalidatePath("/societes")
   revalidatePath(`/societes/${companyId}`)
   revalidatePath("/contacts")
+}
+
+// Catégorie de société (regroupement libre, créable à la volée). Idempotent sur le
+// nom (insensible à la casse) pour éviter les doublons via le combobox.
+export async function createCompanyCategory(name: string, color: string) {
+  const userId = await requireAuth()
+  const trimmed = name.trim()
+  if (!trimmed) throw new Error("Nom de catégorie requis")
+  const existing = await prisma.companyCategory.findFirst({
+    where: { userId, name: { equals: trimmed, mode: "insensitive" } },
+    select: { id: true, name: true, color: true },
+  })
+  if (existing) return existing
+  const category = await prisma.companyCategory.create({
+    data: { userId, name: trimmed, color },
+    select: { id: true, name: true, color: true },
+  })
+  revalidatePath("/societes")
+  return category
 }
 
 export async function deleteCompany(companyId: string) {

@@ -16,6 +16,7 @@ import { AmountsPrivacyToggle } from "@/components/ui/amounts-privacy-toggle"
 import { ensureSelfClient } from "@/actions/user"
 import { getRunningTimer } from "@/actions/timetracking"
 import { ensureUrssafReminderTask } from "@/actions/urssaf"
+import { ensureInvestmentReviewTasks } from "@/actions/investissements"
 import { prisma } from "@/lib/prisma"
 
 export default async function AppLayout({
@@ -42,8 +43,11 @@ export default async function AppLayout({
     }),
     ensureSelfClient(userId),
     prisma.userProfile
-      .findUnique({ where: { userId }, select: { urssafFrequency: true } })
-      .then((profile) => ensureUrssafReminderTask(userId, profile?.urssafFrequency ?? "QUARTERLY")),
+      .findUnique({ where: { userId }, select: { urssafFrequency: true, investmentReviewReminder: true, investmentReviewDay: true } })
+      .then((profile) => Promise.all([
+        ensureUrssafReminderTask(userId, profile?.urssafFrequency ?? "QUARTERLY"),
+        ensureInvestmentReviewTasks(userId, profile?.investmentReviewReminder ?? false, profile?.investmentReviewDay ?? 1),
+      ])),
   ])
 
   return (

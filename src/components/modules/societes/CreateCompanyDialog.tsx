@@ -14,6 +14,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { createCompany } from "@/actions/crm"
+import { CompanyCategoryCombobox, type CompanyCategory } from "./CompanyCategoryCombobox"
 import { toast } from "sonner"
 
 type FiscalSourceOption = {
@@ -32,10 +33,12 @@ const BUCKET_LABELS: Record<string, string> = {
 
 export function CreateCompanyDialog({
   fiscalSources = [],
+  categories = [],
   open: controlledOpen,
   onOpenChange: controlledOnOpenChange,
 }: {
   fiscalSources?: FiscalSourceOption[]
+  categories?: CompanyCategory[]
   open?: boolean
   onOpenChange?: (v: boolean) => void
 }) {
@@ -44,6 +47,7 @@ export function CreateCompanyDialog({
   const open = isControlled ? controlledOpen! : internalOpen
   const [isPending, startTransition] = useTransition()
   const router = useRouter()
+  const [categoryId, setCategoryId] = useState("")
 
   function handleOpenChange(v: boolean) {
     if (!isControlled) setInternalOpen(v)
@@ -69,6 +73,7 @@ export function CreateCompanyDialog({
           country: (fd.get("country") as string) || undefined,
           notes: (fd.get("notes") as string) || undefined,
           fiscalSourceId: (fd.get("fiscalSourceId") as string) || null,
+          categoryId: categoryId || null,
         })
         handleOpenChange(false)
         router.push(`/societes/${company.id}`)
@@ -121,6 +126,15 @@ export function CreateCompanyDialog({
                 <option value="FOURNISSEUR">Fournisseur</option>
                 <option value="AUTRE">Autre</option>
               </select>
+            </div>
+
+            {/* Catégorie (regroupement libre, créable à la volée) */}
+            <div className="space-y-1.5">
+              <Label htmlFor="co-category">Catégorie</Label>
+              <CompanyCategoryCombobox id="co-category" categories={categories} value={categoryId} onChange={setCategoryId} />
+              <p className="text-xs text-muted-foreground">
+                Regroupement libre pour la liste des sociétés (ex.&nbsp;«&nbsp;Recrutement&nbsp;», «&nbsp;Juridique&nbsp;»). Tape pour filtrer ou créer une catégorie. Indépendant de la source fiscale.
+              </p>
             </div>
 
             {/* Source fiscale */}

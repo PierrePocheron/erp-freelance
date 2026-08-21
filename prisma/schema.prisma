@@ -50,6 +50,7 @@ model User {
   expenses           Expense[]
   recurringExpenses  RecurringExpense[]
   expenseCategories  ExpenseCategory[]
+  companyCategories  CompanyCategory[]
   healthEvents        HealthEvent[]
   healthConsultations HealthConsultation[]
   healthReimbursements HealthReimbursement[]
@@ -336,11 +337,13 @@ model Company {
   companyType    CompanyType? // catégorie de la société
   notes          String?
   fiscalSourceId String?  // source fiscale par défaut pour la facturation/les revenus
+  categoryId     String?  // catégorie libre de regroupement (créable à la volée), indépendante de la source fiscale
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
   user              User               @relation(fields: [userId], references: [id], onDelete: Cascade)
   fiscalSource      FiscalSource?      @relation(fields: [fiscalSourceId], references: [id], onDelete: SetNull)
+  category          CompanyCategory?   @relation(fields: [categoryId], references: [id], onDelete: SetNull)
   contacts          Client[]
   projects          Project[]
   revenues          Revenue[]          @relation("RevenueCompany")
@@ -350,6 +353,22 @@ model Company {
   @@unique([userId, name])
   @@index([userId])
   @@index([fiscalSourceId])
+  @@index([categoryId])
+}
+
+model CompanyCategory {
+  id        String   @id @default(cuid())
+  userId    String
+  name      String
+  color     String   @default("#6366f1")
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  companies Company[]
+
+  @@unique([userId, name])
+  @@index([userId])
 }
 
 // Un contact. Source de vérité = firstName/lastName/label + companyId.

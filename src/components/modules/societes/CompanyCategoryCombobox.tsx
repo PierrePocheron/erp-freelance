@@ -124,7 +124,9 @@ export function CompanyCategoryCombobox({
           onChange={(e) => {
             setQuery(e.target.value)
             if (!open) handleOpen()
-            if (selected && e.target.value !== selected.name) onChange("")
+            // NB : on ne vide PAS la sélection à la frappe — l'éditeur inline
+            // persiste chaque onChange, ça effacerait la catégorie en base. Le
+            // retrait explicite passe par l'option « Sans catégorie ».
           }}
           onFocus={handleOpen}
           placeholder="Sans catégorie"

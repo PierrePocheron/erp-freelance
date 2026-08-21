@@ -126,6 +126,12 @@ model UserProfile {
   rateBICSalesVL             Float @default(1.00)
   rateBICSalesCFP            Float @default(0.10)
 
+  // ── Investissements ───────────────────────────────────────────────────────
+  // Rappel mensuel « faire les relevés » : une tâche parent + une sous-tâche par
+  // plateforme, générée idempotemment au chargement (cf. ensureInvestmentReviewTasks).
+  investmentReviewReminder Boolean @default(false)
+  investmentReviewDay      Int     @default(1) // jour du mois de l'échéance (1–28)
+
   createdAt           DateTime @default(now())
   updatedAt         DateTime @updatedAt
 
@@ -702,6 +708,11 @@ model Task {
   // automatiquement quand la déclaration correspondante est déclarée/payée.
   urssafPeriod   String?
   skillId        String?      // bloc « Travailler cette compétence » (module Compétences)
+  // Rappel mensuel de relevé d'investissement (module Investissements) : la tâche
+  // parent porte la période "YYYY-MM" (parentTaskId null) ; chaque sous-tâche porte
+  // la même période + sa plateforme. Sert à l'idempotence et à l'auto-complétion.
+  investmentPeriod     String?
+  investmentPlatformId String?
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
 
@@ -714,8 +725,10 @@ model Task {
   timeEntries TimeEntry[]
   taskTags    TaskTag[]    @relation("TaskToTaskTag")
   skill       Skill?       @relation(fields: [skillId], references: [id], onDelete: SetNull)
+  investmentPlatform InvestmentPlatform? @relation("InvestmentReviewTasks", fields: [investmentPlatformId], references: [id], onDelete: Cascade)
 
   @@index([userId, urssafPeriod])
+  @@index([userId, investmentPeriod])
 }
 
 model TaskTag {
@@ -1870,6 +1883,7 @@ model InvestmentPlatform {
 
   user    User              @relation(fields: [userId], references: [id], onDelete: Cascade)
   entries InvestmentEntry[]
+  reviewTasks Task[]        @relation("InvestmentReviewTasks")
 
   @@index([userId])
 }

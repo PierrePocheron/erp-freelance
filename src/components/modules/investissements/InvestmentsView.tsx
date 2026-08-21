@@ -12,11 +12,12 @@ import {
 import { PlatformCard } from "./PlatformCard"
 import { PlatformDialog, type PlatformForEdit } from "./PlatformDialog"
 import { InvestmentChart } from "./InvestmentChart"
+import { InvestmentReminderControl } from "./InvestmentReminderControl"
 
 export type EntryData = { id: string; date: string; capital: number | null; contribution: number; note: string | null }
 export type PlatformData = { id: string; name: string; type: string; url: string | null; notes: string | null; entries: EntryData[] }
 
-export function InvestmentsView({ platforms }: { platforms: PlatformData[] }) {
+export function InvestmentsView({ platforms, reminder }: { platforms: PlatformData[]; reminder: { enabled: boolean; day: number } }) {
   const [dialog, setDialog] = useState<{ open: boolean; editing?: PlatformForEdit }>({ open: false })
   const [range, setRange] = useState<RangeKey>("12M")
   const [nowMs, setNowMs] = useState(0)
@@ -99,6 +100,7 @@ export function InvestmentsView({ platforms }: { platforms: PlatformData[] }) {
               >
                 <Plus className="h-4 w-4" /> Nouvelle plateforme
               </button>
+              <InvestmentReminderControl initialEnabled={reminder.enabled} initialDay={reminder.day} />
             </div>
           </div>
 

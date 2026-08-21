@@ -20,6 +20,11 @@ export default async function InvestissementsPage() {
     },
   })
 
+  const profile = await prisma.userProfile.findUnique({
+    where: { userId },
+    select: { investmentReviewReminder: true, investmentReviewDay: true },
+  })
+
   const data = platforms.map((p) => ({
     id: p.id,
     name: p.name,
@@ -35,5 +40,5 @@ export default async function InvestissementsPage() {
     })),
   }))
 
-  return <InvestmentsView platforms={data} />
+  return <InvestmentsView platforms={data} reminder={{ enabled: profile?.investmentReviewReminder ?? false, day: profile?.investmentReviewDay ?? 1 }} />
 }

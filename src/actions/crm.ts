@@ -51,6 +51,23 @@ export async function searchCompanies(query: string) {
   })
 }
 
+// Anti-IDOR : une société ne peut référencer que des catégories / sources fiscales
+// appartenant à l'utilisateur. On valide l'appartenance des FK avant écriture (mêmes
+// garde-fous que linkEmitterToFiscalSource), un id d'un autre compte est rejeté.
+async function assertCompanyRefsOwned(
+  userId: string,
+  refs: { categoryId?: string | null; fiscalSourceId?: string | null },
+) {
+  if (refs.categoryId) {
+    const owned = await prisma.companyCategory.findFirst({ where: { id: refs.categoryId, userId }, select: { id: true } })
+    if (!owned) throw new Error("Catégorie introuvable")
+  }
+  if (refs.fiscalSourceId) {
+    const owned = await prisma.fiscalSource.findFirst({ where: { id: refs.fiscalSourceId, userId }, select: { id: true } })
+    if (!owned) throw new Error("Source fiscale introuvable")
+  }
+}
+
 export async function createCompany(data: {
   name: string
   companyType?: string | null
@@ -70,6 +87,7 @@ export async function createCompany(data: {
   const userId = await requireAuth()
   const name = data.name.trim()
   if (!name) throw new Error("Le nom de la société est requis")
+  await assertCompanyRefsOwned(userId, { categoryId: data.categoryId, fiscalSourceId: data.fiscalSourceId })
   const company = await prisma.company.create({
     data: {
       userId,
@@ -125,6 +143,7 @@ export async function updateCompany(
   }
   if ("fiscalSourceId" in data) clean.fiscalSourceId = data.fiscalSourceId || null
   if ("categoryId" in data) clean.categoryId = data.categoryId || null
+  await assertCompanyRefsOwned(userId, { categoryId: data.categoryId, fiscalSourceId: data.fiscalSourceId })
   await prisma.company.update({ where: { id: companyId, userId }, data: clean as never })
 
   // Resynchronise le cache d'affichage des contacts si le nom a changé.

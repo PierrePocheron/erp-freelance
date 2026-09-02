@@ -12,7 +12,7 @@ import { MilestoneToggle } from "@/components/modules/projet/MilestoneToggle"
 import { ProjectTasksCard } from "@/components/modules/projet/ProjectTasksCard"
 import { ProjectLinksCard } from "@/components/modules/projet/ProjectLinksCard"
 import { ProjectJobApplicationCard } from "@/components/modules/projet/ProjectJobApplicationCard"
-import { ProjectSkillsManager } from "@/components/modules/projet/ProjectSkillsManager"
+import { ProjectSkillsBar } from "@/components/modules/projet/ProjectSkillsBar"
 import { REVENUE_TYPE_LABELS } from "@/lib/revenue-constants"
 
 function fmtTime(d: Date | string) {
@@ -114,7 +114,7 @@ export default async function ProjectOverviewPage({
       },
       user: { select: { name: true, email: true, image: true } },
       jobApplication: { select: { id: true, companyName: true, position: true } },
-      skills: { include: { skill: { select: { id: true, name: true } } } },
+      skills: { include: { skill: { select: { id: true, name: true, family: true } } } },
     },
   })
 
@@ -195,6 +195,13 @@ export default async function ProjectOverviewPage({
   return (
     <div className="space-y-6">
 
+      {/* Compétences & technos du projet — pastilles par famille, en tête de fiche */}
+      <ProjectSkillsBar
+        projectId={id}
+        linked={project.skills.map((ps) => ({ id: ps.skill.id, name: ps.skill.name, version: ps.version, role: ps.role, family: ps.skill.family }))}
+        allSkills={allSkills}
+      />
+
       {/* Bento auto-équilibré (multicol) : les cartes se rangent au plus près
           sans laisser de trous verticaux entre elles. break-inside-avoid : une
           carte ne se coupe jamais d'une colonne à l'autre. L'ordre de lecture
@@ -257,13 +264,6 @@ export default async function ProjectOverviewPage({
           )}
           <MilestoneDialog projectId={id} />
         </div>
-
-        {/* Compétences & technos du projet (visualisation + version par techno, ajout à la volée) */}
-        <ProjectSkillsManager
-          projectId={id}
-          linked={project.skills.map((ps) => ({ id: ps.skill.id, name: ps.skill.name, version: ps.version, role: ps.role }))}
-          allSkills={allSkills}
-        />
 
         {/* Liens — liste avec health check + ajout inline */}
         <div>

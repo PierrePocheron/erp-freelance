@@ -1785,12 +1785,25 @@ enum QuestionStatus {
 }
 
 /// Compétence (hard ou soft), organisée en arbre : Catégorie › Techno › Sous-sujet.
+enum SkillFamily {
+  FRONTEND
+  BACKEND
+  DEVOPS
+  MOBILE
+  DATABASE
+  SECURITY
+  TOOL
+  CONCEPT
+  OTHER
+}
+
 model Skill {
   id              String      @id @default(cuid())
   userId          String
   parentId        String?     // arbre (null = racine / catégorie de plus haut niveau)
   name            String
   type            SkillType   @default(HARD)
+  family          SkillFamily? // famille pour le regroupement/tri des pastilles (front/back/devops…), indépendante de l'arbre
   level           Int         @default(0)  // 0 Aucune · 1 Notions · 2 Junior · 3 Confirmé · 4 Avancé · 5 Expert
   targetVersion   String?     // version visée sur le nœud (ex. "Spring 4")
   status          SkillStatus @default(TO_ACQUIRE)

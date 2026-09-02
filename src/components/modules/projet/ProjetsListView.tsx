@@ -127,6 +127,7 @@ type Project = {
   _count: { tasks: number }
   tasksDone: number
   tags: { id: string; name: string; color: string }[]
+  skills?: { name: string }[]
   billing: { totalFacture: number; totalEncaisse: number }
   revenue: { totalRevenu: number; revenuRecu: number }
   lastActivityAt: number // ms — date d'activité la plus récente (créé / modifié / utilisé)

@@ -12,6 +12,7 @@ import { MilestoneToggle } from "@/components/modules/projet/MilestoneToggle"
 import { ProjectTasksCard } from "@/components/modules/projet/ProjectTasksCard"
 import { ProjectLinksCard } from "@/components/modules/projet/ProjectLinksCard"
 import { ProjectJobApplicationCard } from "@/components/modules/projet/ProjectJobApplicationCard"
+import { ProjectSkillsManager } from "@/components/modules/projet/ProjectSkillsManager"
 import { REVENUE_TYPE_LABELS } from "@/lib/revenue-constants"
 
 function fmtTime(d: Date | string) {
@@ -113,10 +114,18 @@ export default async function ProjectOverviewPage({
       },
       user: { select: { name: true, email: true, image: true } },
       jobApplication: { select: { id: true, companyName: true, position: true } },
+      skills: { include: { skill: { select: { id: true, name: true } } } },
     },
   })
 
   if (!project) notFound()
+
+  // Compétences de l'utilisateur — pour le sélecteur d'ajout de techno au projet (datalist)
+  const allSkills = await prisma.skill.findMany({
+    where: { userId },
+    orderBy: { name: "asc" },
+    select: { id: true, name: true },
+  })
 
   // Candidatures de l'utilisateur — pour associer/modifier l'entretien depuis la fiche
   const jobApplications = await prisma.jobApplication.findMany({
@@ -248,6 +257,13 @@ export default async function ProjectOverviewPage({
           )}
           <MilestoneDialog projectId={id} />
         </div>
+
+        {/* Compétences & technos du projet (visualisation + version par techno, ajout à la volée) */}
+        <ProjectSkillsManager
+          projectId={id}
+          linked={project.skills.map((ps) => ({ id: ps.skill.id, name: ps.skill.name, version: ps.version, role: ps.role }))}
+          allSkills={allSkills}
+        />
 
         {/* Liens — liste avec health check + ajout inline */}
         <div>

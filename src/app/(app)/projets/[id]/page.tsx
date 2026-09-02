@@ -198,7 +198,7 @@ export default async function ProjectOverviewPage({
       {/* Compétences & technos du projet — pastilles par famille, en tête de fiche */}
       <ProjectSkillsBar
         projectId={id}
-        linked={project.skills.map((ps) => ({ id: ps.skill.id, name: ps.skill.name, version: ps.version, role: ps.role, family: ps.skill.family }))}
+        linked={project.skills.map((ps) => ({ id: ps.skill.id, name: ps.skill.name, version: ps.version, role: ps.role, family: ps.skill.family, core: ps.core }))}
         allSkills={allSkills}
       />
 

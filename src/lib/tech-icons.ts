@@ -17,20 +17,24 @@ export type TechDef = {
 }
 
 // Ordre + libellé d'affichage des familles (regroupement des pastilles).
-export const SKILL_FAMILIES: { key: SkillFamily; label: string }[] = [
-  { key: "FRONTEND", label: "Front" },
-  { key: "BACKEND",  label: "Back" },
-  { key: "DATABASE", label: "Données" },
-  { key: "DEVOPS",   label: "DevOps / Infra" },
-  { key: "MOBILE",   label: "Mobile" },
-  { key: "SECURITY", label: "Sécurité" },
-  { key: "TOOL",     label: "Outils" },
-  { key: "CONCEPT",  label: "Concepts" },
-  { key: "OTHER",    label: "Autre" },
+export const SKILL_FAMILIES: { key: SkillFamily; label: string; color: string }[] = [
+  { key: "FRONTEND", label: "Front",          color: "#0ea5e9" },
+  { key: "BACKEND",  label: "Back",           color: "#10b981" },
+  { key: "DATABASE", label: "BDD",            color: "#8b5cf6" },
+  { key: "DEVOPS",   label: "DevOps / Infra", color: "#f59e0b" },
+  { key: "MOBILE",   label: "Mobile",         color: "#14b8a6" },
+  { key: "SECURITY", label: "Sécurité",       color: "#ef4444" },
+  { key: "TOOL",     label: "Outils",         color: "#64748b" },
+  { key: "CONCEPT",  label: "Concepts",       color: "#ec4899" },
+  { key: "OTHER",    label: "Divers",         color: "#6b7280" },
 ]
 
 export const SKILL_FAMILY_LABEL = Object.fromEntries(
   SKILL_FAMILIES.map((f) => [f.key, f.label]),
+) as Record<SkillFamily, string>
+
+export const SKILL_FAMILY_COLOR = Object.fromEntries(
+  SKILL_FAMILIES.map((f) => [f.key, f.color]),
 ) as Record<SkillFamily, string>
 
 const TECHS: TechDef[] = [
@@ -127,6 +131,20 @@ export function resolveTech(name: string): TechDef | null {
 /** Famille suggérée pour un nom de compétence (icône connue, sinon indice, sinon null). */
 export function suggestFamily(name: string): SkillFamily | null {
   return resolveTech(name)?.family ?? FAMILY_HINTS[normalizeTech(name)] ?? null
+}
+
+// Technos considérées « outil / lib » (Tier 2, nuage) — tout le reste des technos
+// CONNUES est traité comme « stack principale » (langage / framework / BDD / conteneur).
+const TOOL_SLUGS = new Set([
+  "tailwindcss", "chakraui", "bootstrap", "sass", "html5", "css3", "graphql",
+  "terraform", "amazonwebservices", "googlecloud", "linux", "bash", "git",
+  "github", "vitest", "jest", "figma", "postman", "vite", "nginx",
+])
+
+/** true si la techno relève plutôt de la « stack principale » (framework/langage/BDD/conteneur). */
+export function suggestCore(name: string): boolean {
+  const t = resolveTech(name)
+  return !!t && !TOOL_SLUGS.has(t.slug)
 }
 
 /** Toutes les defs (pour le script de génération des SVG). */

@@ -168,6 +168,27 @@ export async function removeProjectSkill(projectId: string, skillId: string): Pr
   revalidatePath(`/projets/${projectId}`)
 }
 
+/**
+ * Lie une compétence à un projet par son NOM — la crée si elle n'existe pas (type
+ * HARD par défaut). Réutilise findOrCreateSkillId ; ne réécrase pas une liaison
+ * existante (version conservée). Scopé userId via le projet (anti-IDOR).
+ */
+export async function linkOrCreateProjectSkill(projectId: string, name: string, opts?: { version?: string | null }): Promise<void> {
+  const userId = await requireAuth()
+  const trimmed = name.trim()
+  if (!trimmed) return
+  const proj = await prisma.project.findFirst({ where: { id: projectId, userId }, select: { id: true } })
+  if (!proj) throw new Error("Projet introuvable")
+  const skillId = await findOrCreateSkillId(userId, trimmed)
+  await prisma.projectSkill.upsert({
+    where: { projectId_skillId: { projectId, skillId } },
+    create: { projectId, skillId, version: opts?.version?.trim() || null, role: "USED" },
+    update: opts?.version !== undefined ? { version: opts.version?.trim() || null } : {},
+  })
+  revalidateSkillPaths()
+  revalidatePath(`/projets/${projectId}`)
+}
+
 // ── Liaison Entretien ↔ Compétence (stack demandée par le poste) ──────────────
 
 /** Lie une compétence à un entretien par son NOM — la crée si elle n'existe pas encore. */

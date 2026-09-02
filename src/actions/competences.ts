@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache"
 import { prisma } from "@/lib/prisma"
 import { auth } from "@/lib/auth"
 import type { SkillType, SkillStatus, ProjectSkillRole, QuestionStatus, SkillFamily } from "@/generated/prisma/enums"
-import { suggestFamily, suggestCore } from "@/lib/tech-icons"
+import { suggestFamily } from "@/lib/tech-icons"
 import { syncTaskGoogleState } from "@/lib/google-task-sync"
 
 async function requireAuth() {
@@ -214,7 +214,7 @@ export async function linkOrCreateProjectSkill(projectId: string, name: string, 
   const skillId = existing.id
   await prisma.projectSkill.upsert({
     where: { projectId_skillId: { projectId, skillId } },
-    create: { projectId, skillId, version: opts?.version?.trim() || null, role: "USED", core: opts?.core ?? suggestCore(trimmed) },
+    create: { projectId, skillId, version: opts?.version?.trim() || null, role: "USED", core: opts?.core ?? false },
     update: opts?.version !== undefined ? { version: opts.version?.trim() || null } : {},
   })
   revalidateSkillPaths()

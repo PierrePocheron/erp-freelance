@@ -1833,6 +1833,7 @@ model ProjectSkill {
   skillId   String
   version   String?          // version utilisée dans CE projet (ex. "4 + FRN")
   role      ProjectSkillRole @default(USED)
+  core      Boolean          @default(false) // stack principale (framework & archi) vs outil/lib secondaire
   note      String?
 
   project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)

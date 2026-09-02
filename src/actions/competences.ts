@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache"
 import { prisma } from "@/lib/prisma"
 import { auth } from "@/lib/auth"
 import type { SkillType, SkillStatus, ProjectSkillRole, QuestionStatus, SkillFamily } from "@/generated/prisma/enums"
-import { suggestFamily } from "@/lib/tech-icons"
+import { suggestFamily, suggestCore } from "@/lib/tech-icons"
 import { syncTaskGoogleState } from "@/lib/google-task-sync"
 
 async function requireAuth() {
@@ -145,7 +145,7 @@ export async function patchSkill(
 export async function setProjectSkill(
   projectId: string,
   skillId: string,
-  opts: { version?: string | null; role?: ProjectSkillRole; note?: string | null },
+  opts: { version?: string | null; role?: ProjectSkillRole; note?: string | null; core?: boolean },
 ): Promise<void> {
   const userId = await requireAuth()
   const [proj, skill] = await Promise.all([
@@ -153,10 +153,23 @@ export async function setProjectSkill(
     prisma.skill.findFirst({ where: { id: skillId, userId }, select: { id: true } }),
   ])
   if (!proj || !skill) throw new Error("Projet ou compétence introuvable")
+  // Mise à jour PARTIELLE : ne touche qu'aux champs fournis (ne pas écraser la version
+  // en togglant `core`, ni l'inverse).
+  const patch: Record<string, unknown> = {}
+  if ("version" in opts) patch.version = opts.version?.trim() || null
+  if ("role" in opts) patch.role = opts.role ?? "USED"
+  if ("core" in opts) patch.core = opts.core
+  if ("note" in opts) patch.note = opts.note?.trim() || null
   await prisma.projectSkill.upsert({
     where: { projectId_skillId: { projectId, skillId } },
-    create: { projectId, skillId, version: opts.version?.trim() || null, role: opts.role ?? "USED", note: opts.note?.trim() || null },
-    update: { version: opts.version?.trim() || null, role: opts.role ?? "USED", note: opts.note?.trim() || null },
+    create: {
+      projectId, skillId,
+      version: opts.version?.trim() || null,
+      role: opts.role ?? "USED",
+      core: opts.core ?? false,
+      note: opts.note?.trim() || null,
+    },
+    update: patch,
   })
   revalidateSkillPaths()
   revalidatePath(`/projets/${projectId}`)
@@ -175,15 +188,15 @@ export async function removeProjectSkill(projectId: string, skillId: string): Pr
  * HARD par défaut). Réutilise findOrCreateSkillId ; ne réécrase pas une liaison
  * existante (version conservée). Scopé userId via le projet (anti-IDOR).
  */
-export async function linkOrCreateProjectSkill(projectId: string, name: string, opts?: { version?: string | null }): Promise<void> {
+export async function linkOrCreateProjectSkill(projectId: string, name: string, opts?: { version?: string | null; core?: boolean; family?: SkillFamily | null }): Promise<void> {
   const userId = await requireAuth()
   const trimmed = name.trim()
   if (!trimmed) return
   const proj = await prisma.project.findFirst({ where: { id: projectId, userId }, select: { id: true } })
   if (!proj) throw new Error("Projet introuvable")
-  // Résolution de la compétence par nom, en renseignant la famille (front/back/devops…)
-  // à la création — ou sur une compétence existante encore non classée.
-  const fam = suggestFamily(trimmed)
+  // Famille : celle choisie à l'ajout sinon devinée ; posée à la création, ou sur une
+  // compétence existante (choix explicite prioritaire, sinon comble un classement manquant).
+  const fam = opts?.family ?? suggestFamily(trimmed)
   let existing = await prisma.skill.findFirst({
     where: { userId, name: { equals: trimmed, mode: "insensitive" } },
     select: { id: true, family: true },
@@ -193,13 +206,15 @@ export async function linkOrCreateProjectSkill(projectId: string, name: string, 
       data: { userId, name: trimmed, type: "HARD", status: "TO_ACQUIRE", family: fam ?? undefined },
       select: { id: true, family: true },
     })
+  } else if (opts?.family) {
+    await prisma.skill.update({ where: { id: existing.id }, data: { family: opts.family } })
   } else if (!existing.family && fam) {
     await prisma.skill.update({ where: { id: existing.id }, data: { family: fam } })
   }
   const skillId = existing.id
   await prisma.projectSkill.upsert({
     where: { projectId_skillId: { projectId, skillId } },
-    create: { projectId, skillId, version: opts?.version?.trim() || null, role: "USED" },
+    create: { projectId, skillId, version: opts?.version?.trim() || null, role: "USED", core: opts?.core ?? suggestCore(trimmed) },
     update: opts?.version !== undefined ? { version: opts.version?.trim() || null } : {},
   })
   revalidateSkillPaths()

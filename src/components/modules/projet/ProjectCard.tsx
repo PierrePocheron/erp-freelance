@@ -4,6 +4,7 @@ import { Calendar, Clock, CheckSquare } from "lucide-react"
 import { TagBadge } from "./TagBadge"
 import { PRIORITY_CONFIG, type ProjectPriority } from "./ProjectInlineEdit"
 import { CATEGORY_CONFIG } from "./category-config"
+import { TechIcon } from "./TechIcon"
 import type { ProjectCategory } from "@/generated/prisma/enums"
 
 function fmtEur(n: number) {
@@ -35,6 +36,7 @@ type Props = {
     tags: { id: string; name: string; color: string }[]
     billing: { totalFacture: number; totalEncaisse: number }
     revenue: { totalRevenu: number; revenuRecu: number }
+    skills?: { name: string }[]
   }
   showBilling?: boolean
 }
@@ -92,6 +94,15 @@ export function ProjectCard({ project, showBilling = false }: Props) {
             {(project.tags ?? []).map((tag) => (
               <TagBadge key={tag.id} tag={tag} />
             ))}
+          </div>
+        )}
+
+        {(project.skills?.length ?? 0) > 0 && (
+          <div className="flex flex-wrap items-center gap-1" title="Technos du projet">
+            {project.skills!.slice(0, 10).map((s, i) => <TechIcon key={`${s.name}-${i}`} name={s.name} size={16} />)}
+            {project.skills!.length > 10 && (
+              <span className="text-[10px] text-muted-foreground self-center">+{project.skills!.length - 10}</span>
+            )}
           </div>
         )}
 

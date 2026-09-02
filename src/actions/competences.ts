@@ -3,7 +3,8 @@
 import { revalidatePath } from "next/cache"
 import { prisma } from "@/lib/prisma"
 import { auth } from "@/lib/auth"
-import type { SkillType, SkillStatus, ProjectSkillRole, QuestionStatus } from "@/generated/prisma/enums"
+import type { SkillType, SkillStatus, ProjectSkillRole, QuestionStatus, SkillFamily } from "@/generated/prisma/enums"
+import { suggestFamily } from "@/lib/tech-icons"
 import { syncTaskGoogleState } from "@/lib/google-task-sync"
 
 async function requireAuth() {
@@ -121,12 +122,13 @@ export async function moveSkill(id: string, parentId: string | null): Promise<vo
  */
 export async function patchSkill(
   id: string,
-  patch: { status?: SkillStatus; level?: number; name?: string },
+  patch: { status?: SkillStatus; level?: number; name?: string; family?: SkillFamily | null },
 ): Promise<void> {
   const userId = await requireAuth()
   const data: Record<string, unknown> = {}
   if (patch.status) data.status = patch.status
   if (patch.level !== undefined) data.level = clampLevel(patch.level)
+  if (patch.family !== undefined) data.family = patch.family
   if (patch.name !== undefined) {
     const n = patch.name.trim()
     if (!n) throw new Error("Nom de compétence requis")
@@ -179,7 +181,22 @@ export async function linkOrCreateProjectSkill(projectId: string, name: string, 
   if (!trimmed) return
   const proj = await prisma.project.findFirst({ where: { id: projectId, userId }, select: { id: true } })
   if (!proj) throw new Error("Projet introuvable")
-  const skillId = await findOrCreateSkillId(userId, trimmed)
+  // Résolution de la compétence par nom, en renseignant la famille (front/back/devops…)
+  // à la création — ou sur une compétence existante encore non classée.
+  const fam = suggestFamily(trimmed)
+  let existing = await prisma.skill.findFirst({
+    where: { userId, name: { equals: trimmed, mode: "insensitive" } },
+    select: { id: true, family: true },
+  })
+  if (!existing) {
+    existing = await prisma.skill.create({
+      data: { userId, name: trimmed, type: "HARD", status: "TO_ACQUIRE", family: fam ?? undefined },
+      select: { id: true, family: true },
+    })
+  } else if (!existing.family && fam) {
+    await prisma.skill.update({ where: { id: existing.id }, data: { family: fam } })
+  }
+  const skillId = existing.id
   await prisma.projectSkill.upsert({
     where: { projectId_skillId: { projectId, skillId } },
     create: { projectId, skillId, version: opts?.version?.trim() || null, role: "USED" },

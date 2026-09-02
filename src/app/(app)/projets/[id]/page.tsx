@@ -192,13 +192,6 @@ export default async function ProjectOverviewPage({
           suit l'ordre du code (les colonnes se remplissent de façon équilibrée). */}
       <div className="gap-6 lg:columns-2 2xl:columns-3 *:mb-6 *:break-inside-avoid">
 
-        {/* Entretien associé (affiché s'il y a un lien, ou proposé si des candidatures existent) */}
-        <ProjectJobApplicationCard
-          projectId={id}
-          linked={project.jobApplication}
-          jobApplications={jobApplications}
-        />
-
         {/* Tâches — liste cochable */}
         <div>
           <ProjectTasksCard
@@ -495,6 +488,13 @@ export default async function ProjectOverviewPage({
             </div>
           )}
         </div>
+
+        {/* Entretien associé — rare (surtout AlgoSecure) : placé en fin de bento */}
+        <ProjectJobApplicationCard
+          projectId={id}
+          linked={project.jobApplication}
+          jobApplications={jobApplications}
+        />
       </div>
 
       {/* Frise chronologique — pleine largeur, sous le bento */}

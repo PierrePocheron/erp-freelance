@@ -2,14 +2,15 @@
 
 import { useState, useMemo, useRef, useEffect } from "react"
 import Link from "next/link"
-import { LayoutGrid, List, Layers, Calendar, CheckSquare, Search, TrendingUp, ChevronDown, Check, SlidersHorizontal } from "lucide-react"
+import { LayoutGrid, List, Layers, Calendar, CheckSquare, Search, TrendingUp, ChevronDown, Check, SlidersHorizontal, Flame, ArrowUpDown } from "lucide-react"
 import { useSortState, cmp } from "@/hooks/use-sortable"
 import { Th } from "@/components/ui/sortable-header"
 import { Badge } from "@/components/ui/badge"
 import { BillingBar } from "@/components/modules/billing/BillingBar"
 import { ProjectCard } from "./ProjectCard"
 import { CreateProjectDialog } from "./CreateProjectDialog"
-import { PRIORITY_CONFIG, type ProjectPriority } from "./ProjectInlineEdit"
+import { type ProjectPriority } from "./ProjectInlineEdit"
+import { PriorityBadge } from "./PriorityIcon"
 import { CATEGORY_CONFIG, ALL_CATEGORIES } from "./category-config"
 import type { ProjectCategory } from "@/generated/prisma/enums"
 import { cn } from "@/lib/utils"
@@ -143,9 +144,14 @@ function byPriority(a: Project, b: Project) {
   return pb - pa  // plus haute priorité d'abord
 }
 
-// Tri par défaut : activité la plus récente d'abord (créé / modifié / utilisé), priorité en second.
+// Tri « activité » : la plus récente d'abord (créé / modifié / utilisé), priorité en second.
 function byActivity(a: Project, b: Project) {
   return b.lastActivityAt - a.lastActivityAt || byPriority(a, b)
+}
+
+// Tri par défaut « priorité » : urgent › haute › normale › basse, puis activité la plus récente.
+function byPriorityThenActivity(a: Project, b: Project) {
+  return byPriority(a, b) || b.lastActivityAt - a.lastActivityAt
 }
 
 export function ProjetsListView({
@@ -169,7 +175,10 @@ export function ProjetsListView({
   const searchRef = useRef<HTMLInputElement>(null)
   // Groupes de projets terminés dépliés (par catégorie) — repliés par défaut
   const [openCompleted, setOpenCompleted] = useState<Set<ProjectCategory>>(new Set())
-  const { sortCol, sortDir, toggle } = useSortState("activity", "desc")
+  const { sortCol, sortDir, toggle } = useSortState("priority", "desc")
+  // Vue cartes : priorité d'abord (défaut), ou dernière activité (ancien comportement)
+  const [sortMode, setSortMode] = useState<"priority" | "activity">("priority")
+  const cardSort = sortMode === "priority" ? byPriorityThenActivity : byActivity
 
   // Raccourci ⌘F / Ctrl+F : focalise la recherche projets (remplace le « rechercher dans la page » natif)
   useEffect(() => {
@@ -216,9 +225,9 @@ export function ProjetsListView({
     return matchStatus && matchCategory && matchSearch
   })
 
-  const active    = [...filtered.filter((p) => p.status === "ACTIVE")].sort(byActivity)
-  const completed = [...filtered.filter((p) => p.status === "COMPLETED")].sort(byActivity)
-  const others    = [...filtered.filter((p) => p.status !== "ACTIVE" && p.status !== "COMPLETED")].sort(byActivity)
+  const active    = [...filtered.filter((p) => p.status === "ACTIVE")].sort(cardSort)
+  const completed = [...filtered.filter((p) => p.status === "COMPLETED")].sort(cardSort)
+  const others    = [...filtered.filter((p) => p.status !== "ACTIVE" && p.status !== "COMPLETED")].sort(cardSort)
 
   const listItems = useMemo(() => {
     const all = [...active, ...completed, ...others]
@@ -227,7 +236,7 @@ export function ProjetsListView({
       switch (sortCol) {
         case "name":     return cmp(a.name, b.name, sortDir)
         case "company":  return cmp(a.company?.name ?? null, b.company?.name ?? null, sortDir)
-        case "priority": return cmp(PRIORITY_ORDER[a.priority ?? "MEDIUM"], PRIORITY_ORDER[b.priority ?? "MEDIUM"], sortDir)
+        case "priority": return cmp(PRIORITY_ORDER[a.priority ?? "MEDIUM"], PRIORITY_ORDER[b.priority ?? "MEDIUM"], sortDir) || b.lastActivityAt - a.lastActivityAt
         case "status":   return cmp(a.status, b.status, sortDir)
         case "endDate":  return cmp(a.endDate ? new Date(a.endDate) : null, b.endDate ? new Date(b.endDate) : null, sortDir)
         case "activity": return cmp(a.lastActivityAt, b.lastActivityAt, sortDir)
@@ -305,6 +314,24 @@ export function ProjetsListView({
             <TrendingUp className="h-3.5 w-3.5" />
             <span className="hidden sm:inline">Facturation & revenus</span>
           </button>
+
+          {/* Tri (vue cartes) : priorité ⇄ activité */}
+          {view === "cards" && (
+            <button
+              type="button"
+              onClick={() => setSortMode((m) => (m === "priority" ? "activity" : "priority"))}
+              className={cn(
+                "flex items-center gap-1.5 h-8 px-2.5 rounded-lg text-xs font-medium border transition-colors",
+                sortMode === "priority"
+                  ? "bg-primary/10 text-primary border-primary/25"
+                  : "text-muted-foreground border-border hover:bg-muted/50 hover:text-foreground"
+              )}
+              title={sortMode === "priority" ? "Trié par priorité — cliquer pour trier par activité" : "Trié par dernière activité — cliquer pour trier par priorité"}
+            >
+              {sortMode === "priority" ? <Flame className="h-3.5 w-3.5" /> : <ArrowUpDown className="h-3.5 w-3.5" />}
+              <span className="hidden sm:inline">Tri : {sortMode === "priority" ? "Priorité" : "Activité"}</span>
+            </button>
+          )}
 
           {/* Vue */}
           <div className="flex rounded-lg border border-border overflow-hidden">
@@ -419,7 +446,6 @@ export function ProjetsListView({
                 const progress = p._count.tasks > 0 ? Math.round((p.tasksDone / p._count.tasks) * 100) : 0
                 const clientLabel = p.company?.name ?? p.contactLinks[0]?.client?.name ?? "—"
                 const priority = p.priority ?? "MEDIUM"
-                const priorityCfg = PRIORITY_CONFIG[priority]
                 const cat = CATEGORY_CONFIG[p.category ?? "AUTRE"]
                 return (
                   <tr key={p.id} className="border-b border-border/50 last:border-0 hover:bg-muted/30 transition-colors">
@@ -443,9 +469,7 @@ export function ProjetsListView({
                     </td>
                     <td className="px-4 py-3 text-muted-foreground hidden sm:table-cell">{clientLabel}</td>
                     <td className="px-4 py-3">
-                      <span className={cn("rounded-full border px-2 py-0.5 text-xs font-medium whitespace-nowrap", priorityCfg.cls)}>
-                        {priorityCfg.label}
-                      </span>
+                      <PriorityBadge priority={priority} showMedium />
                     </td>
                     <td className="px-4 py-3">
                       <Badge variant="outline" className={`text-xs ${st.cls}`}>{st.label}</Badge>

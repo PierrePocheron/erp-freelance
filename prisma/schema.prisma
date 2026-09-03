@@ -666,6 +666,7 @@ enum ProjectContactRole {
   COLLEAGUE  // Collègue
   PARTNER    // Partenaire / sous-traitant
   SUPPLIER   // Fournisseur
+  PERSONAL   // Perso (ami, famille, projet perso / auto-formation)
   OTHER      // Autre
 }
 

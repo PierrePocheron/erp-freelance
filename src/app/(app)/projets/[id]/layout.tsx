@@ -2,17 +2,19 @@ import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { notFound } from "next/navigation"
 import Link from "next/link"
-import { ChevronLeft, Users } from "lucide-react"
+import { Users } from "lucide-react"
 import { ProjectTabs } from "@/components/modules/projet/ProjectTabs"
 import { ProjectDateBadge } from "@/components/modules/projet/ProjectDateBadge"
 import { ProjectNameEdit, ProjectDescriptionEdit, ProjectHoursEdit, ProjectStatusEdit, ProjectPriorityEdit, ProjectCategoryEdit } from "@/components/modules/projet/ProjectInlineEdit"
 import { TagSelector } from "@/components/modules/projet/TagSelector"
 import { ProjectSettingsDialog } from "@/components/modules/projet/ProjectSettingsDialog"
-import { ProjectContactsManager } from "@/components/modules/projet/ProjectContactsManager"
-import { addProjectContact, removeProjectContact, updateProjectCompany } from "@/actions/projet"
+import { ProjectContactsStack } from "@/components/modules/projet/ProjectContactsStack"
+import { addProjectContact, removeProjectContact } from "@/actions/projet"
 import { getOrCreateDefaultTags } from "@/actions/tags"
 import { UserAvatar } from "@/components/ui/user-avatar"
 import { SetBreadcrumbLabel } from "@/components/layout/BreadcrumbContext"
+
+const CONTACT_SELECT = { id: true, name: true, company: true, email: true, phone: true, type: true } as const
 
 export default async function ProjectLayout({
   children,
@@ -34,7 +36,7 @@ export default async function ProjectLayout({
       include: {
         company: { select: { id: true, name: true } },
         contactLinks: {
-          select: { clientId: true, role: true, label: true, client: { select: { id: true, name: true, company: true } } },
+          select: { clientId: true, role: true, label: true, client: { select: CONTACT_SELECT } },
           orderBy: { createdAt: "asc" },
         },
         members: {
@@ -50,7 +52,7 @@ export default async function ProjectLayout({
     prisma.client.findMany({
       where: { userId },
       orderBy: [{ name: "asc" }],
-      select: { id: true, name: true, company: true },
+      select: CONTACT_SELECT,
     }),
   ])
 
@@ -63,60 +65,58 @@ export default async function ProjectLayout({
   return (
     <div className="space-y-5">
       <SetBreadcrumbLabel value={id} label={project.name} />
-      <div>
-        <Link
-          href="/projets"
-          className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground mb-3"
-        >
-          <ChevronLeft className="h-4 w-4" /> Projets
-        </Link>
 
-        {/* flex-wrap + min-w-0 : sur mobile les pills passent sous le titre
-            au lieu de le compresser */}
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div className="space-y-2 min-w-0">
-            {project.company ? (
-              <Link
-                href={`/societes/${project.company.id}`}
-                className="text-sm text-muted-foreground hover:text-primary transition-colors"
-              >
-                {project.company.name}
-              </Link>
-            ) : (
-              <span className="text-sm text-muted-foreground italic">Sans société</span>
-            )}
-            <ProjectNameEdit projectId={id} value={project.name} />
-            <ProjectDescriptionEdit projectId={id} value={project.description} />
-            <ProjectContactsManager
-              projectId={id}
-              allContacts={contacts}
-              projectContacts={project.contactLinks}
-              onAdd={async (clientId, role, label) => {
-                "use server"
-                await addProjectContact(id, clientId, role, label)
-              }}
-              onRemove={async (clientId) => {
-                "use server"
-                await removeProjectContact(id, clientId)
-              }}
-            />
+      {/* Pas de bouton « ‹ Projets » : le fil d'Ariane (Projets › nom) joue déjà ce rôle. */}
+      {/* flex-wrap + min-w-0 : sur mobile la colonne de droite passe sous le titre
+          au lieu de le compresser */}
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div className="space-y-2 min-w-0">
+          {project.company ? (
+            <Link
+              href={`/societes/${project.company.id}`}
+              className="text-sm text-muted-foreground hover:text-primary transition-colors"
+            >
+              {project.company.name}
+            </Link>
+          ) : (
+            <span className="text-sm text-muted-foreground italic">Sans société</span>
+          )}
+          <ProjectNameEdit projectId={id} value={project.name} />
+          <ProjectDescriptionEdit projectId={id} value={project.description} />
 
-            <div className="flex flex-wrap items-center gap-2 pt-1">
-              <ProjectDateBadge projectId={id} field="startDate" value={project.startDate} label="Début" />
-              <ProjectDateBadge projectId={id} field="endDate" value={project.endDate} label="Fin estimée" />
-              <ProjectHoursEdit projectId={id} value={project.estimatedHours} />
-            </div>
-
-            <TagSelector
-              projectId={id}
-              userId={userId}
-              availableTags={allTags}
-              selectedTagIds={selectedTagIds}
-            />
+          <div className="flex flex-wrap items-center gap-2 pt-1">
+            <ProjectDateBadge projectId={id} field="startDate" value={project.startDate} label="Début" />
+            <ProjectDateBadge projectId={id} field="endDate" value={project.endDate} label="Fin estimée" />
+            <ProjectHoursEdit projectId={id} value={project.estimatedHours} />
           </div>
 
-          <div className="flex items-center gap-3 shrink-0">
-            {/* Avatars collaborateurs */}
+          <TagSelector
+            projectId={id}
+            userId={userId}
+            availableTags={allTags}
+            selectedTagIds={selectedTagIds}
+          />
+        </div>
+
+        {/* Colonne droite : contacts du projet (en haut), puis collaborateurs + pills */}
+        <div className="flex flex-col items-end gap-3 shrink-0">
+          <ProjectContactsStack
+            projectId={id}
+            userId={userId}
+            allContacts={contacts}
+            projectContacts={project.contactLinks}
+            onAdd={async (clientId, role, label) => {
+              "use server"
+              await addProjectContact(id, clientId, role, label)
+            }}
+            onRemove={async (clientId) => {
+              "use server"
+              await removeProjectContact(id, clientId)
+            }}
+          />
+
+          <div className="flex flex-wrap items-center justify-end gap-3">
+            {/* Avatars collaborateurs (utilisateurs de l'app) */}
             {(project.members.length > 0) && (
               <div className="flex items-center gap-2">
                 <div className="flex items-center -space-x-1.5">

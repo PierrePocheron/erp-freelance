@@ -1691,8 +1691,11 @@ function MonthView({
                   : null
                 onMoveEvent(eventId, newDate, newEnd, ev.allDay ?? false)
               }}
+              // flex-col + justify-start : un <button> centre VERTICALEMENT son contenu par défaut
+              // (style UA) → dans une case étirée par la grille, le numéro du jour flottait au
+              // milieu quand la case était vide et remontait selon le nombre d'événements.
               className={cn(
-                "border-b border-r border-border/30 p-1 text-left transition-colors hover:bg-muted/30 min-w-0 overflow-hidden",
+                "flex flex-col items-stretch justify-start border-b border-r border-border/30 p-1 text-left transition-colors hover:bg-muted/30 min-w-0 overflow-hidden",
                 isWeekend ? "bg-muted/10" : loadBg(dayEvents.length),
                 i % 7 === 6 && "border-r-0",
                 isSelected && "ring-1 ring-inset ring-primary/40 bg-primary/5",

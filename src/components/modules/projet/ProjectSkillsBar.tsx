@@ -2,7 +2,7 @@
 
 import { useMemo, useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
-import { Plus, X, Check, Star } from "lucide-react"
+import { Plus, X, Check, Star, ChevronRight, ChevronDown } from "lucide-react"
 import { toast } from "sonner"
 import type { SkillFamily } from "@/generated/prisma/enums"
 import {
@@ -17,13 +17,17 @@ type LinkedSkill = { id: string; name: string; version: string | null; role: "US
 type Enriched = LinkedSkill & { section: SectionKey; kind: TechKind; group?: string; primary: boolean }
 
 const SECTION_LABEL = Object.fromEntries(SECTIONS.map((s) => [s.key, s.label])) as Record<SectionKey, string>
+const SECTION_COLOR = Object.fromEntries(SECTIONS.map((s) => [s.key, s.color])) as Record<SectionKey, string>
 const PRIMARY_SECTIONS: SectionKey[] = ["BACKEND", "FRONTEND", "MOBILE", "DATABASE"]
+const PREVIEW_ICONS = 14
 
 /**
- * Compétences/technos d'un projet, en tête de fiche, rangées par SECTION (Backend,
- * Frontend, BDD, DevOps…). Dans chaque section : la « stack » (framework + langage +
- * moteur BDD) est mise en avant, le reste forme un nuage. Côté DevOps le nuage est
- * re-catégorisé (Conteneurisation, Observabilité, Sécurité SAST/DAST/SCA/SBOM, CI/CD…).
+ * Compétences/technos d'un projet, en tête de fiche. Deux états :
+ *  - REPLIÉ (défaut à l'arrivée) : la stack (framework + langage + moteur BDD) en pastilles
+ *    + « +N outils & libs » — un coup d'œil, sans encombrer la fiche ;
+ *  - DÉPLIÉ : rangement par SECTION (Backend, Frontend, BDD, DevOps…) avec la stack mise en
+ *    avant puis le nuage ; côté DevOps le nuage est re-catégorisé (Conteneurisation,
+ *    Observabilité, Sécurité SAST/DAST/SCA/SBOM, CI/CD…). Ajout + édition inline.
  * Famille/sous-catégorie déduites automatiquement du nom (aucune saisie requise) ;
  * surchargées seulement via l'éditeur inline.
  */
@@ -36,6 +40,7 @@ export function ProjectSkillsBar({
 }) {
   const router = useRouter()
   const [isPending, start] = useTransition()
+  const [expanded, setExpanded] = useState(false)
   const [adding, setAdding] = useState(false)
   const [name, setName] = useState("")
   const [version, setVersion] = useState("")
@@ -84,6 +89,10 @@ export function ProjectSkillsBar({
     }).filter((x): x is NonNullable<typeof x> => x !== null)
   }, [linked])
 
+  // Résumé replié : la stack de toutes les sections + compteur du reste.
+  const allPrimaries = useMemo(() => grouped.flatMap((g) => g.primaries), [grouped])
+  const toolsCount = linked.length - allPrimaries.length
+
   const detected = name.trim() ? classifyTech(name) : null
   const detectedSection = detected ? (FAMILY_TO_SECTION[detected.family] ?? "OTHER") : null
 
@@ -118,18 +127,27 @@ export function ProjectSkillsBar({
       catch { toast.error("Retrait impossible") }
     })
 
-  // Pastille « stack principale » (framework / langage / moteur BDD) — mise en avant.
+  // Contenu visuel d'une pastille « stack » (framework / langage / moteur BDD).
+  const pastilleClass = "inline-flex items-center gap-2 rounded-lg border pl-1 pr-2.5 py-1 text-sm"
+  const pastilleStyle = (color: string) => ({ backgroundColor: `${color}12`, borderColor: `${color}44` })
+  const PastilleInner = ({ s }: { s: Enriched }) => (
+    <>
+      <TechIcon name={s.name} size={20} />
+      <span className="font-medium leading-none">{s.name}</span>
+      {s.version && <span className="text-muted-foreground tabular-nums leading-none">{s.version}</span>}
+    </>
+  )
+
+  // Pastille « stack » interactive (vue dépliée) — clic = éditer.
   const Pastille = ({ s, color }: { s: Enriched; color: string }) => (
     <button
       type="button"
       onClick={() => setEditing((e) => (e?.id === s.id ? null : s))}
-      className="inline-flex items-center gap-2 rounded-lg border pl-1 pr-2.5 py-1 text-sm hover:brightness-95 transition"
-      style={{ backgroundColor: `${color}12`, borderColor: `${color}44` }}
+      className={`${pastilleClass} hover:brightness-95 transition`}
+      style={pastilleStyle(color)}
       title="Modifier (version, famille, stack) ou retirer"
     >
-      <TechIcon name={s.name} size={20} />
-      <span className="font-medium leading-none">{s.name}</span>
-      {s.version && <span className="text-muted-foreground tabular-nums leading-none">{s.version}</span>}
+      <PastilleInner s={s} />
     </button>
   )
 
@@ -149,132 +167,185 @@ export function ProjectSkillsBar({
   )
 
   return (
-    <div className="rounded-xl border border-border/50 bg-card p-4 space-y-4">
-      {linked.length === 0 && !adding && (
-        <p className="text-xs text-muted-foreground italic">Aucune techno liée — ajoute la stack (langage, framework, BDD…) puis les outils. La famille est déduite automatiquement.</p>
-      )}
+    <div className="rounded-xl border border-border/50 bg-card">
+      {/* En-tête : bascule replié / déplié (replié par défaut à l'arrivée sur la fiche) */}
+      <button
+        type="button"
+        onClick={() => setExpanded((v) => !v)}
+        aria-expanded={expanded}
+        className="flex w-full items-center gap-2 rounded-xl px-4 py-3 text-left hover:bg-muted/30 transition-colors"
+      >
+        {expanded
+          ? <ChevronDown className="h-4 w-4 text-muted-foreground" />
+          : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
+        <span className="text-sm font-medium">Compétences &amp; technos</span>
+        {linked.length > 0 && (
+          <span className="rounded-full bg-muted px-1.5 py-0.5 text-[11px] tabular-nums text-muted-foreground">{linked.length}</span>
+        )}
+        <span className="ml-auto text-xs text-muted-foreground">{expanded ? "Réduire" : "Développer"}</span>
+      </button>
 
-      {grouped.map(({ sec, primaries, groups }) => (
-        <section key={sec.key} className="space-y-2">
-          {/* En-tête de section */}
-          <div className="flex items-center gap-2">
-            <span className="h-2 w-2 rounded-full" style={{ backgroundColor: sec.color }} />
-            <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{sec.label}</span>
-          </div>
-
-          {/* Stack principale (framework + langage + moteur BDD) */}
-          {primaries.length > 0 && (
-            <div className="flex flex-wrap gap-2">
-              {primaries.map((s) => <Pastille key={s.id} s={s} color={sec.color} />)}
-            </div>
-          )}
-
-          {/* Nuage — plat (hors DevOps) ou re-catégorisé (DevOps) */}
-          {groups.map((g) => (
-            <div key={g.label || "flat"} className={g.label ? "flex flex-wrap items-center gap-x-2 gap-y-1.5" : "flex flex-wrap gap-1.5"}>
-              {g.label && (
-                <span className="inline-flex items-center gap-1 text-[10px] font-medium uppercase tracking-wide shrink-0" style={{ color: g.color }}>
-                  <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: g.color }} />
-                  {g.label}
+      {/* ── Vue REPLIÉE : stack en pastilles + « +N outils & libs » (clic = déplier) ── */}
+      {!expanded && (
+        <button type="button" onClick={() => setExpanded(true)} className="block w-full px-4 pb-4 text-left">
+          {linked.length === 0 ? (
+            <span className="text-xs text-muted-foreground italic">
+              Aucune techno liée — déplie pour ajouter la stack (langage, framework, BDD…) puis les outils.
+            </span>
+          ) : (
+            <span className="flex flex-wrap items-center gap-2">
+              {allPrimaries.map((s) => (
+                <span key={s.id} className={pastilleClass} style={pastilleStyle(SECTION_COLOR[s.section])}>
+                  <PastilleInner s={s} />
                 </span>
+              ))}
+              {/* Sans stack identifiée : aperçu en icônes seules */}
+              {allPrimaries.length === 0 && linked.slice(0, PREVIEW_ICONS).map((s) => (
+                <TechIcon key={s.id} name={s.name} size={18} />
+              ))}
+              {allPrimaries.length > 0 && toolsCount > 0 && (
+                <span className="text-xs text-muted-foreground">+{toolsCount} outil{toolsCount > 1 ? "s" : ""} &amp; libs</span>
               )}
-              <span className="flex flex-wrap gap-1.5">
-                {g.items.map((s) => <Chip key={s.id} s={s} color={g.color} />)}
-              </span>
-            </div>
-          ))}
-        </section>
-      ))}
-
-      {/* Ajout : pastille pointillée « + » → champ techno + version (famille auto) */}
-      {adding ? (
-        <div className="space-y-1.5 pt-1 border-t border-border/40">
-          <div className="flex flex-wrap items-center gap-2 pt-2">
-            <input
-              list={`pskills-bar-${projectId}`}
-              autoFocus
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); add() } else if (e.key === "Escape") { setAdding(false); setName(""); setVersion("") } }}
-              placeholder="Techno (ex : FastAPI, Spring Boot, Docker, Trivy…)"
-              aria-label="Ajouter une techno au projet"
-              className="h-8 w-64 max-w-full rounded-lg border border-input bg-transparent px-3 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
-            />
-            <datalist id={`pskills-bar-${projectId}`}>
-              {suggestionNames.map((n) => <option key={n} value={n} />)}
-            </datalist>
-            <input
-              value={version}
-              onChange={(e) => setVersion(e.target.value)}
-              onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); add() } else if (e.key === "Escape") { setAdding(false); setName(""); setVersion("") } }}
-              placeholder="version (option.)"
-              aria-label="Version (optionnel)"
-              className="h-8 w-28 rounded-lg border border-input bg-transparent px-3 text-sm tabular-nums focus:outline-none focus:ring-1 focus:ring-ring"
-            />
-            <button onClick={add} disabled={isPending || !name.trim()} aria-label="Valider" className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-input text-primary hover:bg-muted disabled:opacity-50">
-              <Check className="h-4 w-4" />
-            </button>
-            <button onClick={() => { setAdding(false); setName(""); setVersion("") }} aria-label="Annuler" className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-input text-muted-foreground hover:bg-muted">
-              <X className="h-4 w-4" />
-            </button>
-          </div>
-          {detected && detectedSection && (
-            <p className="text-[11px] text-muted-foreground pl-1">
-              Détecté :{" "}
-              <span className="font-medium text-foreground">{SECTION_LABEL[detectedSection]}</span>
-              {detected.group ? <> · {detected.group}</> : null}
-              {!detected.tech && <span className="italic"> (classement approché — ajustable ensuite)</span>}
-            </p>
+              {allPrimaries.length === 0 && linked.length > PREVIEW_ICONS && (
+                <span className="text-xs text-muted-foreground">+{linked.length - PREVIEW_ICONS}</span>
+              )}
+            </span>
           )}
-        </div>
-      ) : (
-        <button
-          type="button"
-          onClick={() => setAdding(true)}
-          className="inline-flex items-center gap-1.5 rounded-full border border-dashed border-border/70 bg-transparent px-2.5 py-1 text-xs text-muted-foreground hover:border-primary/50 hover:text-primary transition-colors"
-        >
-          <Plus className="h-3.5 w-3.5" /> Ajouter une techno
         </button>
       )}
 
-      {/* Éditeur inline de la pastille sélectionnée */}
-      {editing && (
-        <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border/50 bg-muted/20 p-2.5 text-xs">
-          <span className="inline-flex items-center gap-1.5 font-medium"><TechIcon name={editing.name} size={16} /> {editing.name}</span>
-          <button
-            onClick={() => toggleCore(editing)}
-            disabled={isPending}
-            aria-pressed={editing.core}
-            className={`inline-flex items-center gap-1 rounded-md border px-2 py-1 ${editing.core ? "border-amber-500/40 bg-amber-500/10 text-amber-600" : "border-input text-muted-foreground hover:bg-muted"}`}
-            title="Épingler dans la « stack principale » de sa section"
-          >
-            <Star className={`h-3.5 w-3.5 ${editing.core ? "fill-amber-500 text-amber-500" : ""}`} /> Stack
-          </button>
-          <label className="flex items-center gap-1 text-muted-foreground">
-            version
-            <input
-              defaultValue={editing.version ?? ""}
-              onBlur={(e) => { if ((e.target.value.trim() || null) !== editing.version) saveVersion(editing, e.target.value) }}
-              placeholder="ex : 3.5"
-              className="h-7 w-24 rounded-md border border-input bg-transparent px-2 tabular-nums focus:outline-none focus:ring-1 focus:ring-ring"
-            />
-          </label>
-          <label className="flex items-center gap-1 text-muted-foreground">
-            famille
-            <select
-              value={editing.family ?? classifyTech(editing.name).family}
-              onChange={(e) => saveFamily(editing, e.target.value as SkillFamily)}
-              className="h-7 rounded-md border border-input bg-transparent px-1.5 focus:outline-none focus:ring-1 focus:ring-ring"
+      {/* ── Vue DÉPLIÉE : sections détaillées + ajout + éditeur ── */}
+      {expanded && (
+        <div className="space-y-4 px-4 pb-4">
+          {linked.length === 0 && !adding && (
+            <p className="text-xs text-muted-foreground italic">
+              Aucune techno liée — ajoute la stack (langage, framework, BDD…) puis les outils. La famille est déduite automatiquement.
+            </p>
+          )}
+
+          {grouped.map(({ sec, primaries, groups }) => (
+            <section key={sec.key} className="space-y-2">
+              {/* En-tête de section */}
+              <div className="flex items-center gap-2">
+                <span className="h-2 w-2 rounded-full" style={{ backgroundColor: sec.color }} />
+                <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{sec.label}</span>
+              </div>
+
+              {/* Stack principale (framework + langage + moteur BDD) */}
+              {primaries.length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  {primaries.map((s) => <Pastille key={s.id} s={s} color={sec.color} />)}
+                </div>
+              )}
+
+              {/* Nuage — plat (hors DevOps) ou re-catégorisé (DevOps) */}
+              {groups.map((g) => (
+                <div key={g.label || "flat"} className={g.label ? "flex flex-wrap items-center gap-x-2 gap-y-1.5" : "flex flex-wrap gap-1.5"}>
+                  {g.label && (
+                    <span className="inline-flex shrink-0 items-center gap-1 text-[10px] font-medium uppercase tracking-wide" style={{ color: g.color }}>
+                      <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: g.color }} />
+                      {g.label}
+                    </span>
+                  )}
+                  <span className="flex flex-wrap gap-1.5">
+                    {g.items.map((s) => <Chip key={s.id} s={s} color={g.color} />)}
+                  </span>
+                </div>
+              ))}
+            </section>
+          ))}
+
+          {/* Ajout : pastille pointillée « + » → champ techno + version (famille auto) */}
+          {adding ? (
+            <div className="space-y-1.5 border-t border-border/40 pt-1">
+              <div className="flex flex-wrap items-center gap-2 pt-2">
+                <input
+                  list={`pskills-bar-${projectId}`}
+                  autoFocus
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); add() } else if (e.key === "Escape") { setAdding(false); setName(""); setVersion("") } }}
+                  placeholder="Techno (ex : FastAPI, Spring Boot, Docker, Trivy…)"
+                  aria-label="Ajouter une techno au projet"
+                  className="h-8 w-64 max-w-full rounded-lg border border-input bg-transparent px-3 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+                />
+                <datalist id={`pskills-bar-${projectId}`}>
+                  {suggestionNames.map((n) => <option key={n} value={n} />)}
+                </datalist>
+                <input
+                  value={version}
+                  onChange={(e) => setVersion(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); add() } else if (e.key === "Escape") { setAdding(false); setName(""); setVersion("") } }}
+                  placeholder="version (option.)"
+                  aria-label="Version (optionnel)"
+                  className="h-8 w-28 rounded-lg border border-input bg-transparent px-3 text-sm tabular-nums focus:outline-none focus:ring-1 focus:ring-ring"
+                />
+                <button onClick={add} disabled={isPending || !name.trim()} aria-label="Valider" className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-input text-primary hover:bg-muted disabled:opacity-50">
+                  <Check className="h-4 w-4" />
+                </button>
+                <button onClick={() => { setAdding(false); setName(""); setVersion("") }} aria-label="Annuler" className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-input text-muted-foreground hover:bg-muted">
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+              {detected && detectedSection && (
+                <p className="pl-1 text-[11px] text-muted-foreground">
+                  Détecté :{" "}
+                  <span className="font-medium text-foreground">{SECTION_LABEL[detectedSection]}</span>
+                  {detected.group ? <> · {detected.group}</> : null}
+                  {!detected.tech && <span className="italic"> (classement approché — ajustable ensuite)</span>}
+                </p>
+              )}
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setAdding(true)}
+              className="inline-flex items-center gap-1.5 rounded-full border border-dashed border-border/70 bg-transparent px-2.5 py-1 text-xs text-muted-foreground transition-colors hover:border-primary/50 hover:text-primary"
             >
-              {SKILL_FAMILIES.map((f) => <option key={f.key} value={f.key}>{SKILL_FAMILY_LABEL[f.key]}</option>)}
-            </select>
-          </label>
-          <button onClick={() => remove(editing)} disabled={isPending} className="ml-auto inline-flex items-center gap-1 rounded-md px-2 py-1 text-destructive hover:bg-destructive/10 disabled:opacity-50">
-            <X className="h-3.5 w-3.5" /> Retirer
-          </button>
-          <button onClick={() => setEditing(null)} className="inline-flex items-center rounded-md border border-input px-2 py-1 text-muted-foreground hover:bg-muted">
-            Fermer
-          </button>
+              <Plus className="h-3.5 w-3.5" /> Ajouter une techno
+            </button>
+          )}
+
+          {/* Éditeur inline de la pastille sélectionnée */}
+          {editing && (
+            <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border/50 bg-muted/20 p-2.5 text-xs">
+              <span className="inline-flex items-center gap-1.5 font-medium"><TechIcon name={editing.name} size={16} /> {editing.name}</span>
+              <button
+                onClick={() => toggleCore(editing)}
+                disabled={isPending}
+                aria-pressed={editing.core}
+                className={`inline-flex items-center gap-1 rounded-md border px-2 py-1 ${editing.core ? "border-amber-500/40 bg-amber-500/10 text-amber-600" : "border-input text-muted-foreground hover:bg-muted"}`}
+                title="Épingler dans la « stack principale » de sa section"
+              >
+                <Star className={`h-3.5 w-3.5 ${editing.core ? "fill-amber-500 text-amber-500" : ""}`} /> Stack
+              </button>
+              <label className="flex items-center gap-1 text-muted-foreground">
+                version
+                <input
+                  defaultValue={editing.version ?? ""}
+                  onBlur={(e) => { if ((e.target.value.trim() || null) !== editing.version) saveVersion(editing, e.target.value) }}
+                  placeholder="ex : 3.5"
+                  className="h-7 w-24 rounded-md border border-input bg-transparent px-2 tabular-nums focus:outline-none focus:ring-1 focus:ring-ring"
+                />
+              </label>
+              <label className="flex items-center gap-1 text-muted-foreground">
+                famille
+                <select
+                  value={editing.family ?? classifyTech(editing.name).family}
+                  onChange={(e) => saveFamily(editing, e.target.value as SkillFamily)}
+                  className="h-7 rounded-md border border-input bg-transparent px-1.5 focus:outline-none focus:ring-1 focus:ring-ring"
+                >
+                  {SKILL_FAMILIES.map((f) => <option key={f.key} value={f.key}>{SKILL_FAMILY_LABEL[f.key]}</option>)}
+                </select>
+              </label>
+              <button onClick={() => remove(editing)} disabled={isPending} className="ml-auto inline-flex items-center gap-1 rounded-md px-2 py-1 text-destructive hover:bg-destructive/10 disabled:opacity-50">
+                <X className="h-3.5 w-3.5" /> Retirer
+              </button>
+              <button onClick={() => setEditing(null)} className="inline-flex items-center rounded-md border border-input px-2 py-1 text-muted-foreground hover:bg-muted">
+                Fermer
+              </button>
+            </div>
+          )}
         </div>
       )}
     </div>

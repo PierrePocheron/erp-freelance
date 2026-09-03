@@ -149,7 +149,7 @@ export async function updateProjectCompany(projectId: string, companyId: string 
 export async function addProjectContact(
   projectId: string,
   clientId: string,
-  role: "CLIENT" | "COLLEAGUE" | "PARTNER" | "SUPPLIER" | "OTHER" = "OTHER",
+  role: "CLIENT" | "COLLEAGUE" | "PARTNER" | "SUPPLIER" | "PERSONAL" | "OTHER" = "OTHER",
   label?: string,
 ) {
   const userId = await requireAuth()

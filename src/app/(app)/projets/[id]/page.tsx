@@ -13,6 +13,8 @@ import { ProjectTasksCard } from "@/components/modules/projet/ProjectTasksCard"
 import { ProjectLinksCard } from "@/components/modules/projet/ProjectLinksCard"
 import { ProjectJobApplicationCard } from "@/components/modules/projet/ProjectJobApplicationCard"
 import { ProjectSkillsBar } from "@/components/modules/projet/ProjectSkillsBar"
+import { ProjectTimeDialog } from "@/components/modules/projet/ProjectTimeDialog"
+import { ProjectTimePanel } from "@/components/modules/projet/ProjectTimePanel"
 import { REVENUE_TYPE_LABELS } from "@/lib/revenue-constants"
 
 function fmtTime(d: Date | string) {
@@ -503,6 +505,30 @@ export default async function ProjectOverviewPage({
               <p className="text-xs text-muted-foreground">Aucune facturation liée à ce projet</p>
             </div>
           )}
+        </div>
+
+        {/* Temps — fonctionnalité secondaire : carte compacte en bas du bento, le détail
+            complet (temps par tâche, entrées, saisie manuelle, export) s'ouvre en modale. */}
+        <div className="rounded-xl border border-border/50 bg-card p-5 space-y-3">
+          <div className="flex items-center gap-2 font-semibold text-sm">
+            <Clock className="h-4 w-4 text-muted-foreground" />
+            Temps
+            <span className="ml-auto"><ProjectTimeDialog><ProjectTimePanel projectId={id} userId={userId} /></ProjectTimeDialog></span>
+          </div>
+          <div className="grid grid-cols-3 gap-3 text-center">
+            <div className="rounded-lg bg-muted/40 py-2">
+              <p className={`text-lg font-bold tabular-nums ${isOver ? "text-red-500" : ""}`}>{totalTrackedSeconds > 0 ? fmtH(totalTrackedHours) : "0h"}</p>
+              <p className="text-[11px] text-muted-foreground">suivi</p>
+            </div>
+            <div className="rounded-lg bg-muted/40 py-2">
+              <p className="text-lg font-bold tabular-nums">{project.estimatedHours ? fmtH(project.estimatedHours) : "—"}</p>
+              <p className="text-[11px] text-muted-foreground">estimé</p>
+            </div>
+            <div className="rounded-lg bg-muted/40 py-2">
+              <p className={`text-lg font-bold tabular-nums ${isOver ? "text-red-500" : budgetPct && budgetPct > 80 ? "text-amber-600" : ""}`}>{budgetPct !== null ? `${budgetPct}%` : "—"}</p>
+              <p className="text-[11px] text-muted-foreground">utilisé</p>
+            </div>
+          </div>
         </div>
 
         {/* Entretien associé — rare (surtout AlgoSecure) : placé en fin de bento */}

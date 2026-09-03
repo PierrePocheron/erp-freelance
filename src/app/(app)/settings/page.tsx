@@ -12,13 +12,15 @@ import { ModulesPanel } from "@/components/modules/settings/ModulesPanel"
 import { ProspectionSettingsPanel } from "@/components/modules/settings/ProspectionSettingsPanel"
 import { AppearanceSection } from "@/components/modules/settings/AppearanceSection"
 import { hasCalendarScope } from "@/lib/google-calendar"
+import { hasContactsScope } from "@/lib/google-contacts"
+import { GoogleContactsSection } from "@/components/modules/settings/GoogleContactsSection"
 import { LogOut } from "lucide-react"
 
 export default async function SettingsPage() {
   const session = await auth()
   const userId = session!.user.id
 
-  const [profile, user, emitters, fiscalSources, conditionsTemplates, exportStats, googleCalendarScope, emailTemplates] = await Promise.all([
+  const [profile, user, emitters, fiscalSources, conditionsTemplates, exportStats, googleCalendarScope, googleContactsScope, emailTemplates] = await Promise.all([
     prisma.userProfile?.findUnique({ where: { userId } }).catch(() => null) ?? null,
     prisma.user.findUnique({ where: { id: userId }, select: { name: true, email: true } }),
     prisma.emitterProfile.findMany({
@@ -58,6 +60,7 @@ export default async function SettingsPage() {
       contacts, prospects, projects, tasks, quotes, invoices, interactions, timeEntries, revenues,
     })),
     hasCalendarScope(userId),
+    hasContactsScope(userId),
     prisma.emailTemplate.findMany({
       where: { userId, archivedAt: null },
       orderBy: [{ sortOrder: "asc" }, { updatedAt: "desc" }],
@@ -109,7 +112,12 @@ export default async function SettingsPage() {
         templates={emailTemplates}
       />
     ),
-    integrations: <GoogleCalendarSection hasScope={googleCalendarScope} syncThresholdMin={profile?.calendarSyncThresholdMin ?? 30} />,
+    integrations: (
+      <div className="space-y-6">
+        <GoogleCalendarSection hasScope={googleCalendarScope} syncThresholdMin={profile?.calendarSyncThresholdMin ?? 30} />
+        <GoogleContactsSection hasScope={googleContactsScope} />
+      </div>
+    ),
     donnees: (
       <>
         <ExportSection stats={exportStats} />

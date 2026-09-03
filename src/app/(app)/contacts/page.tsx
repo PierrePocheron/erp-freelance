@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma"
 import Link from "next/link"
 import { CreateClientDialog } from "@/components/modules/crm/CreateClientDialog"
 import { CrmList } from "@/components/modules/crm/CrmList"
-import { Users, Thermometer, TrendingUp, AlertCircle, Target } from "lucide-react"
+import { Users, Thermometer, TrendingUp, AlertCircle, Target, Upload } from "lucide-react"
 import { isContactIncomplete } from "@/lib/contact"
 import { IncompleteContactsSheet } from "@/components/modules/crm/IncompleteContactsSheet"
 
@@ -75,7 +75,16 @@ export default async function CRMPage() {
           <h1 className="sm:hidden text-2xl font-bold tracking-tight">Contacts</h1>
           <p className="text-sm text-muted-foreground">{clients.length} contact{clients.length !== 1 ? "s" : ""}</p>
         </div>
-        <CreateClientDialog userId={userId} />
+        <div className="flex items-center gap-2">
+          <Link
+            href="/contacts/import"
+            className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-border px-3 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+            title="Importer depuis le téléphone (.vcf), le carnet natif ou Google Contacts"
+          >
+            <Upload className="h-4 w-4" /> <span className="hidden sm:inline">Importer</span>
+          </Link>
+          <CreateClientDialog userId={userId} />
+        </div>
       </div>
 
       {/* Stats */}

@@ -90,9 +90,10 @@ async function loadGoogleAccount(userId: string): Promise<GoogleAccountTokens | 
  * en rafraîchissant si nécessaire. Retourne null si pas de scope calendar,
  * pas de token, ou échec du refresh.
  */
-async function resolveAccessToken(userId: string, account: GoogleAccountTokens | null): Promise<string | null> {
+// `requiredScope` : mot-clé attendu dans la chaîne de scopes ("calendar" par défaut, "contacts"…).
+async function resolveAccessToken(userId: string, account: GoogleAccountTokens | null, requiredScope = "calendar"): Promise<string | null> {
   if (!account) return null
-  if (!account.scope?.includes("calendar")) return null
+  if (!account.scope?.includes(requiredScope)) return null
   if (!account.access_token) return null
 
   // Si le token expire dans moins de 5 minutes, on le rafraîchit
@@ -145,6 +146,11 @@ async function resolveAccessToken(userId: string, account: GoogleAccountTokens |
  */
 export async function getGoogleAccessToken(userId: string): Promise<string | null> {
   return resolveAccessToken(userId, await loadGoogleAccount(userId))
+}
+
+/** Jeton valide pour un autre périmètre Google (ex. "contacts") — même mécanisme de refresh. */
+export async function getGoogleAccessTokenFor(userId: string, requiredScope: string): Promise<string | null> {
+  return resolveAccessToken(userId, await loadGoogleAccount(userId), requiredScope)
 }
 
 /**

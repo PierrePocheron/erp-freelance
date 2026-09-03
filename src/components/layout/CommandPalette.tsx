@@ -18,6 +18,7 @@ type NavItem = {
 const ALL_NAV_ITEMS: NavItem[] = [
   { label: "Dashboard",            href: "/",                       icon: "⚡", keywords: ["accueil", "home", "tableau de bord", "dashboard"] },
   { label: "Contacts",             href: "/contacts",               icon: "👥", keywords: ["client", "crm", "contact"],                                                                      moduleId: "contacts"    },
+  { label: "Importer des contacts", href: "/contacts/import",       icon: "📥", keywords: ["import", "vcf", "google contacts", "téléphone", "carnet"],                                       moduleId: "contacts"    },
   { label: "Prospection",          href: "/prospection",            icon: "🎯", keywords: ["prospect", "prospection", "lead", "demarchage", "démarchage", "pipeline", "emailing"],          moduleId: "prospection" },
   { label: "Modèles de mails",     href: "/prospection/modeles",    icon: "✉️", keywords: ["modele", "modèle", "template", "email", "mail", "demarchage", "démarchage"],                    moduleId: "prospection" },
   { label: "Modèles d'appel",      href: "/prospection/appels",     icon: "📞", keywords: ["modele", "modèle", "script", "appel", "telephone", "téléphone", "call", "demarchage", "démarchage"], moduleId: "prospection" },

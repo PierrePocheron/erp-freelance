@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react"
 import Link from "next/link"
-import { Plus, X, Loader2, Mail, Phone, Building2 } from "lucide-react"
+import { Plus, UserPlus, X, Loader2, Mail, Phone, Building2 } from "lucide-react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger } from "@/components/ui/dialog"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { ClientCombobox } from "@/components/modules/facturation/ClientCombobox"
@@ -131,19 +131,20 @@ export function ProjectContactsStack({
           </div>
         )}
 
-        {/* « + » : gérer / associer */}
+        {/* Bouton explicite « Ajouter un contact » (un « + » nu ne dit pas à quoi il sert) ;
+            la modale permet aussi de gérer/retirer les contacts déjà liés. */}
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger
             render={
               <button
                 type="button"
-                aria-label={projectContacts.length === 0 ? "Associer un contact" : "Gérer les contacts du projet"}
-                title={projectContacts.length === 0 ? "Associer un contact" : "Gérer les contacts"}
-                className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-dashed border-border text-muted-foreground transition-colors hover:border-primary/50 hover:text-primary"
+                title="Ajouter un contact au projet (et gérer les contacts liés)"
+                className="inline-flex h-8 items-center gap-1.5 rounded-full border border-dashed border-border px-3 text-xs font-medium text-muted-foreground transition-colors hover:border-primary/50 hover:text-primary"
               />
             }
           >
-            {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+            {isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <UserPlus className="h-3.5 w-3.5" />}
+            Ajouter un contact
           </DialogTrigger>
 
           <DialogContent className="sm:max-w-md">

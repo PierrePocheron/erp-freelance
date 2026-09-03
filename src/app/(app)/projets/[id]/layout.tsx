@@ -70,7 +70,10 @@ export default async function ProjectLayout({
       {/* flex-wrap + min-w-0 : sur mobile la colonne de droite passe sous le titre
           au lieu de le compresser */}
       <div className="flex flex-wrap items-start justify-between gap-4">
-        <div className="space-y-2 min-w-0">
+        {/* flex-1 basis-0 (dès sm) : la colonne gauche absorbe la largeur, sinon une description
+            longue lui donne une taille « idéale » = toute la ligne et rejette la colonne droite
+            (contacts + pills) sous le titre. Sur mobile (basis-full) elle passe dessous, voulu. */}
+        <div className="min-w-0 flex-1 basis-full sm:basis-0 space-y-2">
           {project.company ? (
             <Link
               href={`/societes/${project.company.id}`}

@@ -225,9 +225,12 @@ export function ProjetsListView({
     return matchStatus && matchCategory && matchSearch
   })
 
+  // « Terminé » regroupe les projets terminés ET annulés (le badge « Annulé » barré les distingue) ;
+  // « Autres » = en pause / archivés.
+  const isClosed = (p: Project) => p.status === "COMPLETED" || p.status === "CANCELLED"
   const active    = [...filtered.filter((p) => p.status === "ACTIVE")].sort(cardSort)
-  const completed = [...filtered.filter((p) => p.status === "COMPLETED")].sort(cardSort)
-  const others    = [...filtered.filter((p) => p.status !== "ACTIVE" && p.status !== "COMPLETED")].sort(cardSort)
+  const completed = [...filtered.filter(isClosed)].sort(cardSort)
+  const others    = [...filtered.filter((p) => p.status !== "ACTIVE" && !isClosed(p))].sort(cardSort)
 
   const listItems = useMemo(() => {
     const all = [...active, ...completed, ...others]

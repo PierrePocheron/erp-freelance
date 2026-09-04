@@ -1,5 +1,6 @@
 "use server"
 
+import { parseGoogleDate } from "@/lib/dates"
 import { prisma } from "@/lib/prisma"
 import { auth } from "@/lib/auth"
 import { revalidatePath } from "next/cache"
@@ -973,8 +974,11 @@ export async function syncGooglePull(monthsBack: number = 1): Promise<SyncResult
       const endStr   = gEvent.end.dateTime ?? gEvent.end.date
       if (!startStr) continue
 
-      const startDate   = new Date(startStr)
-      const endDate     = endStr ? new Date(endStr) : null
+      // Journée entière = date seule ("2026-09-10", fin EXCLUSIVE). `new Date("2026-09-10")` = minuit
+      // UTC = 02:00 à Paris → l'événement débordait sur le lendemain (« Anniversaire Hugo » sur 29 ET 30).
+      // On construit minuit Europe/Paris, indépendamment du fuseau du serveur (UTC sur Vercel).
+      const startDate   = parseGoogleDate(startStr)
+      const endDate     = endStr ? parseGoogleDate(endStr) : null
       const allDay      = !gEvent.start.dateTime
       const description = gEvent.description ?? null
 

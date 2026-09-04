@@ -141,13 +141,28 @@ function eventDayRange(ev: CalendarEvent): { first: Date; last: Date } {
   return { first, last: first }
 }
 
+/**
+ * Événements d'une journée, ORDONNÉS : journée entière d'abord (bandeaux), puis les
+ * horaires par heure croissante (16h avant 18h) — départage par fin décroissante puis titre.
+ * Alimente les cases de la vue mois et le dialogue du jour (les sources sont concaténées
+ * dans un ordre arbitraire côté serveur ; sans ce tri, 18h pouvait précéder 16h).
+ */
 function eventsForDay(events: CalendarEvent[], date: Date): CalendarEvent[] {
   const d = startOfDay(date).getTime()
-  return events.filter(e => {
-    if (isTimedEvent(e)) return isSameDay(new Date(e.date), date)
-    const { first, last } = eventDayRange(e)
-    return d >= first.getTime() && d <= last.getTime()
-  })
+  return events
+    .filter(e => {
+      if (isTimedEvent(e)) return isSameDay(new Date(e.date), date)
+      const { first, last } = eventDayRange(e)
+      return d >= first.getTime() && d <= last.getTime()
+    })
+    .sort((a, b) => {
+      const ta = isTimedEvent(a), tb = isTimedEvent(b)
+      if (ta !== tb) return ta ? 1 : -1
+      if (!ta) return a.title.localeCompare(b.title, "fr")
+      return new Date(a.date).getTime() - new Date(b.date).getTime()
+        || effectiveEndMs(b) - effectiveEndMs(a)
+        || a.title.localeCompare(b.title, "fr")
+    })
 }
 
 /** Vrai pour un événement journée entière s'étalant sur ≥ 2 jours. */

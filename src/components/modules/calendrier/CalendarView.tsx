@@ -1658,9 +1658,9 @@ function MonthView({
     const weekDates = Array.from({ length: 7 }, (_, c) => addDays(gridStart, r * 7 + c))
     return layoutSpansForDays(multiDayEvents, weekDates)
   })
-  const rowLanes = rowLayouts.map(l => l.lanes)
   const MONTH_BAR_H  = 18   // hauteur d'une lane de barre
-  const MONTH_DATE_H = 24   // espace réservé au numéro du jour avant les barres
+  // Numéro du jour : p-1 (4) + h-5 (20) + mb-0.5 (2) = 26 px — les barres démarrent juste dessous.
+  const MONTH_DATE_H = 26
 
   const isToday = (day: number) =>
     day === today.getDate() && month === today.getMonth() && year === today.getFullYear()
@@ -1682,6 +1682,11 @@ function MonthView({
             <div key={`e-${i}`} className={cn("border-b border-r border-border/30 bg-muted/20", i % 7 === 6 && "border-r-0")} />
           )
           const row        = Math.floor(i / 7)
+          const col        = i % 7
+          // Lanes réellement occupées sur CE jour (barres couvrant la colonne) : les puces
+          // démarrent sous la plus haute barre du jour — garanti par construction, et un jour
+          // sans barre ne réserve rien (avant : réservation uniforme par rangée).
+          const cellLanes  = rowLayouts[row].spans.reduce((m, s) => (s.startCol <= col && col <= s.endCol ? Math.max(m, s.lane + 1) : m), 0)
           const dayDate    = new Date(year, month, day)
           const dayEvents  = eventsForDay(events, dayDate)
           // Les barres multi-jours sont dessinées par l'overlay → exclues des chips.
@@ -1728,7 +1733,7 @@ function MonthView({
                 {day}
               </span>
               {/* Espace réservé aux barres multi-jours de la semaine (dessinées en overlay) */}
-              {rowLanes[row] > 0 && <div aria-hidden style={{ height: rowLanes[row] * MONTH_BAR_H }} />}
+              {cellLanes > 0 && <div aria-hidden style={{ height: cellLanes * MONTH_BAR_H }} />}
               <div className="space-y-px">
                 {dayChips.slice(0, 2).map(ev => (
                   <div

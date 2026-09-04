@@ -1570,10 +1570,12 @@ export function CalendarView({
       <Dialog open={selectedDay !== null} onOpenChange={v => { if (!v) setSelectedDay(null) }}>
           <DialogContent className="sm:max-w-md max-h-[85vh] flex flex-col overflow-hidden">
             <DialogHeader className="shrink-0">
-              <DialogTitle className="capitalize flex items-center justify-between gap-2">
-                <span>{selectedDay?.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" }) ?? ""}</span>
+              {/* pr-8 : réserve la place du bouton ✕ (absolu, en haut à droite de DialogContent)
+                  pour que le compteur ne passe pas dessous. */}
+              <DialogTitle className="capitalize flex items-center justify-between gap-2 pr-8">
+                <span className="min-w-0 truncate">{selectedDay?.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" }) ?? ""}</span>
                 {selectedDay && (
-                  <span className="text-xs font-normal text-muted-foreground">
+                  <span className="shrink-0 whitespace-nowrap text-xs font-normal text-muted-foreground">
                     {eventsForDay(filteredEvents, selectedDay).length} événement{eventsForDay(filteredEvents, selectedDay).length > 1 ? "s" : ""}
                   </span>
                 )}

@@ -1672,7 +1672,11 @@ function MonthView({
           <div key={d} className="py-2 text-center text-xs font-medium text-muted-foreground">{d}</div>
         ))}
       </div>
-      <div className="relative grid grid-cols-7 flex-1" style={{ gridTemplateRows: `repeat(${numRows}, minmax(0, 1fr))` }}>
+      {/* min-h-0 : sans lui, la grille (enfant flex) garde min-height:auto = hauteur de son
+          contenu, déborde du conteneur overflow-hidden et la dernière rangée (28→30) est
+          coupée. Avec, les rangées minmax(0,1fr) se partagent la hauteur réellement visible ;
+          chaque case plafonne déjà à 2 puces + « +N » et clippe le reste. */}
+      <div className="relative grid grid-cols-7 flex-1 min-h-0" style={{ gridTemplateRows: `repeat(${numRows}, minmax(0, 1fr))` }}>
         {cells.map((day, i) => {
           if (!day) return (
             <div key={`e-${i}`} className={cn("border-b border-r border-border/30 bg-muted/20", i % 7 === 6 && "border-r-0")} />

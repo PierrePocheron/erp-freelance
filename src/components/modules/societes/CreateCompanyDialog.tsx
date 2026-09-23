@@ -50,6 +50,7 @@ export function CreateCompanyDialog({
   const [categoryId, setCategoryId] = useState("")
 
   function handleOpenChange(v: boolean) {
+    if (!v) setCategoryId("")
     if (!isControlled) setInternalOpen(v)
     controlledOnOpenChange?.(v)
   }

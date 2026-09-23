@@ -966,6 +966,7 @@ model Product {
   user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   quoteLines  QuoteLine[]
   invoiceLines InvoiceLine[]
+  recurringInvoiceLines RecurringInvoiceLine[]
 }
 
 model Quote {
@@ -1082,12 +1083,34 @@ model RecurringInvoice {
   frequency            RecurringFrequency @default(MONTHLY)
   nextGenerationDate   DateTime
   isActive             Boolean            @default(true)
+  totalHT              Float              @default(0)
   createdAt            DateTime           @default(now())
   updatedAt            DateTime           @updatedAt
 
   user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   client  Client   @relation(fields: [clientId], references: [id])
   project Project? @relation(fields: [projectId], references: [id])
+  lines   RecurringInvoiceLine[]
+}
+
+// Lignes d'une facture récurrente. La table existe en base depuis la migration
+// 20260609110000_recurring_invoice_lines ; elle manquait ici, ce qui faisait produire à
+// `prisma migrate diff` un DROP TABLE destructeur à chaque comparaison base ↔ schéma.
+model RecurringInvoiceLine {
+  id                 String  @id @default(cuid())
+  recurringInvoiceId String
+  productId          String?
+  description        String  @default("")
+  detail             String?
+  quantity           Float   @default(1)
+  unitPrice          Float   @default(0)
+  taxRate            Float   @default(0)
+  total              Float   @default(0)
+
+  recurringInvoice RecurringInvoice @relation(fields: [recurringInvoiceId], references: [id], onDelete: Cascade)
+  product          Product?         @relation(fields: [productId], references: [id], onDelete: SetNull)
+
+  @@index([recurringInvoiceId])
 }
 
 model EmailLog {

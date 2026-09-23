@@ -81,7 +81,7 @@ export async function createManualTimeEntry(
     data: { taskId, userId, startedAt, endedAt, duration, note: note?.trim() || null },
   })
 
-  revalidatePath(`/projets/${projectId}/temps`)
+  revalidatePath(`/projets/${projectId}`)
   revalidatePath(`/projets/${projectId}/dev`)
   return {}
 }

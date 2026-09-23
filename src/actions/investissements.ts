@@ -183,13 +183,14 @@ export async function ensureInvestmentReviewTasks(_userId: string, enabled: bool
 
   const parent = await prisma.task.findFirst({
     where: { userId, investmentPeriod: period, parentTaskId: null },
-    select: { id: true, status: true, subTasks: { select: { investmentPlatformId: true } } },
+    select: { id: true, status: true, dueDate: true, subTasks: { select: { investmentPlatformId: true } } },
   })
+
+  const dueDay = Math.min(Math.max(Math.trunc(day) || 1, 1), 28)
+  const dueDate = new Date(now.getFullYear(), now.getMonth(), dueDay, 9, 0, 0)
 
   // Aucune tâche pour le mois → parent daté + une sous-tâche par plateforme.
   if (!parent) {
-    const dueDay = Math.min(Math.max(Math.trunc(day) || 1, 1), 28)
-    const dueDate = new Date(now.getFullYear(), now.getMonth(), dueDay, 9, 0, 0)
     const created = await prisma.task.create({
       data: {
         userId,
@@ -212,6 +213,10 @@ export async function ensureInvestmentReviewTasks(_userId: string, enabled: bool
   // été soldée alors qu'une nouvelle plateforme reste à relever.
   const covered = new Set(parent.subTasks.map((s) => s.investmentPlatformId).filter(Boolean))
   const missing = platforms.filter((p) => !covered.has(p.id))
+  // Le jour d'échéance a pu changer en cours de mois (setInvestmentReviewReminder).
+  if (parent.dueDate && dueDate.getTime() !== parent.dueDate.getTime()) {
+    await prisma.task.update({ where: { id: parent.id }, data: { dueDate } })
+  }
   if (missing.length === 0) return
 
   await prisma.task.createMany({

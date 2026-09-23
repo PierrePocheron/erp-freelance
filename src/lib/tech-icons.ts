@@ -85,11 +85,12 @@ export const GROUP_META: Record<string, { color: string }> = {
   "Sécurité — SCA":    { color: DEVOPS_RED },
   "Sécurité — SBOM":   { color: DEVOPS_RED },
   "Sécurité":          { color: DEVOPS_RED },
+  "Outillage":         { color: "#64748b" },
 }
 export const GROUP_ORDER = [
   "Conteneurisation", "Orchestration", "Cloud", "CI/CD", "Build", "Observabilité",
   "Sécurité — SAST", "Sécurité — DAST", "Sécurité — SCA", "Sécurité — SBOM", "Sécurité",
-  "Tests", "Versioning", "Infra",
+  "Tests", "Versioning", "Infra", "Outillage",
 ]
 
 // ── Table des technos ────────────────────────────────────────────────────────
@@ -106,7 +107,7 @@ const TECHS: TechDef[] = [
   { label: "Go",          keys: ["golang", "go"],               family: "BACKEND",  kind: "language", color: "#00ACD7", slug: "go" },
   { label: "Rust",        keys: ["rust"],                       family: "BACKEND",  kind: "language", color: "#DE4A22", slug: "rust" },
   { label: "Ruby",        keys: ["ruby"],                       family: "BACKEND",  kind: "language", color: "#CC342D", slug: "ruby" },
-  { label: "C#",          keys: ["csharp", "csharp"],           family: "BACKEND",  kind: "language", color: "#68217A", slug: "csharp" },
+  { label: "C#",          keys: ["csharp", "cdiese"],           family: "BACKEND",  kind: "language", color: "#68217A", slug: "csharp" },
   { label: "TypeScript",  keys: ["typescript", "ts"],           family: "FRONTEND", kind: "language", color: "#3178C6", slug: "typescript" },
   { label: "JavaScript",  keys: ["javascript", "js"],           family: "FRONTEND", kind: "language", color: "#F7DF1E", slug: "javascript" },
 
@@ -247,8 +248,21 @@ const RULES: { keys: string[]; family: SkillFamily; kind: TechKind; group?: stri
   { keys: ["test"],                 family: "DEVOPS", kind: "tool", group: "Tests", color: "#22c55e" },
 ]
 
+// Noms dont la ponctuation porte le sens : elle disparaîtrait à la normalisation
+// (« C# » et « C++ » deviendraient tous deux « c »).
+const PUNCT_ALIASES: Record<string, string> = { "c#": "csharp", "c++": "cplusplus", "f#": "fsharp", ".net": "dotnet" }
+
 export function normalizeTech(name: string): string {
-  return name.toLowerCase().replace(/[^a-z0-9]/g, "")
+  const raw = name.trim().toLowerCase()
+  if (PUNCT_ALIASES[raw]) return PUNCT_ALIASES[raw]
+  return raw.replace(/[^a-z0-9]/g, "")
+}
+
+/** Mots du nom, normalisés séparément (« Marketing digital » → ["marketing", "digital"]). */
+function tokensOf(name: string): string[] {
+  const raw = name.trim().toLowerCase()
+  if (PUNCT_ALIASES[raw]) return [PUNCT_ALIASES[raw]]
+  return raw.split(/[^a-z0-9]+/).filter(Boolean)
 }
 
 // ── Correspondance nom → def (exacte, sinon sous-chaîne la plus longue) ───────
@@ -257,12 +271,17 @@ function matchTech(name: string): TechDef | null {
   if (!n) return null
   // 1) une clé strictement égale (priorité absolue)
   for (const t of TECHS) if (t.keys.includes(n)) return t
-  // 2) sinon la def dont une clé (≥ 3 car.) est contenue dans le nom, la plus longue gagne
+  // 2) sinon la def dont une clé est contenue dans le nom, la plus longue gagne.
+  //    Une clé courte (< 5 car.) doit correspondre à un MOT entier : sans cela
+  //    « Marketing digital » contient « git » et tombait sur Git.
+  const words = new Set(tokensOf(name))
   let best: TechDef | null = null
   let bestLen = 0
   for (const t of TECHS) {
     for (const k of t.keys) {
-      if (k.length >= 3 && k.length > bestLen && n.includes(k)) { best = t; bestLen = k.length }
+      if (k.length <= bestLen) continue
+      const hit = k.length >= 5 ? n.includes(k) : words.has(k)
+      if (hit) { best = t; bestLen = k.length }
     }
   }
   return best

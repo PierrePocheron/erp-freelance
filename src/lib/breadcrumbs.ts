@@ -36,7 +36,6 @@ export const SUBROUTE_LABELS: Record<string, string> = {
   // Projets
   "/projets/[id]/dev": "Développement",
   "/projets/[id]/post-dev": "Post-dev",
-  "/projets/[id]/temps": "Temps",
   // Entretiens
   "/entretiens/faq": "FAQ",
 }

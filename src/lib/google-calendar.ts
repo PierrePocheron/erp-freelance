@@ -7,6 +7,7 @@ import { prisma } from "@/lib/prisma"
 
 const GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"
 const GOOGLE_CALENDAR_API = "https://www.googleapis.com/calendar/v3"
+const APP_TIME_ZONE = "Europe/Paris"
 
 // Scope requis pour lire le calendrier
 export const CALENDAR_SCOPES = [
@@ -312,14 +313,14 @@ export async function getErpCalendarId(userId: string, accessToken: string): Pro
 // ── Écriture (ERP → Google) ────────────────────────────────────────────────────
 
 /**
- * Formate une date au format YYYY-MM-DD en heure LOCALE (événement journée
- * entière). `toISOString()` utiliserait UTC → décalage d'un jour en fuseau positif.
+ * Date civile AAAA-MM-JJ dans le fuseau de l'app (événement journée entière).
+ * Ni `toISOString()` (UTC) ni `getFullYear()` (fuseau du process) ne conviennent :
+ * Vercel tourne en UTC alors que les journées entières sont stockées à minuit Paris
+ * (cf. zonedMidnight), ce qui renvoyait la veille à Google.
  */
+const DAY_FMT = new Intl.DateTimeFormat("en-CA", { timeZone: APP_TIME_ZONE, year: "numeric", month: "2-digit", day: "2-digit" })
 function toLocalDateString(d: Date): string {
-  const y = d.getFullYear()
-  const m = String(d.getMonth() + 1).padStart(2, "0")
-  const day = String(d.getDate()).padStart(2, "0")
-  return `${y}-${m}-${day}`
+  return DAY_FMT.format(d)
 }
 
 /**
@@ -333,13 +334,12 @@ function buildGoogleEventBody(payload: GooglePushPayload) {
   if (payload.allDay) {
     // Google attend des dates de jour (locales). end.date est EXCLUSIF et doit
     // être strictement après start.date (sinon l'API rejette l'événement).
-    const startDay = new Date(payload.start); startDay.setHours(0, 0, 0, 0)
-    let endDay = new Date(payload.end); endDay.setHours(0, 0, 0, 0)
-    if (endDay.getTime() <= startDay.getTime()) {
-      endDay = new Date(startDay); endDay.setDate(endDay.getDate() + 1)
-    }
-    body.start = { date: toLocalDateString(startDay) }
-    body.end = { date: toLocalDateString(endDay) }
+    // Jours civils calculés dans le fuseau de l'app, puis comparés comme chaînes.
+    const startDate = toLocalDateString(payload.start)
+    let endDate = toLocalDateString(payload.end)
+    if (endDate <= startDate) endDate = toLocalDateString(new Date(payload.start.getTime() + 24 * 3600 * 1000))
+    body.start = { date: startDate }
+    body.end = { date: endDate }
   } else {
     body.start = { dateTime: payload.start.toISOString() }
     body.end = { dateTime: payload.end.toISOString() }

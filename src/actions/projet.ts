@@ -547,27 +547,11 @@ export async function reorderTasks(projectId: string, orderedTaskIds: string[]) 
   const proj = await prisma.project.findFirst({ where: { id: projectId, userId }, select: { id: true } })
   if (!proj) throw new Error("Projet introuvable")
   if (orderedTaskIds.length === 0) return
+  // updateMany + scope projet : un id de tâche étranger (ou supprimé entre-temps) est
+  // ignoré au lieu de faire échouer toute la transaction sur un P2025 avalé côté client.
   await prisma.$transaction(
     orderedTaskIds.map((id, index) =>
-      prisma.task.update({ where: { id }, data: { order: index * 10 } })
-    )
-  )
-  revalidatePath(`/projets/${projectId}`)
-}
-
-// Kept for subtask reordering (parentTaskId still used for real subtasks)
-export async function reorderTasksInContainer(
-  projectId: string,
-  parentTaskId: string | null,
-  orderedTaskIds: string[]
-) {
-  const userId = await requireAuth()
-  const proj = await prisma.project.findFirst({ where: { id: projectId, userId }, select: { id: true } })
-  if (!proj) throw new Error("Projet introuvable")
-  if (orderedTaskIds.length === 0) return
-  await prisma.$transaction(
-    orderedTaskIds.map((id, index) =>
-      prisma.task.update({ where: { id }, data: { order: index * 10, parentTaskId } })
+      prisma.task.updateMany({ where: { id, projectId }, data: { order: index * 10 } })
     )
   )
   revalidatePath(`/projets/${projectId}`)
@@ -657,10 +641,15 @@ export async function createMilestone(projectId: string, data: MilestoneInput) {
   return milestone
 }
 
+/** Le jalon doit appartenir à un projet de l'utilisateur — le projectId reçu ne suffit pas. */
+async function requireMilestoneOwnership(milestoneId: string, userId: string) {
+  const m = await prisma.milestone.findFirst({ where: { id: milestoneId, project: { userId } }, select: { id: true } })
+  if (!m) throw new Error("Jalon introuvable")
+}
+
 export async function updateMilestone(milestoneId: string, projectId: string, data: MilestoneInput) {
   const userId = await requireAuth()
-  const proj = await prisma.project.findFirst({ where: { id: projectId, userId }, select: { id: true } })
-  if (!proj) throw new Error("Projet introuvable")
+  await requireMilestoneOwnership(milestoneId, userId)
   await prisma.milestone.update({
     where: { id: milestoneId },
     data: {
@@ -678,8 +667,7 @@ export async function updateMilestone(milestoneId: string, projectId: string, da
 
 export async function deleteMilestone(milestoneId: string, projectId: string) {
   const userId = await requireAuth()
-  const proj = await prisma.project.findFirst({ where: { id: projectId, userId }, select: { id: true } })
-  if (!proj) throw new Error("Projet introuvable")
+  await requireMilestoneOwnership(milestoneId, userId)
   await removeMilestoneFromGoogle(userId, milestoneId)
   await prisma.milestone.delete({ where: { id: milestoneId } })
   revalidatePath(`/projets/${projectId}`)
@@ -693,8 +681,7 @@ export async function updateMilestoneStatus(
   reason?: string
 ) {
   const userId = await requireAuth()
-  const proj = await prisma.project.findFirst({ where: { id: projectId, userId }, select: { id: true } })
-  if (!proj) throw new Error("Projet introuvable")
+  await requireMilestoneOwnership(milestoneId, userId)
   await prisma.milestone.update({
     where: { id: milestoneId },
     data: {
@@ -874,9 +861,10 @@ export async function updateDeliverableStatus(
 
 export async function addProjectMember(
   projectId: string,
-  ownerUserId: string,
+  _ownerUserId: string,
   email: string
 ): Promise<{ error?: string }> {
+  const ownerUserId = await requireAuth()
   const project = await prisma.project.findFirst({
     where: { id: projectId, userId: ownerUserId },
     include: { client: { select: { name: true, company: true } }, user: { select: { name: true } } },
@@ -919,7 +907,8 @@ export async function addProjectMember(
   return {}
 }
 
-export async function removeProjectMember(projectId: string, ownerUserId: string, memberId: string) {
+export async function removeProjectMember(projectId: string, _ownerUserId: string, memberId: string) {
+  const ownerUserId = await requireAuth()
   const project = await prisma.project.findFirst({
     where: { id: projectId, userId: ownerUserId },
     include: {
@@ -956,10 +945,11 @@ export async function removeProjectMember(projectId: string, ownerUserId: string
 
 export async function updateProjectMemberRole(
   projectId: string,
-  ownerUserId: string,
+  _ownerUserId: string,
   memberId: string,
   role: "MEMBER" | "VIEWER"
 ) {
+  const ownerUserId = await requireAuth()
   const project = await prisma.project.findFirst({ where: { id: projectId, userId: ownerUserId } })
   if (!project) return
   await prisma.projectMember.update({

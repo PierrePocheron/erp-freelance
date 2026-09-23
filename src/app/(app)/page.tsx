@@ -127,11 +127,12 @@ export default async function DashboardPage() {
       orderBy: { dueDate: "asc" },
       take: 5,
     }),
+    // Encours : TOUTES les factures non soldées (le `take` d'affichage est appliqué plus bas),
+    // sinon le KPI en euros ne comptait que 5 factures et ignorait les statuts ISSUED et LATE.
     prisma.invoice.findMany({
-      where: { userId, status: "SENT" },
+      where: { userId, status: { in: ["ISSUED", "SENT", "LATE"] } },
       include: { client: { select: { name: true, company: true } } },
       orderBy: { dueDate: "asc" },
-      take: 5,
     }),
     prisma.invoice.count({ where: { userId, status: "LATE" } }),
     prisma.project.count({ where: { userId, status: "ACTIVE" } }),

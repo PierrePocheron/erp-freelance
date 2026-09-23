@@ -9,7 +9,7 @@ const ALLOWED_MIME_TYPES = [
   "image/jpeg", "image/png", "image/webp", "image/gif",
   "application/pdf",
 ]
-const ALLOWED_FOLDERS = ["logos", "signatures", "uploads"]
+const ALLOWED_FOLDERS = ["logos", "signatures", "signed-quotes", "uploads"]
 const MAX_FILE_SIZE = 5 * 1024 * 1024 // 5MB
 
 // Extension canonique dérivée du type réel détecté (jamais du nom fourni par le client).

@@ -165,7 +165,6 @@ export async function convertExpenseToRecurring(
     })
   })
   revalidatePath("/depenses")
-  revalidatePath("/depenses/recurrentes")
   revalidatePath("/calendrier")
 }
 
@@ -197,7 +196,7 @@ export async function createRecurringExpense(data: RecurringExpenseInput) {
       notes: data.notes?.trim() || null,
     },
   })
-  revalidatePath("/depenses/recurrentes")
+  revalidatePath("/depenses")
   revalidatePath("/calendrier")
   return recurring
 }
@@ -220,14 +219,14 @@ export async function updateRecurringExpense(recurringExpenseId: string, data: R
       notes: data.notes?.trim() || null,
     },
   })
-  revalidatePath("/depenses/recurrentes")
+  revalidatePath("/depenses")
   revalidatePath("/calendrier")
 }
 
 export async function deleteRecurringExpense(recurringExpenseId: string) {
   const userId = await requireAuth()
   await prisma.recurringExpense.delete({ where: { id: recurringExpenseId, userId } })
-  revalidatePath("/depenses/recurrentes")
+  revalidatePath("/depenses")
   revalidatePath("/calendrier")
 }
 
@@ -304,7 +303,6 @@ export async function toggleRecurringExpenseActive(recurringExpenseId: string, i
     data: { isActive, nextGenerationDate },
   })
   revalidatePath("/depenses")
-  revalidatePath("/depenses/recurrentes")
   revalidatePath("/calendrier")
 }
 
@@ -337,7 +335,6 @@ export async function generateExpenseFromRecurring(recurringExpenseId: string): 
   await prisma.recurringExpense.update({ where: { id: recurringExpenseId }, data: { nextGenerationDate: next } })
 
   revalidatePath("/depenses")
-  revalidatePath("/depenses/recurrentes")
   revalidatePath("/calendrier")
   return { id: expense.id }
 }

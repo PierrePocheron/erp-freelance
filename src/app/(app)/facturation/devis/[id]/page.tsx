@@ -129,8 +129,10 @@ export default async function DevisDetailPage({
   const totalTVA = linesWithTax.reduce((s, l) => s + l.total * (l.taxRate / 100), 0)
   const totalTTC = totalHT + totalTVA
 
-  const hasDepositInvoice = quote.invoices.some((i) => i.type === "DEPOSIT")
-  const hasFinalInvoice = quote.invoices.some((i) => i.type === "FINAL")
+  // Une facture annulée ne compte pas : sinon le bouton disparaît définitivement après
+  // annulation, alors que le calcul du solde, lui, exclut bien les annulées.
+  const hasDepositInvoice = quote.invoices.some((i) => i.type === "DEPOSIT" && i.status !== "CANCELLED")
+  const hasFinalInvoice = quote.invoices.some((i) => i.type === "FINAL" && i.status !== "CANCELLED")
 
   return (
     <div className="max-w-4xl space-y-6">

@@ -31,7 +31,8 @@ export async function buildInvoicePdfBuffer(invoiceId: string, userId: string): 
   const props: React.ComponentProps<typeof InvoicePDF> = {
     type: "FACTURE",
     number: invoice.number,
-    createdAt: invoice.createdAt,
+    // Date du document = émission (le brouillon a pu être préparé un autre mois).
+    createdAt: invoice.issuedAt ?? invoice.createdAt,
     dueDate: invoice.dueDate,
     sentAt: invoice.sentAt,
     depositDeducted: invoice.depositDeducted,

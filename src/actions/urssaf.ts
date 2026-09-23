@@ -87,7 +87,10 @@ export async function suggestDeclarationLines(period: string): Promise<Suggested
       invoiceId: inv.id,
       revenueId: null,
       label:     `${inv.number} — ${inv.client.name}`,
-      amount:    inv.totalHT,
+      // Net encaissé : une facture de solde porte le total du devis en totalHT et
+      // l'acompte déjà facturé en depositDeducted. Déclarer le brut comptait l'acompte
+      // deux fois. Même calcul que /revenus et le tableau de bord.
+      amount:    inv.totalHT - inv.depositDeducted,
       status:    inv.status,
       defaultIncluded: inv.status === "PAID" && !!inv.paidAt && inv.paidAt >= start && inv.paidAt <= end,
     })),
@@ -278,7 +281,12 @@ export async function deleteUrssafDeclaration(id: string): Promise<{ error?: str
  * avec dueDate) et se termine toute seule quand la déclaration correspondante
  * passe à DECLARED ou PAID (voir markUrssafDeclared / markUrssafPaid).
  */
-export async function ensureUrssafReminderTask(userId: string, frequency: DeclarationFrequency) {
+export async function ensureUrssafReminderTask(_userId: string, frequency: DeclarationFrequency) {
+  // Action « use server » = endpoint public : l'identité vient de la session,
+  // jamais de l'argument (le paramètre est conservé pour la compatibilité d'appel).
+  const session = await auth()
+  if (!session?.user?.id) throw new Error("Non authentifié")
+  const userId = session.user.id
   const period = periodToDeclare(new Date(), frequency)
 
   const [existingTask, existingDeclaration] = await Promise.all([

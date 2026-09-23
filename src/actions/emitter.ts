@@ -57,17 +57,6 @@ export async function listEmitters(_userId?: string) {
   })
 }
 
-export async function getDefaultEmitterId(userId: string): Promise<string | null> {
-  const def = await prisma.emitterProfile.findFirst({
-    where: { userId, isDefault: true },
-    select: { id: true },
-  })
-  if (def) return def.id
-  // Pas de profil par défaut explicite : retomber sur le premier disponible.
-  const any = await prisma.emitterProfile.findFirst({ where: { userId }, select: { id: true } })
-  return any?.id ?? null
-}
-
 export async function createEmitter(data: EmitterData) {
   const userId = await requireAuth()
   const name = data.name?.trim()

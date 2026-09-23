@@ -1,3 +1,4 @@
+import { defaultEmitterId } from "@/lib/invoice-helpers"
 import { describe, it, expect } from "vitest"
 import {
   createEmitter,
@@ -5,7 +6,6 @@ import {
   deleteEmitter,
   setDefaultEmitter,
   listEmitters,
-  getDefaultEmitterId,
 } from "@/actions/emitter"
 import { prisma } from "@/lib/prisma"
 import { setTestUser } from "./setup"
@@ -65,13 +65,15 @@ describe("profils émetteurs (mes sociétés)", () => {
     expect(map.get(b.id)).toBe(true)
   })
 
-  it("getDefaultEmitterId retourne le défaut, sinon le premier disponible", async () => {
+  // L'action getDefaultEmitterId (endpoint « use server » public, sans contrôle de session
+   // et sans appelant) a été supprimée : c'est le helper interne qui fait foi.
+  it("defaultEmitterId retourne le défaut, sinon le premier disponible", async () => {
     const user = await makeUser()
     setTestUser(user.id)
-    expect(await getDefaultEmitterId(user.id)).toBeNull()
+    expect(await defaultEmitterId(user.id)).toBeNull()
 
     const a = await createEmitter({ name: "A" })
-    expect(await getDefaultEmitterId(user.id)).toBe(a.id)
+    expect(await defaultEmitterId(user.id)).toBe(a.id)
   })
 
   it("updateEmitter modifie les champs sans toucher au nom si vide", async () => {

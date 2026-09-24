@@ -236,6 +236,7 @@ enum ClientType {
   PROSPECT
   CLIENT
   PERSONAL
+  COLLEAGUE  // Collègue (société où l'on travaille) — cf. organigramme CompanyTeam
   RECRUITER  // Recruteur / chasseur de tête
   SELF
   INACTIVE
@@ -345,6 +346,7 @@ model Company {
   fiscalSource      FiscalSource?      @relation(fields: [fiscalSourceId], references: [id], onDelete: SetNull)
   category          CompanyCategory?   @relation(fields: [categoryId], references: [id], onDelete: SetNull)
   contacts          Client[]
+  teams             CompanyTeam[]
   projects          Project[]
   revenues          Revenue[]          @relation("RevenueCompany")
   recurringRevenues RecurringRevenue[] @relation("RecurringRevenueCompany")
@@ -371,6 +373,34 @@ model CompanyCategory {
   @@index([userId])
 }
 
+// Niveau d'une personne dans l'organigramme d'une société. Sert uniquement au tri
+// vertical dans une zone (direction/managers en haut, alternants et stagiaires en bas).
+enum OrgLevel {
+  DIRECTION
+  MANAGER
+  CDI
+  ALTERNANT
+  STAGIAIRE
+  PRESTATAIRE
+}
+
+// Zone d'organigramme (équipe, pôle, service) d'une société. Portée par la société,
+// donc scopée par `company: { userId }` — pas de userId dénormalisé ici.
+model CompanyTeam {
+  id        String   @id @default(cuid())
+  companyId String
+  name      String
+  color     String   @default("#6366f1")
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+
+  company Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  members Client[]
+
+  @@unique([companyId, name])
+  @@index([companyId])
+}
+
 // Un contact. Source de vérité = firstName/lastName/label + companyId.
 // `name` et `company` (string) sont des CACHES D'AFFICHAGE dénormalisés, maintenus
 // à chaque écriture (cf. lib/contact.ts → computeContactName), pour éviter de
@@ -391,6 +421,10 @@ model Client {
   companyRef    Company?     @relation(fields: [companyId], references: [id], onDelete: SetNull)
   company       String?
   jobTitle      String? // poste / fonction dans la société
+  // Organigramme de la société : zone d'appartenance + niveau (cf. CompanyTeam)
+  teamId        String?
+  team          CompanyTeam? @relation(fields: [teamId], references: [id], onDelete: SetNull)
+  orgLevel      OrgLevel?
   email         String?
   personalEmail String?      // email perso/direct, en plus de l'email générique de contact
   phone         String?
@@ -448,6 +482,7 @@ model Client {
   emailDrafts       EmailDraft[]
 
   @@index([companyId])
+  @@index([teamId])
 }
 
 model Interaction {

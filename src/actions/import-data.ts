@@ -164,13 +164,34 @@ export async function importData(jsonString: string): Promise<ImportResult> {
       track("Sociétés", data.companies.length)
     }
 
+    // Zones d'organigramme (avant les contacts : FK teamId)
+    if (data.companyTeams?.length) {
+      const ownedCompanies = await ownedIds("company", () => prisma.company.findMany({ where: { userId }, select: { id: true } }))
+      const rows = data.companyTeams.filter((t: any) => ownedCompanies.has(t.companyId)) // eslint-disable-line @typescript-eslint/no-explicit-any
+      if (rows.length) {
+        await prisma.companyTeam.createMany({
+          data: rows.map((t: any) => ({ // eslint-disable-line @typescript-eslint/no-explicit-any
+            id: t.id, companyId: t.companyId, name: t.name,
+            color: t.color ?? "#6366f1", sortOrder: t.sortOrder ?? 0,
+            createdAt: toDate(t.createdAt) ?? new Date(),
+          })),
+          skipDuplicates: true,
+        })
+        track("Zones d'organigramme", rows.length)
+      }
+    }
+
     // ── 4. Clients (contacts) ─────────────────────────────────────────────────
     if (data.clients?.length) {
+      // Une zone non importée (société d'un autre compte) ne doit pas casser la FK.
+      const ownedTeams = await ownedIds("companyTeam", () => prisma.companyTeam.findMany({ where: { company: { userId } }, select: { id: true } }))
       await prisma.client.createMany({
         data: data.clients.map((c: any) => ({ // eslint-disable-line @typescript-eslint/no-explicit-any
           id: c.id, userId, type: c.type, name: c.name,
           firstName: c.firstName ?? null, lastName: c.lastName ?? null, label: c.label ?? null,
           companyId: c.companyId ?? null, company: c.company ?? null,
+          jobTitle: c.jobTitle ?? null, orgLevel: c.orgLevel ?? null,
+          teamId: c.teamId && ownedTeams.has(c.teamId) ? c.teamId : null,
           email: c.email ?? null, phone: c.phone ?? null,
           source: c.source, temperature: c.temperature, priorityScore: c.priorityScore ?? 1,
           prospectStatus: c.prospectStatus ?? "TO_CONTACT",

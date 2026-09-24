@@ -8,6 +8,7 @@ const types = [
   { value: "PROSPECT",    label: "Prospect",    className: "bg-amber-500/15 text-amber-600 border-amber-500/20" },
   { value: "CLIENT",      label: "Client",      className: "bg-emerald-500/15 text-emerald-600 border-emerald-500/20" },
   { value: "PERSONAL",    label: "Perso",       className: "bg-violet-500/15 text-violet-600 border-violet-500/20" },
+  { value: "COLLEAGUE",   label: "Collègue",    className: "bg-teal-500/15 text-teal-600 border-teal-500/20" },
   { value: "RECRUITER",   label: "Recruteur",   className: "bg-sky-500/15 text-sky-600 border-sky-500/20" },
   { value: "INACTIVE",    label: "Inactif",     className: "bg-muted text-muted-foreground border-border" },
 ]

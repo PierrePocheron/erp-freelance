@@ -6,6 +6,7 @@ import { Plus, UserPlus, X, Loader2, Mail, Phone, Building2 } from "lucide-react
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger } from "@/components/ui/dialog"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { ClientCombobox } from "@/components/modules/facturation/ClientCombobox"
+import { avatarColor, initials } from "@/lib/initials"
 
 export type ContactOption = { id: string; name: string; company: string | null; email: string | null; phone: string | null; type: string }
 
@@ -44,19 +45,6 @@ const ROLE_BADGE: Record<ProjectContactRole, string> = {
   SUPPLIER:  "bg-orange-500/10 text-orange-600 dark:text-orange-400",
   PERSONAL:  "bg-pink-500/10 text-pink-600 dark:text-pink-400",
   OTHER:     "bg-muted text-muted-foreground",
-}
-
-// Pastille d'initiales : couleur déterministe par nom (pas de photo sur les contacts).
-const AVATAR_COLORS = ["#6366f1", "#8b5cf6", "#0ea5e9", "#10b981", "#f59e0b", "#ef4444", "#ec4899", "#14b8a6", "#f97316", "#64748b"]
-function avatarColor(name: string): string {
-  let h = 0
-  for (const ch of name.toLowerCase()) h = (h * 31 + ch.charCodeAt(0)) | 0
-  return AVATAR_COLORS[Math.abs(h) % AVATAR_COLORS.length]
-}
-function initials(name: string): string {
-  const parts = name.trim().split(/\s+/).filter(Boolean)
-  const s = parts.length >= 2 ? parts[0][0] + parts[1][0] : name.trim().slice(0, 2)
-  return s.toUpperCase() || "?"
 }
 
 function ContactAvatar({ c, role, size = "h-8 w-8 text-xs" }: { c: ContactOption; role?: ProjectContactRole; size?: string }) {

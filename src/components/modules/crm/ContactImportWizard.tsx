@@ -11,6 +11,7 @@ import {
   type ImportDecision,
 } from "@/actions/contact-import"
 import type { Proposal, Confidence, Change, ImportSource } from "@/lib/contact-import"
+import { avatarColor, initials } from "@/lib/initials"
 
 type Stage = "source" | "loading" | "review" | "done"
 type ContactLite = { id: string; name: string; company: string | null }
@@ -25,9 +26,6 @@ const CONF: Record<Confidence, { label: string; cls: string }> = {
 const FIELD_LABEL: Record<Change["field"], string> = { email: "Email", personalEmail: "Email perso", phone: "Téléphone", firstName: "Prénom", lastName: "Nom" }
 const SOURCE_LABEL: Record<ImportSource, string> = { vcf: "Fichier .vcf", picker: "Téléphone", google: "Google Contacts", "google-other": "Gmail (autres contacts)" }
 
-const AVATAR_COLORS = ["#6366f1", "#8b5cf6", "#0ea5e9", "#10b981", "#f59e0b", "#ef4444", "#ec4899", "#14b8a6", "#f97316", "#64748b"]
-function avatarColor(name: string) { let h = 0; for (const ch of name.toLowerCase()) h = (h * 31 + ch.charCodeAt(0)) | 0; return AVATAR_COLORS[Math.abs(h) % AVATAR_COLORS.length] }
-function initials(name: string) { const p = name.trim().split(/\s+/).filter(Boolean); return ((p.length >= 2 ? p[0][0] + p[1][0] : name.slice(0, 2)) || "?").toUpperCase() }
 
 /**
  * Assistant d'import de contacts : (1) source — sélecteur natif du téléphone (Android Chrome),

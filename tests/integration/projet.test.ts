@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest"
 import { createProject, updateProjectCategory, createClientTask } from "@/actions/projet"
 import { prisma } from "@/lib/prisma"
+import { zonedDateKey } from "@/lib/dates"
 import { setTestUser } from "./setup"
 import { makeUser, makeClient, makeProject } from "./helpers/factories"
 
@@ -82,7 +83,9 @@ describe("createClientTask", () => {
     expect(row?.clientId).toBe(client.id)
     expect(row?.title).toBe("Relancer le devis")
     expect(row?.priority).toBe("URGENT")
-    expect(row?.dueDate?.toISOString().slice(0, 10)).toBe("2026-08-01")
+    // `toISOString()` donnerait la date UTC : l'échéance est stockée à minuit
+    // heure de Paris, donc la veille à 22 h en UTC.
+    expect(zonedDateKey(row!.dueDate!)).toBe("2026-08-01")
   })
 
   it("priorité omise → défaut LOW (défaut Prisma du modèle Task)", async () => {

@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma"
 import { CalendarView, type CalendarEvent, type CalendarCategory, type ProjectOption, type ClientOption } from "@/components/modules/calendrier/CalendarView"
 import { getOrCreateDefaultCategories } from "@/actions/calendar"
 import { hasCalendarScope } from "@/lib/google-calendar"
-import { getOccurrencesInRange } from "@/lib/dates"
+import { isZonedAllDay, getOccurrencesInRange } from "@/lib/dates"
 
 // Shape des événements bruts retournés par $queryRaw
 type RawCalEvent = {
@@ -203,7 +203,7 @@ export default async function CalendrierPage() {
       const cli  = t.client ?? proj?.client ?? null
       const clientLabel = cli ? ((cli as { company?: string | null; name: string }).company ?? cli.name) : null
       const d = new Date(t.dueDate!)
-      const isAllDay = d.getHours() === 0 && d.getMinutes() === 0
+      const isAllDay = isZonedAllDay(d)
       const subtitle = t.urssafPeriod
         ? "Déclaration URSSAF"
         : proj
@@ -230,7 +230,7 @@ export default async function CalendrierPage() {
     ...milestones.map((m) => {
       const clientLabel = m.project.client?.company ?? m.project.client?.name ?? ""
       const d = new Date(m.date)
-      const isAllDay = d.getHours() === 0 && d.getMinutes() === 0
+      const isAllDay = isZonedAllDay(d)
       return {
         id: m.id,
         date: m.date,
@@ -260,7 +260,7 @@ export default async function CalendrierPage() {
     ...interactions.map((i) => {
       const clientLabel = i.client.company ?? i.client.name
       const d = new Date(i.date)
-      const isAllDay = d.getHours() === 0 && d.getMinutes() === 0
+      const isAllDay = isZonedAllDay(d)
       return {
         id: i.id,
         date: i.date,
@@ -324,7 +324,7 @@ export default async function CalendrierPage() {
     // Santé : consultations
     ...healthConsultations.map((c) => {
       const d = new Date(c.date)
-      const isAllDay = d.getHours() === 0 && d.getMinutes() === 0
+      const isAllDay = isZonedAllDay(d)
       return {
         id: `health-${c.id}`,
         date: c.date,
@@ -339,7 +339,7 @@ export default async function CalendrierPage() {
     // Entretiens : prochains points planifiés
     ...jobApplications.map((a) => {
       const d = new Date(a.nextActionAt!)
-      const isAllDay = d.getHours() === 0 && d.getMinutes() === 0
+      const isAllDay = isZonedAllDay(d)
       return {
         id: `jobnext-${a.id}`,
         date: a.nextActionAt!,
@@ -353,7 +353,7 @@ export default async function CalendrierPage() {
     }),
     ...jobEvents.map((ev) => {
       const d = new Date(ev.date)
-      const isAllDay = d.getHours() === 0 && d.getMinutes() === 0
+      const isAllDay = isZonedAllDay(d)
       return {
         id: `jobevent-${ev.id}`,
         date: ev.date,

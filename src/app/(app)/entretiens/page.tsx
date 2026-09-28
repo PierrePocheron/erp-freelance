@@ -1,4 +1,5 @@
 import { auth } from "@/lib/auth"
+import { zonedDayStart } from "@/lib/dates"
 import { prisma } from "@/lib/prisma"
 import { EntretienView, type JobAppStatus } from "@/components/modules/entretien/EntretienView"
 import { STATUS_CONFIG, CLOSED_STATUSES } from "@/components/modules/entretien/status-config"
@@ -41,7 +42,9 @@ export default async function EntretiensPage({
   ])
 
   const active   = applications.filter((a) => !CLOSED_STATUSES.includes(a.status as JobAppStatus))
-  const upcoming = applications.filter((a) => a.nextActionAt && new Date(a.nextActionAt) >= new Date(new Date().setHours(0, 0, 0, 0)))
+  // Minuit de PARIS (et non du process : la prod tourne en UTC) — sinon un RDV
+  // du jour disparaissait de « à venir » entre minuit et 2 h du matin.
+  const upcoming = applications.filter((a) => a.nextActionAt && new Date(a.nextActionAt) >= zonedDayStart(new Date()))
 
   const validStatus = initialStatus && initialStatus in STATUS_CONFIG
     ? (initialStatus as JobAppStatus)

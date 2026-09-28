@@ -27,6 +27,19 @@ export default defineConfig({
       {
         extends: true,
         test: {
+          // Rejoue le fuseau de la PRODUCTION. Vercel tourne en UTC et refuse la
+          // variable `TZ` (nom réservé) : le décalage ne peut donc pas être
+          // corrigé par la configuration, il doit l'être dans le code — et c'est
+          // ici qu'on le prouve.
+          name: "unit-utc",
+          environment: "node",
+          include: ["tests/unit-utc/**/*.test.ts"],
+          env: { TZ: "UTC" },
+        },
+      },
+      {
+        extends: true,
+        test: {
           name: "integration",
           environment: "node",
           include: ["tests/integration/**/*.test.ts"],
@@ -40,6 +53,11 @@ export default defineConfig({
             TEST_DATABASE_URL: testDatabaseUrl,
             NODE_ENV: "test",
             ENCRYPTION_KEY: process.env.ENCRYPTION_KEY,
+            // Même fuseau que la production (Vercel, UTC — la variable `TZ` y est
+            // réservée) et que la CI. Sans ça, une assertion écrite avec
+            // `getMonth()/getDate()` passe sur un poste en Europe/Paris et échoue
+            // en CI : c'est exactement ce qui a fait tomber la release v1.4.2.
+            TZ: "UTC",
           },
         },
       },

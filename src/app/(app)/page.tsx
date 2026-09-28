@@ -1,4 +1,5 @@
 import { auth } from "@/lib/auth"
+import { zonedDayStart, zonedDayStartOffset, zonedWeekday, zonedParts, zonedMidnight } from "@/lib/dates"
 import { prisma } from "@/lib/prisma"
 import Link from "next/link"
 import {
@@ -29,28 +30,26 @@ export default async function DashboardPage() {
   const has = (id: string) => enabledModules.has(id as never)
 
   /* eslint-disable react-hooks/purity */
+  // Toutes les bornes de jours sont construites en heure de PARIS. `setHours(0,0,0,0)`
+  // suit le fuseau du process : en production (Vercel, UTC, variable `TZ` refusée
+  // car réservée), « aujourd'hui » commençait à 02 h du matin — la carte « demain »
+  // affichait donc les tâches d'après-demain, et celles du jour disparaissaient.
   const today = new Date()
-  const todayStart = new Date(today.setHours(0, 0, 0, 0))
-  const weekStart = new Date(todayStart)
-  const _dow = weekStart.getDay()
-  weekStart.setDate(weekStart.getDate() + (_dow === 0 ? -6 : 1 - _dow))
-  const weekEnd = new Date(weekStart)
-  weekEnd.setDate(weekStart.getDate() + 6)
-  weekEnd.setHours(23, 59, 59, 999)
-  const tomorrowStart = new Date(todayStart)
-  tomorrowStart.setDate(tomorrowStart.getDate() + 1)
-  const tomorrowEnd = new Date(tomorrowStart)
-  tomorrowEnd.setHours(23, 59, 59, 999)
+  const todayStart = zonedDayStart(today)
+  const parisDow = zonedWeekday(today)
+  const weekStart = zonedDayStartOffset(today, parisDow === 0 ? -6 : 1 - parisDow)
+  const weekEnd = new Date(zonedDayStartOffset(weekStart, 7).getTime() - 1)
+  const tomorrowStart = zonedDayStartOffset(today, 1)
+  const tomorrowEnd = new Date(zonedDayStartOffset(today, 2).getTime() - 1)
   const in30Days = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
   const followUpCutoff = new Date(Date.now() - 45 * 24 * 60 * 60 * 1000)
   // Fenêtre glissante de la carte "À confirmer" : items datés dans les 7 derniers jours.
-  const confirmWindowStart = new Date(todayStart)
-  confirmWindowStart.setDate(confirmWindowStart.getDate() - 7)
+  const confirmWindowStart = zonedDayStartOffset(today, -7)
   const now = new Date()
   /* eslint-enable react-hooks/purity */
-  const currentYear = new Date().getFullYear()
-  const yearStart = new Date(currentYear, 0, 1)
-  const yearEnd   = new Date(currentYear, 11, 31, 23, 59, 59)
+  const currentYear = zonedParts(today).year
+  const yearStart = zonedMidnight(`${currentYear}-01-01`)
+  const yearEnd   = new Date(zonedMidnight(`${currentYear + 1}-01-01`).getTime() - 1)
   const yearPrefix = `${currentYear}-`
 
   const [

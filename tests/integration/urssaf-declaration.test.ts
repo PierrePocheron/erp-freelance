@@ -7,6 +7,7 @@ import {
   setInvoiceUrssafExcluded,
 } from "@/actions/urssaf"
 import { prisma } from "@/lib/prisma"
+import { zonedDateKey } from "@/lib/dates"
 import { setTestUser } from "./setup"
 import { makeUser, makeClient, makeInvoice, makeFiscalSource } from "./helpers/factories"
 
@@ -127,9 +128,12 @@ describe("déclaration URSSAF", () => {
     expect(decl.amountBICSales).toBe(0)
     expect(decl.status).toBe("DRAFT")
     expect(decl.lines).toHaveLength(3)
-    expect([decl.periodStart.getMonth(), decl.periodStart.getDate()]).toEqual([3, 1]) // 1er avril
-    expect([decl.periodEnd.getMonth(), decl.periodEnd.getDate()]).toEqual([5, 30])    // 30 juin
-    expect([decl.dueDate!.getMonth(), decl.dueDate!.getDate()]).toEqual([6, 31])      // 31 juillet
+    // Dates lues en heure de PARIS : `getMonth()/getDate()` suivent le fuseau du
+    // process, donc renverraient le 31 mars sur une machine en UTC (la CI, et la
+    // production). C'est exactement le décalage que ces bornes corrigent.
+    expect(zonedDateKey(decl.periodStart)).toBe("2026-04-01")
+    expect(zonedDateKey(decl.periodEnd)).toBe("2026-06-30")
+    expect(zonedDateKey(decl.dueDate!)).toBe("2026-07-31")
 
     const doublon = await createUrssafDeclaration({ period: "2026-T2", lines: [{ category: "BNC", label: "X", amount: 1 }] })
     expect(doublon.error).toMatch(/existe déjà/i)

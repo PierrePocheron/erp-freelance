@@ -16,6 +16,17 @@ describe("addMonths", () => {
     expect(out.getMonth()).toBe(1) // février
   })
 
+  // Régression : un renouvellement expirant un 31 (ou le 29 février) sautait un
+  // mois entier, `setMonth` normalisant le débordement sur le mois suivant.
+  it("clampe au dernier jour du mois cible plutôt que de déborder", () => {
+    const janvier31 = addMonths(new Date(2026, 0, 31), 1)
+    expect([janvier31.getMonth(), janvier31.getDate()]).toEqual([1, 28])
+    const aout31 = addMonths(new Date(2026, 7, 31), 6) // + 6 mois → février
+    expect([aout31.getFullYear(), aout31.getMonth(), aout31.getDate()]).toEqual([2027, 1, 28])
+    const fevrier29 = addMonths(new Date(2028, 1, 29), 12)
+    expect([fevrier29.getFullYear(), fevrier29.getMonth(), fevrier29.getDate()]).toEqual([2029, 1, 28])
+  })
+
   it("période de 12 mois → +1 an même jour", () => {
     const base = new Date("2026-06-01T00:00:00Z")
     const out = addMonths(base, 12)
@@ -54,13 +65,37 @@ describe("daysLate", () => {
 })
 
 describe("advanceByFrequency", () => {
-  const base = new Date("2026-01-31T00:00:00Z")
   it("WEEKLY → +7 jours", () => {
     const out = advanceByFrequency(new Date("2026-01-15T00:00:00Z"), "WEEKLY")
     expect(out.toISOString()).toBe("2026-01-22T00:00:00.000Z")
   })
   it("MONTHLY → +1 mois", () => {
-    expect(advanceByFrequency(base, "MONTHLY").getMonth()).toBe(2) // mars (31 jan + 1 mois normalisé)
+    const out = advanceByFrequency(new Date(2026, 0, 15), "MONTHLY")
+    expect([out.getMonth(), out.getDate()]).toEqual([1, 15]) // 15 février
+  })
+
+  // Régression : `setMonth` normalisait « 31 février » en 3 mars — février n'était
+  // jamais facturé/prélevé et l'échéance dérivait ensuite définitivement au 3.
+  it("MONTHLY depuis le 31 → dernier jour du mois cible, sans sauter février", () => {
+    const fin = advanceByFrequency(new Date(2026, 0, 31), "MONTHLY")
+    expect([fin.getMonth(), fin.getDate()]).toEqual([1, 28]) // 28 février 2026
+    const bissextile = advanceByFrequency(new Date(2028, 0, 31), "MONTHLY")
+    expect([bissextile.getMonth(), bissextile.getDate()]).toEqual([1, 29]) // 29 février 2028
+  })
+
+  it("QUARTERLY depuis le 30 novembre → 28 février", () => {
+    const out = advanceByFrequency(new Date(2026, 10, 30), "QUARTERLY")
+    expect([out.getFullYear(), out.getMonth(), out.getDate()]).toEqual([2027, 1, 28])
+  })
+
+  it("YEARLY depuis un 29 février → 28 février l'année suivante", () => {
+    const out = advanceByFrequency(new Date(2028, 1, 29), "YEARLY")
+    expect([out.getFullYear(), out.getMonth(), out.getDate()]).toEqual([2029, 1, 28])
+  })
+
+  it("conserve l'heure de la journée", () => {
+    const out = advanceByFrequency(new Date(2026, 0, 31, 9, 30), "MONTHLY")
+    expect([out.getHours(), out.getMinutes()]).toEqual([9, 30])
   })
   it("QUARTERLY → +3 mois", () => {
     const out = advanceByFrequency(new Date("2026-01-15T00:00:00Z"), "QUARTERLY")

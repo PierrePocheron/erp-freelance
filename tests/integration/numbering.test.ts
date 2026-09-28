@@ -1,10 +1,10 @@
 import { describe, it, expect, afterEach, vi } from "vitest"
-import { createInvoice } from "@/actions/facturation"
+import { createInvoice, createQuoteWithLines } from "@/actions/facturation"
 import { prisma } from "@/lib/prisma"
 import { setTestUser } from "./setup"
 import { makeUser, makeClient } from "./helpers/factories"
 
-// La numérotation s'appuie sur count(startsWith scopePrefix)+1. Sans profil,
+// La numérotation dérive du plus grand suffixe déjà attribué. Sans profil,
 // les valeurs par défaut s'appliquent : préfixe FAC, format PREFIX-YYYY-NNN.
 // On ne fige pas l'année (horloge réelle) → on teste la séquence et le scoping.
 
@@ -93,5 +93,54 @@ describe("numérotation des factures", () => {
     const inv = await createInvoice("ignored", { clientId: client.id })
     // F-AAMM-01 : préfixe court + 2 chiffres
     expect(inv.number).toMatch(/^F-\d{4}-01$/)
+  })
+
+  it("ne réutilise jamais un numéro après la suppression d'une facture", async () => {
+    const user = await makeUser()
+    const client = await makeClient(user.id)
+    setTestUser(user.id)
+
+    const a = await createInvoice("ignored", { clientId: client.id })
+    const b = await createInvoice("ignored", { clientId: client.id })
+    const c = await createInvoice("ignored", { clientId: client.id })
+    expect([a.number, b.number, c.number].map((n) => n.slice(-3))).toEqual(["001", "002", "003"])
+
+    await prisma.invoice.delete({ where: { id: b.id } })
+    const d = await createInvoice("ignored", { clientId: client.id })
+
+    // `count() + 1` retombait à 3 et réattribuait FAC-…-003, déjà pris.
+    expect(d.number).not.toBe(c.number)
+    expect(d.number.slice(-3)).toBe("004")
+    expect(await prisma.invoice.count({ where: { userId: user.id, number: d.number } })).toBe(1)
+  })
+
+  it("même règle pour les devis", async () => {
+    const user = await makeUser()
+    const client = await makeClient(user.id)
+    setTestUser(user.id)
+    const line = [{ description: "L", quantity: 1, unitPrice: 100, taxRate: 0 }]
+
+    const a = await createQuoteWithLines("ignored", { clientId: client.id, lines: line })
+    const b = await createQuoteWithLines("ignored", { clientId: client.id, lines: line })
+    await prisma.quote.delete({ where: { id: a.id } })
+    const c = await createQuoteWithLines("ignored", { clientId: client.id, lines: line })
+
+    expect(c.number).not.toBe(b.number)
+    expect(c.number.slice(-3)).toBe("003")
+  })
+
+  it("la base refuse deux documents au même numéro (garde-fou de dernier recours)", async () => {
+    const user = await makeUser()
+    const client = await makeClient(user.id)
+    setTestUser(user.id)
+    const first = await createInvoice("ignored", { clientId: client.id })
+
+    // Ce que produirait une création concurrente : deux `nextInvoiceNumber`
+    // lisant le même maximum. La contrainte d'unicité tranche.
+    await expect(
+      prisma.invoice.create({
+        data: { userId: user.id, clientId: client.id, number: first.number, type: "STANDALONE", totalHT: 1 },
+      }),
+    ).rejects.toThrow()
   })
 })

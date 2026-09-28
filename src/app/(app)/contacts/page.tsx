@@ -1,5 +1,6 @@
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
+import { BILLABLE_INVOICE_STATUSES } from "@/lib/invoice-state"
 import Link from "next/link"
 import { CreateClientDialog } from "@/components/modules/crm/CreateClientDialog"
 import { CrmList } from "@/components/modules/crm/CrmList"
@@ -22,7 +23,7 @@ export default async function CRMPage() {
       },
     }),
     prisma.invoice.findMany({
-      where: { userId, status: { not: "DRAFT" } },
+      where: { userId, status: { in: [...BILLABLE_INVOICE_STATUSES] } },
       select: {
         clientId: true,
         status: true,
@@ -58,12 +59,17 @@ export default async function CRMPage() {
   const prospectCount  = clientsWithBilling.filter((c) => c.type === "PROSPECT").length
   const activeClients  = clientsWithBilling.filter((c) => c.type === "CLIENT")
   const personalClients = clientsWithBilling.filter((c) => c.type === "PERSONAL")
+  const colleagues      = clientsWithBilling.filter((c) => c.type === "COLLEAGUE")
   const pendingReminders = clients.reduce((acc, c) => acc + c.reminders.length, 0)
 
   const groups = [
     ...(toComplete.length > 0 ? [{ key: "TO_COMPLETE", label: "À compléter", items: toComplete }] : []),
     { key: "CLIENT",   label: "Clients",  items: activeClients  },
     { key: "PERSONAL", label: "Perso",    items: personalClients },
+    // Sans ce groupe, passer un contact en « Collègue » le faisait disparaître de
+    // la page : les types PROSPECT et RECRUITER ont leurs propres modules
+    // (/prospection, /entretiens), COLLEAGUE n'en a pas.
+    ...(colleagues.length > 0 ? [{ key: "COLLEAGUE", label: "Collègues", items: colleagues }] : []),
     { key: "INACTIVE", label: "Inactifs", items: clientsWithBilling.filter((c) => c.type === "INACTIVE") },
   ]
 

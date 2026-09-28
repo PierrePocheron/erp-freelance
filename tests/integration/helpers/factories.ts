@@ -166,3 +166,17 @@ export async function makeConditionsTemplate(
     data: { userId, name: opts.name, content: opts.content, isDefault: opts.isDefault ?? false },
   })
 }
+
+// Source fiscale (le bucket décide de ce qui entre dans l'assiette URSSAF).
+export async function makeFiscalSource(
+  userId: string,
+  opts: { name?: string; bucket?: string } = {}
+) {
+  return prisma.fiscalSource.create({
+    data: {
+      userId,
+      name: opts.name ?? uniq("source"),
+      bucket: (opts.bucket ?? "AE_URSSAF") as never,
+    },
+  })
+}

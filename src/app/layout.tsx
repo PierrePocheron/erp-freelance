@@ -26,6 +26,11 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
+  // PWA iOS : `statusBarStyle: "black-translucent"` fait démarrer la webview à
+  // y=0, sous la barre d'état / l'encoche. Sans `viewportFit: "cover"`, les
+  // variables `env(safe-area-inset-*)` valent 0 et les retraits posés dans l'app
+  // (bas des feuilles, boutons flottants) sont des no-op.
+  viewportFit: "cover",
   // Couleur de la barre système, alignée sur --background (light/dark)
   themeColor: [
     { media: "(prefers-color-scheme: light)", color: "#ffffff" },

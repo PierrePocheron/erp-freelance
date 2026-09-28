@@ -2,16 +2,11 @@
 
 import { revalidatePath } from "next/cache"
 import { prisma } from "@/lib/prisma"
-import { auth } from "@/lib/auth"
+import { requireAuth } from "@/lib/require-auth"
 import type { JobApplicationStatus, JobEventType } from "@/generated/prisma/enums"
 import { CLOSED_STATUSES } from "@/components/modules/entretien/status-config"
 import { syncJobApplicationGoogleState, removeJobApplicationFromGoogle } from "@/lib/google-task-sync"
 
-async function requireAuth() {
-  const session = await auth()
-  if (!session?.user?.id) throw new Error("Non authentifié")
-  return session.user.id
-}
 
 /** Anti-IDOR : ne renvoie l'id de contact que s'il appartient bien à l'utilisateur. */
 async function ownedContactId(userId: string, contactId?: string | null): Promise<string | null> {

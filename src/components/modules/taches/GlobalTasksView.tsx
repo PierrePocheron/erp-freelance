@@ -5,7 +5,7 @@ import Link from "next/link"
 import {
   CheckCircle2, Circle, PlayCircle, Loader2,
   AlertTriangle, ChevronDown, ChevronRight, Plus, Trash2,
-  Building2, FolderOpen, Pencil, Landmark,
+  Building2, FolderOpen, Pencil, Landmark, Check,
 } from "lucide-react"
 import { startTask, completeTask, reopenTask, createClientTask, deleteTask, updateTaskFields } from "@/actions/projet"
 import { AddTaskForm } from "@/components/modules/projet/AddTaskForm"
@@ -182,6 +182,7 @@ function TaskRow({ task }: { task: Task }) {
   const [isPending, startTransitionFn] = useTransition()
   const [isDeleting, startDeleteTransition] = useTransition()
   const [isSavingTitle, startTitleTransition] = useTransition()
+  const [confirmDelete, setConfirmDelete] = useState(false)
   const [editOpen, setEditOpen] = useState(false)
   const [editingTitle, setEditingTitle] = useState(false)
   const titleRef = useRef<HTMLInputElement>(null)
@@ -211,6 +212,13 @@ function TaskRow({ task }: { task: Task }) {
   }
 
   function handleDelete() {
+    if (!confirmDelete) {
+      setConfirmDelete(true)
+      // La demande retombe d'elle-même : pas de bouton « armé » oublié.
+      window.setTimeout(() => setConfirmDelete(false), 4000)
+      return
+    }
+    setConfirmDelete(false)
     startDeleteTransition(async () => {
       try {
         await deleteTask(task.id)
@@ -241,7 +249,7 @@ function TaskRow({ task }: { task: Task }) {
       task.status === "DONE" && "opacity-50"
     )}>
       {/* Statut */}
-      <button onClick={handleStatus} disabled={isPending} aria-label={statusLabel} className="shrink-0 transition-colors">
+      <button onClick={handleStatus} disabled={isPending} aria-label={statusLabel} className="-m-2 flex h-9 w-9 shrink-0 items-center justify-center transition-colors">
         {isPending ? (
           <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
         ) : task.status === "DONE" ? (
@@ -356,7 +364,8 @@ function TaskRow({ task }: { task: Task }) {
       <button
         onClick={() => setEditOpen(true)}
         title="Modifier la tâche"
-        className="shrink-0 md:opacity-0 md:group-hover:opacity-100 focus:opacity-100 transition-opacity text-muted-foreground hover:text-foreground"
+        aria-label="Modifier la tâche"
+        className="flex h-9 w-9 shrink-0 items-center justify-center text-muted-foreground transition-opacity hover:text-foreground focus:opacity-100 md:opacity-0 md:group-hover:opacity-100"
       >
         <Pencil className="h-3.5 w-3.5" />
       </button>
@@ -365,12 +374,17 @@ function TaskRow({ task }: { task: Task }) {
       <button
         onClick={handleDelete}
         disabled={isDeleting}
-        title="Supprimer la tâche"
-        className="shrink-0 md:opacity-0 md:group-hover:opacity-100 focus:opacity-100 transition-opacity text-muted-foreground hover:text-red-500 disabled:opacity-30"
+        title={confirmDelete ? "Confirmer la suppression" : "Supprimer la tâche"}
+        aria-label={confirmDelete ? "Confirmer la suppression de la tâche" : "Supprimer la tâche"}
+        className={`flex h-9 w-9 shrink-0 items-center justify-center transition-opacity disabled:opacity-30 focus:opacity-100 md:opacity-0 md:group-hover:opacity-100 ${
+          confirmDelete ? "text-red-500 md:opacity-100" : "text-muted-foreground hover:text-red-500"
+        }`}
       >
         {isDeleting
           ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
-          : <Trash2 className="h-3.5 w-3.5" />
+          : confirmDelete
+            ? <Check className="h-4 w-4" />
+            : <Trash2 className="h-4 w-4" />
         }
       </button>
     </div>

@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache"
 import { prisma } from "@/lib/prisma"
-import { auth } from "@/lib/auth"
+import { requireAuth } from "@/lib/require-auth"
 import type {
   HealthEventType,
   PractitionerType,
@@ -10,13 +10,25 @@ import type {
   ReimbursementStatus,
 } from "@/generated/prisma/enums"
 
-async function requireAuth() {
-  const session = await auth()
-  if (!session?.user?.id) throw new Error("Non authentifié")
-  return session.user.id
-}
 
 // ── Health Events (blessures/maladies) ────────────────────────────────────────
+
+// Les ids de rattachement viennent de l'appelant : on refuse ceux d'un autre
+// compte, sinon une consultation pouvait se greffer sur l'événement santé
+// d'autrui (et un remboursement sur sa consultation).
+async function ownedHealthEventId(userId: string, id: string | null | undefined) {
+  if (!id) return null
+  const found = await prisma.healthEvent.findFirst({ where: { id, userId }, select: { id: true } })
+  if (!found) throw new Error("Événement santé introuvable")
+  return found.id
+}
+
+async function ownedConsultationId(userId: string, id: string | null | undefined) {
+  if (!id) return null
+  const found = await prisma.healthConsultation.findFirst({ where: { id, userId }, select: { id: true } })
+  if (!found) throw new Error("Consultation introuvable")
+  return found.id
+}
 
 export async function createHealthEvent(data: {
   date: string
@@ -105,7 +117,7 @@ export async function createConsultation(data: {
       cost: data.cost ?? null,
       hasDocument: data.hasDocument ?? false,
       documentRef: data.documentRef?.trim() || null,
-      healthEventId: data.healthEventId || null,
+      healthEventId: await ownedHealthEventId(userId, data.healthEventId),
     },
   })
   revalidatePath("/sante")
@@ -137,7 +149,7 @@ export async function updateConsultation(
       cost: data.cost ?? null,
       hasDocument: data.hasDocument ?? false,
       documentRef: data.documentRef?.trim() || null,
-      healthEventId: data.healthEventId || null,
+      healthEventId: await ownedHealthEventId(userId, data.healthEventId),
     },
   })
   revalidatePath("/sante")
@@ -170,7 +182,7 @@ export async function createReimbursement(data: {
       expectedDate: data.expectedDate ? new Date(data.expectedDate) : null,
       receivedAt: data.status === "RECEIVED" && data.receivedAt ? new Date(data.receivedAt) : null,
       notes: data.notes?.trim() || null,
-      consultationId: data.consultationId || null,
+      consultationId: await ownedConsultationId(userId, data.consultationId),
     },
   })
   revalidatePath("/sante")
@@ -199,7 +211,7 @@ export async function updateReimbursement(
       expectedDate: data.expectedDate ? new Date(data.expectedDate) : null,
       receivedAt: data.status === "RECEIVED" && data.receivedAt ? new Date(data.receivedAt) : null,
       notes: data.notes?.trim() || null,
-      consultationId: data.consultationId || null,
+      consultationId: await ownedConsultationId(userId, data.consultationId),
     },
   })
   revalidatePath("/sante")

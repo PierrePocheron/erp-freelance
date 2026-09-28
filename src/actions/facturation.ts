@@ -1,10 +1,11 @@
 "use server"
 
 import { prisma } from "@/lib/prisma"
+import { requireAuth } from "@/lib/require-auth"
 import { revalidatePath } from "next/cache"
 import { type NumberFormat, buildNumberParts } from "@/lib/number-format"
 import { auth } from "@/lib/auth"
-import { nextInvoiceNumber, defaultEmitterId } from "@/lib/invoice-helpers"
+import { nextInvoiceNumber, defaultEmitterId, nextNumberFrom } from "@/lib/invoice-helpers"
 import { enforceRateLimit } from "@/lib/rate-limit"
 import { escapeHtml } from "@/lib/escape-html"
 import { put } from "@vercel/blob"
@@ -26,11 +27,6 @@ import {
 import { advanceByFrequency } from "@/lib/dates"
 import { createRenewalDraftInvoice } from "@/lib/renewal-invoice"
 
-async function requireAuth(): Promise<string> {
-  const session = await auth()
-  if (!session?.user?.id) throw new Error("Non autorisé")
-  return session.user.id
-}
 
 // ── Verrouillage d'édition ──────────────────────────────────────────────────────
 // Un devis ou une facture n'est modifiable (lignes, montants, conditions) qu'à
@@ -59,10 +55,11 @@ async function nextQuoteNumber(userId: string) {
   const prefix = profile?.quotePrefix ?? "DEV"
   const format = (profile?.quoteNumberFormat ?? "PREFIX-YYYY-NNN") as NumberFormat
   const { scopePrefix, digits } = buildNumberParts(format, prefix, new Date())
-  const count = await prisma.quote.count({
+  const existing = await prisma.quote.findMany({
     where: { userId, number: { startsWith: scopePrefix } },
+    select: { number: true },
   })
-  return `${scopePrefix}${String(count + 1).padStart(digits, "0")}`
+  return nextNumberFrom(existing.map((q) => q.number), scopePrefix, digits)
 }
 
 
@@ -88,6 +85,33 @@ async function preferredEmitterForClient(userId: string, clientId: string): Prom
 
 // ── Devis ─────────────────────────────────────────────────────────────────────
 
+/**
+ * Valide que les références d'un document appartiennent bien à l'appelant.
+ *
+ * Une action serveur est un endpoint public : `clientId`/`projectId`/`quoteId`
+ * arrivent tels quels. Sans ce contrôle, on pouvait créer SA facture sur le
+ * contact d'un AUTRE compte — la fiche du client (nom, adresse, SIRET) était
+ * alors rendue sur la page et dans le PDF, tous les contrôles de propriété du
+ * document étant par ailleurs satisfaits.
+ */
+async function assertDocumentRefsOwned(
+  userId: string,
+  refs: { clientId?: string | null; projectId?: string | null; quoteId?: string | null },
+) {
+  if (refs.clientId) {
+    const client = await prisma.client.findFirst({ where: { id: refs.clientId, userId }, select: { id: true } })
+    if (!client) throw new Error("Contact introuvable")
+  }
+  if (refs.projectId) {
+    const project = await prisma.project.findFirst({ where: { id: refs.projectId, userId }, select: { id: true } })
+    if (!project) throw new Error("Projet introuvable")
+  }
+  if (refs.quoteId) {
+    const quote = await prisma.quote.findFirst({ where: { id: refs.quoteId, userId }, select: { id: true } })
+    if (!quote) throw new Error("Devis introuvable")
+  }
+}
+
 export async function createQuoteWithLines(
   _userId: string,
   data: {
@@ -108,6 +132,7 @@ export async function createQuoteWithLines(
   }
 ) {
   const userId = await requireAuth()
+  await assertDocumentRefsOwned(userId, { clientId: data.clientId, projectId: data.projectId })
   const number = await nextQuoteNumber(userId)
   const expiresAt = data.expiresAtDays
     ? new Date(Date.now() + data.expiresAtDays * 24 * 60 * 60 * 1000)
@@ -154,6 +179,7 @@ export async function createQuote(
   }
 ) {
   const userId = await requireAuth()
+  await assertDocumentRefsOwned(userId, { clientId: data.clientId, projectId: data.projectId })
   const number = await nextQuoteNumber(userId)
   const expiresAt = data.expiresAtDays
     ? new Date(Date.now() + data.expiresAtDays * 24 * 60 * 60 * 1000)
@@ -354,6 +380,7 @@ export async function createInvoice(
   }
 ) {
   const userId = await requireAuth()
+  await assertDocumentRefsOwned(userId, { clientId: data.clientId, projectId: data.projectId, quoteId: data.quoteId })
   const number = await nextInvoiceNumber(userId)
   const invoice = await prisma.invoice.create({
     data: {
@@ -416,15 +443,33 @@ export async function createInvoiceFromQuote(quoteId: string, _userId: string, t
       depositDeducted,
       generalConditions: quote.generalConditions ?? null,
       lines: {
-        create: quote.lines.map((l) => ({
-          description: l.description,
-          detail: l.detail,
-          quantity: isDeposit ? 1 : l.quantity,
-          unitPrice: isDeposit ? depositTotal : l.unitPrice,
-          taxRate: l.taxRate,
-          total: isDeposit ? depositTotal : l.total,
-          productId: l.productId,
-        })),
+        // Un acompte = UNE ligne portant le montant de l'acompte. En recopiant
+        // les lignes du devis, chacune recevait le montant TOTAL de l'acompte :
+        // sur un devis de 3 lignes, le PDF affichait 3 × 1 800 € sous un
+        // « TOTAL HT : 1 800 € », et la moindre retouche du brouillon faisait
+        // passer `totalHT` à 5 400 € (recalcInvoiceTotal somme les lignes), donc
+        // une déduction d'acompte fausse sur la facture de solde.
+        create: isDeposit
+          ? [{
+              description: quote.depositPercent > 0
+                ? `Acompte ${quote.depositPercent} % sur devis ${quote.number}`
+                : `Acompte sur devis ${quote.number}`,
+              detail: null,
+              quantity: 1,
+              unitPrice: depositTotal,
+              taxRate: quote.lines[0]?.taxRate ?? 0,
+              total: depositTotal,
+              productId: null,
+            }]
+          : quote.lines.map((l) => ({
+              description: l.description,
+              detail: l.detail,
+              quantity: l.quantity,
+              unitPrice: l.unitPrice,
+              taxRate: l.taxRate,
+              total: l.total,
+              productId: l.productId,
+            })),
       },
     },
   })
@@ -506,10 +551,33 @@ export async function recordPayment(
 export async function deletePayment(paymentId: string, invoiceId: string, _userId: string) {
   const userId = await requireAuth()
   // Scope le paiement par sa facture propriétaire (pas par l'invoiceId fourni).
+  const payment = await prisma.payment.findFirst({
+    where: { id: paymentId, invoice: { userId } },
+    select: { invoiceId: true },
+  })
+  if (!payment) return
   const deleted = await prisma.payment.deleteMany({
     where: { id: paymentId, invoice: { userId } },
   })
   if (deleted.count === 0) return
+
+  // `recordPayment` passe la facture à PAID ; sans l'opération inverse, une
+  // facture restait « intégralement payée » après suppression de son unique
+  // paiement — donc comptée dans le CA encaissé, dans les graphes mensuels, et
+  // PRÉ-COCHÉE dans l'assiette URSSAF, pour un encaissement qui n'existe pas.
+  const invoice = await prisma.invoice.findFirst({
+    where: { id: payment.invoiceId, userId },
+    select: { totalHT: true, depositDeducted: true, status: true, payments: { select: { amount: true } } },
+  })
+  if (invoice && invoice.status === "PAID") {
+    const totalPaid = invoice.payments.reduce((s, p) => s + p.amount, 0)
+    if (!isInvoiceSettled(netAmount(invoice.totalHT, invoice.depositDeducted), totalPaid)) {
+      await prisma.invoice.update({
+        where: { id: payment.invoiceId, userId },
+        data: { status: "SENT", paidAt: null },
+      })
+    }
+  }
   revalidatePath(`/facturation/factures/${invoiceId}`)
   revalidatePath("/facturation/factures")
   revalidatePath("/facturation")
@@ -562,6 +630,13 @@ export async function issueInvoice(invoiceId: string, _userId: string) {
     const blob = await put(`factures/${userId}/${safeNumber}.pdf`, buffer, {
       access: "public",
       contentType: "application/pdf",
+      // Le store Blob est public et `addRandomSuffix` vaut false par DÉFAUT : sans
+      // ce suffixe, l'URL était entièrement devinable (`factures/<userId>/<numéro
+      // séquentiel>.pdf`) et le PDF — qui porte le SIRET et l'IBAN de l'émetteur —
+      // lisible sans session par quiconque connaît l'hôte du store. L'URL n'est
+      // jamais envoyée au client : seules les routes /api/pdf et /api/export la
+      // relisent côté serveur.
+      addRandomSuffix: true,
     })
     pdfUrl = blob.url
   } catch (e) {
@@ -617,6 +692,11 @@ export async function duplicateInvoiceAsDraft(invoiceId: string, _userId: string
       depositDeducted: source.depositDeducted,
       dueDate: source.dueDate,
       notes: source.notes,
+      // Sans ces deux champs, la facture ré-émise perdait son émetteur (donc le
+      // SIRET/IBAN du PDF, et son rattachement à une source fiscale : elle
+      // disparaissait du récapitulatif annuel) et ses conditions générales.
+      emitterProfileId: source.emitterProfileId,
+      generalConditions: source.generalConditions,
       lines: {
         create: source.lines.map((l) => ({
           description: l.description,
@@ -1031,11 +1111,22 @@ export async function setRecurringInvoiceLines(
 
 // ── Email ─────────────────────────────────────────────────────────────────────
 
-// URL de base de l'app pour les liens absolus dans les emails (liens PDF de devis/
-// factures). NextAuth v5 lit AUTH_URL ; on garde NEXTAUTH_URL en repli au cas où
-// seul l'ancien nom serait défini sur l'hébergeur — évite un lien « undefined/… ».
-function appBaseUrl() {
-  return process.env.AUTH_URL ?? process.env.NEXTAUTH_URL ?? ""
+// Le document part en PIÈCE JOINTE. Les mails annonçaient « ci-joint » mais ne
+// contenaient qu'un lien vers /api/pdf/… — route protégée par session : le client
+// qui cliquait recevait « Unauthorized », et n'avait donc aucun moyen d'obtenir
+// son devis ou sa facture. Le PDF est rendu ici même (mêmes fabriques que la
+// route de visualisation et que le gel à l'émission).
+async function pdfAttachment(
+  kind: "devis" | "facture",
+  id: string,
+  userId: string,
+  number: string,
+): Promise<{ filename: string; content: Buffer }[]> {
+  const { buildInvoicePdfBuffer, buildQuotePdfBuffer } = await import("@/lib/invoice-pdf")
+  const content = kind === "facture"
+    ? await buildInvoicePdfBuffer(id, userId)
+    : await buildQuotePdfBuffer(id, userId)
+  return [{ filename: `${number.replace(/[^a-zA-Z0-9._-]/g, "-")}.pdf`, content }]
 }
 
 export async function resendQuoteEmail(quoteId: string, _userId: string) {
@@ -1048,20 +1139,22 @@ export async function resendQuoteEmail(quoteId: string, _userId: string) {
   if (!quote) throw new Error("Devis introuvable")
   if (!quote.client.email) throw new Error("Le client n'a pas d'adresse email")
 
-  const { Resend } = await import("resend")
-  const resend = new Resend(process.env.RESEND_API_KEY)
-
-  const pdfUrl = `${appBaseUrl()}/api/pdf/devis/${quoteId}`
+  // Passe par le client partagé (lib/resend) : point d'injection unique, mocké
+  // à la frontière dans les tests. Import dynamique pour ne pas charger le SDK
+  // dans le graphe de ce fichier, chargé par toutes les pages de facturation.
+  const { getResend } = await import("@/lib/resend")
+  const resend = getResend()
 
   const { error } = await resend.emails.send({
     from: "ERP Freelance <noreply@resend.dev>",
     to: quote.client.email,
     subject: `Rappel — Devis ${quote.number}`,
+    attachments: await pdfAttachment("devis", quoteId, userId, quote.number),
     html: `
       <p>Bonjour ${escapeHtml(quote.client.name)},</p>
       <p>Je me permets de vous relancer concernant le devis <strong>${quote.number}</strong> d'un montant de <strong>${quote.totalHT.toLocaleString("fr-FR")} €</strong> HT que je vous ai adressé.</p>
       ${quote.expiresAt ? `<p>Ce devis est valable jusqu'au ${new Date(quote.expiresAt).toLocaleDateString("fr-FR")}.</p>` : ""}
-      <p><a href="${pdfUrl}">Consulter le devis</a></p>
+      <p>Le devis est joint à ce message.</p>
       <p>Cordialement,<br>${escapeHtml(quote.user.name)}</p>
     `,
   })
@@ -1080,20 +1173,22 @@ export async function sendQuoteEmail(quoteId: string, _userId: string) {
   if (!quote) throw new Error("Devis introuvable")
   if (!quote.client.email) throw new Error("Le client n'a pas d'adresse email")
 
-  const { Resend } = await import("resend")
-  const resend = new Resend(process.env.RESEND_API_KEY)
-
-  const pdfUrl = `${appBaseUrl()}/api/pdf/devis/${quoteId}`
+  // Passe par le client partagé (lib/resend) : point d'injection unique, mocké
+  // à la frontière dans les tests. Import dynamique pour ne pas charger le SDK
+  // dans le graphe de ce fichier, chargé par toutes les pages de facturation.
+  const { getResend } = await import("@/lib/resend")
+  const resend = getResend()
 
   const { error } = await resend.emails.send({
     from: "ERP Freelance <noreply@resend.dev>",
     to: quote.client.email,
     subject: `Devis ${quote.number}`,
+    attachments: await pdfAttachment("devis", quoteId, userId, quote.number),
     html: `
       <p>Bonjour ${escapeHtml(quote.client.name)},</p>
       <p>Veuillez trouver ci-joint le devis <strong>${quote.number}</strong> d'un montant de <strong>${quote.totalHT.toLocaleString("fr-FR")} €</strong> HT.</p>
       ${quote.expiresAt ? `<p>Ce devis est valable jusqu'au ${new Date(quote.expiresAt).toLocaleDateString("fr-FR")}.</p>` : ""}
-      <p><a href="${pdfUrl}">Télécharger le devis</a></p>
+
       <p>Cordialement,<br>${escapeHtml(quote.user.name)}</p>
     `,
   })
@@ -1107,25 +1202,27 @@ export async function sendInvoiceEmail(invoiceId: string, _userId: string) {
   const userId = await requireAuth()
   await enforceRateLimit(`email:${userId}`, 10, 60_000)
   const invoice = await prisma.invoice.findFirst({
-    where: { id: invoiceId, userId },
+    where: { id: invoiceId, userId, status: "ISSUED" },
     include: { client: true, user: true },
   })
-  if (!invoice) throw new Error("Facture introuvable")
+  if (!invoice) throw new Error("Facture introuvable ou déjà envoyée (utilisez la relance)")
   if (!invoice.client.email) throw new Error("Ce client n'a pas d'email renseigné — impossible d'envoyer la facture.")
 
-  const { Resend } = await import("resend")
-  const resend = new Resend(process.env.RESEND_API_KEY)
-
-  const pdfUrl = `${appBaseUrl()}/api/pdf/facture/${invoiceId}`
+  // Passe par le client partagé (lib/resend) : point d'injection unique, mocké
+  // à la frontière dans les tests. Import dynamique pour ne pas charger le SDK
+  // dans le graphe de ce fichier, chargé par toutes les pages de facturation.
+  const { getResend } = await import("@/lib/resend")
+  const resend = getResend()
 
   const { data, error } = await resend.emails.send({
     from: "ERP Freelance <noreply@resend.dev>",
     to: invoice.client.email,
     subject: `Facture ${invoice.number}`,
+    attachments: await pdfAttachment("facture", invoiceId, userId, invoice.number),
     html: `
       <p>Bonjour ${escapeHtml(invoice.client.name)},</p>
       <p>Veuillez trouver ci-joint la facture <strong>${invoice.number}</strong> d'un montant de <strong>${invoice.totalHT.toLocaleString("fr-FR")} €</strong>.</p>
-      <p><a href="${pdfUrl}">Télécharger la facture</a></p>
+
       <p>Cordialement,<br>${escapeHtml(invoice.user.name)}</p>
     `,
   })
@@ -1155,10 +1252,12 @@ export async function sendInvoiceReminder(invoiceId: string, _userId: string) {
   if (!invoice) throw new Error("Facture introuvable")
   if (!invoice.client.email) throw new Error("Le client n'a pas d'adresse email")
 
-  const { Resend } = await import("resend")
-  const resend = new Resend(process.env.RESEND_API_KEY)
+  // Passe par le client partagé (lib/resend) : point d'injection unique, mocké
+  // à la frontière dans les tests. Import dynamique pour ne pas charger le SDK
+  // dans le graphe de ce fichier, chargé par toutes les pages de facturation.
+  const { getResend } = await import("@/lib/resend")
+  const resend = getResend()
 
-  const pdfUrl = `${appBaseUrl()}/api/pdf/facture/${invoiceId}`
   const isLate = invoice.status === "LATE"
   const daysLate = invoice.dueDate
     ? Math.ceil((Date.now() - new Date(invoice.dueDate).getTime()) / 86400000)
@@ -1172,13 +1271,14 @@ export async function sendInvoiceReminder(invoiceId: string, _userId: string) {
     from: "ERP Freelance <noreply@resend.dev>",
     to: invoice.client.email,
     subject,
+    attachments: await pdfAttachment("facture", invoiceId, userId, invoice.number),
     html: `
       <p>Bonjour ${escapeHtml(invoice.client.name)},</p>
       ${isLate && daysLate
         ? `<p>Sauf erreur de notre part, la facture <strong>${invoice.number}</strong> d'un montant de <strong>${(invoice.totalHT - invoice.depositDeducted).toLocaleString("fr-FR")} €</strong> est en retard de <strong>${daysLate} jour(s)</strong>.</p>`
         : `<p>Nous vous rappelons que la facture <strong>${invoice.number}</strong> d'un montant de <strong>${(invoice.totalHT - invoice.depositDeducted).toLocaleString("fr-FR")} €</strong> est toujours en attente de règlement.</p>`
       }
-      <p><a href="${pdfUrl}">Voir la facture</a></p>
+      <p>La facture est jointe à ce message.</p>
       <p>Cordialement,<br>${escapeHtml(invoice.user.name)}</p>
     `,
   })

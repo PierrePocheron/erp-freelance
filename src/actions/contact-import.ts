@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache"
 import { prisma } from "@/lib/prisma"
-import { auth } from "@/lib/auth"
+import { requireAuth } from "@/lib/require-auth"
 import { computeContactName } from "@/lib/contact"
 import {
   parseVcf, fromPicker, matchContacts, rematch, normalizeEmail, normalizePhone,
@@ -10,11 +10,6 @@ import {
 } from "@/lib/contact-import"
 import { hasContactsScope, getGoogleContactsToken, fetchGoogleContacts } from "@/lib/google-contacts"
 
-async function requireAuth() {
-  const session = await auth()
-  if (!session?.user?.id) throw new Error("Non authentifié")
-  return session.user.id
-}
 
 const ERP_SELECT = { id: true, name: true, firstName: true, lastName: true, label: true, email: true, personalEmail: true, phone: true, company: true } as const
 

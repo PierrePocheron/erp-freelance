@@ -1,20 +1,15 @@
 "use server"
 
 import { prisma } from "@/lib/prisma"
+import { requireAuth } from "@/lib/require-auth"
 import { revalidatePath } from "next/cache"
 import { z } from "zod"
-import { auth } from "@/lib/auth"
 import {
   syncTaskGoogleState, removeTaskFromGoogle,
   syncMilestoneGoogleState, removeMilestoneFromGoogle,
 } from "@/lib/google-task-sync"
 import { sendPushToUser } from "@/lib/push"
 
-async function requireAuth(): Promise<string> {
-  const session = await auth()
-  if (!session?.user?.id) throw new Error("Non autorisé")
-  return session.user.id
-}
 
 // ── ProjectIdeas ──────────────────────────────────────────────────────────────
 

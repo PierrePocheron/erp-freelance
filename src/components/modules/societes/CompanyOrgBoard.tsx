@@ -8,7 +8,6 @@ import {
   useDraggable, useDroppable, closestCenter,
   type DragStartEvent, type DragEndEvent,
 } from "@dnd-kit/core"
-import { CSS } from "@dnd-kit/utilities"
 import { GripVertical, Plus, Pencil, Trash2, Check, X, Users } from "lucide-react"
 import { assignContactToTeam, createCompanyTeam, deleteCompanyTeam, renameCompanyTeam, updateContactOrgLevel } from "@/actions/crm"
 import { avatarColor, initials } from "@/lib/initials"
@@ -42,13 +41,15 @@ const UNASSIGNED = "__unassigned__"
 // ── Carte personne ────────────────────────────────────────────────────────────
 
 function MemberCard({ m, onLevel }: { m: OrgMember; onLevel: (id: string, level: OrgLevel | null) => void }) {
-  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: m.id })
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: m.id })
   const meta = m.orgLevel ? LEVEL_META[m.orgLevel] : null
 
+  // Pas de `transform` ici : c'est le DragOverlay qui suit le pointeur. Appliquer
+  // les deux faisait glisser la carte source (à 30 % d'opacité) en même temps que
+  // la pilule d'overlay, et la carte fanée débordait sur les zones voisines.
   return (
     <div
       ref={setNodeRef}
-      style={{ transform: CSS.Translate.toString(transform) }}
       className={cn(
         "flex items-center gap-1.5 rounded-lg border border-border/50 bg-background px-2 py-1.5",
         isDragging && "opacity-30",
@@ -57,7 +58,7 @@ function MemberCard({ m, onLevel }: { m: OrgMember; onLevel: (id: string, level:
       <button
         {...attributes}
         {...listeners}
-        className="cursor-grab active:cursor-grabbing p-0.5 text-muted-foreground/60 hover:text-foreground transition-colors shrink-0 touch-none"
+        className="flex h-6 w-6 shrink-0 cursor-grab items-center justify-center text-muted-foreground/60 transition-colors hover:text-foreground active:cursor-grabbing touch-none"
         aria-label={`Déplacer ${m.name} vers une autre zone`}
       >
         <GripVertical className="h-3.5 w-3.5" />
@@ -100,13 +101,14 @@ function MemberCard({ m, onLevel }: { m: OrgMember; onLevel: (id: string, level:
 // ── Zone (équipe / pôle / « à affecter ») ─────────────────────────────────────
 
 function Zone({
-  id, name, color, members, dashed, onLevel, onRename, onDelete,
+  id, name, color, members, dashed, emptyHint, onLevel, onRename, onDelete,
 }: {
   id: string
   name: string
   color: string
   members: OrgMember[]
   dashed?: boolean
+  emptyHint?: string
   onLevel: (id: string, level: OrgLevel | null) => void
   onRename?: (name: string) => void
   onDelete?: () => void
@@ -152,7 +154,7 @@ function Zone({
             <h3 className="flex-1 truncate text-sm font-semibold">{name}</h3>
             <span className="text-xs text-muted-foreground">{members.length}</span>
             {onRename && (
-              <button type="button" onClick={() => setEditing(true)} className="p-1 text-muted-foreground/60 hover:text-foreground transition-colors" aria-label={`Renommer la zone ${name}`}>
+              <button type="button" onClick={() => { setDraft(name); setEditing(true) }} className="p-1 text-muted-foreground/60 hover:text-foreground transition-colors" aria-label={`Renommer la zone ${name}`}>
                 <Pencil className="h-3 w-3" />
               </button>
             )}
@@ -171,7 +173,7 @@ function Zone({
       </div>
 
       {members.length === 0 ? (
-        <p className="px-1 py-3 text-center text-xs text-muted-foreground">Déposer une personne ici</p>
+        <p className="px-1 py-3 text-center text-xs text-muted-foreground">{emptyHint ?? "Déposer une personne ici"}</p>
       ) : (
         groups.map((g) => (
           <div key={g.level ?? "none"} className="space-y-1">
@@ -255,10 +257,6 @@ export function CompanyOrgBoard({
       setAdding(false)
     })
 
-  if (members.length === 0 && teams.length === 0) {
-    return <p className="px-5 py-8 text-center text-sm text-muted-foreground">Aucun contact associé</p>
-  }
-
   return (
     <DndContext
       sensors={sensors}
@@ -273,6 +271,7 @@ export function CompanyOrgBoard({
           color="#94a3b8"
           members={inZone(null)}
           dashed
+          emptyHint={members.length === 0 ? "Aucun contact dans cette société" : undefined}
           onLevel={setLevel}
         />
 

@@ -1,16 +1,11 @@
 "use server"
 
 import { prisma } from "@/lib/prisma"
+import { requireAuth } from "@/lib/require-auth"
 import { revalidatePath } from "next/cache"
-import { auth } from "@/lib/auth"
 import { computeContactName } from "@/lib/contact"
 import type { ClientType, ClientSource, InteractionChannel, OrgLevel } from "@/generated/prisma/enums"
 
-async function requireAuth(): Promise<string> {
-  const session = await auth()
-  if (!session?.user?.id) throw new Error("Non autorisé")
-  return session.user.id
-}
 
 // ── Company (société cliente) ──────────────────────────────────────────────────
 
@@ -231,6 +226,11 @@ export async function renameCompanyTeam(teamId: string, name: string) {
   const trimmed = name.trim()
   if (!trimmed) throw new Error("Nom de zone requis")
   const { companyId } = await requireTeamOwnership(userId, teamId)
+  const clash = await prisma.companyTeam.findFirst({
+    where: { companyId, name: { equals: trimmed, mode: "insensitive" }, id: { not: teamId } },
+    select: { id: true },
+  })
+  if (clash) throw new Error(`Une zone « ${trimmed} » existe déjà dans cette société`)
   await prisma.companyTeam.update({ where: { id: teamId }, data: { name: trimmed } })
   revalidatePath(`/societes/${companyId}`)
 }
@@ -261,8 +261,11 @@ export async function assignContactToTeam(clientId: string, teamId: string | nul
   revalidatePath(`/contacts/${clientId}`)
 }
 
+const ORG_LEVELS: readonly OrgLevel[] = ["DIRECTION", "MANAGER", "CDI", "ALTERNANT", "STAGIAIRE", "PRESTATAIRE"]
+
 export async function updateContactOrgLevel(clientId: string, level: string | null) {
   const userId = await requireAuth()
+  if (level && !ORG_LEVELS.includes(level as OrgLevel)) throw new Error("Niveau inconnu")
   const client = await prisma.client.findFirst({
     where: { id: clientId, userId },
     select: { id: true, companyId: true },

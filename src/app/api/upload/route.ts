@@ -1,4 +1,4 @@
-import { auth } from "@/lib/auth"
+import { apiSession } from "@/lib/auth"
 import { put } from "@vercel/blob"
 import { NextRequest, NextResponse } from "next/server"
 import { checkRateLimit } from "@/lib/rate-limit"
@@ -36,7 +36,7 @@ function sniffMimeType(bytes: Uint8Array): string | null {
 }
 
 export async function POST(req: NextRequest) {
-  const session = await auth()
+  const session = await apiSession()
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
   // Rate limit : 20 uploads/min par utilisateur
@@ -75,6 +75,9 @@ export async function POST(req: NextRequest) {
   const ext = EXT_BY_TYPE[detectedType]
   const filename = `${folder}/${session.user.id}/${Date.now()}.${ext}`
 
-  const blob = await put(filename, file, { access: "public" })
+  // Suffixe aléatoire : le store est public et le chemin, sans lui, se devine
+  // (`<dossier>/<userId>/<horodatage ms>.<ext>` — 13 chiffres, ce n'est pas un
+  // secret). Cf. le gel des PDF de facture dans actions/facturation.ts.
+  const blob = await put(filename, file, { access: "public", addRandomSuffix: true })
   return NextResponse.json({ url: blob.url })
 }

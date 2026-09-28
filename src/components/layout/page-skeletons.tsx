@@ -6,26 +6,32 @@ import { Skeleton } from "@/components/ui/skeleton"
  * avec la forme correspondante : le squelette occupe la même place que le vrai
  * contenu, donc pas de saut de mise en page à l'arrivée des données.
  *
- * Le titre est écrit en clair quand la route le connaît, avec le même
- * `sm:hidden` que les pages réelles (sur grand écran, c'est le fil d'Ariane de
- * l'en-tête qui l'affiche) — sinon un bloc gris.
+ * Le titre est écrit en clair quand la route le connaît. La plupart des pages
+ * masquent leur `<h1>` au-delà de `sm` (le fil d'Ariane de l'en-tête le remplace) :
+ * c'est le défaut. Les pages qui l'affichent toujours passent `titleAlways`, sinon
+ * l'emplacement du titre resterait vide dans le squelette et le contenu sauterait
+ * de ~40 px à l'arrivée des données. Sans titre du tout → bloc gris.
  */
 
 function Frame({ children }: { children: React.ReactNode }) {
   return (
-    <div className="space-y-6" aria-busy="true" aria-live="polite">
+    // `aria-busy` marque la région comme en cours de construction ; le message,
+    // lui, vit dans SA propre région live (`role="status"`). Les deux sur le même
+    // élément se neutralisent : ARIA interdit d'annoncer une région `busy`, donc
+    // le texte n'était jamais lu.
+    <div className="space-y-6" aria-busy="true">
       {children}
-      <span className="sr-only">Chargement…</span>
+      <span role="status" className="sr-only">Chargement…</span>
     </div>
   )
 }
 
-function Header({ title, action = true }: { title?: string; action?: boolean }) {
+function Header({ title, action = true, titleAlways = false }: { title?: string; action?: boolean; titleAlways?: boolean }) {
   return (
     <div className="flex items-start justify-between gap-4">
       <div className="space-y-2">
         {title
-          ? <h1 className="sm:hidden text-2xl font-bold tracking-tight">{title}</h1>
+          ? <h1 className={`text-2xl font-bold tracking-tight${titleAlways ? "" : " sm:hidden"}`}>{title}</h1>
           : <Skeleton className="h-7 w-52" />}
         <Skeleton className="h-3.5 w-32" />
       </div>
@@ -46,11 +52,11 @@ function Stats({ count }: { count: number }) {
 
 /** Liste / tableau : en-tête, compteurs, puis des lignes dans une carte. */
 export function ListSkeleton({
-  title, stats = 4, rows = 7, action = true,
-}: { title?: string; stats?: number; rows?: number; action?: boolean }) {
+  title, stats = 4, rows = 7, action = true, titleAlways = false,
+}: { title?: string; stats?: number; rows?: number; action?: boolean; titleAlways?: boolean }) {
   return (
     <Frame>
-      <Header title={title} action={action} />
+      <Header title={title} action={action} titleAlways={titleAlways} />
       {stats > 0 && <Stats count={stats} />}
       <div className="rounded-xl border border-border/50 bg-card divide-y divide-border/50">
         {Array.from({ length: rows }).map((_, i) => (
@@ -70,11 +76,11 @@ export function ListSkeleton({
 
 /** Grille de cartes (projets, candidatures…). */
 export function CardsSkeleton({
-  title, stats = 4, cards = 6,
-}: { title?: string; stats?: number; cards?: number }) {
+  title, stats = 4, cards = 6, titleAlways = false,
+}: { title?: string; stats?: number; cards?: number; titleAlways?: boolean }) {
   return (
     <Frame>
-      <Header title={title} />
+      <Header title={title} titleAlways={titleAlways} />
       {stats > 0 && <Stats count={stats} />}
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
         {Array.from({ length: cards }).map((_, i) => (
@@ -94,11 +100,11 @@ export function CardsSkeleton({
 
 /** Tableau de bord / bento : KPIs puis panneaux de tailles inégales. */
 export function BentoSkeleton({
-  title, kpis = 4,
-}: { title?: string; kpis?: number }) {
+  title, kpis = 4, titleAlways = false,
+}: { title?: string; kpis?: number; titleAlways?: boolean }) {
   return (
     <Frame>
-      <Header title={title} action={false} />
+      <Header title={title} action={false} titleAlways={titleAlways} />
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         {Array.from({ length: kpis }).map((_, i) => (
           <Skeleton key={i} className="h-24 rounded-xl" />
@@ -169,10 +175,10 @@ export function CalendarSkeleton({ title }: { title?: string }) {
 }
 
 /** Un seul grand panneau (graphe, rapport…). */
-export function PanelSkeleton({ title, height = "h-[70vh]" }: { title?: string; height?: string }) {
+export function PanelSkeleton({ title, height = "h-[70vh]", titleAlways = false }: { title?: string; height?: string; titleAlways?: boolean }) {
   return (
     <Frame>
-      <Header title={title} action={false} />
+      <Header title={title} action={false} titleAlways={titleAlways} />
       <Skeleton className={`w-full rounded-xl ${height}`} />
     </Frame>
   )

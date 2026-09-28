@@ -1030,6 +1030,7 @@ model Quote {
   emitter  EmitterProfile? @relation(fields: [emitterProfileId], references: [id], onDelete: SetNull)
   lines    QuoteLine[]
   invoices Invoice[]
+  @@unique([userId, number])
 }
 
 model QuoteLine {
@@ -1081,6 +1082,7 @@ model Invoice {
   emailLogs  EmailLog[]
   payments   Payment[]
   urssafLine UrssafDeclarationLine?
+  @@unique([userId, number])
 }
 
 model Payment {

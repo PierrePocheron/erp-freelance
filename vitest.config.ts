@@ -18,6 +18,10 @@ export default defineConfig({
           name: "unit",
           environment: "node",
           include: ["tests/unit/**/*.test.ts", "src/**/*.test.ts"],
+          // Fuseau FIGÉ : la logique de dates est écrite pour Paris et la prod
+          // tourne en UTC. Sans ça, un test de fin de mois ou de journée entière
+          // passe ou échoue selon la machine (poste en Europe/Paris, CI en UTC).
+          env: { TZ: "Europe/Paris" },
         },
       },
       {

@@ -1,14 +1,9 @@
 "use server"
 
 import { prisma } from "@/lib/prisma"
+import { requireAuth } from "@/lib/require-auth"
 import { revalidatePath } from "next/cache"
-import { auth } from "@/lib/auth"
 
-async function requireAuth(): Promise<string> {
-  const session = await auth()
-  if (!session?.user?.id) throw new Error("Non autorisé")
-  return session.user.id
-}
 
 const DEFAULT_TAGS = [
   { name: "Urgent",           color: "#ef4444" },
@@ -51,9 +46,16 @@ export async function setProjectTags(projectId: string, tagIds: string[]) {
   const userId = await requireAuth()
   const proj = await prisma.project.findFirst({ where: { id: projectId, userId }, select: { id: true } })
   if (!proj) throw new Error("Projet introuvable")
+  // Les ids arrivent de l'appelant (action = endpoint public) : on ne rattache
+  // que des étiquettes réellement possédées, sinon le nom et la couleur d'une
+  // étiquette d'un autre compte s'affichaient sur le projet.
+  const owned = await prisma.tag.findMany({
+    where: { id: { in: tagIds }, userId },
+    select: { id: true },
+  })
   await prisma.project.update({
     where: { id: projectId },
-    data: { tags: { set: tagIds.map((id) => ({ id })) } },
+    data: { tags: { set: owned.map(({ id }) => ({ id })) } },
   })
   revalidatePath(`/projets/${projectId}`)
   revalidatePath("/projets")

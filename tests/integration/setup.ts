@@ -4,10 +4,11 @@ import { beforeEach, afterAll, vi } from "vitest"
 // vi.hoisted pour pouvoir être référencé dans la factory de vi.mock (hoistée).
 // On NE peut PAS exporter directement une variable hoistée → on garde l'état
 // local et on n'expose que le setter.
-const sessionState = vi.hoisted(() => ({ userId: "test-user" }))
+const sessionState = vi.hoisted(() => ({ userId: "test-user", email: "test-user@test.local" }))
 
-export function setTestUser(userId: string) {
+export function setTestUser(userId: string, email?: string) {
   sessionState.userId = userId
+  sessionState.email = email ?? `${userId}@test.local`
 }
 
 // ── Mocks des frontières externes ─────────────────────────────────────────────
@@ -22,7 +23,7 @@ vi.mock("next/cache", () => ({
 }))
 
 vi.mock("@/lib/auth", () => ({
-  auth: vi.fn(async () => ({ user: { id: sessionState.userId } })),
+  auth: vi.fn(async () => ({ user: { id: sessionState.userId, email: sessionState.email } })),
 }))
 
 vi.mock("@vercel/blob", () => ({
@@ -34,6 +35,7 @@ vi.mock("@vercel/blob", () => ({
 // Évite de tirer @react-pdf/renderer (lourd) dans les tests d'intégration.
 vi.mock("@/lib/invoice-pdf", () => ({
   buildInvoicePdfBuffer: vi.fn(async () => Buffer.from("%PDF-1.4 test")),
+  buildQuotePdfBuffer: vi.fn(async () => Buffer.from("%PDF-1.4 test")),
 }))
 
 // ── Reset de la base entre chaque test ────────────────────────────────────────
@@ -49,6 +51,7 @@ beforeEach(async () => {
     await prisma.$executeRawUnsafe(`TRUNCATE ${list} RESTART IDENTITY CASCADE`)
   }
   sessionState.userId = "test-user"
+  sessionState.email = "test-user@test.local"
 })
 
 afterAll(async () => {

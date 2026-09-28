@@ -1,10 +1,11 @@
-import { describe, it, expect } from "vitest"
+import { describe, it, expect, vi } from "vitest"
 import {
   issueInvoice,
   cancelInvoice,
   duplicateInvoiceAsDraft,
   addInvoiceLine,
   updateInvoiceConditions,
+  markLateInvoices,
 } from "@/actions/facturation"
 import { prisma } from "@/lib/prisma"
 import { setTestUser } from "./setup"
@@ -96,5 +97,77 @@ describe("cycle de vie d'une facture", () => {
     expect(full?.lines).toHaveLength(2)
     // Le brouillon dupliqué est de nouveau éditable.
     await expect(updateInvoiceConditions(draft.id, "ignored", "CGV maj")).resolves.not.toThrow()
+  })
+
+  it("la duplication conserve l'émetteur et les conditions générales", async () => {
+    const user = await makeUser()
+    const client = await makeClient(user.id)
+    setTestUser(user.id)
+    const emitter = await prisma.emitterProfile.create({
+      data: { userId: user.id, name: "Agence Démo", isDefault: true },
+      select: { id: true },
+    })
+    const source = await prisma.invoice.create({
+      data: {
+        userId: user.id, clientId: client.id, emitterProfileId: emitter.id,
+        number: "FAC-2026-900", type: "FINAL", status: "CANCELLED",
+        totalHT: 1000, depositDeducted: 0, generalConditions: "CGV maison",
+        lines: { create: [{ description: "Prestation", quantity: 1, unitPrice: 1000, taxRate: 0, total: 1000 }] },
+      },
+      select: { id: true },
+    })
+
+    await duplicateInvoiceAsDraft(source.id, "ignored")
+
+    // Sans ces deux champs, le PDF ré-émis retombait sur le profil utilisateur
+    // (mauvais SIRET/IBAN) et la facture quittait le récapitulatif fiscal, qui
+    // exige un émetteur rattaché à une source fiscale.
+    const dup = await prisma.invoice.findFirstOrThrow({
+      where: { userId: user.id, status: "DRAFT" },
+      select: { emitterProfileId: true, generalConditions: true },
+    })
+    expect(dup.emitterProfileId).toBe(emitter.id)
+    expect(dup.generalConditions).toBe("CGV maison")
+  })
+
+  it("markLateInvoices ne bascule que les factures ENVOYÉES et échues", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] })
+    vi.setSystemTime(new Date(2026, 6, 15, 10, 0, 0)) // 15 juillet 2026
+    try {
+      const user = await makeUser()
+      const client = await makeClient(user.id)
+      setTestUser(user.id)
+
+      const mk = (status: string, dueDate: Date | null) =>
+        makeInvoice(user.id, client.id, { status, totalHT: 100 }).then((inv) =>
+          prisma.invoice.update({ where: { id: inv.id }, data: { dueDate }, select: { id: true } }),
+        )
+      const echue      = await mk("SENT", new Date(2026, 6, 14))
+      const aVenir     = await mk("SENT", new Date(2026, 6, 16))
+      const sansEcheance = await mk("SENT", null)
+      const emise      = await mk("ISSUED", new Date(2026, 6, 1))
+      const payee      = await mk("PAID", new Date(2026, 6, 1))
+
+      const autre = await makeUser()
+      const autreClient = await makeClient(autre.id)
+      const inv = await makeInvoice(autre.id, autreClient.id, { status: "SENT", totalHT: 100 })
+      await prisma.invoice.update({ where: { id: inv.id }, data: { dueDate: new Date(2026, 6, 1) } })
+
+      await markLateInvoices("ignored")
+
+      const statut = async (id: string) =>
+        (await prisma.invoice.findUniqueOrThrow({ where: { id } })).status
+      expect(await statut(echue.id)).toBe("LATE")
+      expect(await statut(aVenir.id)).toBe("SENT")
+      expect(await statut(sansEcheance.id)).toBe("SENT")
+      // Documente un trou connu : une facture émise mais jamais envoyée n'est
+      // jamais marquée en retard.
+      expect(await statut(emise.id)).toBe("ISSUED")
+      expect(await statut(payee.id)).toBe("PAID")
+      // Le compte voisin n'est pas touché.
+      expect(await statut(inv.id)).toBe("SENT")
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })

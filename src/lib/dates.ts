@@ -14,11 +14,20 @@ export function toDateInput(date: Date): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
 }
 
-// Ajoute n mois à une date en clonant (ne mute pas l'argument). S'appuie sur
-// Date.setMonth, qui gère le report d'année et la normalisation des jours.
+// Ajoute n mois à une date en clonant (ne mute pas l'argument).
+//
+// ⚠️ `setMonth` seul NORMALISE le débordement : 31 janvier + 1 mois donne
+// « 31 février » → 3 mars. Une échéance mensuelle ancrée au 29, 30 ou 31 sautait
+// donc un mois entier (février jamais facturé / jamais prélevé) puis dérivait
+// définitivement au 3. On décale sur le 1er, puis on clampe au dernier jour du
+// mois cible — le comportement attendu d'une échéance « le 31 de chaque mois ».
 export function addMonths(date: Date, months: number): Date {
   const next = new Date(date)
+  const day = next.getDate()
+  next.setDate(1)
   next.setMonth(next.getMonth() + months)
+  const lastDayOfTargetMonth = new Date(next.getFullYear(), next.getMonth() + 1, 0).getDate()
+  next.setDate(Math.min(day, lastDayOfTargetMonth))
   return next
 }
 
@@ -40,12 +49,17 @@ export type RecurringFrequency = "WEEKLY" | "MONTHLY" | "QUARTERLY" | "YEARLY"
 // Avance une date selon la fréquence d'une facture récurrente. Une fréquence
 // inconnue laisse la date inchangée (comportement historique).
 export function advanceByFrequency(date: Date, frequency: string): Date {
-  const next = new Date(date)
-  if (frequency === "WEEKLY") next.setDate(next.getDate() + 7)
-  else if (frequency === "MONTHLY") next.setMonth(next.getMonth() + 1)
-  else if (frequency === "QUARTERLY") next.setMonth(next.getMonth() + 3)
-  else if (frequency === "YEARLY") next.setFullYear(next.getFullYear() + 1)
-  return next
+  if (frequency === "WEEKLY") {
+    const next = new Date(date)
+    next.setDate(next.getDate() + 7)
+    return next
+  }
+  // Passe par addMonths, qui clampe au dernier jour du mois cible (cf. son
+  // commentaire) : sans ça une échéance au 31 sautait février.
+  if (frequency === "MONTHLY") return addMonths(date, 1)
+  if (frequency === "QUARTERLY") return addMonths(date, 3)
+  if (frequency === "YEARLY") return addMonths(date, 12)
+  return new Date(date)
 }
 
 // Garde-fou anti-boucle infinie : une fréquence inconnue (ex "CUSTOM") laisse

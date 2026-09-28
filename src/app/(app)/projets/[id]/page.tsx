@@ -1,5 +1,6 @@
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
+import { isBillableInvoice } from "@/lib/invoice-state"
 import { notFound } from "next/navigation"
 import Link from "next/link"
 import { Calendar, Clock, CheckSquare, BookOpen, FileText, Receipt, Flag, Wallet } from "lucide-react"
@@ -170,8 +171,13 @@ export default async function ProjectOverviewPage({
   })
 
   const hasBilling = project.quotes.length > 0 || project.invoices.length > 0
-  const invoicedTotal = project.invoices.reduce((s, inv) => s + (inv.totalHT - inv.depositDeducted), 0)
-  const invoicedReceived = project.invoices
+  // Ni brouillon ni annulée : la fiche projet était la seule vue à ne filtrer
+  // AUCUN statut, elle affichait donc un « facturé » incluant les brouillons en
+  // préparation et les factures annulées (2 000 € annulés + 2 000 € refacturés
+  // + 5 000 € de brouillon donnaient 9 000 € au lieu de 2 000 €).
+  const billableInvoices = project.invoices.filter((inv) => isBillableInvoice(inv.status))
+  const invoicedTotal = billableInvoices.reduce((s, inv) => s + (inv.totalHT - inv.depositDeducted), 0)
+  const invoicedReceived = billableInvoices
     .filter((inv) => inv.status === "PAID")
     .reduce((s, inv) => s + (inv.totalHT - inv.depositDeducted), 0)
 

@@ -2165,7 +2165,7 @@ function TimedEventContent({ ev, height, color, cfg }: {
       {!compact && (
         <>
           <p className="text-[10px] leading-tight" style={{ color: color + "cc" }}>{timeStr}</p>
-          {ev.subtitle && <p className="text-[10px] truncate mt-px" style={{ color: color + "99" }}>{ev.subtitle}</p>}
+          {ev.subtitle && <p className="amount-sensitive text-[10px] truncate mt-px" style={{ color: color + "99" }}>{ev.subtitle}</p>}
         </>
       )}
       {ev.isLate && !compact && <span className="text-[9px] text-red-500 font-medium mt-auto">En retard</span>}
@@ -2257,7 +2257,7 @@ function EventList({
                   <span className="truncate">{ev.title}</span>
                 </p>
                 {timeStr && <p className="text-muted-foreground">{timeStr}</p>}
-                {ev.subtitle && <p className="text-muted-foreground truncate">{ev.subtitle}</p>}
+                {ev.subtitle && <p className="amount-sensitive text-muted-foreground truncate">{ev.subtitle}</p>}
                 <span className={cn("inline-block text-[10px] rounded-full border px-1.5 py-px mt-1 font-medium", cfg.badge)}>{cfg.label}</span>
               </div>
               {(ev.href || editable) && (
@@ -2278,7 +2278,7 @@ function EventList({
                 <span className="truncate">{ev.title}</span>
               </p>
               {timeStr && <p className="text-xs text-muted-foreground mt-px">{timeStr}</p>}
-              {ev.subtitle && <p className="text-xs text-muted-foreground mt-px">{ev.subtitle}</p>}
+              {ev.subtitle && <p className="amount-sensitive text-xs text-muted-foreground mt-px">{ev.subtitle}</p>}
               {ev.description && <p className="text-xs text-muted-foreground/70 mt-px truncate">{ev.description}</p>}
               <div className="flex items-center gap-2 mt-1 flex-wrap">
                 <span className={cn("text-xs rounded-full border px-2 py-px font-medium", cfg.badge)}>{cfg.label}</span>

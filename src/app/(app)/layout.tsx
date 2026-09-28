@@ -70,11 +70,11 @@ export default async function AppLayout({
           </AppHeader>
           {/* id consommé par MobileBottomNav : masquage au scroll des boutons
               flottants (c'est ce conteneur qui scrolle, pas window) */}
-          <main id="app-main" className="flex-1 overflow-y-auto p-3 sm:p-6 pb-24 sm:pb-6 print:overflow-visible print:p-0 print:pb-0">{children}</main>
+          <main id="app-main" className="flex-1 overflow-y-auto p-3 pt-[max(0.75rem,env(safe-area-inset-top))] sm:p-6 sm:pt-6 pb-24 sm:pb-6 print:overflow-visible print:p-0 print:pb-0">{children}</main>
         </BreadcrumbProvider>
         {/* Cloche de notifications flottante — mobile uniquement (le header
             desktop porte la sienne) */}
-        <div className="absolute top-3 right-4 z-50 sm:hidden">
+        <div className="absolute top-[max(0.75rem,env(safe-area-inset-top))] right-4 z-50 sm:hidden">
           <div className="flex items-center gap-0.5 rounded-lg border border-border/50 bg-background/80 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-background/60">
             <AmountsPrivacyToggle />
             <NotificationBell notifications={notifications} />

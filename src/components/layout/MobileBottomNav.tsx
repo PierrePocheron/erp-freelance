@@ -62,7 +62,7 @@ export function MobileBottomNav() {
           href="/"
           aria-label="Retour à l'accueil"
           className={cn(
-            "sm:hidden fixed bottom-5 left-4 z-50 flex h-12 w-12 items-center justify-center rounded-full border border-border bg-background/95 text-muted-foreground shadow-lg backdrop-blur-sm transition-all duration-200 active:scale-95",
+            "sm:hidden fixed bottom-[max(1.25rem,env(safe-area-inset-bottom))] left-4 z-50 flex h-12 w-12 items-center justify-center rounded-full border border-border bg-background/95 text-muted-foreground shadow-lg backdrop-blur-sm transition-all duration-200 active:scale-95",
             hidden && "translate-y-24 opacity-0 pointer-events-none"
           )}
         >
@@ -78,7 +78,7 @@ export function MobileBottomNav() {
           onClick={() => setQuickAddOpen(true)}
           aria-label="Ajout rapide"
           className={cn(
-            "sm:hidden fixed bottom-5 right-4 z-50 flex h-14 w-14 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg shadow-primary/30 transition-all duration-200 active:scale-95",
+            "sm:hidden fixed bottom-[max(1.25rem,env(safe-area-inset-bottom))] right-4 z-50 flex h-14 w-14 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg shadow-primary/30 transition-all duration-200 active:scale-95",
             hidden && "translate-y-24 opacity-0 pointer-events-none"
           )}
         >

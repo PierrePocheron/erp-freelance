@@ -12,10 +12,31 @@ export async function nextInvoiceNumber(userId: string): Promise<string> {
   const prefix = profile?.invoicePrefix ?? "FAC"
   const format = (profile?.invoiceNumberFormat ?? "PREFIX-YYYY-NNN") as NumberFormat
   const { scopePrefix, digits } = buildNumberParts(format, prefix, new Date())
-  const count = await prisma.invoice.count({
+  const existing = await prisma.invoice.findMany({
     where: { userId, number: { startsWith: scopePrefix } },
+    select: { number: true },
   })
-  return `${scopePrefix}${String(count + 1).padStart(digits, "0")}`
+  return nextNumberFrom(existing.map((i) => i.number), scopePrefix, digits)
+}
+
+/**
+ * Prochain numéro de séquence, dérivé du plus GRAND suffixe déjà attribué.
+ *
+ * Un `count() + 1` réutilisait un numéro dès qu'un document était supprimé :
+ * avec FAC-2026-001/002/003, supprimer la 002 fait retomber le compte à 2 et le
+ * document suivant s'appelait FAC-2026-003 — deux documents différents, même
+ * numéro, séquence légale rompue.
+ *
+ * Le maximum est calculé en NUMÉRIQUE et non par tri de chaînes : au passage de
+ * 999 à 1000, l'ordre lexicographique mettrait « …-999 » après « …-1000 ».
+ */
+export function nextNumberFrom(numbers: string[], scopePrefix: string, digits: number): string {
+  let max = 0
+  for (const n of numbers) {
+    const seq = Number.parseInt(n.slice(scopePrefix.length), 10)
+    if (Number.isFinite(seq) && seq > max) max = seq
+  }
+  return `${scopePrefix}${String(max + 1).padStart(digits, "0")}`
 }
 
 // Le profil "par défaut" est sélectionné en premier grâce à orderBy isDefault desc.

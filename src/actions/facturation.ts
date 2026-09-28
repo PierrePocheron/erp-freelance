@@ -5,7 +5,7 @@ import { requireAuth } from "@/lib/require-auth"
 import { revalidatePath } from "next/cache"
 import { type NumberFormat, buildNumberParts } from "@/lib/number-format"
 import { auth } from "@/lib/auth"
-import { nextInvoiceNumber, defaultEmitterId } from "@/lib/invoice-helpers"
+import { nextInvoiceNumber, defaultEmitterId, nextNumberFrom } from "@/lib/invoice-helpers"
 import { enforceRateLimit } from "@/lib/rate-limit"
 import { escapeHtml } from "@/lib/escape-html"
 import { put } from "@vercel/blob"
@@ -55,10 +55,11 @@ async function nextQuoteNumber(userId: string) {
   const prefix = profile?.quotePrefix ?? "DEV"
   const format = (profile?.quoteNumberFormat ?? "PREFIX-YYYY-NNN") as NumberFormat
   const { scopePrefix, digits } = buildNumberParts(format, prefix, new Date())
-  const count = await prisma.quote.count({
+  const existing = await prisma.quote.findMany({
     where: { userId, number: { startsWith: scopePrefix } },
+    select: { number: true },
   })
-  return `${scopePrefix}${String(count + 1).padStart(digits, "0")}`
+  return nextNumberFrom(existing.map((q) => q.number), scopePrefix, digits)
 }
 
 
@@ -84,6 +85,33 @@ async function preferredEmitterForClient(userId: string, clientId: string): Prom
 
 // ── Devis ─────────────────────────────────────────────────────────────────────
 
+/**
+ * Valide que les références d'un document appartiennent bien à l'appelant.
+ *
+ * Une action serveur est un endpoint public : `clientId`/`projectId`/`quoteId`
+ * arrivent tels quels. Sans ce contrôle, on pouvait créer SA facture sur le
+ * contact d'un AUTRE compte — la fiche du client (nom, adresse, SIRET) était
+ * alors rendue sur la page et dans le PDF, tous les contrôles de propriété du
+ * document étant par ailleurs satisfaits.
+ */
+async function assertDocumentRefsOwned(
+  userId: string,
+  refs: { clientId?: string | null; projectId?: string | null; quoteId?: string | null },
+) {
+  if (refs.clientId) {
+    const client = await prisma.client.findFirst({ where: { id: refs.clientId, userId }, select: { id: true } })
+    if (!client) throw new Error("Contact introuvable")
+  }
+  if (refs.projectId) {
+    const project = await prisma.project.findFirst({ where: { id: refs.projectId, userId }, select: { id: true } })
+    if (!project) throw new Error("Projet introuvable")
+  }
+  if (refs.quoteId) {
+    const quote = await prisma.quote.findFirst({ where: { id: refs.quoteId, userId }, select: { id: true } })
+    if (!quote) throw new Error("Devis introuvable")
+  }
+}
+
 export async function createQuoteWithLines(
   _userId: string,
   data: {
@@ -104,6 +132,7 @@ export async function createQuoteWithLines(
   }
 ) {
   const userId = await requireAuth()
+  await assertDocumentRefsOwned(userId, { clientId: data.clientId, projectId: data.projectId })
   const number = await nextQuoteNumber(userId)
   const expiresAt = data.expiresAtDays
     ? new Date(Date.now() + data.expiresAtDays * 24 * 60 * 60 * 1000)
@@ -150,6 +179,7 @@ export async function createQuote(
   }
 ) {
   const userId = await requireAuth()
+  await assertDocumentRefsOwned(userId, { clientId: data.clientId, projectId: data.projectId })
   const number = await nextQuoteNumber(userId)
   const expiresAt = data.expiresAtDays
     ? new Date(Date.now() + data.expiresAtDays * 24 * 60 * 60 * 1000)
@@ -350,6 +380,7 @@ export async function createInvoice(
   }
 ) {
   const userId = await requireAuth()
+  await assertDocumentRefsOwned(userId, { clientId: data.clientId, projectId: data.projectId, quoteId: data.quoteId })
   const number = await nextInvoiceNumber(userId)
   const invoice = await prisma.invoice.create({
     data: {

@@ -97,4 +97,35 @@ describe("cycle de vie d'une facture", () => {
     // Le brouillon dupliqué est de nouveau éditable.
     await expect(updateInvoiceConditions(draft.id, "ignored", "CGV maj")).resolves.not.toThrow()
   })
+
+  it("la duplication conserve l'émetteur et les conditions générales", async () => {
+    const user = await makeUser()
+    const client = await makeClient(user.id)
+    setTestUser(user.id)
+    const emitter = await prisma.emitterProfile.create({
+      data: { userId: user.id, name: "Pedro Agency", isDefault: true },
+      select: { id: true },
+    })
+    const source = await prisma.invoice.create({
+      data: {
+        userId: user.id, clientId: client.id, emitterProfileId: emitter.id,
+        number: "FAC-2026-900", type: "FINAL", status: "CANCELLED",
+        totalHT: 1000, depositDeducted: 0, generalConditions: "CGV maison",
+        lines: { create: [{ description: "Prestation", quantity: 1, unitPrice: 1000, taxRate: 0, total: 1000 }] },
+      },
+      select: { id: true },
+    })
+
+    await duplicateInvoiceAsDraft(source.id, "ignored")
+
+    // Sans ces deux champs, le PDF ré-émis retombait sur le profil utilisateur
+    // (mauvais SIRET/IBAN) et la facture quittait le récapitulatif fiscal, qui
+    // exige un émetteur rattaché à une source fiscale.
+    const dup = await prisma.invoice.findFirstOrThrow({
+      where: { userId: user.id, status: "DRAFT" },
+      select: { emitterProfileId: true, generalConditions: true },
+    })
+    expect(dup.emitterProfileId).toBe(emitter.id)
+    expect(dup.generalConditions).toBe("CGV maison")
+  })
 })

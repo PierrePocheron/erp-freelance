@@ -416,15 +416,33 @@ export async function createInvoiceFromQuote(quoteId: string, _userId: string, t
       depositDeducted,
       generalConditions: quote.generalConditions ?? null,
       lines: {
-        create: quote.lines.map((l) => ({
-          description: l.description,
-          detail: l.detail,
-          quantity: isDeposit ? 1 : l.quantity,
-          unitPrice: isDeposit ? depositTotal : l.unitPrice,
-          taxRate: l.taxRate,
-          total: isDeposit ? depositTotal : l.total,
-          productId: l.productId,
-        })),
+        // Un acompte = UNE ligne portant le montant de l'acompte. En recopiant
+        // les lignes du devis, chacune recevait le montant TOTAL de l'acompte :
+        // sur un devis de 3 lignes, le PDF affichait 3 × 1 800 € sous un
+        // « TOTAL HT : 1 800 € », et la moindre retouche du brouillon faisait
+        // passer `totalHT` à 5 400 € (recalcInvoiceTotal somme les lignes), donc
+        // une déduction d'acompte fausse sur la facture de solde.
+        create: isDeposit
+          ? [{
+              description: quote.depositPercent > 0
+                ? `Acompte ${quote.depositPercent} % sur devis ${quote.number}`
+                : `Acompte sur devis ${quote.number}`,
+              detail: null,
+              quantity: 1,
+              unitPrice: depositTotal,
+              taxRate: quote.lines[0]?.taxRate ?? 0,
+              total: depositTotal,
+              productId: null,
+            }]
+          : quote.lines.map((l) => ({
+              description: l.description,
+              detail: l.detail,
+              quantity: l.quantity,
+              unitPrice: l.unitPrice,
+              taxRate: l.taxRate,
+              total: l.total,
+              productId: l.productId,
+            })),
       },
     },
   })
@@ -506,10 +524,33 @@ export async function recordPayment(
 export async function deletePayment(paymentId: string, invoiceId: string, _userId: string) {
   const userId = await requireAuth()
   // Scope le paiement par sa facture propriétaire (pas par l'invoiceId fourni).
+  const payment = await prisma.payment.findFirst({
+    where: { id: paymentId, invoice: { userId } },
+    select: { invoiceId: true },
+  })
+  if (!payment) return
   const deleted = await prisma.payment.deleteMany({
     where: { id: paymentId, invoice: { userId } },
   })
   if (deleted.count === 0) return
+
+  // `recordPayment` passe la facture à PAID ; sans l'opération inverse, une
+  // facture restait « intégralement payée » après suppression de son unique
+  // paiement — donc comptée dans le CA encaissé, dans les graphes mensuels, et
+  // PRÉ-COCHÉE dans l'assiette URSSAF, pour un encaissement qui n'existe pas.
+  const invoice = await prisma.invoice.findFirst({
+    where: { id: payment.invoiceId, userId },
+    select: { totalHT: true, depositDeducted: true, status: true, payments: { select: { amount: true } } },
+  })
+  if (invoice && invoice.status === "PAID") {
+    const totalPaid = invoice.payments.reduce((s, p) => s + p.amount, 0)
+    if (!isInvoiceSettled(netAmount(invoice.totalHT, invoice.depositDeducted), totalPaid)) {
+      await prisma.invoice.update({
+        where: { id: payment.invoiceId, userId },
+        data: { status: "SENT", paidAt: null },
+      })
+    }
+  }
   revalidatePath(`/facturation/factures/${invoiceId}`)
   revalidatePath("/facturation/factures")
   revalidatePath("/facturation")
@@ -624,6 +665,11 @@ export async function duplicateInvoiceAsDraft(invoiceId: string, _userId: string
       depositDeducted: source.depositDeducted,
       dueDate: source.dueDate,
       notes: source.notes,
+      // Sans ces deux champs, la facture ré-émise perdait son émetteur (donc le
+      // SIRET/IBAN du PDF, et son rattachement à une source fiscale : elle
+      // disparaissait du récapitulatif annuel) et ses conditions générales.
+      emitterProfileId: source.emitterProfileId,
+      generalConditions: source.generalConditions,
       lines: {
         create: source.lines.map((l) => ({
           description: l.description,

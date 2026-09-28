@@ -1,5 +1,6 @@
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
+import { BILLABLE_INVOICE_STATUSES } from "@/lib/invoice-state"
 import { ProjetsListView } from "@/components/modules/projet/ProjetsListView"
 import { ProjectIdeasPanel } from "@/components/modules/projet/ProjectIdeasPanel"
 
@@ -39,7 +40,7 @@ export default async function ProjetsPage() {
       select: { id: true, tags: { select: { id: true, name: true, color: true } } },
     }).catch(() => [] as { id: string; tags: { id: string; name: string; color: string }[] }[]),
     prisma.invoice.findMany({
-      where: { userId, projectId: { not: null }, status: { not: "DRAFT" } },
+      where: { userId, projectId: { not: null }, status: { in: [...BILLABLE_INVOICE_STATUSES] } },
       select: {
         projectId: true,
         status: true,

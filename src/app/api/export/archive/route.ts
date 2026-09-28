@@ -1,4 +1,4 @@
-import { auth } from "@/lib/auth"
+import { apiSession } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { exportAllData } from "@/actions/export"
 import { buildInvoicePdfBuffer } from "@/lib/invoice-pdf"
@@ -26,8 +26,8 @@ async function fetchToBuffer(url: string): Promise<Buffer | null> {
 }
 
 export async function GET() {
-  const session = await auth()
-  if (!session?.user?.id) return new Response("Unauthorized", { status: 401 })
+  const session = await apiSession()
+  if (!session) return new Response("Unauthorized", { status: 401 })
   const userId = session.user.id
 
   const zip = new JSZip()

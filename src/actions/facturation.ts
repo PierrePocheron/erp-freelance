@@ -1,6 +1,7 @@
 "use server"
 
 import { prisma } from "@/lib/prisma"
+import { requireAuth } from "@/lib/require-auth"
 import { revalidatePath } from "next/cache"
 import { type NumberFormat, buildNumberParts } from "@/lib/number-format"
 import { auth } from "@/lib/auth"
@@ -26,11 +27,6 @@ import {
 import { advanceByFrequency } from "@/lib/dates"
 import { createRenewalDraftInvoice } from "@/lib/renewal-invoice"
 
-async function requireAuth(): Promise<string> {
-  const session = await auth()
-  if (!session?.user?.id) throw new Error("Non autorisé")
-  return session.user.id
-}
 
 // ── Verrouillage d'édition ──────────────────────────────────────────────────────
 // Un devis ou une facture n'est modifiable (lignes, montants, conditions) qu'à

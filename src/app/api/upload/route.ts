@@ -1,4 +1,4 @@
-import { auth } from "@/lib/auth"
+import { apiSession } from "@/lib/auth"
 import { put } from "@vercel/blob"
 import { NextRequest, NextResponse } from "next/server"
 import { checkRateLimit } from "@/lib/rate-limit"
@@ -36,7 +36,7 @@ function sniffMimeType(bytes: Uint8Array): string | null {
 }
 
 export async function POST(req: NextRequest) {
-  const session = await auth()
+  const session = await apiSession()
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
   // Rate limit : 20 uploads/min par utilisateur

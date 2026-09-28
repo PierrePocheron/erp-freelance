@@ -2,13 +2,8 @@
 
 import { revalidatePath } from "next/cache"
 import { prisma } from "@/lib/prisma"
-import { auth } from "@/lib/auth"
+import { requireAuth } from "@/lib/require-auth"
 
-async function requireAuth(): Promise<string> {
-  const session = await auth()
-  if (!session?.user?.id) throw new Error("Non authentifié")
-  return session.user.id
-}
 
 function revalidate(platformId?: string) {
   revalidatePath("/investissements")

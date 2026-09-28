@@ -1,4 +1,4 @@
-import { auth } from "@/lib/auth"
+import { apiSession } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { NextRequest } from "next/server"
 
@@ -14,8 +14,8 @@ export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ projectId: string }> }
 ) {
-  const session = await auth()
-  if (!session?.user?.id) return new Response("Unauthorized", { status: 401 })
+  const session = await apiSession()
+  if (!session) return new Response("Unauthorized", { status: 401 })
 
   const { projectId } = await params
   const userId = session.user.id

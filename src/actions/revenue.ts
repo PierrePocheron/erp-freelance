@@ -1,7 +1,7 @@
 "use server"
 
 import { prisma } from "@/lib/prisma"
-import { auth } from "@/lib/auth"
+import { requireAuth } from "@/lib/require-auth"
 import { revalidatePath } from "next/cache"
 
 // ── Revenus ────────────────────────────────────────────────────────────────────
@@ -11,8 +11,7 @@ export async function getRevenues(params?: {
   month?: number
   type?: string
 }) {
-  const session = await auth()
-  const userId = session!.user.id
+  const userId = await requireAuth()
 
   const where: Record<string, unknown> = { userId }
 
@@ -49,8 +48,7 @@ export async function createRevenue(data: {
   clientId?: string | null
   projectId?: string | null
 }): Promise<{ error?: string; id?: string }> {
-  const session = await auth()
-  const userId = session!.user.id
+  const userId = await requireAuth()
 
   if (!data.label.trim()) return { error: "Le libellé est requis" }
   if (!data.amount || data.amount <= 0) return { error: "Le montant doit être positif" }
@@ -101,8 +99,7 @@ export async function updateRevenue(
     projectId?: string | null
   }
 ): Promise<{ error?: string }> {
-  const session = await auth()
-  const userId = session!.user.id
+  const userId = await requireAuth()
 
   const existing = await prisma.revenue.findFirst({ where: { id, userId } })
   if (!existing) return { error: "Revenu introuvable" }
@@ -134,8 +131,7 @@ export async function updateRevenue(
  * sélection minimale, 20 résultats max, les plus proches d'abord.
  */
 export async function getPendingRevenuesQuick() {
-  const session = await auth()
-  const userId = session!.user.id
+  const userId = await requireAuth()
 
   return prisma.revenue.findMany({
     where: { userId, status: "PENDING" },
@@ -151,8 +147,7 @@ export async function markRevenueReceived(
   receivedAt: Date,
   paymentMethod: string
 ): Promise<{ error?: string }> {
-  const session = await auth()
-  const userId = session!.user.id
+  const userId = await requireAuth()
 
   const existing = await prisma.revenue.findFirst({ where: { id, userId } })
   if (!existing) return { error: "Revenu introuvable" }
@@ -170,8 +165,7 @@ export async function markRevenueReceived(
  * date de réception et moyen de paiement effacés. Inverse de markRevenueReceived.
  */
 export async function markRevenuePending(id: string): Promise<{ error?: string }> {
-  const session = await auth()
-  const userId = session!.user.id
+  const userId = await requireAuth()
 
   const existing = await prisma.revenue.findFirst({ where: { id, userId } })
   if (!existing) return { error: "Revenu introuvable" }
@@ -188,8 +182,7 @@ export async function bulkMarkReceived(
   ids: string[],
   receivedAt: Date
 ): Promise<{ error?: string; count?: number }> {
-  const session = await auth()
-  const userId = session!.user.id
+  const userId = await requireAuth()
 
   if (!ids.length) return { count: 0 }
 
@@ -211,8 +204,7 @@ export async function bulkMarkReceived(
 }
 
 export async function deleteRevenue(id: string): Promise<{ error?: string }> {
-  const session = await auth()
-  const userId = session!.user.id
+  const userId = await requireAuth()
 
   const existing = await prisma.revenue.findFirst({ where: { id, userId } })
   if (!existing) return { error: "Revenu introuvable" }
@@ -225,8 +217,7 @@ export async function deleteRevenue(id: string): Promise<{ error?: string }> {
 // ── Revenus récurrents ─────────────────────────────────────────────────────────
 
 export async function getRecurringRevenues() {
-  const session = await auth()
-  const userId = session!.user.id
+  const userId = await requireAuth()
 
   return prisma.recurringRevenue.findMany({
     where: { userId },
@@ -247,8 +238,7 @@ export async function createRecurringRevenue(data: {
   clientId?: string | null
   projectId?: string | null
 }): Promise<{ error?: string; id?: string }> {
-  const session = await auth()
-  const userId = session!.user.id
+  const userId = await requireAuth()
 
   if (!data.label.trim()) return { error: "Le libellé est requis" }
   if (!data.amount || data.amount <= 0) return { error: "Le montant doit être positif" }
@@ -291,8 +281,7 @@ export async function updateRecurringRevenue(
     projectId?: string | null
   }
 ): Promise<{ error?: string }> {
-  const session = await auth()
-  const userId = session!.user.id
+  const userId = await requireAuth()
 
   const existing = await prisma.recurringRevenue.findFirst({ where: { id, userId } })
   if (!existing) return { error: "Modèle récurrent introuvable" }
@@ -317,8 +306,7 @@ export async function updateRecurringRevenue(
 }
 
 export async function deleteRecurringRevenue(id: string): Promise<{ error?: string }> {
-  const session = await auth()
-  const userId = session!.user.id
+  const userId = await requireAuth()
 
   const existing = await prisma.recurringRevenue.findFirst({ where: { id, userId } })
   if (!existing) return { error: "Modèle récurrent introuvable" }
@@ -337,8 +325,7 @@ export async function generateRevenueFromRecurring(
   year: number,
   month: number
 ): Promise<{ error?: string; id?: string; alreadyExists?: boolean }> {
-  const session = await auth()
-  const userId = session!.user.id
+  const userId = await requireAuth()
 
   const rec = await prisma.recurringRevenue.findFirst({
     where: { id: recurringRevenueId, userId },
@@ -378,8 +365,7 @@ export async function generateRevenueFromRecurring(
  * Appelé manuellement depuis la page.
  */
 export async function generatePendingRecurringRevenues(): Promise<{ generated: number }> {
-  const session = await auth()
-  const userId = session!.user.id
+  const userId = await requireAuth()
 
   const recs = await prisma.recurringRevenue.findMany({
     where: { userId, isActive: true },

@@ -1,16 +1,11 @@
 "use server"
 
 import { prisma } from "@/lib/prisma"
+import { requireAuth } from "@/lib/require-auth"
 import { revalidatePath } from "next/cache"
-import { auth } from "@/lib/auth"
 import { computeContactName } from "@/lib/contact"
 import type { ClientType, ClientSource, InteractionChannel, OrgLevel } from "@/generated/prisma/enums"
 
-async function requireAuth(): Promise<string> {
-  const session = await auth()
-  if (!session?.user?.id) throw new Error("Non autorisé")
-  return session.user.id
-}
 
 // ── Company (société cliente) ──────────────────────────────────────────────────
 

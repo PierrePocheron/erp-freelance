@@ -43,3 +43,16 @@ export function canCancelInvoice(status: string): boolean {
 export function canRevertQuoteToDraft(status: string): boolean {
   return status === "VALIDATED"
 }
+
+// Statuts qui comptent dans un agrégat « facturé ». Un BROUILLON n'est pas un
+// engagement (montants encore modifiables, jamais transmis), une facture ANNULÉE
+// n'en est plus un — or le workflow de correction est « annuler + dupliquer »,
+// donc chaque correction gonflait les totaux qui ne filtraient pas.
+export const BILLABLE_INVOICE_STATUSES = ["ISSUED", "SENT", "LATE", "PAID"] as const
+
+export function isBillableInvoice(status: string): boolean {
+  return (BILLABLE_INVOICE_STATUSES as readonly string[]).includes(status)
+}
+
+// Statuts d'une facture émise mais pas encore réglée (l'encours).
+export const UNPAID_INVOICE_STATUSES = ["ISSUED", "SENT", "LATE"] as const

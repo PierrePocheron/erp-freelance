@@ -1,5 +1,6 @@
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
+import { BILLABLE_INVOICE_STATUSES } from "@/lib/invoice-state"
 import Link from "next/link"
 import { CreateClientDialog } from "@/components/modules/crm/CreateClientDialog"
 import { CrmList } from "@/components/modules/crm/CrmList"
@@ -22,7 +23,7 @@ export default async function CRMPage() {
       },
     }),
     prisma.invoice.findMany({
-      where: { userId, status: { not: "DRAFT" } },
+      where: { userId, status: { in: [...BILLABLE_INVOICE_STATUSES] } },
       select: {
         clientId: true,
         status: true,

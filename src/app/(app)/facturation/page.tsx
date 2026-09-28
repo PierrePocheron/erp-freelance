@@ -60,7 +60,9 @@ export default async function FacturationOverviewPage({
       select: { paidAt: true, totalHT: true, depositDeducted: true },
     }),
     prisma.invoice.findMany({
-      where: { userId, status: { in: ["SENT", "LATE"] } },
+      // ISSUED inclus : une facture émise mais pas encore envoyée est un encours
+      // (même correctif que le dashboard, cf. (app)/page.tsx).
+      where: { userId, status: { in: ["ISSUED", "SENT", "LATE"] } },
       include: {
         client: { select: { name: true, company: true } },
         payments: { select: { amount: true } },
@@ -101,7 +103,7 @@ export default async function FacturationOverviewPage({
   const paidThisYear = paidInScope.reduce((s, i) => s + i.totalHT - i.depositDeducted, 0)
 
   const totalPending = allPending
-    .filter((i) => i.status === "SENT")
+    .filter((i) => i.status === "SENT" || i.status === "ISSUED")
     .reduce((s, i) => s + i.totalHT - i.depositDeducted, 0)
 
   const totalLate = allPending

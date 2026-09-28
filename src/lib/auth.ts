@@ -2,12 +2,26 @@ import NextAuth from "next-auth"
 import { PrismaAdapter } from "@auth/prisma-adapter"
 import { prisma } from "@/lib/prisma"
 import { authConfig } from "@/auth.config"
+import { hasAllowlist, isEmailAllowed } from "@/lib/auth-allowlist"
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   ...authConfig,
   adapter: PrismaAdapter(prisma),
   session: { strategy: "jwt" },
   callbacks: {
+    // Porte d'entrée de l'app (déployée publiquement) : seuls les emails de
+    // AUTH_ALLOWED_EMAILS peuvent se connecter. Si la variable est absente, on
+    // refuse au moins toute NOUVELLE inscription — les comptes déjà en base
+    // continuent d'entrer, pour qu'un oubli de variable ne verrouille pas le
+    // propriétaire. Retourner false → redirection /login?error=AccessDenied.
+    async signIn({ user }) {
+      const raw = process.env.AUTH_ALLOWED_EMAILS
+      const email = user.email?.trim().toLowerCase()
+      if (!email) return false
+      if (hasAllowlist(raw)) return isEmailAllowed(email, raw)
+      const known = await prisma.user.findUnique({ where: { email }, select: { id: true } })
+      return known !== null
+    },
     jwt({ token, user }) {
       if (user) token.id = user.id
       return token

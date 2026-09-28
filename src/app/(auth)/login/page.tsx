@@ -12,7 +12,15 @@ const features = [
   { icon: Server,       label: "Post-dev" },
 ]
 
-export default function LoginPage() {
+export default async function LoginPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ error?: string }>
+}) {
+  // NextAuth redirige ici avec ?error=AccessDenied quand le callback `signIn`
+  // refuse l'email (liste blanche AUTH_ALLOWED_EMAILS) — sans message, la
+  // tentative semblait juste « ne rien faire ».
+  const { error } = await searchParams
   return (
     <main className="min-h-screen bg-background flex items-center justify-center px-4">
 
@@ -35,6 +43,17 @@ export default function LoginPage() {
             </p>
           </div>
         </div>
+
+        {error && (
+          <div
+            role="alert"
+            className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-center text-xs text-amber-700 dark:text-amber-400"
+          >
+            {error === "AccessDenied"
+              ? "Accès refusé : cette application est privée, réservée à son propriétaire."
+              : "La connexion a échoué. Réessayez dans un instant."}
+          </div>
+        )}
 
         {/* ── Feature chips ─────────────────────────────────────────────────── */}
         <div className="flex flex-wrap justify-center gap-2">

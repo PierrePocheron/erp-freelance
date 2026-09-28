@@ -562,6 +562,13 @@ export async function issueInvoice(invoiceId: string, _userId: string) {
     const blob = await put(`factures/${userId}/${safeNumber}.pdf`, buffer, {
       access: "public",
       contentType: "application/pdf",
+      // Le store Blob est public et `addRandomSuffix` vaut false par DÉFAUT : sans
+      // ce suffixe, l'URL était entièrement devinable (`factures/<userId>/<numéro
+      // séquentiel>.pdf`) et le PDF — qui porte le SIRET et l'IBAN de l'émetteur —
+      // lisible sans session par quiconque connaît l'hôte du store. L'URL n'est
+      // jamais envoyée au client : seules les routes /api/pdf et /api/export la
+      // relisent côté serveur.
+      addRandomSuffix: true,
     })
     pdfUrl = blob.url
   } catch (e) {

@@ -1,4 +1,4 @@
-import { Server, FileText, Users, FolderKanban, CheckSquare, Clock, Calendar, BarChart3 } from "lucide-react"
+import { Server, FileText, Users, FolderKanban, CheckSquare, Clock, Calendar, BarChart3, Wallet, PiggyBank } from "lucide-react"
 import { GoogleSignInButton } from "./GoogleSignInButton"
 
 const features = [
@@ -12,6 +12,23 @@ const features = [
   { icon: Server,       label: "Post-dev" },
 ]
 
+/**
+ * Pastilles décoratives qui flottent de part et d'autre de la carte, sur grand
+ * écran seulement (sous `lg`, la carte occupe toute la largeur utile).
+ * Positions en % pour rester à distance de la colonne centrale quelle que soit
+ * la largeur ; inclinaison et rythme variés pour éviter l'effet « grille ».
+ */
+const floatingIcons = [
+  { icon: Users,        label: "CRM",          pos: "left-[6%]  top-[16%]", size: "h-16 w-16", icon_: "h-7 w-7", accent: true,  tilt: "-8deg",  duration: "7s",   delay: "0s"   },
+  { icon: FileText,     label: "Facturation",  pos: "left-[15%] top-[44%]", size: "h-12 w-12", icon_: "h-5 w-5", accent: false, tilt: "6deg",   duration: "8.5s", delay: "0.6s" },
+  { icon: Wallet,       label: "Dépenses",     pos: "left-[9%]  top-[71%]", size: "h-14 w-14", icon_: "h-6 w-6", accent: false, tilt: "-5deg",  duration: "6.5s", delay: "1.2s" },
+  { icon: Calendar,     label: "Calendrier",   pos: "left-[24%] top-[80%]", size: "h-11 w-11", icon_: "h-5 w-5", accent: false, tilt: "9deg",   duration: "9s",   delay: "0.3s" },
+  { icon: Clock,        label: "Temps",        pos: "right-[7%] top-[14%]", size: "h-12 w-12", icon_: "h-5 w-5", accent: false, tilt: "7deg",   duration: "7.5s", delay: "0.9s" },
+  { icon: BarChart3,    label: "Dashboard",    pos: "right-[15%] top-[38%]", size: "h-11 w-11", icon_: "h-5 w-5", accent: false, tilt: "-6deg", duration: "6.8s", delay: "0.2s" },
+  { icon: FolderKanban, label: "Projets",      pos: "right-[6%] top-[62%]", size: "h-16 w-16", icon_: "h-7 w-7", accent: true,  tilt: "8deg",   duration: "8s",   delay: "1.5s" },
+  { icon: PiggyBank,    label: "Investissements", pos: "right-[23%] top-[82%]", size: "h-12 w-12", icon_: "h-5 w-5", accent: false, tilt: "-9deg", duration: "7.2s", delay: "0.5s" },
+]
+
 export default async function LoginPage({
   searchParams,
 }: {
@@ -22,23 +39,45 @@ export default async function LoginPage({
   // tentative semblait juste « ne rien faire ».
   const { error } = await searchParams
   return (
-    <main className="min-h-screen bg-background flex items-center justify-center px-4">
+    <main className="relative min-h-dvh overflow-hidden bg-background flex items-center justify-center px-4 py-10">
 
-      {/* Halo décoratif */}
-      <div className="pointer-events-none fixed inset-0 flex items-center justify-center overflow-hidden">
-        <div className="h-[500px] w-[500px] rounded-full bg-primary/5 blur-[80px]" />
+      {/* Halos décoratifs */}
+      <div aria-hidden className="pointer-events-none fixed inset-0 overflow-hidden">
+        <div className="absolute left-1/2 top-1/2 h-[520px] w-[520px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary/5 blur-[90px]" />
+        <div className="absolute -left-24 bottom-0 h-72 w-72 rounded-full bg-primary/5 blur-[80px]" />
       </div>
 
-      <div className="relative w-full max-w-sm space-y-6">
+      {/* Pastilles flottantes (décor) */}
+      <div aria-hidden className="pointer-events-none absolute inset-0 hidden lg:block">
+        {floatingIcons.map(({ icon: Icon, label, pos, size, icon_, accent, tilt, duration, delay }) => (
+          <div
+            key={label}
+            className={`login-float absolute ${pos} ${size} flex items-center justify-center rounded-2xl shadow-lg ring-1 ${
+              accent
+                ? "bg-primary text-primary-foreground ring-primary/20 shadow-primary/20"
+                : "bg-card text-primary ring-border/60"
+            }`}
+            style={{
+              ["--tilt" as string]: tilt,
+              ["--float-duration" as string]: duration,
+              ["--float-delay" as string]: delay,
+            }}
+          >
+            <Icon className={icon_} />
+          </div>
+        ))}
+      </div>
+
+      <div className="relative w-full max-w-sm space-y-7">
 
         {/* ── Logo + titre ─────────────────────────────────────────────────── */}
         <div className="flex flex-col items-center gap-3 text-center">
-          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary shadow-md">
-            <Server className="h-6 w-6 text-primary-foreground" aria-hidden />
+          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary shadow-lg shadow-primary/25">
+            <Server className="h-7 w-7 text-primary-foreground" aria-hidden />
           </div>
           <div>
-            <h1 className="text-2xl font-bold tracking-tight">ERP Freelance</h1>
-            <p className="text-sm text-muted-foreground mt-0.5">
+            <h1 className="text-3xl font-bold tracking-tight">ERP Freelance</h1>
+            <p className="text-sm text-muted-foreground mt-1">
               Votre espace de travail tout-en-un
             </p>
           </div>
@@ -55,35 +94,39 @@ export default async function LoginPage({
           </div>
         )}
 
-        {/* ── Feature chips ─────────────────────────────────────────────────── */}
-        <div className="flex flex-wrap justify-center gap-2">
+        {/* ── Modules (sous lg, là où les pastilles flottantes n'ont pas la place) ── */}
+        <div className="flex flex-wrap justify-center gap-2 lg:hidden">
           {features.map(({ icon: Icon, label }) => (
             <div
               key={label}
-              className="group flex items-center gap-1.5 rounded-full border border-border/50 bg-card px-3 py-1.5
-                         text-xs font-medium text-muted-foreground cursor-default
-                         transition-all duration-200
-                         hover:border-border hover:bg-accent hover:text-foreground hover:shadow-sm hover:-translate-y-0.5"
+              className="flex items-center gap-1.5 rounded-full border border-border/50 bg-card px-3 py-1.5 text-xs font-medium text-muted-foreground"
             >
-              <Icon className="h-3 w-3 transition-transform duration-200 group-hover:scale-110" aria-hidden />
+              <Icon className="h-3 w-3" aria-hidden />
               {label}
             </div>
           ))}
         </div>
 
         {/* ── Carte de connexion ────────────────────────────────────────────── */}
-        <div className="rounded-2xl border border-border/50 bg-card p-6 shadow-sm space-y-4">
-          <div className="space-y-0.5 text-center">
+        <div className="relative rounded-2xl border border-border/60 bg-card/80 p-7 shadow-xl shadow-black/5 backdrop-blur-sm">
+          {/* Filet dégradé en tête de carte */}
+          <div
+            aria-hidden
+            className="absolute inset-x-8 -top-px h-px bg-gradient-to-r from-transparent via-primary/60 to-transparent"
+          />
+          <div className="space-y-1 text-center">
             <h2 className="text-base font-semibold">Connexion</h2>
             <p className="text-xs text-muted-foreground">
               Accès sécurisé via votre compte Google
             </p>
           </div>
 
-          <GoogleSignInButton />
+          <div className="mt-5">
+            <GoogleSignInButton />
+          </div>
 
-          <p className="text-center text-xs text-muted-foreground">
-            Accès privé · données jamais partagées
+          <p className="mt-4 text-center text-xs text-muted-foreground">
+            Accès privé · réservé au propriétaire du compte
           </p>
         </div>
 

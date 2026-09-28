@@ -1,15 +1,10 @@
 "use server"
 
 import { prisma } from "@/lib/prisma"
+import { requireAuth } from "@/lib/require-auth"
 import { revalidatePath } from "next/cache"
-import { auth } from "@/lib/auth"
 import { advanceByFrequency } from "@/lib/dates"
 
-async function requireAuth(): Promise<string> {
-  const session = await auth()
-  if (!session?.user?.id) throw new Error("Non autorisé")
-  return session.user.id
-}
 
 // Garde-fou anti-boucle infinie — cf. src/lib/dates.ts (une fréquence inconnue
 // ne fait pas avancer la date).

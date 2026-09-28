@@ -1,19 +1,14 @@
 "use server"
 
 import { prisma } from "@/lib/prisma"
+import { requireAuth } from "@/lib/require-auth"
 import { revalidatePath } from "next/cache"
-import { auth } from "@/lib/auth"
 import { getResend } from "@/lib/resend"
 import { enforceRateLimit } from "@/lib/rate-limit"
 import { renderTemplate, bodyToHtml } from "@/lib/email-template"
 import { prospectionFromAddress } from "@/lib/prospection-email"
 import type { ClientSource, InteractionChannel, ProspectStatus, ProspectEventKind } from "@/generated/prisma/enums"
 
-async function requireAuth(): Promise<string> {
-  const session = await auth()
-  if (!session?.user?.id) throw new Error("Non autorisé")
-  return session.user.id
-}
 
 // Résout la société d'un prospect par nom (création si absente) — même logique
 // que resolveCompany de crm.ts, dupliquée ici car non exportée là-bas.

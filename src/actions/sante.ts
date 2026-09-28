@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache"
 import { prisma } from "@/lib/prisma"
-import { auth } from "@/lib/auth"
+import { requireAuth } from "@/lib/require-auth"
 import type {
   HealthEventType,
   PractitionerType,
@@ -10,11 +10,6 @@ import type {
   ReimbursementStatus,
 } from "@/generated/prisma/enums"
 
-async function requireAuth() {
-  const session = await auth()
-  if (!session?.user?.id) throw new Error("Non authentifié")
-  return session.user.id
-}
 
 // ── Health Events (blessures/maladies) ────────────────────────────────────────
 

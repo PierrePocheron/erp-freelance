@@ -56,3 +56,21 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     },
   },
 })
+
+/**
+ * Session d'une route `/api/**` — à utiliser à la place de `auth()` dans ces
+ * routes.
+ *
+ * Le proxy edge revalide la liste blanche à chaque requête, mais son matcher
+ * EXCLUT `/api` : sans ce garde, un jeton déjà émis gardait l'accès aux exports,
+ * aux PDF et à l'upload pendant toute sa durée de vie (30 jours) après le retrait
+ * de son email de `AUTH_ALLOWED_EMAILS`. Renvoie null s'il n'y a pas de session
+ * utilisable — l'appelant répond 401.
+ */
+export async function apiSession(): Promise<{ user: { id: string; email?: string | null } } | null> {
+  const session = await auth()
+  const id = session?.user?.id
+  if (!id) return null
+  if (!isEmailAllowed(session.user.email, process.env.AUTH_ALLOWED_EMAILS)) return null
+  return { user: { id, email: session.user.email } }
+}

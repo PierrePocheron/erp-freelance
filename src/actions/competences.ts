@@ -2,16 +2,11 @@
 
 import { revalidatePath } from "next/cache"
 import { prisma } from "@/lib/prisma"
-import { auth } from "@/lib/auth"
+import { requireAuth } from "@/lib/require-auth"
 import type { SkillType, SkillStatus, ProjectSkillRole, QuestionStatus, SkillFamily } from "@/generated/prisma/enums"
 import { suggestFamily } from "@/lib/tech-icons"
 import { syncTaskGoogleState } from "@/lib/google-task-sync"
 
-async function requireAuth() {
-  const session = await auth()
-  if (!session?.user?.id) throw new Error("Non authentifié")
-  return session.user.id
-}
 
 function revalidateSkillPaths() {
   revalidatePath("/competences")

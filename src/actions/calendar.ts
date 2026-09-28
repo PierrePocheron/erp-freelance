@@ -2,6 +2,7 @@
 
 import { parseGoogleDate } from "@/lib/dates"
 import { prisma } from "@/lib/prisma"
+import { requireAuth } from "@/lib/require-auth"
 import { auth } from "@/lib/auth"
 import { revalidatePath } from "next/cache"
 import {
@@ -64,8 +65,7 @@ const DEFAULT_CATEGORIES = [
  * n'est pas encore dans le client généré (besoin de `npx prisma generate`).
  */
 export async function getOrCreateDefaultCategories(): Promise<CalendarCategory[]> {
-  const session = await auth()
-  const userId = session!.user.id
+  const userId = await requireAuth()
 
   const existing = await prisma.$queryRaw<CalendarCategory[]>`
     SELECT id, "userId", name, color, "isDefault", "createdAt"
@@ -101,8 +101,7 @@ export async function createCalendarCategory(data: {
   name: string
   color: string
 }): Promise<{ error?: string; category?: CalendarCategory }> {
-  const session = await auth()
-  const userId = session!.user.id
+  const userId = await requireAuth()
 
   if (!data.name.trim()) return { error: "Le nom est requis" }
 
@@ -128,8 +127,7 @@ export async function createCalendarCategory(data: {
  * Supprime une catégorie personnalisée (pas les catégories par défaut).
  */
 export async function deleteCalendarCategory(categoryId: string): Promise<void> {
-  const session = await auth()
-  const userId = session!.user.id
+  const userId = await requireAuth()
 
   await prisma.$executeRaw`
     DELETE FROM "CalendarCategory"
@@ -149,8 +147,7 @@ export async function getCalendarEvents(params?: {
   from?: Date
   to?: Date
 }): Promise<CalendarEventFull[]> {
-  const session = await auth()
-  const userId = session!.user.id
+  const userId = await requireAuth()
 
   const from = params?.from ?? new Date(0)
   const to   = params?.to   ?? new Date("2099-12-31")
@@ -191,8 +188,7 @@ export async function createCalendarEvent(data: {
   projectId?: string
   clientId?: string
 }): Promise<{ error?: string; event?: CalendarEventFull }> {
-  const session = await auth()
-  const userId = session!.user.id
+  const userId = await requireAuth()
 
   if (!data.title.trim()) return { error: "Le titre est requis" }
 
@@ -255,8 +251,7 @@ export async function updateCalendarEvent(
     clientId?: string | null
   }
 ): Promise<void> {
-  const session = await auth()
-  const userId = session!.user.id
+  const userId = await requireAuth()
 
   // Un seul UPDATE scopé au propriétaire (anti-IDOR) : Prisma ignore les champs
   // `undefined` (donc seuls les champs fournis sont écrits) et gère `updatedAt`
@@ -282,8 +277,7 @@ export async function updateCalendarEvent(
  * Supprime un événement.
  */
 export async function deleteCalendarEvent(eventId: string): Promise<void> {
-  const session = await auth()
-  const userId = session!.user.id
+  const userId = await requireAuth()
 
   await prisma.$executeRaw`
     DELETE FROM "CalendarEvent"
@@ -297,8 +291,7 @@ export async function deleteCalendarEvent(eventId: string): Promise<void> {
  * Marque un événement comme annulé (avec raison optionnelle en note libre).
  */
 export async function cancelCalendarEvent(eventId: string, reason?: string): Promise<void> {
-  const session = await auth()
-  const userId = session!.user.id
+  const userId = await requireAuth()
 
   const rows = await prisma.$queryRaw<{ id: string }[]>`
     SELECT id FROM "CalendarEvent" WHERE id = ${eventId} AND "userId" = ${userId} LIMIT 1
@@ -317,8 +310,7 @@ export async function cancelCalendarEvent(eventId: string, reason?: string): Pro
  * Annule l'annulation d'un événement.
  */
 export async function uncancelCalendarEvent(eventId: string): Promise<void> {
-  const session = await auth()
-  const userId = session!.user.id
+  const userId = await requireAuth()
 
   const rows = await prisma.$queryRaw<{ id: string }[]>`
     SELECT id FROM "CalendarEvent" WHERE id = ${eventId} AND "userId" = ${userId} LIMIT 1
@@ -337,8 +329,7 @@ export async function uncancelCalendarEvent(eventId: string): Promise<void> {
  * Enregistre un compte-rendu post-événement (lève une éventuelle annulation).
  */
 export async function setCalendarEventOutcome(eventId: string, outcome: string): Promise<void> {
-  const session = await auth()
-  const userId = session!.user.id
+  const userId = await requireAuth()
 
   const rows = await prisma.$queryRaw<{ id: string }[]>`
     SELECT id FROM "CalendarEvent" WHERE id = ${eventId} AND "userId" = ${userId} LIMIT 1
@@ -516,8 +507,7 @@ async function insertManualEvent(userId: string, data: {
  * Crée l'entité adaptée au contexte. Renvoie { error } si validation échoue.
  */
 export async function createCalendarItem(input: CalItemInput): Promise<{ error?: string }> {
-  const session = await auth()
-  const userId  = session!.user.id
+  const userId = await requireAuth()
 
   const title = input.title.trim()
   if (!title) return { error: "Le titre est requis" }
@@ -645,8 +635,7 @@ export async function moveCalendarItem(
   newEnd: Date | null,
   allDay: boolean,
 ): Promise<{ error?: string }> {
-  const session = await auth()
-  const userId  = session!.user.id
+  const userId = await requireAuth()
 
   try {
     switch (type) {
@@ -729,8 +718,7 @@ export async function updateCalendarItem(
     priority?: string | null
   },
 ): Promise<{ error?: string }> {
-  const session = await auth()
-  const userId  = session!.user.id
+  const userId = await requireAuth()
 
   try {
     switch (type) {
@@ -828,8 +816,7 @@ export async function updateCalendarItem(
  * Supprime une entité depuis la modale détail.
  */
 export async function deleteCalendarItem(type: CalItemType, id: string): Promise<{ error?: string }> {
-  const session = await auth()
-  const userId  = session!.user.id
+  const userId = await requireAuth()
 
   try {
     switch (type) {
@@ -909,15 +896,13 @@ export async function deleteCalendarItem(type: CalItemType, id: string): Promise
  * de l'utilisateur.
  */
 export async function getGoogleCalendarConnectionStatus(): Promise<GoogleConnectionStatus> {
-  const session = await auth()
-  const userId = session!.user.id
+  const userId = await requireAuth()
   return checkGoogleCalendarStatus(userId)
 }
 
 /** Étape « récupération » de la sync : Google → ERP (pull + dédoublonnage). */
 export async function syncGooglePull(monthsBack: number = 1): Promise<SyncResult> {
-  const session = await auth()
-  const userId = session!.user.id
+  const userId = await requireAuth()
 
   const hasScope = await hasCalendarScope(userId)
   if (!hasScope) return { synced: 0, needsPermission: true }
@@ -1045,8 +1030,7 @@ export async function syncGooglePull(monthsBack: number = 1): Promise<SyncResult
  * NULL) — les nouveaux événements sont déjà poussés à la création.
  */
 export async function syncGooglePush(): Promise<SyncResult> {
-  const session = await auth()
-  const userId = session!.user.id
+  const userId = await requireAuth()
 
   const hasScope = await hasCalendarScope(userId)
   if (!hasScope) return { synced: 0, needsPermission: true }
@@ -1085,8 +1069,7 @@ export async function syncGooglePush(): Promise<SyncResult> {
 
 /** Enregistre le seuil de fraîcheur de la synchro auto (minutes ; 0 = toujours). */
 export async function setCalendarSyncThreshold(minutes: number): Promise<void> {
-  const session = await auth()
-  const userId = session!.user.id
+  const userId = await requireAuth()
   const clamped = Math.min(Math.max(Math.round(minutes), 0), 1440) // 0 min → 24 h
   await prisma.userProfile.upsert({ where: { userId }, create: { userId, calendarSyncThresholdMin: clamped }, update: { calendarSyncThresholdMin: clamped } })
   revalidatePath("/settings")

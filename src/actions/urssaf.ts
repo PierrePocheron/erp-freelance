@@ -1,6 +1,7 @@
 "use server"
 
 import { prisma } from "@/lib/prisma"
+import { requireAuth } from "@/lib/require-auth"
 import { auth } from "@/lib/auth"
 import { revalidatePath } from "next/cache"
 import {
@@ -44,8 +45,7 @@ export type SuggestedLine = {
  * Client.defaultFiscalCategory (BNC par défaut).
  */
 export async function suggestDeclarationLines(period: string): Promise<SuggestedLine[]> {
-  const session = await auth()
-  const userId = session!.user.id
+  const userId = await requireAuth()
   const { start, end } = periodBounds(period)
   const inRange = { gte: start, lte: end }
 
@@ -137,8 +137,7 @@ export async function createUrssafDeclaration(data: {
   lines:  LineInput[]
   notes?: string | null
 }): Promise<{ id?: string; error?: string }> {
-  const session = await auth()
-  const userId = session!.user.id
+  const userId = await requireAuth()
 
   const existing = await prisma.urssafDeclaration.findUnique({
     where: { userId_period: { userId, period: data.period } },
@@ -176,8 +175,7 @@ export async function updateUrssafDeclarationLines(
   lines: LineInput[],
   notes?: string | null
 ): Promise<{ error?: string }> {
-  const session = await auth()
-  const userId = session!.user.id
+  const userId = await requireAuth()
 
   const decl = await prisma.urssafDeclaration.findFirst({ where: { id, userId } })
   if (!decl) return { error: "Déclaration introuvable" }
@@ -210,8 +208,7 @@ export async function markUrssafDeclared(
   id: string,
   declaredAt: Date
 ): Promise<{ error?: string }> {
-  const session = await auth()
-  const userId = session!.user.id
+  const userId = await requireAuth()
 
   const decl = await prisma.urssafDeclaration.findFirst({ where: { id, userId } })
   if (!decl) return { error: "Déclaration introuvable" }
@@ -237,8 +234,7 @@ export async function markUrssafPaid(
     versementLiberatoire: number
   }
 ): Promise<{ error?: string }> {
-  const session = await auth()
-  const userId = session!.user.id
+  const userId = await requireAuth()
 
   const decl = await prisma.urssafDeclaration.findFirst({ where: { id, userId } })
   if (!decl) return { error: "Déclaration introuvable" }
@@ -263,8 +259,7 @@ export async function markUrssafPaid(
 }
 
 export async function deleteUrssafDeclaration(id: string): Promise<{ error?: string }> {
-  const session = await auth()
-  const userId = session!.user.id
+  const userId = await requireAuth()
 
   const decl = await prisma.urssafDeclaration.findFirst({ where: { id, userId } })
   if (!decl) return { error: "Déclaration introuvable" }
@@ -320,8 +315,7 @@ export async function setInvoiceUrssafExcluded(
   invoiceId: string,
   excluded: boolean
 ): Promise<{ error?: string }> {
-  const session = await auth()
-  const userId = session!.user.id
+  const userId = await requireAuth()
 
   const inv = await prisma.invoice.findFirst({
     where: { id: invoiceId, userId },
@@ -344,8 +338,7 @@ export async function setClientFiscalCategory(
   clientId: string,
   category: FiscalCategory | null
 ): Promise<{ error?: string }> {
-  const session = await auth()
-  const userId = session!.user.id
+  const userId = await requireAuth()
 
   const client = await prisma.client.findFirst({ where: { id: clientId, userId } })
   if (!client) return { error: "Contact introuvable" }

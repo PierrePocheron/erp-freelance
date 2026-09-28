@@ -1,4 +1,4 @@
-import { auth } from "@/lib/auth"
+import { apiSession } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { buildInvoicePdfBuffer } from "@/lib/invoice-pdf"
 import { NextRequest } from "next/server"
@@ -7,7 +7,7 @@ export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const session = await auth()
+  const session = await apiSession()
   if (!session) return new Response("Unauthorized", { status: 401 })
 
   const { id } = await params

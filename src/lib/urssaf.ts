@@ -1,3 +1,5 @@
+import { zonedMidnight, zonedParts } from "@/lib/dates"
+
 // Logique pure du module de déclarations URSSAF (auto-entrepreneur).
 // Périodes de déclaration, échéances et calcul des cotisations — testable
 // sans base ni session. Les taux proviennent de UserProfile (configurables).
@@ -20,11 +22,23 @@ export const FISCAL_CATEGORY_SHORT: Record<FiscalCategory, string> = {
 // ── Périodes ──────────────────────────────────────────────────────────────────
 // Clé de période : "2026-T2" (trimestriel) ou "2026-07" (mensuel).
 
+// ⚠️ Toutes les bornes de ce fichier sont construites en heure de PARIS, jamais
+// via `new Date(y, m, d)` (qui suit le fuseau du process). En production, Vercel
+// tourne en UTC et refuse la variable `TZ` (nom réservé) : un encaissement du
+// 1er juillet à 00 h 30 heure de Paris serait sinon rangé dans le trimestre
+// précédent, et l'échéance du 31 juillet affichée au 1er août.
 export function periodKey(date: Date, frequency: DeclarationFrequency): string {
-  const y = date.getFullYear()
-  const m = date.getMonth() // 0-based
+  const { year: y, month } = zonedParts(date)
+  const m = month - 1 // 0-based
   if (frequency === "QUARTERLY") return `${y}-T${Math.floor(m / 3) + 1}`
   return `${y}-${String(m + 1).padStart(2, "0")}`
+}
+
+/** Minuit (heure de Paris) du 1er jour d'un mois donné ; `month` est 0-based et peut déborder. */
+function monthStart(year: number, month: number): Date {
+  const y = year + Math.floor(month / 12)
+  const m = ((month % 12) + 12) % 12
+  return zonedMidnight(`${y}-${String(m + 1).padStart(2, "0")}-01`)
 }
 
 export function isQuarterKey(key: string): boolean {
@@ -45,15 +59,18 @@ export function periodBounds(key: string): { start: Date; end: Date } {
     startMonth = Number(part) - 1
     endMonth = startMonth + 1
   }
-  const start = new Date(y, startMonth, 1)
-  const end = new Date(y, endMonth, 0, 23, 59, 59, 999)
+  const start = monthStart(y, startMonth)
+  // Fin = dernier instant de la veille du mois suivant (donc 23:59:59.999 à Paris).
+  const end = new Date(monthStart(y, endMonth).getTime() - 1)
   return { start, end }
 }
 
 /** Échéance URSSAF : dernier jour du mois suivant la fin de période. */
 export function declarationDueDate(key: string): Date {
   const { end } = periodBounds(key)
-  return new Date(end.getFullYear(), end.getMonth() + 2, 0, 23, 59, 59, 999)
+  const { year, month } = zonedParts(end)
+  // Dernier instant du mois SUIVANT la fin de période (mois 0-based : month, +1 = suivant).
+  return new Date(monthStart(year, month + 1).getTime() - 1)
 }
 
 /**
@@ -62,7 +79,8 @@ export function declarationDueDate(key: string): Date {
  */
 export function declarationAvailableFrom(key: string): Date {
   const { end } = periodBounds(key)
-  return new Date(end.getFullYear(), end.getMonth() + 1, 1)
+  const { year, month } = zonedParts(end)
+  return monthStart(year, month) // month est 1-based ici → 0-based du mois suivant
 }
 
 /** Période précédente ("2026-T1" → "2025-T4", "2026-01" → "2025-12"). */

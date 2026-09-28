@@ -1,6 +1,7 @@
 "use server"
 
 import { prisma } from "@/lib/prisma"
+import { parseCivilDate } from "@/lib/dates"
 import { requireAuth } from "@/lib/require-auth"
 import { revalidatePath } from "next/cache"
 import { z } from "zod"
@@ -301,7 +302,7 @@ export async function createClientTask(
       userId,
       clientId: clientId || null,
       title: title.trim(),
-      dueDate: dueDate ? new Date(dueDate) : null,
+      dueDate: dueDate ? parseCivilDate(dueDate) : null,
       ...(priority ? { priority } : {}),
     },
   })
@@ -418,7 +419,7 @@ export async function updateTaskDueDate(taskId: string, projectId: string, dueDa
   await requireTaskOwnership(taskId, userId)
   await prisma.task.update({
     where: { id: taskId },
-    data: { dueDate: dueDate ? new Date(dueDate) : null },
+    data: { dueDate: dueDate ? parseCivilDate(dueDate) : null },
   })
   await syncTaskGoogleState(userId, taskId)
   revalidatePath(`/projets/${projectId}`)

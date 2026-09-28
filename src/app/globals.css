@@ -155,6 +155,22 @@
   .cal-event-land, .cal-bar-land { animation: none; }
 }
 
+/* Écran de connexion — pastilles d'icônes qui flottent autour de la carte.
+   L'inclinaison est passée par --tilt pour que chaque pastille garde la sienne
+   pendant l'animation (une rotation en classe serait écrasée par le transform). */
+@keyframes login-float {
+  0%, 100% { transform: translateY(0)      rotate(var(--tilt, 0deg)); }
+  50%      { transform: translateY(-12px)  rotate(var(--tilt, 0deg)); }
+}
+.login-float {
+  transform: rotate(var(--tilt, 0deg));
+  animation: login-float var(--float-duration, 7s) ease-in-out var(--float-delay, 0s) infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .login-float { animation: none; }
+}
+
 /* Confidentialité des montants — le bouton "Masquer" pose la classe
    .hide-amounts sur <html> (même mécanisme que le thème .dark), ce qui floute
    les montants marqués .amount-sensitive (utile pour une capture d'écran). */

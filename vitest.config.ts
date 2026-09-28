@@ -53,6 +53,11 @@ export default defineConfig({
             TEST_DATABASE_URL: testDatabaseUrl,
             NODE_ENV: "test",
             ENCRYPTION_KEY: process.env.ENCRYPTION_KEY,
+            // Même fuseau que la production (Vercel, UTC — la variable `TZ` y est
+            // réservée) et que la CI. Sans ça, une assertion écrite avec
+            // `getMonth()/getDate()` passe sur un poste en Europe/Paris et échoue
+            // en CI : c'est exactement ce qui a fait tomber la release v1.4.2.
+            TZ: "UTC",
           },
         },
       },

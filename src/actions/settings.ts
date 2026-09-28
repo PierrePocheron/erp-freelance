@@ -150,6 +150,20 @@ export async function deleteAllUserData(_userId: string) {
   // Time tracking
   await prisma.timeEntry.deleteMany({ where: { userId } })
 
+  // Santé (remboursements → consultations → événements)
+  await prisma.healthReimbursement.deleteMany({ where: { userId } })
+  await prisma.healthConsultation.deleteMany({ where: { userId } })
+  await prisma.healthEvent.deleteMany({ where: { userId } })
+
+  // Dépenses (les lignes référencent la catégorie et le récurrent)
+  await prisma.expense.deleteMany({ where: { userId } })
+  await prisma.recurringExpense.deleteMany({ where: { userId } })
+  await prisma.expenseCategory.deleteMany({ where: { userId } })
+
+  // Investissements (relevés → plateformes)
+  await prisma.investmentEntry.deleteMany({ where: { platform: { userId } } })
+  await prisma.investmentPlatform.deleteMany({ where: { userId } })
+
   // Revenus (référencent company, client, project — à supprimer avant eux)
   await prisma.revenue.deleteMany({ where: { userId } })
   await prisma.recurringRevenue.deleteMany({ where: { userId } })
@@ -166,6 +180,24 @@ export async function deleteAllUserData(_userId: string) {
   await prisma.invoice.deleteMany({ where: { userId } })
   await prisma.quote.deleteMany({ where: { userId } })
 
+  // Entretiens & compétences (les tables de liaison cascadent depuis leurs têtes,
+  // mais on retire d'abord ce qui pointe vers les candidatures et les questions)
+  await prisma.jobApplicationEvent.deleteMany({ where: { userId } })
+  await prisma.jobApplicationSkill.deleteMany({ where: { application: { userId } } })
+  await prisma.questionSkill.deleteMany({ where: { question: { userId } } })
+  await prisma.projectSkill.deleteMany({ where: { project: { userId } } })
+  await prisma.interviewQuestion.deleteMany({ where: { userId } })
+  await prisma.interviewAnswer.deleteMany({ where: { userId } })
+  await prisma.jobApplication.deleteMany({ where: { userId } })
+  await prisma.skill.deleteMany({ where: { userId } })
+
+  // Prospection (brouillons et modèles)
+  await prisma.emailDraft.deleteMany({ where: { userId } })
+  await prisma.emailTemplate.deleteMany({ where: { userId } })
+  await prisma.callTemplate.deleteMany({ where: { userId } })
+  await prisma.prospectEvent.deleteMany({ where: { client: { userId } } })
+  await prisma.prospectNote.deleteMany({ where: { client: { userId } } })
+
   // Calendrier & notifications
   await prisma.calendarEvent.deleteMany({ where: { userId } })
   await prisma.calendarCategory.deleteMany({ where: { userId } })
@@ -180,7 +212,8 @@ export async function deleteAllUserData(_userId: string) {
   await prisma.task.deleteMany({ where: { OR: [{ project: { userId } }, { userId }] } })
   await prisma.taskTag.deleteMany({ where: { project: { userId } } })
 
-  // Données projet (milestones, journal, livrables, liens, membres)
+  // Données projet (milestones, journal, livrables, liens, membres, événements)
+  await prisma.projectEvent.deleteMany({ where: { project: { userId } } })
   await prisma.milestone.deleteMany({ where: { project: { userId } } })
   await prisma.journalEntry.deleteMany({ where: { project: { userId } } })
   await prisma.deliverable.deleteMany({ where: { project: { userId } } })
@@ -194,8 +227,11 @@ export async function deleteAllUserData(_userId: string) {
   await prisma.interaction.deleteMany({ where: { client: { userId } } })
   await prisma.reminder.deleteMany({ where: { client: { userId } } })
   await prisma.clientFile.deleteMany({ where: { client: { userId } } })
+  await prisma.projectContact.deleteMany({ where: { project: { userId } } })
   await prisma.client.deleteMany({ where: { userId } })
+  await prisma.companyTeam.deleteMany({ where: { company: { userId } } })
   await prisma.company.deleteMany({ where: { userId } })
+  await prisma.companyCategory.deleteMany({ where: { userId } })
 
   // Reste utilisateur
   await prisma.product.deleteMany({ where: { userId } })
@@ -203,6 +239,10 @@ export async function deleteAllUserData(_userId: string) {
   await prisma.conditionsTemplate.deleteMany({ where: { userId } })
   await prisma.projectIdea.deleteMany({ where: { userId } })
   await prisma.emitterProfile.deleteMany({ where: { userId } })
+  await prisma.pushSubscription.deleteMany({ where: { userId } })
+  // Les sources fiscales viennent APRÈS les émetteurs et les revenus, qui les
+  // référencent — sinon il restait des sources orphelines affichées à 0 €.
+  await prisma.fiscalSource.deleteMany({ where: { userId } })
   await prisma.userProfile?.deleteMany({ where: { userId } })
 
   redirect("/")

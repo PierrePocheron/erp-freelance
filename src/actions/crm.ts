@@ -1,6 +1,7 @@
 "use server"
 
 import { prisma } from "@/lib/prisma"
+import { parseCivilDate } from "@/lib/dates"
 import { requireAuth } from "@/lib/require-auth"
 import { revalidatePath } from "next/cache"
 import { computeContactName } from "@/lib/contact"
@@ -592,7 +593,7 @@ export async function addReminder(clientId: string, data: { dueDate: string; not
   await prisma.reminder.create({
     data: {
       clientId,
-      dueDate: new Date(data.dueDate),
+      dueDate: parseCivilDate(data.dueDate),
       note: data.note || null,
     },
   })

@@ -24,7 +24,7 @@ import {
   canCancelInvoice,
   canRevertQuoteToDraft,
 } from "@/lib/invoice-state"
-import { advanceByFrequency } from "@/lib/dates"
+import { zonedDayStart, parseCivilDate, advanceByFrequency } from "@/lib/dates"
 import { createRenewalDraftInvoice } from "@/lib/renewal-invoice"
 
 
@@ -242,7 +242,7 @@ export async function updateQuoteSettings(
     where: { id: quoteId, userId },
     data: {
       ...(data.generalConditions !== undefined && { generalConditions: data.generalConditions }),
-      ...(data.expiresAt !== undefined && { expiresAt: data.expiresAt ? new Date(data.expiresAt) : null }),
+      ...(data.expiresAt !== undefined && { expiresAt: data.expiresAt ? parseCivilDate(data.expiresAt) : null }),
       ...(data.depositPercent !== undefined && { depositPercent: data.depositPercent }),
       ...(data.notes !== undefined && { notes: data.notes }),
     },
@@ -391,7 +391,7 @@ export async function createInvoice(
       emitterProfileId: await preferredEmitterForClient(userId, data.clientId),
       number,
       type: (data.type as never) || "STANDALONE",
-      dueDate: data.dueDate ? new Date(data.dueDate) : null,
+      dueDate: data.dueDate ? parseCivilDate(data.dueDate) : null,
       notes: data.notes || null,
       depositDeducted: data.depositDeducted ?? 0,
     },
@@ -585,11 +585,14 @@ export async function deletePayment(paymentId: string, invoiceId: string, _userI
 
 export async function markLateInvoices(_userId: string) {
   const userId = await requireAuth()
+  // Comparaison à MINUIT (heure de Paris) du jour courant : une facture due
+  // aujourd'hui n'est en retard que demain. Avec `new Date()` et des échéances
+  // stockées à minuit UTC, elle basculait en retard à 02 h 00 le matin même.
   await prisma.invoice.updateMany({
     where: {
       userId,
       status: "SENT",
-      dueDate: { lt: new Date() },
+      dueDate: { lt: zonedDayStart(new Date()) },
     },
     data: { status: "LATE" },
   })
@@ -720,7 +723,7 @@ export async function updateInvoiceDueDate(invoiceId: string, _userId: string, d
   await assertInvoiceEditable(invoiceId, userId)
   await prisma.invoice.update({
     where: { id: invoiceId, userId },
-    data: { dueDate: dueDate ? new Date(dueDate) : null },
+    data: { dueDate: dueDate ? parseCivilDate(dueDate) : null },
   })
   revalidatePath(`/facturation/factures/${invoiceId}`)
 }

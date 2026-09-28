@@ -1,6 +1,7 @@
 "use server"
 
 import { prisma } from "@/lib/prisma"
+import { parseCivilDate } from "@/lib/dates"
 import { requireAuth } from "@/lib/require-auth"
 import { revalidatePath } from "next/cache"
 import { normalizeUrl } from "@/lib/link-categories"
@@ -52,7 +53,7 @@ export async function addRenewal(
       amount: data.amount ?? null,
       purchasedAt: data.purchasedAt ? new Date(data.purchasedAt) : null,
       periodMonths: data.periodMonths ?? null,
-      expiresAt: new Date(data.expiresAt),
+      expiresAt: parseCivilDate(data.expiresAt),
     },
   })
   revalidatePath(`/projets/${projectId}/post-dev`)

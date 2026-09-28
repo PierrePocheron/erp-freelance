@@ -8,6 +8,7 @@ import {
   deleteReminder,
 } from "@/actions/crm"
 import { prisma } from "@/lib/prisma"
+import { zonedDateKey, isZonedAllDay } from "@/lib/dates"
 import { setTestUser } from "./setup"
 import { makeUser, makeClient } from "./helpers/factories"
 
@@ -144,7 +145,10 @@ describe("addReminder", () => {
     expect(reminders).toHaveLength(1)
     expect(reminders[0].isDone).toBe(false)
     expect(reminders[0].note).toBe("Relancer pour devis")
-    expect(reminders[0].dueDate.toISOString()).toBe("2026-07-01T00:00:00.000Z")
+    // Minuit de PARIS (et non minuit UTC) : une échéance saisie au 1er juillet
+    // doit rester le 1er juillet quel que soit le fuseau du serveur.
+    expect(zonedDateKey(reminders[0].dueDate)).toBe("2026-07-01")
+    expect(isZonedAllDay(reminders[0].dueDate)).toBe(true)
   })
 
   it("refuse si le client appartient à un autre utilisateur", async () => {

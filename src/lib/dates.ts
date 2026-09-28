@@ -104,17 +104,129 @@ export function getOccurrencesInRange(start: Date, frequency: string, from: Date
  */
 export function zonedMidnight(dateOnly: string, timeZone = "Europe/Paris"): Date {
   const [y, m, d] = dateOnly.split("-").map(Number)
-  const guess = Date.UTC(y, m - 1, d)
+  return zonedInstant(y, m, d, 0, 0, timeZone)
+}
+
+/**
+ * Instant correspondant à une HEURE MURALE dans un fuseau donné (2026-10-31 14:00
+ * à Paris → l'instant UTC qui affiche 14 h à Paris ce jour-là). Même méthode que
+ * `zonedMidnight` : on pose une hypothèse en UTC, on lit ce qu'elle donne dans le
+ * fuseau, et on corrige de l'écart constaté.
+ */
+export function zonedInstant(
+  y: number, m: number, d: number, hour = 0, minute = 0, timeZone = "Europe/Paris",
+): Date {
+  const guess = Date.UTC(y, m - 1, d, hour, minute)
   const parts = Object.fromEntries(
     new Intl.DateTimeFormat("en-US", { timeZone, hour12: false, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })
       .formatToParts(new Date(guess)).map((p) => [p.type, p.value]),
   )
-  // Heure lue dans le fuseau pour l'instant « minuit UTC » → décalage du fuseau à cette date
+  // Heure lue dans le fuseau pour l'instant supposé → décalage du fuseau à cette date
   const seenAsUtc = Date.UTC(Number(parts.year), Number(parts.month) - 1, Number(parts.day), Number(parts.hour) % 24, Number(parts.minute))
   return new Date(guess - (seenAsUtc - guess))
+}
+
+/**
+ * Parse une date reçue d'un formulaire.
+ *
+ * `new Date("2026-10-31")` vaut minuit UTC — soit 02 h du matin à Paris : une
+ * échéance saisie au 31 était stockée « le 31 à 02 h », donc marquée en retard
+ * dès 02 h 00 le jour même, et affichée comme un créneau de nuit au calendrier
+ * au lieu d'une journée entière. Une heure murale ("…T14:00") est de son côté
+ * interprétée dans le fuseau du PROCESS, soit UTC en production (décalage de 2 h).
+ * Ici, les deux formes sont lues en heure de Paris. Une chaîne déjà horodatée
+ * (suffixe Z ou décalage) est un instant : elle passe telle quelle.
+ */
+export function parseCivilDate(s: string, timeZone = "Europe/Paris"): Date {
+  const dateOnly = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s)
+  if (dateOnly) {
+    const [, y, m, d] = dateOnly
+    return zonedInstant(Number(y), Number(m), Number(d), 0, 0, timeZone)
+  }
+  const local = /^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})(?::\d{2}(?:\.\d+)?)?$/.exec(s)
+  if (local) {
+    const [, y, m, d, h, min] = local
+    return zonedInstant(Number(y), Number(m), Number(d), Number(h), Number(min), timeZone)
+  }
+  return new Date(s)
 }
 
 /** Parse une date Google : date seule → minuit Europe/Paris ; dateTime ISO → tel quel. */
 export function parseGoogleDate(s: string, timeZone = "Europe/Paris"): Date {
   return /^\d{4}-\d{2}-\d{2}$/.test(s) ? zonedMidnight(s, timeZone) : new Date(s)
+}
+
+// ── Fuseau de l'app ───────────────────────────────────────────────────────────
+// Vercel exécute les fonctions en UTC et REFUSE la variable d'environnement `TZ`
+// (nom réservé) : impossible de régler le problème par la configuration. Tout ce
+// qui raisonne en jours civils doit donc lire ses composantes dans le fuseau de
+// l'app, jamais via getFullYear/getMonth/getDate/getHours (fuseau du process).
+
+export const APP_TIME_ZONE = "Europe/Paris"
+
+const PARTS_FMT = new Intl.DateTimeFormat("en-US", {
+  timeZone: APP_TIME_ZONE, hour12: false,
+  year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit",
+})
+
+/** Composantes civiles d'un instant DANS le fuseau de l'app (mois 1-12). */
+export function zonedParts(date: Date): { year: number; month: number; day: number; hour: number; minute: number } {
+  const p = Object.fromEntries(PARTS_FMT.formatToParts(date).map((x) => [x.type, x.value]))
+  return {
+    year: Number(p.year),
+    month: Number(p.month),
+    day: Number(p.day),
+    // « 24 » est possible pour minuit avec hour12: false selon l'implémentation.
+    hour: Number(p.hour) % 24,
+    minute: Number(p.minute),
+  }
+}
+
+/** "AAAA-MM-JJ" du jour civil d'un instant, dans le fuseau de l'app. */
+export function zonedDateKey(date: Date): string {
+  const { year, month, day } = zonedParts(date)
+  return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`
+}
+
+/** Minuit (dans le fuseau de l'app) du jour civil qui contient `date`. */
+export function zonedDayStart(date: Date): Date {
+  return zonedMidnight(zonedDateKey(date))
+}
+
+/**
+ * Minuit du jour civil décalé de `days` jours — l'arithmétique se fait sur les
+ * composantes civiles, donc une nuit de changement d'heure (23 h ou 25 h) ne
+ * décale pas le résultat.
+ */
+export function zonedDayStartOffset(date: Date, days: number): Date {
+  const { year, month, day } = zonedParts(date)
+  const shifted = new Date(Date.UTC(year, month - 1, day + days))
+  const key = `${shifted.getUTCFullYear()}-${String(shifted.getUTCMonth() + 1).padStart(2, "0")}-${String(shifted.getUTCDate()).padStart(2, "0")}`
+  return zonedMidnight(key)
+}
+
+/**
+ * Jour de la semaine du jour civil, dans le fuseau de l'app (0 = dimanche).
+ * Calculé depuis les composantes civiles : une fois l'année, le mois et le jour
+ * connus, le jour de la semaine ne dépend plus d'aucun fuseau.
+ */
+export function zonedWeekday(date: Date): number {
+  const { year, month, day } = zonedParts(date)
+  return new Date(Date.UTC(year, month - 1, day)).getUTCDay()
+}
+
+/** Dernier instant du jour civil (23:59:59.999 heure de l'app). */
+export function zonedDayEnd(date: Date): Date {
+  return new Date(zonedDayStartOffset(date, 1).getTime() - 1)
+}
+
+/**
+ * L'instant tombe-t-il à minuit PILE dans le fuseau de l'app ? C'est la
+ * convention « journée entière » du calendrier (une tâche sans heure). Testé
+ * avec `getHours()`, une tâche saisie à minuit à Paris paraissait être à 22 h ou
+ * 23 h en production, donc affichée comme un créneau de nuit.
+ */
+export function isZonedAllDay(date: Date): boolean {
+  const { hour, minute } = zonedParts(date)
+  return hour === 0 && minute === 0
 }

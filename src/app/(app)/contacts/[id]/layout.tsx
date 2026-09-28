@@ -15,10 +15,12 @@ export async function generateMetadata({
   params: Promise<{ id: string }>
 }): Promise<Metadata> {
   const { id } = await params
-  const client = await prisma.client.findFirst({
-    where: { id },
-    select: { name: true, company: true },
-  })
+  // generateMetadata s'exécute AVANT le garde d'accès du corps de page : scoper ici aussi,
+  // sinon l'onglet du navigateur affiche le nom d'un contact d'un autre compte.
+  const session = await auth()
+  const client = session?.user?.id
+    ? await prisma.client.findFirst({ where: { id, userId: session.user.id }, select: { name: true, company: true } })
+    : null
   const label = client ? (client.company ? `${client.name} · ${client.company}` : client.name) : "Fiche contact"
   return { title: `${label} — ERP Freelance` }
 }

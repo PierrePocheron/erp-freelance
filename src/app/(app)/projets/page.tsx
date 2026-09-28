@@ -21,6 +21,7 @@ export default async function ProjetsPage() {
         members: { select: { userId: true } },
         _count: { select: { tasks: true } },
         tasks: { select: { status: true }, where: { parentTaskId: null } },
+        skills: { select: { skill: { select: { name: true } } } },
       },
     }),
     prisma.company.findMany({
@@ -144,6 +145,7 @@ export default async function ProjetsPage() {
       billing: billingByProject[p.id] ?? { totalFacture: 0, totalEncaisse: 0 },
       revenue: revenueByProject[p.id] ?? { totalRevenu: 0, revenuRecu: 0 },
       lastActivityAt: activityById[p.id] ?? p.createdAt.getTime(),
+      skills: p.skills.map((s) => ({ name: s.skill.name })),
     }))
     .sort((a, b) => b.lastActivityAt - a.lastActivityAt)
 

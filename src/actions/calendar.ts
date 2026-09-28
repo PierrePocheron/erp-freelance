@@ -1,5 +1,6 @@
 "use server"
 
+import { parseGoogleDate } from "@/lib/dates"
 import { prisma } from "@/lib/prisma"
 import { auth } from "@/lib/auth"
 import { revalidatePath } from "next/cache"
@@ -973,8 +974,11 @@ export async function syncGooglePull(monthsBack: number = 1): Promise<SyncResult
       const endStr   = gEvent.end.dateTime ?? gEvent.end.date
       if (!startStr) continue
 
-      const startDate   = new Date(startStr)
-      const endDate     = endStr ? new Date(endStr) : null
+      // Journée entière = date seule ("2026-09-10", fin EXCLUSIVE). `new Date("2026-09-10")` = minuit
+      // UTC = 02:00 à Paris → l'événement débordait sur le lendemain (« Anniversaire Alex » sur 29 ET 30).
+      // On construit minuit Europe/Paris, indépendamment du fuseau du serveur (UTC sur Vercel).
+      const startDate   = parseGoogleDate(startStr)
+      const endDate     = endStr ? parseGoogleDate(endStr) : null
       const allDay      = !gEvent.start.dateTime
       const description = gEvent.description ?? null
 
@@ -1069,7 +1073,7 @@ export async function syncGooglePush(): Promise<SyncResult> {
 
     // Push = dernière étape d'un cycle de synchro (le client fait pull puis
     // push) : on horodate ici la dernière synchro réussie, affichée sur l'agenda.
-    await prisma.userProfile.updateMany({ where: { userId }, data: { lastGoogleSyncAt: new Date() } })
+    await prisma.userProfile.upsert({ where: { userId }, create: { userId, lastGoogleSyncAt: new Date() }, update: { lastGoogleSyncAt: new Date() } })
 
     revalidatePath("/calendrier")
     return { synced }
@@ -1084,7 +1088,7 @@ export async function setCalendarSyncThreshold(minutes: number): Promise<void> {
   const session = await auth()
   const userId = session!.user.id
   const clamped = Math.min(Math.max(Math.round(minutes), 0), 1440) // 0 min → 24 h
-  await prisma.userProfile.updateMany({ where: { userId }, data: { calendarSyncThresholdMin: clamped } })
+  await prisma.userProfile.upsert({ where: { userId }, create: { userId, calendarSyncThresholdMin: clamped }, update: { calendarSyncThresholdMin: clamped } })
   revalidatePath("/settings")
   revalidatePath("/calendrier")
 }

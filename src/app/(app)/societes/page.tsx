@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma"
 import Link from "next/link"
 import { Building2, AlertCircle, Users, FolderOpen, Wallet, ArrowRight } from "lucide-react"
 import { CreateCompanyDialog } from "@/components/modules/societes/CreateCompanyDialog"
+import { SocietesGroupToggle } from "@/components/modules/societes/SocietesGroupToggle"
 import { CompanyTypeSelect, COMPANY_TYPE_CONFIG } from "@/components/modules/societes/CompanyTypeSelect"
 import { AddFiscalSourceButton } from "@/components/modules/settings/FiscalSourcesManager"
 
@@ -13,18 +14,20 @@ const BUCKET_LABELS: Record<string, string> = {
   OTHER:         "Autre",
 }
 
-export default async function SocietesPage() {
+export default async function SocietesPage({ searchParams }: { searchParams: Promise<{ group?: string }> }) {
   const session = await auth()
   const userId = session!.user.id
+  const { group: groupParam } = await searchParams
+  const groupBy = groupParam === "categorie" ? "categorie" : "fiscale"
 
-  const [companies, fiscalSources] = await Promise.all([
+  const [companies, fiscalSources, companyCategories] = await Promise.all([
     prisma.company.findMany({
       where: { userId },
       orderBy: { name: "asc" },
       select: {
         id: true, name: true, email: true, phone: true, siret: true,
         website: true, address: true, city: true,
-        companyType: true, fiscalSourceId: true,
+        companyType: true, fiscalSourceId: true, categoryId: true,
         _count: { select: { contacts: true, projects: true } },
       },
     }),
@@ -36,25 +39,34 @@ export default async function SocietesPage() {
         _count: { select: { companies: true } },
       },
     }),
+    prisma.companyCategory.findMany({
+      where: { userId },
+      orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+      select: { id: true, name: true, color: true },
+    }),
   ])
 
-  // Group companies by fiscal source (null = sans source)
-  const grouped: Array<{
-    source: typeof fiscalSources[number] | null
-    companies: typeof companies
-  }> = []
+  // Groupement de la liste : par catégorie libre ou par source fiscale (via ?group=).
+  type CompanyGroup = { id: string | null; label: string; color: string | null; sublabel?: string; companies: typeof companies }
+  const grouped: CompanyGroup[] = []
 
-  // Sources with companies
-  for (const src of fiscalSources) {
-    const list = companies.filter(c => c.fiscalSourceId === src.id)
-    if (list.length > 0) grouped.push({ source: src, companies: list })
+  if (groupBy === "categorie") {
+    for (const cat of companyCategories) {
+      const list = companies.filter(c => c.categoryId === cat.id)
+      if (list.length > 0) grouped.push({ id: cat.id, label: cat.name, color: cat.color, companies: list })
+    }
+    const uncategorized = companies.filter(c => !c.categoryId)
+    if (uncategorized.length > 0) grouped.push({ id: null, label: "Sans catégorie", color: null, companies: uncategorized })
+  } else {
+    for (const src of fiscalSources) {
+      const list = companies.filter(c => c.fiscalSourceId === src.id)
+      if (list.length > 0) grouped.push({ id: src.id, label: src.name, color: src.color, sublabel: BUCKET_LABELS[src.bucket] ?? src.bucket, companies: list })
+    }
+    const unlinked = companies.filter(c => !c.fiscalSourceId)
+    if (unlinked.length > 0) grouped.push({ id: null, label: "Sans source fiscale", color: null, companies: unlinked })
   }
 
-  // Companies without a fiscal source
-  const unlinked = companies.filter(c => !c.fiscalSourceId)
-  if (unlinked.length > 0) grouped.push({ source: null, companies: unlinked })
-
-  const hasGroups = grouped.some(g => g.source !== null)
+  const hasGroups = grouped.some(g => g.id !== null)
 
   return (
     <div className="space-y-6">
@@ -65,7 +77,10 @@ export default async function SocietesPage() {
             {companies.length} société{companies.length !== 1 ? "s" : ""}
           </p>
         </div>
-        <CreateCompanyDialog fiscalSources={fiscalSources} />
+        <div className="flex items-center gap-2">
+          {companies.length > 0 && <SocietesGroupToggle value={groupBy} />}
+          <CreateCompanyDialog fiscalSources={fiscalSources} categories={companyCategories} />
+        </div>
       </div>
 
       {/* Carte Sources fiscales */}
@@ -132,31 +147,22 @@ export default async function SocietesPage() {
             </thead>
             <tbody>
               {hasGroups
-                ? grouped.map(({ source, companies: list }) => (
-                    <Fragment key={source?.id ?? "none"}>
+                ? grouped.map((g) => (
+                    <Fragment key={g.id ?? "none"}>
                       {/* Group header */}
                       <tr className="border-b border-border/30 bg-muted/20">
                         <td colSpan={5} className="px-4 py-2">
                           <span className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
-                            {source ? (
-                              <>
-                                <span
-                                  className="h-2 w-2 rounded-full shrink-0"
-                                  style={{ backgroundColor: source.color }}
-                                />
-                                {source.name}
-                                <span className="font-normal opacity-70">— {BUCKET_LABELS[source.bucket] ?? source.bucket}</span>
-                              </>
-                            ) : (
-                              <>
-                                <span className="h-2 w-2 rounded-full shrink-0 bg-muted-foreground/40" />
-                                Sans source fiscale
-                              </>
-                            )}
+                            <span
+                              className={`h-2 w-2 rounded-full shrink-0 ${g.color ? "" : "bg-muted-foreground/40"}`}
+                              style={g.color ? { backgroundColor: g.color } : undefined}
+                            />
+                            {g.label}
+                            {g.sublabel && <span className="font-normal opacity-70">— {g.sublabel}</span>}
                           </span>
                         </td>
                       </tr>
-                      {list.map((co) => <CompanyRow key={co.id} co={co} />)}
+                      {g.companies.map((co) => <CompanyRow key={co.id} co={co} />)}
                     </Fragment>
                   ))
                 : companies.map((co) => <CompanyRow key={co.id} co={co} />)

@@ -1,26 +1,11 @@
 import { defineConfig } from "vitest/config"
 import { config as loadEnv } from "dotenv"
+import { resolveTestDatabaseUrl } from "./tests/integration/helpers/test-db-url"
 
 // ── URL de la base de test ────────────────────────────────────────────────────
-// Priorité : TEST_DATABASE_URL (CI) > DATABASE_URL local (.env) avec le nom de
-// base remplacé par « erp_test ». On NE charge JAMAIS .env.local ici (= prod Neon).
-function resolveTestDatabaseUrl(): string {
-  loadEnv() // charge .env (local), sans override — aussi utile pour ENCRYPTION_KEY ci-dessous
-  if (process.env.TEST_DATABASE_URL) return process.env.TEST_DATABASE_URL
-  const base = process.env.DATABASE_URL
-  if (!base) {
-    // Valeur par défaut raisonnable pour un Postgres local de dev.
-    return "postgresql://postgres:postgres@localhost:5432/erp_test"
-  }
-  try {
-    const u = new URL(base)
-    u.pathname = "/erp_test"
-    return u.toString()
-  } catch {
-    return base
-  }
-}
-
+// Résolution partagée avec le globalSetup (une seule source, garde-fou « hôte local »
+// inclus : les tests créent et écrasent la base, jamais sur un cluster distant).
+loadEnv() // .env local, sans override — fournit aussi ENCRYPTION_KEY ci-dessous
 const testDatabaseUrl = resolveTestDatabaseUrl()
 
 export default defineConfig({

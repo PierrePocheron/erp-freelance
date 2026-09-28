@@ -13,7 +13,7 @@ ERP personnel pour freelances — devis, facturation, CRM, projets, tâches, tim
 | **Framework** | Next.js 16 (App Router, Server Actions, Turbopack) |
 | **UI** | Tailwind CSS v4 + Base UI (`@base-ui/react`) |
 | **Base de données** | PostgreSQL + Prisma 7 (output custom `src/generated/prisma`) |
-| **Auth** | NextAuth.js v5 — Google OAuth + PrismaAdapter + JWT |
+| **Auth** | NextAuth.js v5 — Google OAuth + PrismaAdapter + JWT, **liste blanche d'emails** (`AUTH_ALLOWED_EMAILS`, contrôlée à la connexion ET à chaque requête côté edge) |
 | **Calendrier** | Sync Google Agenda (scope `calendar`) — lecture + écriture |
 | **Graphe** | `react-force-graph-2d` — simulation D3 force-directed canvas 2D |
 | **Hébergement** | Vercel (Hobby) |
@@ -23,7 +23,7 @@ ERP personnel pour freelances — devis, facturation, CRM, projets, tâches, tim
 | **Uploads** | Vercel Blob |
 | **Tests** | Vitest — unitaires (logique pure) + intégration (Postgres `erp_test`) |
 | **CI** | GitHub Actions — tsc, eslint, unit, intégration |
-| **Sécurité** | CSP par nonce (middleware edge), isolation multi-tenant (anti-IDOR), rate-limit distribué Upstash Redis (fallback in-memory) |
+| **Sécurité** | CSP par nonce (middleware edge), liste blanche de connexion, isolation multi-tenant (anti-IDOR), rate-limit distribué Upstash Redis (fallback in-memory) |
 | **Langage** | TypeScript strict |
 
 ---
@@ -35,7 +35,7 @@ Le système de modules permet d'activer ou désactiver chaque section depuis **P
 | Module | Fonctionnalités |
 |---|---|
 | **Dashboard** | Widgets temps réel en bento auto-équilibré (multicol) — carte "Aujourd'hui & demain" (tâches + événements), carte "À confirmer" (tâches/jalons/événements passés à valider ou annuler avec raison), carte "En attente de réception" unifiée (factures + revenus + santé, badges de nature, coche de réception en 1 clic), carte "En cours" (tâches démarrées, coche de fin), volet de complétion rapide des données à compléter, échéances, alertes renouvellement, pipeline prospection |
-| **Sociétés** | Fiche société (SIRET, TVA, adresse, notes), badge "À compléter", contacts liés, projets liés, tâches en cours, bilan financier (CA encaissé / en attente / en retard), historique factures & devis |
+| **Sociétés** | Fiche société (SIRET, TVA, adresse, notes), badge "À compléter", contacts liés, projets liés, tâches en cours, bilan financier (CA encaissé / en attente / en retard), historique factures & devis, **organigramme** : zones (équipes/pôles) + niveaux (direction → manager → CDI → alternance → stage), personnes triées par niveau, glisser-déposer depuis « À affecter » |
 | **CRM — Contacts** | Fiche contact (view/edit animé), rattachement société, type (prospect/client/partenaire…), interactions (avec lien direct vers le mail), rappels, tâches associées, bilan financier, mise en avant des infos manquantes (complétion rapide), **frise chronologique** (interactions, événements, notes, tâches) avec actions rapides datées |
 | **Prospection** | Module autonome de démarchage freelance — tableau triable/filtrable/paginé avec sélection multi-lignes (colonnes email, **téléphone** avec lien `tel:`, **score SEO** coloré, **niveau d'intérêt/priorité** — 1 site éclaté / 2 moyen / 3 ok — éditable inline et filtrable), 9 cartes stats sur une ligne (dont « avec email »/« avec téléphone ») **filtrant instantanément le tableau via l'URL** (shallow routing, mêmes filtres que les pills), statut simplifié 6 étapes (à contacter → gagné/perdu, gagné convertit en client), fiche site web du prospect (URL + health check, type, pages, description, région), **édition rapide du contact** dans le panneau (email de contact, **email perso**, numéro **typé pro/perso**), import CSV avec mapping de colonnes et déduplication, ajout rapide/en lot orienté site, suivi de contact multi-canal, modèles de mails à variables (`{{prenom}}`, `{{site}}`, `{{cms}}`, `{{score_seo}}`…) alimentées par l'enrichissement prospect-finder, **modèles d'appel** (scripts de démarchage téléphonique : ouverture, phrases clés, réponses potentielles, relances), **file de brouillons 100 % contrôlée** (génération → relecture/édition → "Marquer relu" → envoi via dialog récapitulatif avec re-vérification serveur), envoi d'un mail de test vers sa propre boîte, envoi personnalisé en masse (Resend ou préparation Gmail), **mode prospection plein écran** (session de démarchage : frise, actions rapides, notes), **nouveaux modèles d'email** (offre mensuelle, relance J+5, audit), widget dashboard |
 | **Tâches** | Vue globale groupée Contact → Projet → Tâches, **regroupement par société sur 2 colonnes** en desktop, édition inline, sheet d'édition complète (priorité, importance, échéance, description, heures estimées), sous-tâches |
@@ -89,6 +89,8 @@ DATABASE_URL=postgresql://...
 # Auth (NextAuth v5)
 AUTH_SECRET=                        # openssl rand -base64 32
 AUTH_URL=http://localhost:3000      # URL de l'app (prod: https://...)
+AUTH_ALLOWED_EMAILS=                # emails autorisés, séparés par des virgules
+                                    # (absent = seuls les comptes déjà en base entrent)
 
 # Google OAuth
 GOOGLE_CLIENT_ID=

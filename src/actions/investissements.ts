@@ -15,6 +15,17 @@ function revalidate(platformId?: string) {
   if (platformId) revalidatePath(`/investissements/${platformId}`)
 }
 
+// Période "YYYY-MM" d'une date (heure locale) — clé des rappels de relevé mensuels.
+function periodOf(date: Date): string {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`
+}
+
+// Libellé lisible d'une période "YYYY-MM" → « août 2026 ».
+function monthLabel(period: string): string {
+  const [y, m] = period.split("-").map(Number)
+  return new Date(y, m - 1, 1).toLocaleDateString("fr-FR", { month: "long", year: "numeric" })
+}
+
 // ── Plateformes ───────────────────────────────────────────────────────────────
 
 export type PlatformInput = {
@@ -79,6 +90,8 @@ export async function addEntry(platformId: string, input: EntryInput): Promise<v
   await prisma.investmentEntry.create({
     data: { platformId, capital, contribution, date, note: input.note?.trim() || null },
   })
+  // Coche automatiquement la sous-tâche « Relevé — <plateforme> » du mois de ce relevé.
+  await syncInvestmentReviewProgress(userId, platformId, date)
   revalidate(platformId)
 }
 
@@ -127,4 +140,139 @@ export async function deleteEntry(id: string): Promise<void> {
   if (!entry) throw new Error("Relevé introuvable")
   await prisma.investmentEntry.delete({ where: { id } })
   revalidate(entry.platformId)
+}
+
+// ── Rappels de relevé mensuels ────────────────────────────────────────────────
+// Calqué sur le rappel URSSAF (cf. ensureUrssafReminderTask) : une tâche parent
+// datée par mois (→ projetée au calendrier) + une sous-tâche par plateforme,
+// générées idempotemment au chargement de l'app. Les sous-tâches se cochent toutes
+// seules à l'enregistrement du relevé, la parent se solde quand tout est fait.
+
+function subtaskData(userId: string, parentTaskId: string, period: string, platform: { id: string; name: string }, order: number) {
+  return {
+    userId,
+    parentTaskId,
+    title: `Relevé — ${platform.name}`,
+    order,
+    priority: "LOW" as const,
+    investmentPeriod: period,
+    investmentPlatformId: platform.id,
+  }
+}
+
+/**
+ * Crée/complète la tâche de relevé du mois courant (idempotent). Ne fait rien si le
+ * rappel est désactivé ou s'il n'y a aucune plateforme. Si la tâche du mois existe
+ * déjà, elle est complétée par backfill : une plateforme ajoutée en cours de mois
+ * reçoit sa sous-tâche manquante (et la parent est rouverte si elle s'était soldée).
+ * Appelée à chaque chargement de l'app (cf. (app)/layout.tsx). L'identité vient de la
+ * session (requireAuth) et non de l'argument — action `use server` = endpoint public.
+ */
+export async function ensureInvestmentReviewTasks(_userId: string, enabled: boolean, day: number): Promise<void> {
+  if (!enabled) return
+  const userId = await requireAuth()
+  const now = new Date()
+  const period = periodOf(now)
+
+  const platforms = await prisma.investmentPlatform.findMany({
+    where: { userId },
+    orderBy: { sortOrder: "asc" },
+    select: { id: true, name: true },
+  })
+  if (platforms.length === 0) return
+
+  const parent = await prisma.task.findFirst({
+    where: { userId, investmentPeriod: period, parentTaskId: null },
+    select: { id: true, status: true, dueDate: true, subTasks: { select: { investmentPlatformId: true } } },
+  })
+
+  const dueDay = Math.min(Math.max(Math.trunc(day) || 1, 1), 28)
+  const dueDate = new Date(now.getFullYear(), now.getMonth(), dueDay, 9, 0, 0)
+
+  // Aucune tâche pour le mois → parent daté + une sous-tâche par plateforme.
+  if (!parent) {
+    const created = await prisma.task.create({
+      data: {
+        userId,
+        title: `Relevés d'investissement — ${monthLabel(period)}`,
+        description:
+          "Rappel mensuel : relever le capital de chaque plateforme. Chaque sous-tâche se coche automatiquement quand tu enregistres le relevé de la plateforme dans le module Investissements.",
+        dueDate,
+        priority: "MEDIUM",
+        isGroup: true,
+        investmentPeriod: period,
+      },
+      select: { id: true },
+    })
+    await prisma.task.createMany({ data: platforms.map((p, i) => subtaskData(userId, created.id, period, p, i)) })
+    return
+  }
+
+  // La tâche du mois existe → backfill des plateformes créées depuis (contrat
+  // « une sous-tâche par plateforme »), et réouverture de la parent si elle avait
+  // été soldée alors qu'une nouvelle plateforme reste à relever.
+  const covered = new Set(parent.subTasks.map((s) => s.investmentPlatformId).filter(Boolean))
+  const missing = platforms.filter((p) => !covered.has(p.id))
+  // Le jour d'échéance a pu changer en cours de mois (setInvestmentReviewReminder).
+  if (parent.dueDate && dueDate.getTime() !== parent.dueDate.getTime()) {
+    await prisma.task.update({ where: { id: parent.id }, data: { dueDate } })
+  }
+  if (missing.length === 0) return
+
+  await prisma.task.createMany({
+    data: missing.map((p, i) => subtaskData(userId, parent.id, period, p, parent.subTasks.length + i)),
+  })
+  if (parent.status === "DONE") {
+    await prisma.task.update({ where: { id: parent.id }, data: { status: "TODO", completedAt: null } })
+  }
+}
+
+/**
+ * Coche la sous-tâche « Relevé — <plateforme> » du mois du relevé, et solde la tâche
+ * parent si toutes les plateformes du mois sont faites. Helper INTERNE (non exporté →
+ * jamais exposé comme server action) appelé par addEntry avec le userId déjà
+ * authentifié. Silencieux si aucune tâche ne correspond (rappel off, mois sans tâche…).
+ */
+async function syncInvestmentReviewProgress(userId: string, platformId: string, date: Date): Promise<void> {
+  const period = periodOf(date)
+  const subtask = await prisma.task.findFirst({
+    where: { userId, investmentPeriod: period, investmentPlatformId: platformId, status: { not: "DONE" } },
+    select: { id: true, parentTaskId: true },
+  })
+  if (!subtask) return
+
+  await prisma.task.update({
+    where: { id: subtask.id },
+    data: { status: "DONE", completedAt: new Date() },
+  })
+
+  if (subtask.parentTaskId) {
+    const remaining = await prisma.task.count({
+      where: { parentTaskId: subtask.parentTaskId, status: { not: "DONE" } },
+    })
+    if (remaining === 0) {
+      await prisma.task.update({
+        where: { id: subtask.parentTaskId },
+        data: { status: "DONE", completedAt: new Date() },
+      })
+    }
+  }
+
+  revalidatePath("/taches")
+  revalidatePath("/calendrier")
+}
+
+/** Active/désactive le rappel mensuel de relevé (+ jour d'échéance). Génère la tâche du mois si on active. */
+export async function setInvestmentReviewReminder(enabled: boolean, day: number): Promise<void> {
+  const userId = await requireAuth()
+  const dueDay = Math.min(Math.max(Math.trunc(day) || 1, 1), 28)
+  await prisma.userProfile.upsert({
+    where: { userId },
+    create: { userId, investmentReviewReminder: enabled, investmentReviewDay: dueDay },
+    update: { investmentReviewReminder: enabled, investmentReviewDay: dueDay },
+  })
+  if (enabled) await ensureInvestmentReviewTasks(userId, true, dueDay)
+  revalidate()
+  revalidatePath("/taches")
+  revalidatePath("/calendrier")
 }

@@ -13,6 +13,8 @@ import { deleteCompany } from "@/actions/crm"
 import { NewContactForCompanyButton } from "@/components/modules/societes/NewContactForCompanyButton"
 import { NewProjectForCompanyButton } from "@/components/modules/societes/NewProjectForCompanyButton"
 import { CompanyTypeSelect } from "@/components/modules/societes/CompanyTypeSelect"
+import { CompanyCategoryInline } from "@/components/modules/societes/CompanyCategoryInline"
+import { CompanyOrgBoard } from "@/components/modules/societes/CompanyOrgBoard"
 import { STATUS_CONFIG, type JobAppStatus } from "@/components/modules/entretien/status-config"
 
 const fmt = (n: number) => n.toLocaleString("fr-FR", { minimumFractionDigits: 0, maximumFractionDigits: 0 })
@@ -28,6 +30,12 @@ export default async function CompanyDetailPage({
   const session = await auth()
   const userId = session!.user.id
 
+  const companyCategories = await prisma.companyCategory.findMany({
+    where: { userId },
+    orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+    select: { id: true, name: true, color: true },
+  })
+
   const [company, invoices, quotes, tasks, allCompanies, allContacts] = await Promise.all([
     prisma.company.findFirst({
       where: { id, userId },
@@ -36,7 +44,11 @@ export default async function CompanyDetailPage({
         // companyType inclus via include (champ scalaire — toujours dans l'objet)
         contacts: {
           orderBy: { name: "asc" },
-          select: { id: true, name: true, email: true, phone: true, type: true },
+          select: { id: true, name: true, email: true, phone: true, type: true, jobTitle: true, teamId: true, orgLevel: true },
+        },
+        teams: {
+          orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+          select: { id: true, name: true, color: true },
         },
         projects: {
           orderBy: { createdAt: "desc" },
@@ -201,9 +213,10 @@ export default async function CompanyDetailPage({
             <Building2 className="h-5 w-5 text-primary" />
           </div>
           <div>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <h1 className="text-2xl font-bold tracking-tight">{company.name}</h1>
               <CompanyTypeSelect companyId={company.id} value={company.companyType ?? null} />
+              <CompanyCategoryInline companyId={company.id} categories={companyCategories} value={company.categoryId ?? null} />
             </div>
             {company.city && (
               <p className="text-sm text-muted-foreground flex items-center gap-1 mt-0.5">
@@ -457,39 +470,25 @@ export default async function CompanyDetailPage({
             </div>
           )}
 
-          {/* Contacts */}
-          <div className="rounded-xl border border-border/50 bg-card overflow-x-auto">
+          {/* Organisation — zones + niveaux, glisser-déposer */}
+          <div className="rounded-xl border border-border/50 bg-card">
             <div className="flex items-center justify-between px-5 py-4 border-b border-border/50">
               <div className="flex items-center gap-2">
                 <Users className="h-4 w-4 text-muted-foreground" />
                 <h2 className="font-semibold text-sm">
-                  Contacts
+                  Organisation
                   <span className="text-muted-foreground font-normal ml-1.5">({company._count.contacts})</span>
                 </h2>
               </div>
               <NewContactForCompanyButton userId={userId} company={{ id: company.id, name: company.name }} />
             </div>
-            {company.contacts.length === 0 ? (
-              <div className="px-5 py-8 text-center">
-                <p className="text-sm text-muted-foreground">Aucun contact associé</p>
-              </div>
-            ) : (
-              <table className="w-full text-sm">
-                <tbody>
-                  {company.contacts.map((c) => (
-                    <tr key={c.id} className="border-b border-border/50 last:border-0 hover:bg-muted/30 transition-colors">
-                      <td className="px-5 py-3">
-                        <Link href={`/contacts/${c.id}`} className="font-medium hover:text-primary transition-colors">
-                          {c.name}
-                        </Link>
-                        {c.email && <p className="text-xs text-muted-foreground mt-0.5">{c.email}</p>}
-                      </td>
-                      <td className="px-5 py-3 text-muted-foreground text-right text-xs">{c.phone ?? ""}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
+            <CompanyOrgBoard
+              companyId={company.id}
+              teams={company.teams}
+              members={company.contacts.map((c) => ({
+                id: c.id, name: c.name, jobTitle: c.jobTitle, teamId: c.teamId, orgLevel: c.orgLevel,
+              }))}
+            />
           </div>
 
           {/* Tâches */}

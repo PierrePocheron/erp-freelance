@@ -299,10 +299,10 @@ export function ProjectDescriptionEdit({
           ref={ref}
           defaultValue={value ?? ""}
           autoFocus
-          rows={2}
-          placeholder="Ajouter une description..."
+          rows={6}
+          placeholder="Décris le projet : contexte, objectifs, stack…"
           onBlur={save}
-          className="flex-1 resize-none bg-transparent border border-input rounded-md px-2 py-1 text-sm text-muted-foreground outline-none focus:ring-1 focus:ring-ring"
+          className="min-h-[7rem] flex-1 resize-y bg-transparent border border-input rounded-md px-3 py-2 text-sm leading-relaxed text-foreground outline-none focus:ring-1 focus:ring-ring"
         />
         <div className="flex flex-col gap-1">
           <button onClick={save} disabled={isPending} className="text-emerald-500 hover:text-emerald-600">

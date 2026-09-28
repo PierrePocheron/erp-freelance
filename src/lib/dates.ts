@@ -81,3 +81,26 @@ export function getOccurrencesInRange(start: Date, frequency: string, from: Date
   }
   return occurrences
 }
+
+/**
+ * Instant correspondant à MINUIT d'une date civile ("AAAA-MM-JJ") dans un fuseau donné,
+ * quel que soit le fuseau du serveur (Vercel tourne en UTC). Indispensable pour les
+ * événements « journée entière » reçus en date seule (Google Agenda) : `new Date("2026-09-10")`
+ * vaut minuit UTC = 02:00 à Paris, et l'événement débordait sur le lendemain.
+ */
+export function zonedMidnight(dateOnly: string, timeZone = "Europe/Paris"): Date {
+  const [y, m, d] = dateOnly.split("-").map(Number)
+  const guess = Date.UTC(y, m - 1, d)
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat("en-US", { timeZone, hour12: false, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })
+      .formatToParts(new Date(guess)).map((p) => [p.type, p.value]),
+  )
+  // Heure lue dans le fuseau pour l'instant « minuit UTC » → décalage du fuseau à cette date
+  const seenAsUtc = Date.UTC(Number(parts.year), Number(parts.month) - 1, Number(parts.day), Number(parts.hour) % 24, Number(parts.minute))
+  return new Date(guess - (seenAsUtc - guess))
+}
+
+/** Parse une date Google : date seule → minuit Europe/Paris ; dateTime ISO → tel quel. */
+export function parseGoogleDate(s: string, timeZone = "Europe/Paris"): Date {
+  return /^\d{4}-\d{2}-\d{2}$/.test(s) ? zonedMidnight(s, timeZone) : new Date(s)
+}

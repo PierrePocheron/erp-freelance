@@ -50,6 +50,7 @@ model User {
   expenses           Expense[]
   recurringExpenses  RecurringExpense[]
   expenseCategories  ExpenseCategory[]
+  companyCategories  CompanyCategory[]
   healthEvents        HealthEvent[]
   healthConsultations HealthConsultation[]
   healthReimbursements HealthReimbursement[]
@@ -125,6 +126,12 @@ model UserProfile {
   rateBICSalesCotisations    Float @default(12.30)
   rateBICSalesVL             Float @default(1.00)
   rateBICSalesCFP            Float @default(0.10)
+
+  // ── Investissements ───────────────────────────────────────────────────────
+  // Rappel mensuel « faire les relevés » : une tâche parent + une sous-tâche par
+  // plateforme, générée idempotemment au chargement (cf. ensureInvestmentReviewTasks).
+  investmentReviewReminder Boolean @default(false)
+  investmentReviewDay      Int     @default(1) // jour du mois de l'échéance (1–28)
 
   createdAt           DateTime @default(now())
   updatedAt         DateTime @updatedAt
@@ -229,6 +236,7 @@ enum ClientType {
   PROSPECT
   CLIENT
   PERSONAL
+  COLLEAGUE  // Collègue (société où l'on travaille) — cf. organigramme CompanyTeam
   RECRUITER  // Recruteur / chasseur de tête
   SELF
   INACTIVE
@@ -330,12 +338,15 @@ model Company {
   companyType    CompanyType? // catégorie de la société
   notes          String?
   fiscalSourceId String?  // source fiscale par défaut pour la facturation/les revenus
+  categoryId     String?  // catégorie libre de regroupement (créable à la volée), indépendante de la source fiscale
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
   user              User               @relation(fields: [userId], references: [id], onDelete: Cascade)
   fiscalSource      FiscalSource?      @relation(fields: [fiscalSourceId], references: [id], onDelete: SetNull)
+  category          CompanyCategory?   @relation(fields: [categoryId], references: [id], onDelete: SetNull)
   contacts          Client[]
+  teams             CompanyTeam[]
   projects          Project[]
   revenues          Revenue[]          @relation("RevenueCompany")
   recurringRevenues RecurringRevenue[] @relation("RecurringRevenueCompany")
@@ -344,6 +355,50 @@ model Company {
   @@unique([userId, name])
   @@index([userId])
   @@index([fiscalSourceId])
+  @@index([categoryId])
+}
+
+model CompanyCategory {
+  id        String   @id @default(cuid())
+  userId    String
+  name      String
+  color     String   @default("#6366f1")
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  companies Company[]
+
+  @@unique([userId, name])
+  @@index([userId])
+}
+
+// Niveau d'une personne dans l'organigramme d'une société. Sert uniquement au tri
+// vertical dans une zone (direction/managers en haut, alternants et stagiaires en bas).
+enum OrgLevel {
+  DIRECTION
+  MANAGER
+  CDI
+  ALTERNANT
+  STAGIAIRE
+  PRESTATAIRE
+}
+
+// Zone d'organigramme (équipe, pôle, service) d'une société. Portée par la société,
+// donc scopée par `company: { userId }` — pas de userId dénormalisé ici.
+model CompanyTeam {
+  id        String   @id @default(cuid())
+  companyId String
+  name      String
+  color     String   @default("#6366f1")
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+
+  company Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  members Client[]
+
+  @@unique([companyId, name])
+  @@index([companyId])
 }
 
 // Un contact. Source de vérité = firstName/lastName/label + companyId.
@@ -366,6 +421,10 @@ model Client {
   companyRef    Company?     @relation(fields: [companyId], references: [id], onDelete: SetNull)
   company       String?
   jobTitle      String? // poste / fonction dans la société
+  // Organigramme de la société : zone d'appartenance + niveau (cf. CompanyTeam)
+  teamId        String?
+  team          CompanyTeam? @relation(fields: [teamId], references: [id], onDelete: SetNull)
+  orgLevel      OrgLevel?
   email         String?
   personalEmail String?      // email perso/direct, en plus de l'email générique de contact
   phone         String?
@@ -423,6 +482,7 @@ model Client {
   emailDrafts       EmailDraft[]
 
   @@index([companyId])
+  @@index([teamId])
 }
 
 model Interaction {
@@ -641,6 +701,7 @@ enum ProjectContactRole {
   COLLEAGUE  // Collègue
   PARTNER    // Partenaire / sous-traitant
   SUPPLIER   // Fournisseur
+  PERSONAL   // Perso (ami, famille, projet perso / auto-formation)
   OTHER      // Autre
 }
 
@@ -702,6 +763,11 @@ model Task {
   // automatiquement quand la déclaration correspondante est déclarée/payée.
   urssafPeriod   String?
   skillId        String?      // bloc « Travailler cette compétence » (module Compétences)
+  // Rappel mensuel de relevé d'investissement (module Investissements) : la tâche
+  // parent porte la période "YYYY-MM" (parentTaskId null) ; chaque sous-tâche porte
+  // la même période + sa plateforme. Sert à l'idempotence et à l'auto-complétion.
+  investmentPeriod     String?
+  investmentPlatformId String?
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
 
@@ -714,8 +780,10 @@ model Task {
   timeEntries TimeEntry[]
   taskTags    TaskTag[]    @relation("TaskToTaskTag")
   skill       Skill?       @relation(fields: [skillId], references: [id], onDelete: SetNull)
+  investmentPlatform InvestmentPlatform? @relation("InvestmentReviewTasks", fields: [investmentPlatformId], references: [id], onDelete: Cascade)
 
   @@index([userId, urssafPeriod])
+  @@index([userId, investmentPeriod])
 }
 
 model TaskTag {
@@ -933,6 +1001,7 @@ model Product {
   user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   quoteLines  QuoteLine[]
   invoiceLines InvoiceLine[]
+  recurringInvoiceLines RecurringInvoiceLine[]
 }
 
 model Quote {
@@ -1049,12 +1118,34 @@ model RecurringInvoice {
   frequency            RecurringFrequency @default(MONTHLY)
   nextGenerationDate   DateTime
   isActive             Boolean            @default(true)
+  totalHT              Float              @default(0)
   createdAt            DateTime           @default(now())
   updatedAt            DateTime           @updatedAt
 
   user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   client  Client   @relation(fields: [clientId], references: [id])
   project Project? @relation(fields: [projectId], references: [id])
+  lines   RecurringInvoiceLine[]
+}
+
+// Lignes d'une facture récurrente. La table existe en base depuis la migration
+// 20260609110000_recurring_invoice_lines ; elle manquait ici, ce qui faisait produire à
+// `prisma migrate diff` un DROP TABLE destructeur à chaque comparaison base ↔ schéma.
+model RecurringInvoiceLine {
+  id                 String  @id @default(cuid())
+  recurringInvoiceId String
+  productId          String?
+  description        String  @default("")
+  detail             String?
+  quantity           Float   @default(1)
+  unitPrice          Float   @default(0)
+  taxRate            Float   @default(0)
+  total              Float   @default(0)
+
+  recurringInvoice RecurringInvoice @relation(fields: [recurringInvoiceId], references: [id], onDelete: Cascade)
+  product          Product?         @relation(fields: [productId], references: [id], onDelete: SetNull)
+
+  @@index([recurringInvoiceId])
 }
 
 model EmailLog {
@@ -1753,12 +1844,25 @@ enum QuestionStatus {
 }
 
 /// Compétence (hard ou soft), organisée en arbre : Catégorie › Techno › Sous-sujet.
+enum SkillFamily {
+  FRONTEND
+  BACKEND
+  DEVOPS
+  MOBILE
+  DATABASE
+  SECURITY
+  TOOL
+  CONCEPT
+  OTHER
+}
+
 model Skill {
   id              String      @id @default(cuid())
   userId          String
   parentId        String?     // arbre (null = racine / catégorie de plus haut niveau)
   name            String
   type            SkillType   @default(HARD)
+  family          SkillFamily? // famille pour le regroupement/tri des pastilles (front/back/devops…), indépendante de l'arbre
   level           Int         @default(0)  // 0 Aucune · 1 Notions · 2 Junior · 3 Confirmé · 4 Avancé · 5 Expert
   targetVersion   String?     // version visée sur le nœud (ex. "Spring 4")
   status          SkillStatus @default(TO_ACQUIRE)
@@ -1788,6 +1892,7 @@ model ProjectSkill {
   skillId   String
   version   String?          // version utilisée dans CE projet (ex. "4 + FRN")
   role      ProjectSkillRole @default(USED)
+  core      Boolean          @default(false) // stack principale (framework & archi) vs outil/lib secondaire
   note      String?
 
   project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
@@ -1870,6 +1975,7 @@ model InvestmentPlatform {
 
   user    User              @relation(fields: [userId], references: [id], onDelete: Cascade)
   entries InvestmentEntry[]
+  reviewTasks Task[]        @relation("InvestmentReviewTasks")
 
   @@index([userId])
 }

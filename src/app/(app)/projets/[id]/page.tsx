@@ -12,6 +12,9 @@ import { MilestoneToggle } from "@/components/modules/projet/MilestoneToggle"
 import { ProjectTasksCard } from "@/components/modules/projet/ProjectTasksCard"
 import { ProjectLinksCard } from "@/components/modules/projet/ProjectLinksCard"
 import { ProjectJobApplicationCard } from "@/components/modules/projet/ProjectJobApplicationCard"
+import { ProjectSkillsBar } from "@/components/modules/projet/ProjectSkillsBar"
+import { ProjectTimeDialog } from "@/components/modules/projet/ProjectTimeDialog"
+import { ProjectTimePanel } from "@/components/modules/projet/ProjectTimePanel"
 import { REVENUE_TYPE_LABELS } from "@/lib/revenue-constants"
 
 function fmtTime(d: Date | string) {
@@ -113,10 +116,18 @@ export default async function ProjectOverviewPage({
       },
       user: { select: { name: true, email: true, image: true } },
       jobApplication: { select: { id: true, companyName: true, position: true } },
+      skills: { include: { skill: { select: { id: true, name: true, family: true } } } },
     },
   })
 
   if (!project) notFound()
+
+  // Compétences de l'utilisateur — pour le sélecteur d'ajout de techno au projet (datalist)
+  const allSkills = await prisma.skill.findMany({
+    where: { userId },
+    orderBy: { name: "asc" },
+    select: { id: true, name: true },
+  })
 
   // Candidatures de l'utilisateur — pour associer/modifier l'entretien depuis la fiche
   const jobApplications = await prisma.jobApplication.findMany({
@@ -186,18 +197,18 @@ export default async function ProjectOverviewPage({
   return (
     <div className="space-y-6">
 
+      {/* Compétences & technos du projet — pastilles par famille, en tête de fiche */}
+      <ProjectSkillsBar
+        projectId={id}
+        linked={project.skills.map((ps) => ({ id: ps.skill.id, name: ps.skill.name, version: ps.version, role: ps.role, family: ps.skill.family, core: ps.core }))}
+        allSkills={allSkills}
+      />
+
       {/* Bento auto-équilibré (multicol) : les cartes se rangent au plus près
           sans laisser de trous verticaux entre elles. break-inside-avoid : une
           carte ne se coupe jamais d'une colonne à l'autre. L'ordre de lecture
           suit l'ordre du code (les colonnes se remplissent de façon équilibrée). */}
       <div className="gap-6 lg:columns-2 2xl:columns-3 *:mb-6 *:break-inside-avoid">
-
-        {/* Entretien associé (affiché s'il y a un lien, ou proposé si des candidatures existent) */}
-        <ProjectJobApplicationCard
-          projectId={id}
-          linked={project.jobApplication}
-          jobApplications={jobApplications}
-        />
 
         {/* Tâches — liste cochable */}
         <div>
@@ -495,6 +506,37 @@ export default async function ProjectOverviewPage({
             </div>
           )}
         </div>
+
+        {/* Temps — fonctionnalité secondaire : carte compacte en bas du bento, le détail
+            complet (temps par tâche, entrées, saisie manuelle, export) s'ouvre en modale. */}
+        <div className="rounded-xl border border-border/50 bg-card p-5 space-y-3">
+          <div className="flex items-center gap-2 font-semibold text-sm">
+            <Clock className="h-4 w-4 text-muted-foreground" />
+            Temps
+            <span className="ml-auto"><ProjectTimeDialog><ProjectTimePanel projectId={id} userId={userId} /></ProjectTimeDialog></span>
+          </div>
+          <div className="grid grid-cols-3 gap-3 text-center">
+            <div className="rounded-lg bg-muted/40 py-2">
+              <p className={`text-lg font-bold tabular-nums ${isOver ? "text-red-500" : ""}`}>{totalTrackedSeconds > 0 ? fmtH(totalTrackedHours) : "0h"}</p>
+              <p className="text-[11px] text-muted-foreground">suivi</p>
+            </div>
+            <div className="rounded-lg bg-muted/40 py-2">
+              <p className="text-lg font-bold tabular-nums">{project.estimatedHours ? fmtH(project.estimatedHours) : "—"}</p>
+              <p className="text-[11px] text-muted-foreground">estimé</p>
+            </div>
+            <div className="rounded-lg bg-muted/40 py-2">
+              <p className={`text-lg font-bold tabular-nums ${isOver ? "text-red-500" : budgetPct && budgetPct > 80 ? "text-amber-600" : ""}`}>{budgetPct !== null ? `${budgetPct}%` : "—"}</p>
+              <p className="text-[11px] text-muted-foreground">utilisé</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Entretien associé — rare : placé en fin de bento */}
+        <ProjectJobApplicationCard
+          projectId={id}
+          linked={project.jobApplication}
+          jobApplications={jobApplications}
+        />
       </div>
 
       {/* Frise chronologique — pleine largeur, sous le bento */}

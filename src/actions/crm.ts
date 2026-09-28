@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma"
 import { revalidatePath } from "next/cache"
 import { auth } from "@/lib/auth"
 import { computeContactName } from "@/lib/contact"
-import type { ClientType, ClientSource, InteractionChannel } from "@/generated/prisma/enums"
+import type { ClientType, ClientSource, InteractionChannel, OrgLevel } from "@/generated/prisma/enums"
 
 async function requireAuth(): Promise<string> {
   const session = await auth()
@@ -51,6 +51,23 @@ export async function searchCompanies(query: string) {
   })
 }
 
+// Anti-IDOR : une société ne peut référencer que des catégories / sources fiscales
+// appartenant à l'utilisateur. On valide l'appartenance des FK avant écriture (mêmes
+// garde-fous que linkEmitterToFiscalSource), un id d'un autre compte est rejeté.
+async function assertCompanyRefsOwned(
+  userId: string,
+  refs: { categoryId?: string | null; fiscalSourceId?: string | null },
+) {
+  if (refs.categoryId) {
+    const owned = await prisma.companyCategory.findFirst({ where: { id: refs.categoryId, userId }, select: { id: true } })
+    if (!owned) throw new Error("Catégorie introuvable")
+  }
+  if (refs.fiscalSourceId) {
+    const owned = await prisma.fiscalSource.findFirst({ where: { id: refs.fiscalSourceId, userId }, select: { id: true } })
+    if (!owned) throw new Error("Source fiscale introuvable")
+  }
+}
+
 export async function createCompany(data: {
   name: string
   companyType?: string | null
@@ -65,10 +82,12 @@ export async function createCompany(data: {
   country?: string
   notes?: string
   fiscalSourceId?: string | null
+  categoryId?: string | null
 }) {
   const userId = await requireAuth()
   const name = data.name.trim()
   if (!name) throw new Error("Le nom de la société est requis")
+  await assertCompanyRefsOwned(userId, { categoryId: data.categoryId, fiscalSourceId: data.fiscalSourceId })
   const company = await prisma.company.create({
     data: {
       userId,
@@ -85,6 +104,7 @@ export async function createCompany(data: {
       country: data.country?.trim() || null,
       notes: data.notes?.trim() || null,
       fiscalSourceId: data.fiscalSourceId || null,
+      categoryId: data.categoryId || null,
     },
   })
   revalidatePath("/societes")
@@ -108,6 +128,7 @@ export async function updateCompany(
     country?: string | null
     notes?: string | null
     fiscalSourceId?: string | null
+    categoryId?: string | null
   }
 ) {
   const userId = await requireAuth()
@@ -121,6 +142,8 @@ export async function updateCompany(
     if (k in data) clean[k] = (data[k] ?? "")?.toString().trim() || null
   }
   if ("fiscalSourceId" in data) clean.fiscalSourceId = data.fiscalSourceId || null
+  if ("categoryId" in data) clean.categoryId = data.categoryId || null
+  await assertCompanyRefsOwned(userId, { categoryId: data.categoryId, fiscalSourceId: data.fiscalSourceId })
   await prisma.company.update({ where: { id: companyId, userId }, data: clean as never })
 
   // Resynchronise le cache d'affichage des contacts si le nom a changé.
@@ -132,6 +155,25 @@ export async function updateCompany(
   revalidatePath("/contacts")
 }
 
+// Catégorie de société (regroupement libre, créable à la volée). Idempotent sur le
+// nom (insensible à la casse) pour éviter les doublons via le combobox.
+export async function createCompanyCategory(name: string, color: string) {
+  const userId = await requireAuth()
+  const trimmed = name.trim()
+  if (!trimmed) throw new Error("Nom de catégorie requis")
+  const existing = await prisma.companyCategory.findFirst({
+    where: { userId, name: { equals: trimmed, mode: "insensitive" } },
+    select: { id: true, name: true, color: true },
+  })
+  if (existing) return existing
+  const category = await prisma.companyCategory.create({
+    data: { userId, name: trimmed, color },
+    select: { id: true, name: true, color: true },
+  })
+  revalidatePath("/societes")
+  return category
+}
+
 export async function deleteCompany(companyId: string) {
   const userId = await requireAuth()
   // Détache les contacts (companyId → null via FK SET NULL) puis nettoie le cache.
@@ -139,6 +181,99 @@ export async function deleteCompany(companyId: string) {
   await prisma.company.delete({ where: { id: companyId, userId } })
   revalidatePath("/societes")
   revalidatePath("/contacts")
+}
+
+// ── Organigramme société (zones + niveaux) ────────────────────────────────────
+
+// Les zones n'ont pas de userId : elles appartiennent à une société, donc toute
+// mutation est scopée par `company: { userId }` (pattern anti-IDOR du projet).
+async function requireTeamOwnership(userId: string, teamId: string) {
+  const team = await prisma.companyTeam.findFirst({
+    where: { id: teamId, company: { userId } },
+    select: { id: true, companyId: true },
+  })
+  if (!team) throw new Error("Zone introuvable")
+  return team
+}
+
+// Couleur déterministe depuis le nom (même approche que les catégories de société).
+const TEAM_COLORS = ["#6366f1", "#8b5cf6", "#0ea5e9", "#10b981", "#f59e0b", "#ef4444", "#ec4899", "#64748b", "#14b8a6", "#f97316"]
+function teamColor(name: string): string {
+  let hash = 0
+  for (const ch of name.toLowerCase()) hash = (hash * 31 + ch.charCodeAt(0)) | 0
+  return TEAM_COLORS[Math.abs(hash) % TEAM_COLORS.length]
+}
+
+// Idempotent sur le nom (insensible à la casse) : la contrainte @@unique renverrait
+// sinon une erreur Prisma brute sur un double clic.
+export async function createCompanyTeam(companyId: string, name: string) {
+  const userId = await requireAuth()
+  const trimmed = name.trim()
+  if (!trimmed) throw new Error("Nom de zone requis")
+  const company = await prisma.company.findFirst({ where: { id: companyId, userId }, select: { id: true } })
+  if (!company) throw new Error("Société introuvable")
+  const existing = await prisma.companyTeam.findFirst({
+    where: { companyId, name: { equals: trimmed, mode: "insensitive" } },
+    select: { id: true, name: true, color: true, sortOrder: true },
+  })
+  if (existing) return existing
+  const { _max } = await prisma.companyTeam.aggregate({ where: { companyId }, _max: { sortOrder: true } })
+  const team = await prisma.companyTeam.create({
+    data: { companyId, name: trimmed, color: teamColor(trimmed), sortOrder: (_max.sortOrder ?? -1) + 1 },
+    select: { id: true, name: true, color: true, sortOrder: true },
+  })
+  revalidatePath(`/societes/${companyId}`)
+  return team
+}
+
+export async function renameCompanyTeam(teamId: string, name: string) {
+  const userId = await requireAuth()
+  const trimmed = name.trim()
+  if (!trimmed) throw new Error("Nom de zone requis")
+  const { companyId } = await requireTeamOwnership(userId, teamId)
+  await prisma.companyTeam.update({ where: { id: teamId }, data: { name: trimmed } })
+  revalidatePath(`/societes/${companyId}`)
+}
+
+// Les membres ne sont pas supprimés : la FK est en SET NULL, ils retombent dans
+// la zone « À affecter ».
+export async function deleteCompanyTeam(teamId: string) {
+  const userId = await requireAuth()
+  const { companyId } = await requireTeamOwnership(userId, teamId)
+  await prisma.companyTeam.delete({ where: { id: teamId } })
+  revalidatePath(`/societes/${companyId}`)
+}
+
+export async function assignContactToTeam(clientId: string, teamId: string | null) {
+  const userId = await requireAuth()
+  const client = await prisma.client.findFirst({
+    where: { id: clientId, userId },
+    select: { id: true, companyId: true },
+  })
+  if (!client) throw new Error("Contact introuvable")
+  if (teamId) {
+    const team = await requireTeamOwnership(userId, teamId)
+    // Une zone n'accueille que des contacts de SA société.
+    if (team.companyId !== client.companyId) throw new Error("Cette zone appartient à une autre société")
+  }
+  await prisma.client.update({ where: { id: clientId, userId }, data: { teamId } })
+  if (client.companyId) revalidatePath(`/societes/${client.companyId}`)
+  revalidatePath(`/contacts/${clientId}`)
+}
+
+export async function updateContactOrgLevel(clientId: string, level: string | null) {
+  const userId = await requireAuth()
+  const client = await prisma.client.findFirst({
+    where: { id: clientId, userId },
+    select: { id: true, companyId: true },
+  })
+  if (!client) throw new Error("Contact introuvable")
+  await prisma.client.update({
+    where: { id: clientId, userId },
+    data: { orgLevel: (level || null) as OrgLevel | null },
+  })
+  if (client.companyId) revalidatePath(`/societes/${client.companyId}`)
+  revalidatePath(`/contacts/${clientId}`)
 }
 
 // ── Client CRUD ───────────────────────────────────────────────────────────────

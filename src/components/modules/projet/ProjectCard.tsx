@@ -2,8 +2,10 @@ import Link from "next/link"
 import { Badge } from "@/components/ui/badge"
 import { Calendar, Clock, CheckSquare } from "lucide-react"
 import { TagBadge } from "./TagBadge"
-import { PRIORITY_CONFIG, type ProjectPriority } from "./ProjectInlineEdit"
+import { type ProjectPriority } from "./ProjectInlineEdit"
+import { PriorityIcon } from "./PriorityIcon"
 import { CATEGORY_CONFIG } from "./category-config"
+import { TechIcon } from "./TechIcon"
 import type { ProjectCategory } from "@/generated/prisma/enums"
 
 function fmtEur(n: number) {
@@ -35,6 +37,7 @@ type Props = {
     tags: { id: string; name: string; color: string }[]
     billing: { totalFacture: number; totalEncaisse: number }
     revenue: { totalRevenu: number; revenuRecu: number }
+    skills?: { name: string }[]
   }
   showBilling?: boolean
 }
@@ -44,12 +47,12 @@ export function ProjectCard({ project, showBilling = false }: Props) {
   const firstContact = project.contactLinks[0]?.client
   const clientLabel = project.company?.name ?? firstContact?.name ?? "—"
   const priority = project.priority ?? "MEDIUM"
-  const priorityCfg = PRIORITY_CONFIG[priority]
   const category = CATEGORY_CONFIG[project.category ?? "AUTRE"]
 
   return (
     <Link href={`/projets/${project.id}`}>
-      <div className="group rounded-xl border border-border/50 bg-card overflow-hidden hover:border-border hover:shadow-md transition-all cursor-pointer">
+      {/* Liseré rouge discret sur les projets urgents */}
+      <div className={`group rounded-xl border bg-card overflow-hidden hover:shadow-md transition-all cursor-pointer ${priority === "URGENT" ? "border-red-500/40 hover:border-red-500/60" : "border-border/50 hover:border-border"}`}>
         {/* Mini-bannière thème : couleur + motif distinct par catégorie
             (colorblind-friendly, la forme suffit sans la couleur) */}
         <div
@@ -66,8 +69,10 @@ export function ProjectCard({ project, showBilling = false }: Props) {
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
             <p className="text-xs text-muted-foreground mb-1">{clientLabel}</p>
-            <h3 className="font-semibold leading-tight group-hover:text-primary transition-colors">
-              {project.name}
+            <h3 className="font-semibold leading-tight group-hover:text-primary transition-colors flex items-center gap-1.5">
+              {/* 🔥 urgente/haute · ❄️ basse · rien en normale */}
+              <PriorityIcon priority={priority} className="shrink-0" />
+              <span>{project.name}</span>
             </h3>
             {project.description && (
               <p className="text-sm text-muted-foreground mt-1 line-clamp-2">
@@ -79,11 +84,6 @@ export function ProjectCard({ project, showBilling = false }: Props) {
             <Badge variant="outline" className={`text-xs ${className}`}>
               {label}
             </Badge>
-            {priority !== "MEDIUM" && (
-              <span className={`rounded-full border px-2 py-0.5 text-[10px] font-medium ${priorityCfg.cls}`}>
-                {priorityCfg.label}
-              </span>
-            )}
           </div>
         </div>
 
@@ -92,6 +92,15 @@ export function ProjectCard({ project, showBilling = false }: Props) {
             {(project.tags ?? []).map((tag) => (
               <TagBadge key={tag.id} tag={tag} />
             ))}
+          </div>
+        )}
+
+        {(project.skills?.length ?? 0) > 0 && (
+          <div className="flex flex-wrap items-center gap-1" title="Technos du projet">
+            {project.skills!.slice(0, 10).map((s, i) => <TechIcon key={`${s.name}-${i}`} name={s.name} size={16} />)}
+            {project.skills!.length > 10 && (
+              <span className="text-[10px] text-muted-foreground self-center">+{project.skills!.length - 10}</span>
+            )}
           </div>
         )}
 

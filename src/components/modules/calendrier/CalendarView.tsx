@@ -141,13 +141,28 @@ function eventDayRange(ev: CalendarEvent): { first: Date; last: Date } {
   return { first, last: first }
 }
 
+/**
+ * Événements d'une journée, ORDONNÉS : journée entière d'abord (bandeaux), puis les
+ * horaires par heure croissante (16h avant 18h) — départage par fin décroissante puis titre.
+ * Alimente les cases de la vue mois et le dialogue du jour (les sources sont concaténées
+ * dans un ordre arbitraire côté serveur ; sans ce tri, 18h pouvait précéder 16h).
+ */
 function eventsForDay(events: CalendarEvent[], date: Date): CalendarEvent[] {
   const d = startOfDay(date).getTime()
-  return events.filter(e => {
-    if (isTimedEvent(e)) return isSameDay(new Date(e.date), date)
-    const { first, last } = eventDayRange(e)
-    return d >= first.getTime() && d <= last.getTime()
-  })
+  return events
+    .filter(e => {
+      if (isTimedEvent(e)) return isSameDay(new Date(e.date), date)
+      const { first, last } = eventDayRange(e)
+      return d >= first.getTime() && d <= last.getTime()
+    })
+    .sort((a, b) => {
+      const ta = isTimedEvent(a), tb = isTimedEvent(b)
+      if (ta !== tb) return ta ? 1 : -1
+      if (!ta) return a.title.localeCompare(b.title, "fr")
+      return new Date(a.date).getTime() - new Date(b.date).getTime()
+        || effectiveEndMs(b) - effectiveEndMs(a)
+        || a.title.localeCompare(b.title, "fr")
+    })
 }
 
 /** Vrai pour un événement journée entière s'étalant sur ≥ 2 jours. */
@@ -1555,10 +1570,12 @@ export function CalendarView({
       <Dialog open={selectedDay !== null} onOpenChange={v => { if (!v) setSelectedDay(null) }}>
           <DialogContent className="sm:max-w-md max-h-[85vh] flex flex-col overflow-hidden">
             <DialogHeader className="shrink-0">
-              <DialogTitle className="capitalize flex items-center justify-between gap-2">
-                <span>{selectedDay?.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" }) ?? ""}</span>
+              {/* pr-8 : réserve la place du bouton ✕ (absolu, en haut à droite de DialogContent)
+                  pour que le compteur ne passe pas dessous. */}
+              <DialogTitle className="capitalize flex items-center justify-between gap-2 pr-8">
+                <span className="min-w-0 truncate">{selectedDay?.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" }) ?? ""}</span>
                 {selectedDay && (
-                  <span className="text-xs font-normal text-muted-foreground">
+                  <span className="shrink-0 whitespace-nowrap text-xs font-normal text-muted-foreground">
                     {eventsForDay(filteredEvents, selectedDay).length} événement{eventsForDay(filteredEvents, selectedDay).length > 1 ? "s" : ""}
                   </span>
                 )}
@@ -1641,9 +1658,9 @@ function MonthView({
     const weekDates = Array.from({ length: 7 }, (_, c) => addDays(gridStart, r * 7 + c))
     return layoutSpansForDays(multiDayEvents, weekDates)
   })
-  const rowLanes = rowLayouts.map(l => l.lanes)
   const MONTH_BAR_H  = 18   // hauteur d'une lane de barre
-  const MONTH_DATE_H = 24   // espace réservé au numéro du jour avant les barres
+  // Numéro du jour : p-1 (4) + h-5 (20) + mb-0.5 (2) = 26 px — les barres démarrent juste dessous.
+  const MONTH_DATE_H = 26
 
   const isToday = (day: number) =>
     day === today.getDate() && month === today.getMonth() && year === today.getFullYear()
@@ -1655,12 +1672,21 @@ function MonthView({
           <div key={d} className="py-2 text-center text-xs font-medium text-muted-foreground">{d}</div>
         ))}
       </div>
-      <div className="relative grid grid-cols-7 flex-1" style={{ gridTemplateRows: `repeat(${numRows}, minmax(0, 1fr))` }}>
+      {/* min-h-0 : sans lui, la grille (enfant flex) garde min-height:auto = hauteur de son
+          contenu, déborde du conteneur overflow-hidden et la dernière rangée (28→30) est
+          coupée. Avec, les rangées minmax(0,1fr) se partagent la hauteur réellement visible ;
+          chaque case plafonne déjà à 2 puces + « +N » et clippe le reste. */}
+      <div className="relative grid grid-cols-7 flex-1 min-h-0" style={{ gridTemplateRows: `repeat(${numRows}, minmax(0, 1fr))` }}>
         {cells.map((day, i) => {
           if (!day) return (
             <div key={`e-${i}`} className={cn("border-b border-r border-border/30 bg-muted/20", i % 7 === 6 && "border-r-0")} />
           )
           const row        = Math.floor(i / 7)
+          const col        = i % 7
+          // Lanes réellement occupées sur CE jour (barres couvrant la colonne) : les puces
+          // démarrent sous la plus haute barre du jour — garanti par construction, et un jour
+          // sans barre ne réserve rien (avant : réservation uniforme par rangée).
+          const cellLanes  = rowLayouts[row].spans.reduce((m, s) => (s.startCol <= col && col <= s.endCol ? Math.max(m, s.lane + 1) : m), 0)
           const dayDate    = new Date(year, month, day)
           const dayEvents  = eventsForDay(events, dayDate)
           // Les barres multi-jours sont dessinées par l'overlay → exclues des chips.
@@ -1691,8 +1717,11 @@ function MonthView({
                   : null
                 onMoveEvent(eventId, newDate, newEnd, ev.allDay ?? false)
               }}
+              // flex-col + justify-start : un <button> centre VERTICALEMENT son contenu par défaut
+              // (style UA) → dans une case étirée par la grille, le numéro du jour flottait au
+              // milieu quand la case était vide et remontait selon le nombre d'événements.
               className={cn(
-                "border-b border-r border-border/30 p-1 text-left transition-colors hover:bg-muted/30 min-w-0 overflow-hidden",
+                "flex flex-col items-stretch justify-start border-b border-r border-border/30 p-1 text-left transition-colors hover:bg-muted/30 min-w-0 overflow-hidden",
                 isWeekend ? "bg-muted/10" : loadBg(dayEvents.length),
                 i % 7 === 6 && "border-r-0",
                 isSelected && "ring-1 ring-inset ring-primary/40 bg-primary/5",
@@ -1704,7 +1733,7 @@ function MonthView({
                 {day}
               </span>
               {/* Espace réservé aux barres multi-jours de la semaine (dessinées en overlay) */}
-              {rowLanes[row] > 0 && <div aria-hidden style={{ height: rowLanes[row] * MONTH_BAR_H }} />}
+              {cellLanes > 0 && <div aria-hidden style={{ height: cellLanes * MONTH_BAR_H }} />}
               <div className="space-y-px">
                 {dayChips.slice(0, 2).map(ev => (
                   <div

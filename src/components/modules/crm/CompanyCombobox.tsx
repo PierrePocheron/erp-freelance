@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback, useId } from "react"
 import { createPortal } from "react-dom"
-import { Check, Building2, ChevronDown, Plus, X } from "lucide-react"
+import { Check, Building2, ChevronDown, Plus, X, Loader2 } from "lucide-react"
 import { searchCompanies } from "@/actions/crm"
 
 type CompanyOption = { id: string; name: string; city: string | null }
@@ -21,6 +21,7 @@ export function CompanyCombobox({ value, onChange, placeholder, id }: Props) {
   const [open, setOpen] = useState(false)
   const [results, setResults] = useState<CompanyOption[]>([])
   const [dropdownStyle, setDropdownStyle] = useState<React.CSSProperties>({})
+  const [searching, setSearching] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const listboxId = useId()
@@ -28,20 +29,25 @@ export function CompanyCombobox({ value, onChange, placeholder, id }: Props) {
   // Recherche serveur débauncée tant que le dropdown est ouvert.
   useEffect(() => {
     if (!open) return
+    // Le résultat d'une frappe précédente ne doit pas écraser celui de la
+    // frappe courante (Neon froid = réponses dans le désordre).
+    let cancelled = false
     const handle = setTimeout(async () => {
       try {
         const r = await searchCompanies(query)
-        setResults(r)
+        if (!cancelled) setResults(r)
       } catch {
-        setResults([])
+        if (!cancelled) setResults([])
+      } finally {
+        if (!cancelled) setSearching(false)
       }
     }, 180)
-    return () => clearTimeout(handle)
+    return () => { cancelled = true; clearTimeout(handle) }
   }, [query, open])
 
   const trimmed = query.trim()
   const exactMatch = results.some((c) => c.name.toLowerCase() === trimmed.toLowerCase())
-  const showCreate = trimmed.length > 0 && !exactMatch
+  const showCreate = trimmed.length > 0 && !exactMatch && !searching
 
   const updatePosition = useCallback(() => {
     if (!inputRef.current) return
@@ -58,6 +64,7 @@ export function CompanyCombobox({ value, onChange, placeholder, id }: Props) {
   function handleOpen() {
     updatePosition()
     setQuery(value.name)
+    setSearching(true)
     setOpen(true)
   }
 
@@ -116,6 +123,7 @@ export function CompanyCombobox({ value, onChange, placeholder, id }: Props) {
           onChange={(e) => {
             const v = e.target.value
             setQuery(v)
+            setSearching(true)
             // Texte libre → société à créer (id null) ; effacé si vide.
             onChange({ id: null, name: v })
             if (!open) handleOpen()
@@ -146,7 +154,13 @@ export function CompanyCombobox({ value, onChange, placeholder, id }: Props) {
           className="rounded-md border border-border bg-popover shadow-lg overflow-hidden"
         >
           <div id={listboxId} role="listbox" className="max-h-52 overflow-y-auto">
-            {results.length === 0 && !showCreate && (
+            {searching && (
+              <p className="flex items-center gap-2 px-3 py-2.5 text-sm text-muted-foreground">
+                <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden /> Recherche…
+              </p>
+            )}
+
+            {!searching && results.length === 0 && !showCreate && (
               <p className="px-3 py-2.5 text-sm text-muted-foreground">Aucune société</p>
             )}
 

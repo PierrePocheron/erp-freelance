@@ -75,6 +75,9 @@ export async function POST(req: NextRequest) {
   const ext = EXT_BY_TYPE[detectedType]
   const filename = `${folder}/${session.user.id}/${Date.now()}.${ext}`
 
-  const blob = await put(filename, file, { access: "public" })
+  // Suffixe aléatoire : le store est public et le chemin, sans lui, se devine
+  // (`<dossier>/<userId>/<horodatage ms>.<ext>` — 13 chiffres, ce n'est pas un
+  // secret). Cf. le gel des PDF de facture dans actions/facturation.ts.
+  const blob = await put(filename, file, { access: "public", addRandomSuffix: true })
   return NextResponse.json({ url: blob.url })
 }

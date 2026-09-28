@@ -70,3 +70,63 @@ export async function buildInvoicePdfBuffer(invoiceId: string, userId: string): 
 
   return Buffer.from(await renderToBuffer(element))
 }
+
+// Rend un devis en PDF (Buffer). Même fabrique que la facture — utilisée par la
+// route de visualisation et par la pièce jointe des emails de devis.
+export async function buildQuotePdfBuffer(quoteId: string, userId: string): Promise<Buffer> {
+  const quote = await prisma.quote.findFirst({
+    where: { id: quoteId, userId },
+    include: {
+      client: true,
+      lines: { orderBy: { id: "asc" } },
+      user: { select: { name: true, email: true } },
+    },
+  })
+
+  if (!quote) throw new Error("Devis introuvable")
+
+  const { emitter, accentColor, branding } = await resolveEmitter({
+    userId,
+    emitterProfileId: quote.emitterProfileId,
+    userName: quote.user.name,
+    userEmail: quote.user.email,
+  })
+
+  const props: React.ComponentProps<typeof InvoicePDF> = {
+    type: "DEVIS",
+    number: quote.number,
+    createdAt: quote.createdAt,
+    expiresAt: quote.expiresAt,
+    sentAt: quote.sentAt,
+    acceptedAt: quote.acceptedAt,
+    depositPercent: quote.depositPercent,
+    generalConditions: quote.generalConditions,
+    accentColor,
+    logoText: branding.logoText,
+    logoSubtext: branding.logoSubtext,
+    backgroundColor: branding.backgroundColor,
+    emitter,
+    client: {
+      name: quote.client.name,
+      company: quote.client.company,
+      email: quote.client.email,
+      address: quote.client.address,
+      postalCode: quote.client.postalCode,
+      city: quote.client.city,
+      siret: quote.client.siret,
+    },
+    lines: quote.lines.map((l) => ({
+      description: l.description,
+      detail: l.detail,
+      quantity: l.quantity,
+      unitPrice: l.unitPrice,
+      taxRate: l.taxRate,
+      total: l.total,
+    })),
+    totalHT: quote.totalHT,
+  }
+
+  const element = React.createElement(InvoicePDF, props) as React.ReactElement<DocumentProps>
+
+  return Buffer.from(await renderToBuffer(element))
+}

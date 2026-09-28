@@ -34,6 +34,7 @@ vi.mock("@vercel/blob", () => ({
 // Évite de tirer @react-pdf/renderer (lourd) dans les tests d'intégration.
 vi.mock("@/lib/invoice-pdf", () => ({
   buildInvoicePdfBuffer: vi.fn(async () => Buffer.from("%PDF-1.4 test")),
+  buildQuotePdfBuffer: vi.fn(async () => Buffer.from("%PDF-1.4 test")),
 }))
 
 // ── Reset de la base entre chaque test ────────────────────────────────────────

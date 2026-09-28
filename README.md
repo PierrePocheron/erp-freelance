@@ -155,8 +155,12 @@ npm run test:integration  # Tests d'intégration (requiert Postgres erp_test)
 npm run test:coverage     # Coverage complète
 ```
 
-Les tests unitaires couvrent la logique pure (montants, états factures, dépôts, dates).
-Les tests d'intégration utilisent une base `erp_test` réinitialisée entre chaque suite.
+Les tests unitaires couvrent la logique pure (montants, états factures, dépôts, dates,
+séries d'investissement) ; le projet `unit` fige `TZ=Europe/Paris`, sinon un test de fin
+de mois passe sur un poste français et échoue en CI (UTC).
+Les tests d'intégration utilisent une base `erp_test` réinitialisée entre chaque suite, et
+couvrent les actions serveur : assiette URSSAF, cycle devis→acompte→solde, calendrier,
+compétences, santé, suivi du temps, chiffrement au repos, et le cloisonnement entre comptes.
 
 ---
 

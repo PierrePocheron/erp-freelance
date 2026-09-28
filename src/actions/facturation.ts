@@ -1038,11 +1038,22 @@ export async function setRecurringInvoiceLines(
 
 // ── Email ─────────────────────────────────────────────────────────────────────
 
-// URL de base de l'app pour les liens absolus dans les emails (liens PDF de devis/
-// factures). NextAuth v5 lit AUTH_URL ; on garde NEXTAUTH_URL en repli au cas où
-// seul l'ancien nom serait défini sur l'hébergeur — évite un lien « undefined/… ».
-function appBaseUrl() {
-  return process.env.AUTH_URL ?? process.env.NEXTAUTH_URL ?? ""
+// Le document part en PIÈCE JOINTE. Les mails annonçaient « ci-joint » mais ne
+// contenaient qu'un lien vers /api/pdf/… — route protégée par session : le client
+// qui cliquait recevait « Unauthorized », et n'avait donc aucun moyen d'obtenir
+// son devis ou sa facture. Le PDF est rendu ici même (mêmes fabriques que la
+// route de visualisation et que le gel à l'émission).
+async function pdfAttachment(
+  kind: "devis" | "facture",
+  id: string,
+  userId: string,
+  number: string,
+): Promise<{ filename: string; content: Buffer }[]> {
+  const { buildInvoicePdfBuffer, buildQuotePdfBuffer } = await import("@/lib/invoice-pdf")
+  const content = kind === "facture"
+    ? await buildInvoicePdfBuffer(id, userId)
+    : await buildQuotePdfBuffer(id, userId)
+  return [{ filename: `${number.replace(/[^a-zA-Z0-9._-]/g, "-")}.pdf`, content }]
 }
 
 export async function resendQuoteEmail(quoteId: string, _userId: string) {
@@ -1055,20 +1066,22 @@ export async function resendQuoteEmail(quoteId: string, _userId: string) {
   if (!quote) throw new Error("Devis introuvable")
   if (!quote.client.email) throw new Error("Le client n'a pas d'adresse email")
 
-  const { Resend } = await import("resend")
-  const resend = new Resend(process.env.RESEND_API_KEY)
-
-  const pdfUrl = `${appBaseUrl()}/api/pdf/devis/${quoteId}`
+  // Passe par le client partagé (lib/resend) : point d'injection unique, mocké
+  // à la frontière dans les tests. Import dynamique pour ne pas charger le SDK
+  // dans le graphe de ce fichier, chargé par toutes les pages de facturation.
+  const { getResend } = await import("@/lib/resend")
+  const resend = getResend()
 
   const { error } = await resend.emails.send({
     from: "ERP Freelance <noreply@resend.dev>",
     to: quote.client.email,
     subject: `Rappel — Devis ${quote.number}`,
+    attachments: await pdfAttachment("devis", quoteId, userId, quote.number),
     html: `
       <p>Bonjour ${escapeHtml(quote.client.name)},</p>
       <p>Je me permets de vous relancer concernant le devis <strong>${quote.number}</strong> d'un montant de <strong>${quote.totalHT.toLocaleString("fr-FR")} €</strong> HT que je vous ai adressé.</p>
       ${quote.expiresAt ? `<p>Ce devis est valable jusqu'au ${new Date(quote.expiresAt).toLocaleDateString("fr-FR")}.</p>` : ""}
-      <p><a href="${pdfUrl}">Consulter le devis</a></p>
+      <p>Le devis est joint à ce message.</p>
       <p>Cordialement,<br>${escapeHtml(quote.user.name)}</p>
     `,
   })
@@ -1087,20 +1100,22 @@ export async function sendQuoteEmail(quoteId: string, _userId: string) {
   if (!quote) throw new Error("Devis introuvable")
   if (!quote.client.email) throw new Error("Le client n'a pas d'adresse email")
 
-  const { Resend } = await import("resend")
-  const resend = new Resend(process.env.RESEND_API_KEY)
-
-  const pdfUrl = `${appBaseUrl()}/api/pdf/devis/${quoteId}`
+  // Passe par le client partagé (lib/resend) : point d'injection unique, mocké
+  // à la frontière dans les tests. Import dynamique pour ne pas charger le SDK
+  // dans le graphe de ce fichier, chargé par toutes les pages de facturation.
+  const { getResend } = await import("@/lib/resend")
+  const resend = getResend()
 
   const { error } = await resend.emails.send({
     from: "ERP Freelance <noreply@resend.dev>",
     to: quote.client.email,
     subject: `Devis ${quote.number}`,
+    attachments: await pdfAttachment("devis", quoteId, userId, quote.number),
     html: `
       <p>Bonjour ${escapeHtml(quote.client.name)},</p>
       <p>Veuillez trouver ci-joint le devis <strong>${quote.number}</strong> d'un montant de <strong>${quote.totalHT.toLocaleString("fr-FR")} €</strong> HT.</p>
       ${quote.expiresAt ? `<p>Ce devis est valable jusqu'au ${new Date(quote.expiresAt).toLocaleDateString("fr-FR")}.</p>` : ""}
-      <p><a href="${pdfUrl}">Télécharger le devis</a></p>
+
       <p>Cordialement,<br>${escapeHtml(quote.user.name)}</p>
     `,
   })
@@ -1114,25 +1129,27 @@ export async function sendInvoiceEmail(invoiceId: string, _userId: string) {
   const userId = await requireAuth()
   await enforceRateLimit(`email:${userId}`, 10, 60_000)
   const invoice = await prisma.invoice.findFirst({
-    where: { id: invoiceId, userId },
+    where: { id: invoiceId, userId, status: "ISSUED" },
     include: { client: true, user: true },
   })
-  if (!invoice) throw new Error("Facture introuvable")
+  if (!invoice) throw new Error("Facture introuvable ou déjà envoyée (utilisez la relance)")
   if (!invoice.client.email) throw new Error("Ce client n'a pas d'email renseigné — impossible d'envoyer la facture.")
 
-  const { Resend } = await import("resend")
-  const resend = new Resend(process.env.RESEND_API_KEY)
-
-  const pdfUrl = `${appBaseUrl()}/api/pdf/facture/${invoiceId}`
+  // Passe par le client partagé (lib/resend) : point d'injection unique, mocké
+  // à la frontière dans les tests. Import dynamique pour ne pas charger le SDK
+  // dans le graphe de ce fichier, chargé par toutes les pages de facturation.
+  const { getResend } = await import("@/lib/resend")
+  const resend = getResend()
 
   const { data, error } = await resend.emails.send({
     from: "ERP Freelance <noreply@resend.dev>",
     to: invoice.client.email,
     subject: `Facture ${invoice.number}`,
+    attachments: await pdfAttachment("facture", invoiceId, userId, invoice.number),
     html: `
       <p>Bonjour ${escapeHtml(invoice.client.name)},</p>
       <p>Veuillez trouver ci-joint la facture <strong>${invoice.number}</strong> d'un montant de <strong>${invoice.totalHT.toLocaleString("fr-FR")} €</strong>.</p>
-      <p><a href="${pdfUrl}">Télécharger la facture</a></p>
+
       <p>Cordialement,<br>${escapeHtml(invoice.user.name)}</p>
     `,
   })
@@ -1162,10 +1179,12 @@ export async function sendInvoiceReminder(invoiceId: string, _userId: string) {
   if (!invoice) throw new Error("Facture introuvable")
   if (!invoice.client.email) throw new Error("Le client n'a pas d'adresse email")
 
-  const { Resend } = await import("resend")
-  const resend = new Resend(process.env.RESEND_API_KEY)
+  // Passe par le client partagé (lib/resend) : point d'injection unique, mocké
+  // à la frontière dans les tests. Import dynamique pour ne pas charger le SDK
+  // dans le graphe de ce fichier, chargé par toutes les pages de facturation.
+  const { getResend } = await import("@/lib/resend")
+  const resend = getResend()
 
-  const pdfUrl = `${appBaseUrl()}/api/pdf/facture/${invoiceId}`
   const isLate = invoice.status === "LATE"
   const daysLate = invoice.dueDate
     ? Math.ceil((Date.now() - new Date(invoice.dueDate).getTime()) / 86400000)
@@ -1179,13 +1198,14 @@ export async function sendInvoiceReminder(invoiceId: string, _userId: string) {
     from: "ERP Freelance <noreply@resend.dev>",
     to: invoice.client.email,
     subject,
+    attachments: await pdfAttachment("facture", invoiceId, userId, invoice.number),
     html: `
       <p>Bonjour ${escapeHtml(invoice.client.name)},</p>
       ${isLate && daysLate
         ? `<p>Sauf erreur de notre part, la facture <strong>${invoice.number}</strong> d'un montant de <strong>${(invoice.totalHT - invoice.depositDeducted).toLocaleString("fr-FR")} €</strong> est en retard de <strong>${daysLate} jour(s)</strong>.</p>`
         : `<p>Nous vous rappelons que la facture <strong>${invoice.number}</strong> d'un montant de <strong>${(invoice.totalHT - invoice.depositDeducted).toLocaleString("fr-FR")} €</strong> est toujours en attente de règlement.</p>`
       }
-      <p><a href="${pdfUrl}">Voir la facture</a></p>
+      <p>La facture est jointe à ce message.</p>
       <p>Cordialement,<br>${escapeHtml(invoice.user.name)}</p>
     `,
   })

@@ -47,23 +47,33 @@ export default async function LoginPage({
         <div className="absolute -left-24 bottom-0 h-72 w-72 rounded-full bg-primary/5 blur-[80px]" />
       </div>
 
-      {/* Pastilles flottantes (décor) */}
-      <div aria-hidden className="pointer-events-none absolute inset-0 hidden lg:block">
+      {/* Pastilles flottantes : au survol, chacune dit le module qu'elle représente.
+          Le conteneur ne capte pas la souris (il couvre toute la page) — seules les
+          pastilles la reprennent. L'étiquette est un frère de la pastille animée et
+          non un enfant : le `transform` de l'animation l'inclinerait et la ferait
+          flotter avec elle. */}
+      <div className="pointer-events-none absolute inset-0 hidden lg:block">
         {floatingIcons.map(({ icon: Icon, label, pos, size, icon_, accent, tilt, duration, delay }) => (
-          <div
-            key={label}
-            className={`login-float absolute ${pos} ${size} flex items-center justify-center rounded-2xl shadow-lg ring-1 ${
-              accent
-                ? "bg-primary text-primary-foreground ring-primary/20 shadow-primary/20"
-                : "bg-card text-primary ring-border/60"
-            }`}
-            style={{
-              ["--tilt" as string]: tilt,
-              ["--float-duration" as string]: duration,
-              ["--float-delay" as string]: delay,
-            }}
-          >
-            <Icon className={icon_} />
+          <div key={label} className={`group pointer-events-auto absolute ${pos}`}>
+            <div
+              className={`login-float ${size} flex items-center justify-center rounded-2xl shadow-lg ring-1 transition-shadow group-hover:shadow-xl ${
+                accent
+                  ? "bg-primary text-primary-foreground ring-primary/20 shadow-primary/20"
+                  : "bg-card text-primary ring-border/60"
+              }`}
+              style={{
+                ["--tilt" as string]: tilt,
+                ["--float-duration" as string]: duration,
+                ["--float-delay" as string]: delay,
+              }}
+            >
+              <Icon className={icon_} aria-hidden />
+            </div>
+            <span
+              className="pointer-events-none absolute left-1/2 top-full z-10 mt-2 -translate-x-1/2 whitespace-nowrap rounded-lg border border-border/60 bg-popover px-2 py-1 text-[11px] font-medium text-popover-foreground opacity-0 shadow-md transition-opacity duration-200 group-hover:opacity-100"
+            >
+              {label}
+            </span>
           </div>
         ))}
       </div>

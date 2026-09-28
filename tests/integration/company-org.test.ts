@@ -74,6 +74,29 @@ describe("organigramme société (zones + niveaux)", () => {
     expect((await prisma.companyTeam.findUniqueOrThrow({ where: { id: teamVictim.id } })).name).toBe("Direction")
   })
 
+  it("refuse de renommer une zone avec le nom d'une autre zone de la société", async () => {
+    const user = await makeUser()
+    setTestUser(user.id)
+    const co = await makeCompany(user.id)
+    const rh = await createCompanyTeam(co.id, "RH")
+    await createCompanyTeam(co.id, "Ops")
+
+    // Sans cette garde, Postgres renvoyait un P2002 brut (@@unique([companyId, name]))
+    // et on pouvait fabriquer « ops » à côté de « Ops » par renommage.
+    await expect(renameCompanyTeam(rh.id, "ops")).rejects.toThrow(/existe déjà/i)
+    expect((await prisma.companyTeam.findUniqueOrThrow({ where: { id: rh.id } })).name).toBe("RH")
+  })
+
+  it("refuse un niveau inconnu (l'action est un endpoint public)", async () => {
+    const user = await makeUser()
+    setTestUser(user.id)
+    const co = await makeCompany(user.id)
+    const contact = await makeClient(user.id, { name: "Sacha", companyId: co.id })
+
+    await expect(updateContactOrgLevel(contact.id, "PDG")).rejects.toThrow(/inconnu/i)
+    expect((await prisma.client.findUniqueOrThrow({ where: { id: contact.id } })).orgLevel).toBeNull()
+  })
+
   it("supprimer une zone ne supprime pas ses membres — ils repassent à affecter", async () => {
     const user = await makeUser()
     setTestUser(user.id)

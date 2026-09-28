@@ -46,9 +46,16 @@ export async function setProjectTags(projectId: string, tagIds: string[]) {
   const userId = await requireAuth()
   const proj = await prisma.project.findFirst({ where: { id: projectId, userId }, select: { id: true } })
   if (!proj) throw new Error("Projet introuvable")
+  // Les ids arrivent de l'appelant (action = endpoint public) : on ne rattache
+  // que des étiquettes réellement possédées, sinon le nom et la couleur d'une
+  // étiquette d'un autre compte s'affichaient sur le projet.
+  const owned = await prisma.tag.findMany({
+    where: { id: { in: tagIds }, userId },
+    select: { id: true },
+  })
   await prisma.project.update({
     where: { id: projectId },
-    data: { tags: { set: tagIds.map((id) => ({ id })) } },
+    data: { tags: { set: owned.map(({ id }) => ({ id })) } },
   })
   revalidatePath(`/projets/${projectId}`)
   revalidatePath("/projets")

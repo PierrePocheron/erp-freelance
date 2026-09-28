@@ -11,6 +11,13 @@ const securityHeaders = [
 ]
 
 const nextConfig: NextConfig = {
+  // Ancienne URL conservée pour les favoris. C'était un composant de page qui
+  // appelait `redirect()` : le router affichait donc un squelette de chargement
+  // complet pour une page qui n'a jamais eu de contenu, puis celui de la vraie
+  // destination. Une redirection de config répond 308 avant tout rendu.
+  redirects: async () => [
+    { source: "/contacts/prospects", destination: "/prospection", permanent: true },
+  ],
   headers: async () => [
     {
       source: "/:path*",

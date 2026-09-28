@@ -58,12 +58,17 @@ export default async function CRMPage() {
   const prospectCount  = clientsWithBilling.filter((c) => c.type === "PROSPECT").length
   const activeClients  = clientsWithBilling.filter((c) => c.type === "CLIENT")
   const personalClients = clientsWithBilling.filter((c) => c.type === "PERSONAL")
+  const colleagues      = clientsWithBilling.filter((c) => c.type === "COLLEAGUE")
   const pendingReminders = clients.reduce((acc, c) => acc + c.reminders.length, 0)
 
   const groups = [
     ...(toComplete.length > 0 ? [{ key: "TO_COMPLETE", label: "À compléter", items: toComplete }] : []),
     { key: "CLIENT",   label: "Clients",  items: activeClients  },
     { key: "PERSONAL", label: "Perso",    items: personalClients },
+    // Sans ce groupe, passer un contact en « Collègue » le faisait disparaître de
+    // la page : les types PROSPECT et RECRUITER ont leurs propres modules
+    // (/prospection, /entretiens), COLLEAGUE n'en a pas.
+    ...(colleagues.length > 0 ? [{ key: "COLLEAGUE", label: "Collègues", items: colleagues }] : []),
     { key: "INACTIVE", label: "Inactifs", items: clientsWithBilling.filter((c) => c.type === "INACTIVE") },
   ]
 

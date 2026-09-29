@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react"
 import { Trash2, Plus, Pencil, Check, X, ChevronDown } from "lucide-react"
+import { useArmedDelete } from "@/hooks/use-armed-delete"
 import { addQuoteLine, updateQuoteLine, deleteQuoteLine } from "@/actions/facturation"
 import { addInvoiceLine, updateInvoiceLine, deleteInvoiceLine } from "@/actions/facturation"
 import { toast } from "sonner"
@@ -180,6 +181,7 @@ function LineForm({
 
 export function LineItemsEditor({ entityId, entityType, lines, editable = true }: Props) {
   const [isPending, startTransition] = useTransition()
+  const { isArmed, confirmFirst } = useArmedDelete()
   const [editingId, setEditingId] = useState<string | null>(null)
   const [showAdd, setShowAdd] = useState(false)
 
@@ -281,12 +283,12 @@ export function LineItemsEditor({ entityId, entityType, lines, editable = true }
                     <Pencil className="h-3.5 w-3.5" />
                   </button>
                   <button
-                    onClick={() => startTransition(() => deleteLine(line.id))}
+                    onClick={() => { if (confirmFirst(line.id)) startTransition(() => deleteLine(line.id)) }}
                     disabled={isPending}
-                    aria-label="Supprimer la ligne"
-                    className="md:opacity-0 md:group-hover:opacity-100 focus:opacity-100 text-muted-foreground hover:text-destructive transition-opacity"
+                    aria-label={isArmed(line.id) ? "Confirmer la suppression de la ligne" : "Supprimer la ligne"}
+                    className={`md:group-hover:opacity-100 focus:opacity-100 hover:text-destructive transition-opacity ${isArmed(line.id) ? "text-destructive" : "md:opacity-0 text-muted-foreground"}`}
                   >
-                    <Trash2 className="h-3.5 w-3.5" />
+                    {isArmed(line.id) ? <Check className="h-3.5 w-3.5" /> : <Trash2 className="h-3.5 w-3.5" />}
                   </button>
                 </>
               )}

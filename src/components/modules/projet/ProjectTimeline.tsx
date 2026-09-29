@@ -5,8 +5,9 @@ import { useRouter } from "next/navigation"
 import Link from "next/link"
 import {
   Plus, Pencil, Trash2, StickyNote, Flag, CheckSquare, Square,
-  Handshake, Mail, Phone, Banknote, PackageCheck, Scale, Dot, ExternalLink,
+  Handshake, Mail, Phone, Banknote, PackageCheck, Scale, Dot, ExternalLink, Check,
 } from "lucide-react"
+import { useArmedDelete } from "@/hooks/use-armed-delete"
 import { cn } from "@/lib/utils"
 import { toast } from "sonner"
 import { Timeline, TimelineItem } from "@/components/ui/timeline"
@@ -61,6 +62,7 @@ export function ProjectTimeline({
 }) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
+  const { isArmed, confirmFirst } = useArmedDelete()
   const [formOpen, setFormOpen] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [kind, setKind] = useState<EventKind>("NOTE")
@@ -104,9 +106,14 @@ export function ProjectTimeline({
     })
   }
   function remove(id: string) {
+    if (!confirmFirst(id)) return
     startTransition(async () => {
-      await deleteProjectEvent(id)
-      router.refresh()
+      try {
+        await deleteProjectEvent(id)
+        router.refresh()
+      } catch {
+        toast.error("Échec de la suppression")
+      }
     })
   }
 
@@ -177,9 +184,17 @@ export function ProjectTimeline({
                       <span className="rounded-full bg-muted px-1.5 py-px text-[9px] font-medium uppercase tracking-wide text-muted-foreground">{cfg.label}</span>
                     </p>
                     <span className="flex items-center gap-1.5">
-                      <span className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button onClick={() => openEdit(item.ev)} className="text-muted-foreground hover:text-foreground transition-colors" title="Modifier"><Pencil className="h-3.5 w-3.5" /></button>
-                        <button onClick={() => remove(item.ev.id)} disabled={isPending} className="text-muted-foreground hover:text-red-500 transition-colors" title="Supprimer"><Trash2 className="h-3.5 w-3.5" /></button>
+                      <span className={cn("flex items-center gap-1 transition-opacity focus-within:opacity-100", !isArmed(item.ev.id) && "md:opacity-0 md:group-hover:opacity-100")}>
+                        <button onClick={() => openEdit(item.ev)} className="text-muted-foreground hover:text-foreground transition-colors" title="Modifier" aria-label="Modifier l'événement"><Pencil className="h-3.5 w-3.5" /></button>
+                        <button
+                          onClick={() => remove(item.ev.id)}
+                          disabled={isPending}
+                          className={cn("transition-colors", isArmed(item.ev.id) ? "text-red-500" : "text-muted-foreground hover:text-red-500")}
+                          title={isArmed(item.ev.id) ? "Confirmer la suppression" : "Supprimer"}
+                          aria-label={isArmed(item.ev.id) ? "Confirmer la suppression de l'événement" : "Supprimer l'événement"}
+                        >
+                          {isArmed(item.ev.id) ? <Check className="h-3.5 w-3.5" /> : <Trash2 className="h-3.5 w-3.5" />}
+                        </button>
                       </span>
                       <span className="text-xs text-muted-foreground whitespace-nowrap">{fmt(item.ev.date)}</span>
                     </span>

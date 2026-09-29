@@ -2,7 +2,8 @@
 
 import { zonedDateKey } from "@/lib/dates"
 import { useState, useTransition, useMemo } from "react"
-import { Plus, Pencil, Trash2, Power, PowerOff, RefreshCw, RefreshCwIcon, X, Zap } from "lucide-react"
+import { Plus, Pencil, Trash2, Power, PowerOff, RefreshCw, RefreshCwIcon, X, Zap, Check } from "lucide-react"
+import { useArmedDelete } from "@/hooks/use-armed-delete"
 import { useSortState, cmp } from "@/hooks/use-sortable"
 import { Th } from "@/components/ui/sortable-header"
 import { useRouter } from "next/navigation"
@@ -85,6 +86,7 @@ export function RecurrentesManager({
   const [showCreate, setShowCreate] = useState(false)
   const [editId, setEditId] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
+  const { isArmed, confirmFirst } = useArmedDelete()
   const { sortCol, sortDir, toggle } = useSortState("nextGenerationDate", "asc")
 
   const sortedRows = useMemo(() => {
@@ -175,6 +177,7 @@ export function RecurrentesManager({
   }
 
   function handleDelete(id: string) {
+    if (!confirmFirst(id)) return
     startTransition(async () => {
       await deleteRecurringInvoice(id, userId)
       toast.success("Modèle supprimé")
@@ -325,10 +328,10 @@ export function RecurrentesManager({
                         type="button"
                         onClick={() => handleDelete(row.id)}
                         disabled={isPending}
-                        className="p-1.5 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
-                        title="Supprimer"
+                        className={`p-1.5 rounded hover:text-destructive hover:bg-destructive/10 transition-colors ${isArmed(row.id) ? "text-destructive" : "text-muted-foreground"}`}
+                        title={isArmed(row.id) ? "Confirmer la suppression" : "Supprimer"}
                       >
-                        <Trash2 className="h-3.5 w-3.5" />
+                        {isArmed(row.id) ? <Check className="h-3.5 w-3.5" /> : <Trash2 className="h-3.5 w-3.5" />}
                       </button>
                     </div>
                   </td>

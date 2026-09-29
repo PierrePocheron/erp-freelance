@@ -9,6 +9,7 @@ import {
   NotebookPen, AlertTriangle, ChevronDown, Copy,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { useArmedDelete } from "@/hooks/use-armed-delete"
 import { toast } from "sonner"
 import { STATUS_CONFIG, WEBSITE_TYPE_CONFIG } from "./status-config"
 import type { EmailTemplateOption, SendTarget } from "./SendEmailDialog"
@@ -151,6 +152,7 @@ export function ProspectionModeView({
   const [noteTitle, setNoteTitle] = useState("")
   const [noteContent, setNoteContent] = useState("")
   const [isSavingNote, startSaveNote] = useTransition()
+  const { isArmed, confirmFirst } = useArmedDelete()
 
   const prospect = sessionProspects[Math.min(index, sessionProspects.length - 1)]
   const status = STATUS_CONFIG[statusById[prospect.id]] ?? STATUS_CONFIG.TO_CONTACT
@@ -301,6 +303,7 @@ export function ProspectionModeView({
   }
 
   function removeNote(noteId: string) {
+    if (!confirmFirst(noteId)) return
     const id = prospect.id
     startSaveNote(async () => {
       try {
@@ -799,12 +802,12 @@ export function ProspectionModeView({
                           {item.note.title}
                         </p>
                         <span className="flex items-center gap-1.5">
-                          <span className="flex items-center gap-1 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity">
+                          <span className={cn("flex items-center gap-1 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity", !isArmed(item.note.id) && "md:opacity-0")}>
                             <button onClick={() => openEditNote(item.note)} className="text-muted-foreground hover:text-foreground transition-colors" title="Modifier la note">
                               <Pencil className="h-3.5 w-3.5" />
                             </button>
-                            <button onClick={() => removeNote(item.note.id)} disabled={isSavingNote} className="text-muted-foreground hover:text-red-500 transition-colors" title="Supprimer la note">
-                              <Trash2 className="h-3.5 w-3.5" />
+                            <button onClick={() => removeNote(item.note.id)} disabled={isSavingNote} className={cn("hover:text-red-500 transition-colors", isArmed(item.note.id) ? "text-red-500" : "text-muted-foreground")} title={isArmed(item.note.id) ? "Confirmer la suppression" : "Supprimer la note"}>
+                              {isArmed(item.note.id) ? <Check className="h-3.5 w-3.5" /> : <Trash2 className="h-3.5 w-3.5" />}
                             </button>
                           </span>
                           <span className="text-xs text-muted-foreground">{fmtDate(item.note.createdAt)}</span>

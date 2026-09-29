@@ -4,8 +4,9 @@ import { zonedDateKey } from "@/lib/dates"
 import { useTransition, useState, useRef, useEffect } from "react"
 import {
   CheckCircle2, Circle, PlayCircle, Loader2, Trash2,
-  ChevronUp, ChevronDown, AlignLeft, Tag, X,
+  ChevronUp, ChevronDown, AlignLeft, Tag, X, Check,
 } from "lucide-react"
+import { useArmedDelete } from "@/hooks/use-armed-delete"
 import {
   startTask, completeTask, reopenTask, deleteTask,
   updateTaskPriority, updateTaskImportance, reorderTask,
@@ -101,6 +102,7 @@ export function TaskItem({
   onStatusChange?: (taskId: string, status: "TODO" | "IN_PROGRESS" | "DONE") => void
 }) {
   const [isPending, startTransition] = useTransition()
+  const { isArmed, confirmFirst } = useArmedDelete()
   const subs = task.subTasks ?? []
   const [showSubs, setShowSubs] = useState(subs.length > 0)
   const [editingTitle, setEditingTitle] = useState(false)
@@ -182,7 +184,7 @@ export function TaskItem({
       <div className="flex items-center gap-2 px-2 py-2 group">
 
         {/* Réordonner */}
-        <div className="flex flex-col gap-0.5 md:opacity-0 md:group-hover:opacity-100 focus:opacity-100 transition-opacity shrink-0">
+        <div className="flex flex-col gap-0.5 md:opacity-0 md:group-hover:opacity-100 focus-within:opacity-100 transition-opacity shrink-0">
           <button aria-label="Monter la tâche" disabled={isFirst || isPending} onClick={() => startTransition(() => reorderTask(task.id, projectId, "up"))} className="text-muted-foreground hover:text-foreground disabled:opacity-20">
             <ChevronUp className="h-3 w-3" />
           </button>
@@ -364,8 +366,13 @@ export function TaskItem({
         </div>
 
         {/* Supprimer */}
-        <button aria-label="Supprimer la tâche" onClick={() => startTransition(() => deleteTask(task.id, projectId))} className="md:opacity-0 md:group-hover:opacity-100 focus:opacity-100 transition-opacity text-muted-foreground hover:text-destructive shrink-0">
-          <Trash2 className="h-3.5 w-3.5" />
+        <button
+          aria-label={isArmed() ? "Confirmer la suppression de la tâche" : "Supprimer la tâche"}
+          title={isArmed() ? "Confirmer la suppression" : "Supprimer"}
+          onClick={() => { if (confirmFirst()) startTransition(() => deleteTask(task.id, projectId)) }}
+          className={cn("focus:opacity-100 transition-opacity shrink-0", isArmed() ? "text-destructive" : "md:opacity-0 md:group-hover:opacity-100 text-muted-foreground hover:text-destructive")}
+        >
+          {isArmed() ? <Check className="h-3.5 w-3.5" /> : <Trash2 className="h-3.5 w-3.5" />}
         </button>
       </div>
 

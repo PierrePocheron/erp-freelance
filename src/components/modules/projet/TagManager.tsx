@@ -1,7 +1,8 @@
 "use client"
 
 import { useState, useTransition, useRef } from "react"
-import { Plus, Loader2, X } from "lucide-react"
+import { Plus, Loader2, X, Check } from "lucide-react"
+import { useArmedDelete } from "@/hooks/use-armed-delete"
 import { createTaskTag, deleteTaskTag, updateTaskTagColor } from "@/actions/projet"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -23,6 +24,7 @@ export function TagManager({
   const [name, setName] = useState("")
   const [color, setColor] = useState(TAG_COLORS[0])
   const [isPending, startTransition] = useTransition()
+  const { isArmed, confirmFirst } = useArmedDelete()
   const submittingRef = useRef(false)
   const inputRef = useRef<HTMLInputElement>(null)
 
@@ -43,6 +45,7 @@ export function TagManager({
   }
 
   function handleDelete(tag: TaskTag) {
+    if (!confirmFirst(tag.id)) return
     setTags((prev) => prev.filter((t) => t.id !== tag.id))
     startTransition(() => deleteTaskTag(tag.id, projectId))
   }
@@ -78,10 +81,10 @@ export function TagManager({
           <button
             type="button"
             onClick={() => handleDelete(tag)}
-            className="md:opacity-0 md:group-hover/tag:opacity-100 focus:opacity-100 text-muted-foreground hover:text-destructive transition-opacity"
-            title="Supprimer le tag"
+            className={`md:group-hover/tag:opacity-100 focus:opacity-100 hover:text-destructive transition-opacity ${isArmed(tag.id) ? "text-destructive" : "md:opacity-0 text-muted-foreground"}`}
+            title={isArmed(tag.id) ? "Confirmer la suppression du tag" : "Supprimer le tag"}
           >
-            <X className="h-3 w-3" />
+            {isArmed(tag.id) ? <Check className="h-3 w-3" /> : <X className="h-3 w-3" />}
           </button>
         </div>
       ))}

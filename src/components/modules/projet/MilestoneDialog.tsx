@@ -4,6 +4,7 @@ import { zonedDateKey } from "@/lib/dates"
 import { useId, useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
 import { Plus, Pencil, Trash2 } from "lucide-react"
+import { useArmedDelete } from "@/hooks/use-armed-delete"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
@@ -55,6 +56,7 @@ export function MilestoneDialog({ projectId, milestone }: { projectId: string; m
   const [open, setOpen] = useState(false)
   const [isPending, startTransition] = useTransition()
   const [isDeleting, startDelete] = useTransition()
+  const { isArmed, confirmFirst } = useArmedDelete()
   const [error, setError] = useState<string | null>(null)
 
   const initialDate = milestone ? toDateParts(milestone.date) : { date: "", time: "" }
@@ -94,6 +96,7 @@ export function MilestoneDialog({ projectId, milestone }: { projectId: string; m
   }
 
   function handleDelete() {
+    if (!confirmFirst()) return
     if (!milestone) return
     startDelete(async () => {
       try {
@@ -166,7 +169,7 @@ export function MilestoneDialog({ projectId, milestone }: { projectId: string; m
                 className="flex items-center gap-1.5 text-xs text-red-600 hover:text-red-700 disabled:opacity-50 transition-colors"
               >
                 <Trash2 className="h-3.5 w-3.5" />
-                Supprimer
+                {isArmed() ? "Confirmer la suppression" : "Supprimer"}
               </button>
             ) : <span />}
             <div className="flex gap-2">

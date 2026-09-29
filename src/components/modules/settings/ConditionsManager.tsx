@@ -2,7 +2,8 @@
 
 import { useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
-import { Plus, Pencil, Trash2, Star, Loader2 } from "lucide-react"
+import { Plus, Pencil, Trash2, Star, Loader2, Check } from "lucide-react"
+import { useArmedDelete } from "@/hooks/use-armed-delete"
 import { cn } from "@/lib/utils"
 import {
   createConditionsTemplate,
@@ -84,6 +85,7 @@ export function ConditionsManager({
   const [editingId, setEditingId] = useState<string | null>(null)
   const [adding, setAdding] = useState(false)
   const [isPending, startTransition] = useTransition()
+  const { isArmed, confirmFirst } = useArmedDelete()
   const router = useRouter()
 
   function handleSaveEdit(id: string, name: string, content: string) {
@@ -103,6 +105,7 @@ export function ConditionsManager({
   }
 
   function handleDelete(id: string) {
+    if (!confirmFirst(id)) return
     startTransition(async () => {
       await deleteConditionsTemplate(id, userId)
       router.refresh()
@@ -159,7 +162,7 @@ export function ConditionsManager({
                   <p className="text-xs text-muted-foreground/50 mt-0.5 italic">Aucun contenu</p>
                 )}
               </div>
-              <div className="flex items-center gap-0.5 shrink-0 md:opacity-0 md:group-hover:opacity-100 focus:opacity-100 transition-opacity">
+              <div className="flex items-center gap-0.5 shrink-0 md:opacity-0 md:group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
                 <button
                   type="button"
                   title={t.isDefault ? "Modèle par défaut" : "Définir par défaut"}
@@ -184,12 +187,12 @@ export function ConditionsManager({
                 </button>
                 <button
                   type="button"
-                  title="Supprimer"
+                  title={isArmed(t.id) ? "Confirmer la suppression" : "Supprimer"}
                   disabled={isPending}
                   onClick={() => handleDelete(t.id)}
-                  className="h-7 w-7 flex items-center justify-center rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+                  className={`h-7 w-7 flex items-center justify-center rounded-md hover:text-destructive hover:bg-destructive/10 transition-colors ${isArmed(t.id) ? "text-destructive" : "text-muted-foreground"}`}
                 >
-                  <Trash2 className="h-3.5 w-3.5" />
+                  {isArmed(t.id) ? <Check className="h-3.5 w-3.5" /> : <Trash2 className="h-3.5 w-3.5" />}
                 </button>
               </div>
             </div>

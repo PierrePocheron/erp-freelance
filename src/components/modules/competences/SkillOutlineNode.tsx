@@ -161,11 +161,11 @@ export function SkillOutlineNode({
             aria-label="Ajouter une sous-compétence"
             title="Ajouter une sous-compétence"
             onClick={() => setAdding(true)}
-            className={cn("transition-opacity", isCategory ? "opacity-60 hover:opacity-100" : "md:opacity-0 md:group-hover:opacity-100")}
+            className={cn("transition-opacity", isCategory ? "opacity-60 hover:opacity-100 focus:opacity-100" : "md:opacity-0 md:group-hover:opacity-100 focus:opacity-100")}
           >
             <Plus />
           </Button>
-          <span className="transition-opacity md:opacity-0 md:group-hover:opacity-100 md:has-data-[popup-open]:opacity-100">
+          <span className="transition-opacity md:opacity-0 md:group-hover:opacity-100 focus-within:opacity-100 md:has-data-[popup-open]:opacity-100">
             <SkillRowActions skill={skill} onEdit={() => onEdit(skill)} moveOptions={moveOptions} />
           </span>
         </div>

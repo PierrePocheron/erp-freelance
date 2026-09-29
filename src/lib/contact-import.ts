@@ -182,7 +182,9 @@ export function fromPicker(items: { name?: string[]; email?: string[]; tel?: str
     const emails = [...new Set((it.email ?? []).map(normalizeEmail).filter((x): x is string => !!x))]
     const phones = [...new Set((it.tel ?? []).map((t) => normalizePhone(t)).filter((x): x is string => !!x))]
     const split = splitName(name)
-    return { key: `picker:${i}:${name}`, source: "picker" as const, name: name || emails[0] || phones[0] || "Sans nom", ...split, emails, phones }
+    // Pas de « Sans nom » : une entrée vide doit disparaître au filtre ci-dessous
+    // (et donner « Aucun contact sélectionné »), pas devenir une proposition fantôme.
+    return { key: `picker:${i}:${name}`, source: "picker" as const, name: name || emails[0] || phones[0] || "", ...split, emails, phones }
   }).filter((c) => c.name || c.emails.length || c.phones.length)
 }
 

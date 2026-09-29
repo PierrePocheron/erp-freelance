@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache"
 import { prisma } from "@/lib/prisma"
 import { requireAuth } from "@/lib/require-auth"
+import { parseCivilDate, zonedDateKey, zonedParts, zonedInstant } from "@/lib/dates"
 
 
 function revalidate(platformId?: string) {
@@ -10,9 +11,9 @@ function revalidate(platformId?: string) {
   if (platformId) revalidatePath(`/investissements/${platformId}`)
 }
 
-// Période "YYYY-MM" d'une date (heure locale) — clé des rappels de relevé mensuels.
+// Période "YYYY-MM" d'une date (heure de Paris) — clé des rappels de relevé mensuels.
 function periodOf(date: Date): string {
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`
+  return zonedDateKey(date).slice(0, 7)
 }
 
 // Libellé lisible d'une période "YYYY-MM" → « août 2026 ».
@@ -79,7 +80,7 @@ export async function addEntry(platformId: string, input: EntryInput): Promise<v
   const capital = Number(input.capital)
   if (!Number.isFinite(capital)) throw new Error("Capital invalide")
   const contribution = Number.isFinite(Number(input.contribution)) ? Number(input.contribution) : 0
-  const date = input.date ? new Date(input.date) : new Date()
+  const date = input.date ? parseCivilDate(input.date) : new Date()
   if (Number.isNaN(date.getTime())) throw new Error("Date invalide")
 
   await prisma.investmentEntry.create({
@@ -102,7 +103,7 @@ export async function addDeposit(platformId: string, input: { amount: number; da
 
   const amount = Number(input.amount)
   if (!Number.isFinite(amount) || amount === 0) throw new Error("Montant invalide")
-  const date = input.date ? new Date(input.date) : new Date()
+  const date = input.date ? parseCivilDate(input.date) : new Date()
   if (Number.isNaN(date.getTime())) throw new Error("Date invalide")
 
   await prisma.investmentEntry.create({
@@ -119,7 +120,7 @@ export async function updateEntry(id: string, input: EntryInput): Promise<void> 
   const capital = Number(input.capital)
   if (!Number.isFinite(capital)) throw new Error("Capital invalide")
   const contribution = Number.isFinite(Number(input.contribution)) ? Number(input.contribution) : 0
-  const date = input.date ? new Date(input.date) : undefined
+  const date = input.date ? parseCivilDate(input.date) : undefined
   if (date && Number.isNaN(date.getTime())) throw new Error("Date invalide")
 
   await prisma.investmentEntry.update({
@@ -182,7 +183,9 @@ export async function ensureInvestmentReviewTasks(_userId: string, enabled: bool
   })
 
   const dueDay = Math.min(Math.max(Math.trunc(day) || 1, 1), 28)
-  const dueDate = new Date(now.getFullYear(), now.getMonth(), dueDay, 9, 0, 0)
+  // 9 h heure de Paris (new Date(y, m, d, 9) = 9 h UTC en prod → 11 h à Paris)
+  const { year, month } = zonedParts(now)
+  const dueDate = zonedInstant(year, month, dueDay, 9, 0)
 
   // Aucune tâche pour le mois → parent daté + une sous-tâche par plateforme.
   if (!parent) {

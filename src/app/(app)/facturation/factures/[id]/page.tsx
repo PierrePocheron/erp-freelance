@@ -378,14 +378,16 @@ export default async function FactureDetailPage({
         </div>
       )}
 
-      {/* Paiements */}
-      <InvoicePaymentSection
-        invoiceId={id}
-        userId={userId}
-        netAmount={netAmount}
-        payments={invoice.payments}
-        isPaid={invoice.status === "PAID"}
-      />
+      {/* Paiements — pas sur une facture annulée (le serveur les refuse aussi) */}
+      {invoice.status !== "CANCELLED" && (
+        <InvoicePaymentSection
+          invoiceId={id}
+          userId={userId}
+          netAmount={netAmount}
+          payments={invoice.payments}
+          isPaid={invoice.status === "PAID"}
+        />
+      )}
 
       {/* Logs email */}
       {invoice.emailLogs.length > 0 && (

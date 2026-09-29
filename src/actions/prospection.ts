@@ -130,7 +130,7 @@ export async function markProspectsContacted(
   // Anti-IDOR : ne retient que les ids appartenant réellement à l'utilisateur.
   const owned = await prisma.client.findMany({
     where: { id: { in: clientIds }, userId },
-    select: { id: true },
+    select: { id: true, prospectStatus: true },
   })
   if (owned.length === 0) return { contacted: 0 }
 
@@ -155,12 +155,18 @@ export async function markProspectsContacted(
   // Frise : un événement par prospect (EMAIL_SENT pour les emails, sinon trace
   // du contact via le canal en note)
   await prisma.prospectEvent.createMany({
-    data: owned.map((c) => ({
-      clientId: c.id,
-      kind: (channel === "EMAIL" ? "EMAIL_SENT" : "STATUS_CHANGE") as ProspectEventKind,
-      note: note?.trim() || `${channelLabels[channel] ?? "Contact"} de prospection`,
-      date: now,
-    })),
+    // Hors email, l'événement est un changement de statut : seulement s'il y en a un vraiment
+    // (TO_CONTACT → CONTACTED), avec ancien/nouveau statut. Avant, la frise affichait
+    // « Statut modifié » vide même quand rien ne changeait (l'interaction, elle, est tracée).
+    data: owned
+      .filter((c) => channel === "EMAIL" || c.prospectStatus === "TO_CONTACT")
+      .map((c) => ({
+        clientId: c.id,
+        kind: (channel === "EMAIL" ? "EMAIL_SENT" : "STATUS_CHANGE") as ProspectEventKind,
+        ...(channel !== "EMAIL" ? { fromStatus: "TO_CONTACT" as const, toStatus: "CONTACTED" as const } : {}),
+        note: note?.trim() || `${channelLabels[channel] ?? "Contact"} de prospection`,
+        date: now,
+      })),
   })
   revalidatePath("/prospection")
   return { contacted: owned.length }
@@ -404,6 +410,7 @@ export async function createEmailTemplate(data: { name: string; subject: string;
 
 export async function updateEmailTemplate(templateId: string, data: { name: string; subject: string; body: string }) {
   const userId = await requireAuth()
+  if (!data.name.trim()) throw new Error("Le nom du modèle est requis")
   const updated = await prisma.emailTemplate.updateMany({
     where: { id: templateId, userId },
     data: { name: data.name.trim(), subject: data.subject.trim(), body: data.body },
@@ -472,6 +479,7 @@ export async function createCallTemplate(data: { name: string; script: string })
 
 export async function updateCallTemplate(templateId: string, data: { name: string; script: string }) {
   const userId = await requireAuth()
+  if (!data.name.trim()) throw new Error("Le nom du modèle est requis")
   const updated = await prisma.callTemplate.updateMany({
     where: { id: templateId, userId },
     data: { name: data.name.trim(), script: data.script },

@@ -5,7 +5,6 @@ import { notFound } from "next/navigation"
 import Link from "next/link"
 import { SetBreadcrumbLabel } from "@/components/layout/BreadcrumbContext"
 import { ChevronLeft, Download, Send, CheckCircle2, FileCheck2, Ban, Copy, Landmark } from "lucide-react"
-import { Button } from "@/components/ui/button"
 import { LineItemsEditor } from "@/components/modules/facturation/LineItemsEditor"
 import { DeleteConfirmButton } from "@/components/modules/facturation/DeleteConfirmButton"
 import { InvoicePaymentSection } from "@/components/modules/facturation/InvoicePaymentSection"
@@ -134,10 +133,10 @@ export default async function FactureDetailPage({
 
           {invoice.status === "ISSUED" && (
             <form action={async () => { "use server"; await updateInvoiceStatus(id, userId, "SENT") }}>
-              <Button type="submit" size="sm" variant="outline">
+              <SubmitButton size="sm" variant="outline">
                 <Send className="h-3.5 w-3.5" />
                 Marquer envoyée
-              </Button>
+              </SubmitButton>
             </form>
           )}
 
@@ -161,10 +160,10 @@ export default async function FactureDetailPage({
 
           {(invoice.status === "SENT" || invoice.status === "LATE") && (
             <form action={async () => { "use server"; await updateInvoiceStatus(id, userId, "PAID") }}>
-              <Button type="submit" size="sm" className="bg-emerald-500 hover:bg-emerald-600 text-white border-none">
+              <SubmitButton size="sm" className="bg-emerald-500 hover:bg-emerald-600 text-white border-none">
                 <CheckCircle2 className="h-3.5 w-3.5" />
                 Marquer payée
-              </Button>
+              </SubmitButton>
             </form>
           )}
 
@@ -306,7 +305,7 @@ export default async function FactureDetailPage({
                 className="flex w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring resize-none"
               />
             </div>
-            <Button type="submit" size="sm" variant="outline">Enregistrer</Button>
+            <SubmitButton size="sm" variant="outline">Enregistrer</SubmitButton>
           </form>
         ) : (
           <div className="space-y-2 text-sm">
@@ -361,7 +360,7 @@ export default async function FactureDetailPage({
                 Exclue des déclarations URSSAF (hors auto-entreprise) — terminée dès le paiement reçu.
               </p>
               <form action={async () => { "use server"; await setInvoiceUrssafExcluded(id, false) }}>
-                <Button type="submit" size="sm" variant="outline">Réintégrer à l&apos;URSSAF</Button>
+                <SubmitButton size="sm" variant="outline">Réintégrer à l&apos;URSSAF</SubmitButton>
               </form>
             </div>
           ) : (
@@ -372,7 +371,7 @@ export default async function FactureDetailPage({
                   : "Sera à déclarer à l'URSSAF une fois payée, selon la date d'encaissement."}
               </p>
               <form action={async () => { "use server"; await setInvoiceUrssafExcluded(id, true) }}>
-                <Button type="submit" size="sm" variant="outline">Exclure de l&apos;URSSAF</Button>
+                <SubmitButton size="sm" variant="outline">Exclure de l&apos;URSSAF</SubmitButton>
               </form>
             </div>
           )}

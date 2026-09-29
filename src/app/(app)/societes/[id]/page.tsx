@@ -820,7 +820,7 @@ const projectStatusColor: Record<string, string> = {
 const quoteStatusLabel: Record<string, string> = {
   DRAFT: "Brouillon", VALIDATED: "Validé", SENT: "Envoyé",
   ACCEPTED: "Accepté", IN_PROGRESS: "En cours", SIGNED: "Signé", REJECTED: "Refusé",
-  WAITING_DEPOSIT: "Acompte att.", DEPOSIT_RECEIVED: "Acompte reçu",
+  WAITING_DEPOSIT: "Attente acompte", DEPOSIT_RECEIVED: "Acompte reçu",
 }
 const quoteStatusColor: Record<string, string> = {
   DRAFT: "text-muted-foreground bg-muted",

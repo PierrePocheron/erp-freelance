@@ -482,7 +482,7 @@ export function FacturesListView({
                 <Th label="Type"      col="type"      sortCol={sortCol} sortDir={sortDir} onSort={toggle} className="px-4 py-3 hidden sm:table-cell" />
                 <Th label="Statut"    col="status"    sortCol={sortCol} sortDir={sortDir} onSort={toggle} className="px-4 py-3" />
                 <Th label="Montant HT" col="amount"  sortCol={sortCol} sortDir={sortDir} onSort={toggle} className="px-4 py-3" align="right" />
-                <th className="px-4 py-3 text-left font-medium text-muted-foreground whitespace-nowrap">Payé</th>
+                <th className="px-4 py-3 text-right font-medium text-muted-foreground whitespace-nowrap">Payé</th>
                 <Th label="Émise le"  col="issued"    sortCol={sortCol} sortDir={sortDir} onSort={toggle} className="px-4 py-3 hidden md:table-cell" />
                 <Th label="Envoyée"   col="sent"      sortCol={sortCol} sortDir={sortDir} onSort={toggle} className="px-4 py-3 hidden xl:table-cell" />
                 <Th label="Échéance"  col="dueDate"   sortCol={sortCol} sortDir={sortDir} onSort={toggle} className="px-4 py-3 hidden lg:table-cell" />
@@ -516,11 +516,11 @@ export function FacturesListView({
                     <td className="px-4 py-3">
                       <span className={`rounded-full border px-2 py-0.5 text-xs font-medium whitespace-nowrap ${status.cls}`}>{status.label}</span>
                     </td>
-                    <td className="px-4 py-3 text-right font-medium">
-                      <span className="amount-sensitive">{(inv.totalHT - inv.depositDeducted).toLocaleString("fr-FR")} €</span>
+                    <td className="px-4 py-3 text-right font-medium tabular-nums">
+                      <span className="amount-sensitive">{fmtEur(inv.totalHT - inv.depositDeducted)}</span>
                     </td>
                     <td className="px-4 py-3">
-                      <PaidInfo payments={inv.payments} net={inv.totalHT - inv.depositDeducted} status={inv.status} paidAt={inv.paidAt} />
+                      <PaidInfo payments={inv.payments} net={inv.totalHT - inv.depositDeducted} status={inv.status} paidAt={inv.paidAt} align="right" />
                     </td>
                     <td className="px-4 py-3 text-xs text-muted-foreground hidden md:table-cell">
                       {inv.issuedAt ? fmtDay(inv.issuedAt) : <span className="text-muted-foreground/40">—</span>}

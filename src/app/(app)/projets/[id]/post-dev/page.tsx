@@ -1,7 +1,6 @@
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { notFound } from "next/navigation"
-import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { upsertPostDev, deleteRenewal } from "@/actions/postdev"
 import { createInvoiceFromRenewal } from "@/actions/facturation"
@@ -84,7 +83,7 @@ export default async function ProjectPostDevPage({
             <label htmlFor="registrarUrl" className="text-xs text-muted-foreground flex items-center gap-1.5"><Building2 className="h-3 w-3" />Registrar domaine</label>
             <Input id="registrarUrl" name="registrarUrl" type="url" defaultValue={postDev?.registrarUrl ?? ""} placeholder="https://ovh.com" className="h-8 font-mono text-xs" />
           </div>
-          <Button type="submit" size="sm" variant="outline" className="w-full">Enregistrer</Button>
+          <SubmitButton size="sm" variant="outline" className="w-full">Enregistrer</SubmitButton>
         </form>
       </div>
 

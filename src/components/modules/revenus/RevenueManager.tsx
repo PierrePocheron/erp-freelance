@@ -1042,7 +1042,7 @@ export function RevenueManager({
                                       className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 text-emerald-600 border border-emerald-500/25 px-2 py-0.5 text-[10px] font-semibold"
                                     >
                                       <CheckCircle2 className="h-3 w-3" />
-                                      Payé
+                                      Reçu
                                     </span>
                                   ) : !r.isFromInvoice && r.status === "PENDING" ? (
                                     <input

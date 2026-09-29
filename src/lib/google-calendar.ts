@@ -192,7 +192,8 @@ export async function fetchGoogleEvents(
   accessToken: string,
   from: Date,
   to: Date,
-  calendarId: string = "primary"
+  calendarId: string = "primary",
+  opts: { showDeleted?: boolean } = {},
 ): Promise<GoogleCalendarEvent[]> {
   const all: GoogleCalendarEvent[] = []
   let pageToken: string | undefined
@@ -209,6 +210,8 @@ export async function fetchGoogleEvents(
       maxResults: "250",
     })
     if (pageToken) params.set("pageToken", pageToken)
+    // Suppressions récentes renvoyées avec status "cancelled" (sinon jamais vues, #11)
+    if (opts.showDeleted) params.set("showDeleted", "true")
 
     const res = await fetch(
       `${GOOGLE_CALENDAR_API}/calendars/${encodeURIComponent(calendarId)}/events?${params}`,
@@ -221,16 +224,20 @@ export async function fetchGoogleEvents(
         const body = await res.json() as { error?: { message?: string } }
         detail = body?.error?.message ?? ""
       } catch { /* corps non-JSON */ }
-      throw new Error(`Google Calendar API ${res.status}${detail ? ` — ${detail}` : ""}`)
+      // `status` exposé : l'appelant distingue un agenda supprimé (404/410) d'une panne
+      throw Object.assign(new Error(`Google Calendar API ${res.status}${detail ? ` — ${detail}` : ""}`), { status: res.status })
     }
 
     const data = await res.json() as { items?: GoogleCalendarEvent[]; nextPageToken?: string }
     if (data.items) all.push(...data.items)
     pageToken = data.nextPageToken
-  } while (pageToken && all.length < 5000)
+  } while (pageToken && all.length < GOOGLE_FETCH_CAP)
 
   return all
 }
+
+/** Plafond de lecture : au-delà, la réponse est tronquée (pas de déduction « absent = supprimé »). */
+export const GOOGLE_FETCH_CAP = 5000
 
 // ── Agenda dédié "ERP Freelance" ────────────────────────────────────────────────
 

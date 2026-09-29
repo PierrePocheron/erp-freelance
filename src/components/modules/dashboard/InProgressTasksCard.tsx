@@ -48,9 +48,9 @@ export function InProgressTasksCard({ tasks }: { tasks: InProgressTask[] }) {
 
   return (
     <div className="rounded-xl border border-border/50 bg-card overflow-hidden">
-      <div className="flex items-center justify-between px-5 py-4 border-b border-border/50">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-border/50">
         <div className="flex items-center gap-2">
-          <PlayCircle className="h-4 w-4 text-blue-500" />
+          <PlayCircle className="h-4 w-4 text-muted-foreground" />
           <h2 className="text-sm font-semibold">En cours</h2>
           <span className="text-xs text-muted-foreground">({remaining.length})</span>
         </div>

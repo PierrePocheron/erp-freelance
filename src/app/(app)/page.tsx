@@ -568,22 +568,22 @@ export default async function DashboardPage() {
             </p>
             {has("facturation") && (
               <Link href="/facturation/factures" className="group flex items-center gap-1.5 text-xs">
-                <Receipt className="h-3.5 w-3.5 text-violet-500 shrink-0" />
+                <Receipt className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                 <span className="text-muted-foreground group-hover:text-foreground transition-colors">AE</span>
-                <span className="font-semibold tabular-nums text-violet-600 amount-sensitive">{encaisseAE.toLocaleString("fr-FR")} €</span>
+                <span className="font-semibold tabular-nums amount-sensitive">{encaisseAE.toLocaleString("fr-FR")} €</span>
               </Link>
             )}
             {has("revenus") && (
               <Link href="/revenus" className="group flex items-center gap-1.5 text-xs">
-                <Wallet className="h-3.5 w-3.5 text-teal-500 shrink-0" />
+                <Wallet className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                 <span className="text-muted-foreground group-hover:text-foreground transition-colors">Autres</span>
-                <span className="font-semibold tabular-nums text-teal-600 amount-sensitive">{encaisseAutres.toLocaleString("fr-FR")} €</span>
+                <span className="font-semibold tabular-nums amount-sensitive">{encaisseAutres.toLocaleString("fr-FR")} €</span>
               </Link>
             )}
             <span className="ml-auto flex items-center gap-1.5 text-xs shrink-0">
-              <TrendingUp className="h-3.5 w-3.5 text-emerald-500" />
+              <TrendingUp className="h-3.5 w-3.5 text-muted-foreground" />
               <span className="text-muted-foreground">Total</span>
-              <span className="font-bold tabular-nums text-emerald-600 amount-sensitive">{encaisseTotal.toLocaleString("fr-FR")} €</span>
+              <span className="font-bold tabular-nums amount-sensitive">{encaisseTotal.toLocaleString("fr-FR")} €</span>
             </span>
           </div>
         )}
@@ -905,12 +905,12 @@ export default async function DashboardPage() {
                     <p className="text-lg font-bold">{prospectsActive.length}</p>
                     <p className="text-[10px] text-muted-foreground leading-tight">En pipeline</p>
                   </Link>
-                  <Link href="/prospection?statut=TO_CONTACT" className={cn("rounded-lg px-2 py-2 text-center transition-colors", prospectsToContact.length > 0 ? "bg-blue-500/10 hover:bg-blue-500/15" : "bg-muted/40 hover:bg-muted/70")}>
-                    <p className={cn("text-lg font-bold", prospectsToContact.length > 0 ? "text-blue-600" : "")}>{prospectsToContact.length}</p>
+                  <Link href="/prospection?statut=TO_CONTACT" className="rounded-lg bg-muted/40 px-2 py-2 text-center hover:bg-muted/70 transition-colors">
+                    <p className="text-lg font-bold">{prospectsToContact.length}</p>
                     <p className="text-[10px] text-muted-foreground leading-tight">À contacter</p>
                   </Link>
-                  <Link href="/prospection" className={cn("rounded-lg px-2 py-2 text-center transition-colors", prospectsStale.length > 0 ? "bg-amber-500/10 hover:bg-amber-500/15" : "bg-muted/40 hover:bg-muted/70")}>
-                    <p className={cn("text-lg font-bold", prospectsStale.length > 0 ? "text-amber-600" : "")}>{prospectsStale.length}</p>
+                  <Link href="/prospection" className="rounded-lg bg-muted/40 px-2 py-2 text-center hover:bg-muted/70 transition-colors">
+                    <p className="text-lg font-bold">{prospectsStale.length}</p>
                     <p className="text-[10px] text-muted-foreground leading-tight">Sans contact 30j</p>
                   </Link>
                 </div>
@@ -1057,12 +1057,14 @@ function KPICard({
   value: React.ReactNode
   color: "indigo" | "blue" | "amber" | "red" | "emerald" | "muted"
 }) {
+  // Seul le rouge porte une information (retard, rappel dépassé) : les autres
+  // teintes faisaient un arc-en-ciel de libellés sans rien signifier de plus.
   const colorMap = {
-    indigo: "text-indigo-600",
-    blue: "text-blue-600",
-    amber: "text-amber-600",
+    indigo: "text-muted-foreground",
+    blue: "text-muted-foreground",
+    amber: "text-muted-foreground",
     red: "text-red-600",
-    emerald: "text-emerald-600",
+    emerald: "text-muted-foreground",
     muted: "text-muted-foreground",
   }
   return (

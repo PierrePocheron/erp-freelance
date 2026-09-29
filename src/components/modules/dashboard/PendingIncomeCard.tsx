@@ -22,9 +22,9 @@ const fmtDate = (d: string | null) =>
 type Kind = "invoice" | "revenue" | "health"
 
 const KIND_CONFIG: Record<Kind, { label: string; badgeCls: string; icon: React.ReactNode }> = {
-  invoice: { label: "Facture", badgeCls: "bg-blue-500/15 text-blue-600 border-blue-500/25",  icon: <Receipt className="h-3 w-3" /> },
-  revenue: { label: "Revenu",  badgeCls: "bg-teal-500/15 text-teal-600 border-teal-500/25",  icon: <Wallet className="h-3 w-3" /> },
-  health:  { label: "Santé",   badgeCls: "bg-rose-500/15 text-rose-600 border-rose-500/25",  icon: <HeartPulse className="h-3 w-3" /> },
+  invoice: { label: "Facture", badgeCls: "bg-muted text-muted-foreground border-border",  icon: <Receipt className="h-3 w-3" /> },
+  revenue: { label: "Revenu",  badgeCls: "bg-muted text-muted-foreground border-border",  icon: <Wallet className="h-3 w-3" /> },
+  health:  { label: "Santé",   badgeCls: "bg-muted text-muted-foreground border-border",  icon: <HeartPulse className="h-3 w-3" /> },
 }
 
 type Item = {
@@ -111,13 +111,13 @@ export function PendingIncomeCard({
 
   return (
     <div className="rounded-xl border border-border/50 bg-card overflow-hidden">
-      <div className="flex items-center justify-between px-5 py-4 border-b border-border/50">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-border/50">
         <div className="flex items-center gap-2">
-          <Hourglass className="h-4 w-4 text-amber-500" />
+          <Hourglass className="h-4 w-4 text-muted-foreground" />
           <h2 className="text-sm font-semibold">En attente de réception</h2>
           <span className="text-xs text-muted-foreground">({items.length})</span>
         </div>
-        <p className="text-lg font-bold tabular-nums text-amber-600 amount-sensitive">{eur(grandTotal)}</p>
+        <p className="text-lg font-bold tabular-nums amount-sensitive">{eur(grandTotal)}</p>
       </div>
 
       <div className="p-2 space-y-0.5">

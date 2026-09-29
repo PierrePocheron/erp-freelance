@@ -70,7 +70,12 @@ export default async function AppLayout({
           </AppHeader>
           {/* id consommé par MobileBottomNav : masquage au scroll des boutons
               flottants (c'est ce conteneur qui scrolle, pas window) */}
-          <main id="app-main" className="flex-1 overflow-y-auto p-3 pt-[max(0.75rem,env(safe-area-inset-top))] sm:p-6 sm:pt-6 pb-24 sm:pb-6 print:overflow-visible print:p-0 print:pb-0">{children}</main>
+          {/* Mobile : le haut du contenu démarre SOUS la pastille flottante (œil + cloche,
+              ~34 px, en `absolute` au-dessus de tout). Sans ce retrait, elle recouvrait la
+              première ligne de chaque écran — boutons « Nouveau… » de droite, barre de
+              recherche de l'accueil, onglets de Facturation. Un seul retrait ici plutôt
+              qu'un `pr-20` à reproduire dans chaque en-tête de page. */}
+          <main id="app-main" className="flex-1 overflow-y-auto p-3 pt-[calc(max(0.75rem,env(safe-area-inset-top))+2.75rem)] sm:p-6 sm:pt-6 pb-24 sm:pb-6 print:overflow-visible print:p-0 print:pb-0">{children}</main>
         </BreadcrumbProvider>
         {/* Cloche de notifications flottante — mobile uniquement (le header
             desktop porte la sienne) */}

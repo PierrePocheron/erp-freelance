@@ -50,7 +50,7 @@ export function TimerBanner({
   }
 
   return (
-    <div className="flex items-center gap-3 border-b border-amber-500/20 bg-amber-500/8 px-6 py-2 text-sm shrink-0">
+    <div className="flex items-center gap-3 border-b border-amber-500/20 bg-amber-500/8 px-6 pb-2 pt-[max(0.5rem,env(safe-area-inset-top))] sm:pt-2 max-sm:pr-24 text-sm shrink-0">
       <Timer className="h-3.5 w-3.5 text-amber-500 animate-pulse shrink-0" />
       <span className="text-amber-700 dark:text-amber-400 font-medium">Chrono actif ·</span>
       <Link

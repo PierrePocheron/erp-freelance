@@ -1,10 +1,8 @@
 "use client"
 
 import { TrendingUp, Wallet } from "lucide-react"
+import { eur0 as fmtEur } from "@/lib/format"
 
-function fmtEur(n: number) {
-  return n.toLocaleString("fr-FR", { maximumFractionDigits: 0 }) + " €"
-}
 
 /**
  * Affiche le montant encaissé / total facturé avec une barre de progression,

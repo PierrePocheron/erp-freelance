@@ -5,12 +5,13 @@ import type { ForceGraphMethods, NodeObject } from "react-force-graph-2d"
 import { useRef, useEffect, useCallback, useMemo, useState, forwardRef, useImperativeHandle } from "react"
 import type { RawNode, RawLink, NodeType } from "./graph-types"
 import { nodeColor, NODE_RADIUS } from "./graph-types"
+import { amount0 } from "@/lib/format"
 
 // Formatte un montant de façon compacte pour le canvas
 function fmtAmount(n: number): string {
   if (n >= 10_000) return `${Math.round(n / 1000)}k €`
   if (n >= 1_000)  return `${(n / 1000).toLocaleString("fr-FR", { maximumFractionDigits: 1 })}k €`
-  return `${Math.round(n).toLocaleString("fr-FR")} €`
+  return `${amount0(n)} €`
 }
 
 // Ordre de rendu : les nœuds parents sont peints en dernier → leur hitbox gagne

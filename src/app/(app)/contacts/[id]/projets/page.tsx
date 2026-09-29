@@ -5,6 +5,7 @@ import { notFound } from "next/navigation"
 import Link from "next/link"
 import { Code2, ExternalLink } from "lucide-react"
 import { CreateProjectDialog } from "@/components/modules/projet/CreateProjectDialog"
+import { amountAuto } from "@/lib/format"
 
 const statusConfig = {
   ACTIVE: { label: "Actif", className: "bg-emerald-500/15 text-emerald-600 border-emerald-500/20" },
@@ -118,7 +119,7 @@ export default async function ClientProjetsPage({
                     <td className="px-4 py-2.5">
                       <QuoteStatusBadge status={q.status} />
                     </td>
-                    <td className="px-4 py-2.5 text-right font-medium amount-sensitive">{q.totalHT.toLocaleString("fr-FR")} €</td>
+                    <td className="px-4 py-2.5 text-right font-medium amount-sensitive">{amountAuto(q.totalHT)} €</td>
                     <td className="px-4 py-2.5 text-muted-foreground text-xs">
                       {new Date(q.createdAt).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris" })}
                     </td>
@@ -153,7 +154,7 @@ export default async function ClientProjetsPage({
                     <td className="px-4 py-2.5">
                       <InvoiceStatusBadge status={inv.status} />
                     </td>
-                    <td className="px-4 py-2.5 text-right font-medium amount-sensitive">{inv.totalHT.toLocaleString("fr-FR")} €</td>
+                    <td className="px-4 py-2.5 text-right font-medium amount-sensitive">{amountAuto(inv.totalHT)} €</td>
                     <td className="px-4 py-2.5 text-muted-foreground text-xs">
                       {new Date(inv.createdAt).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris" })}
                     </td>

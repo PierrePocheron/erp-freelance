@@ -21,6 +21,7 @@ import {
   FISCAL_CATEGORY_LABELS, FISCAL_CATEGORY_SHORT,
   type FiscalCategory, type UrssafRates, type DeclarationFrequency,
 } from "@/lib/urssaf"
+import { amountAuto as fmt } from "@/lib/format"
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -69,8 +70,6 @@ const LINE_STATUS_META: Record<string, { label: string; cls: string }> = {
 
 const ALL_CATEGORIES: FiscalCategory[] = ["BNC", "BIC_SERVICES", "BIC_SALES"]
 
-const fmt = (n: number) =>
-  n.toLocaleString("fr-FR", { maximumFractionDigits: 2 })
 
 const fmtDate = (iso: string | null) =>
   iso ? new Date(iso).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris" }) : "—"

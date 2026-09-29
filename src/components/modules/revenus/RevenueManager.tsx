@@ -18,6 +18,7 @@ import {
   generatePendingRecurringRevenues, bulkMarkReceived,
 } from "@/actions/revenue"
 import { PAYMENT_METHODS, REVENUE_TYPES } from "@/lib/revenue-constants"
+import { amount0 as fmt } from "@/lib/format"
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -90,9 +91,6 @@ function fmtDate(d: string | null): string {
   return new Date(d).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris", day: "numeric", month: "short", year: "numeric" })
 }
 
-function fmt(n: number): string {
-  return n.toLocaleString("fr-FR", { minimumFractionDigits: 0, maximumFractionDigits: 0 })
-}
 
 // ── Formulaire revenu ─────────────────────────────────────────────────────────
 

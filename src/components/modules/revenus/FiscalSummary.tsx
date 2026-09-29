@@ -7,6 +7,7 @@ import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
 import { zonedParts } from "@/lib/dates"
+import { amount0 as fmt } from "@/lib/format"
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -63,9 +64,6 @@ const BUCKET_BADGE: Record<string, string> = {
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
-function fmt(n: number) {
-  return n.toLocaleString("fr-FR", { minimumFractionDigits: 0, maximumFractionDigits: 0 })
-}
 
 function fmtDate(iso: string) {
   return new Date(iso).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris", day: "numeric", month: "short", year: "numeric" })

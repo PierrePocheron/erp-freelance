@@ -9,9 +9,7 @@ import type { HealthEventType, PractitionerType, ReimbursementSource, Reimbursem
 import { HealthEventDialog }      from "./HealthEventDialog"
 import { ConsultationDialog }     from "./ConsultationDialog"
 import { ReimbursementDialog }    from "./ReimbursementDialog"
-
-// Virgule décimale française et toujours 2 décimales (toFixed donnait « 26.50 € » / « 27 € »).
-const eur = (n: number) => n.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+import { amount2 as eur } from "@/lib/format"
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 

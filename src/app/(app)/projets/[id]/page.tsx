@@ -18,6 +18,7 @@ import { ProjectSkillsBar } from "@/components/modules/projet/ProjectSkillsBar"
 import { ProjectTimeDialog } from "@/components/modules/projet/ProjectTimeDialog"
 import { ProjectTimePanel } from "@/components/modules/projet/ProjectTimePanel"
 import { REVENUE_TYPE_LABELS } from "@/lib/revenue-constants"
+import { amountAuto } from "@/lib/format"
 
 function fmtTime(d: Date | string) {
   return new Date(d).toLocaleTimeString("fr-FR", { timeZone: "Europe/Paris", hour: "2-digit", minute: "2-digit" })
@@ -416,7 +417,7 @@ export default async function ProjectOverviewPage({
                       <span className={`rounded-full px-1.5 py-0.5 text-xs font-medium ${quoteStatusCls[q.status] ?? ""}`}>
                         {quoteStatusLabel[q.status] ?? q.status}
                       </span>
-                      <span className="ml-auto text-xs font-medium tabular-nums amount-sensitive">{q.totalHT.toLocaleString("fr-FR")} €</span>
+                      <span className="ml-auto text-xs font-medium tabular-nums amount-sensitive">{amountAuto(q.totalHT)} €</span>
                     </Link>
                   ))}
                 </div>
@@ -467,7 +468,7 @@ export default async function ProjectOverviewPage({
                       <span className={`shrink-0 rounded-full px-1.5 py-0.5 text-xs font-medium ${revenueStatusCls[r.status] ?? ""}`}>
                         {revenueStatusLabel[r.status] ?? r.status}
                       </span>
-                      <span className="shrink-0 text-xs font-medium tabular-nums amount-sensitive">{r.amount.toLocaleString("fr-FR")} €</span>
+                      <span className="shrink-0 text-xs font-medium tabular-nums amount-sensitive">{amountAuto(r.amount)} €</span>
                     </div>
                   ))}
                 </div>
@@ -482,7 +483,7 @@ export default async function ProjectOverviewPage({
 
               <div className="space-y-1">
                 <p className="text-lg font-bold amount-sensitive">
-                  {receivedRevenue.toLocaleString("fr-FR")} <span className="text-xs font-normal text-muted-foreground">/ {totalRevenue.toLocaleString("fr-FR")} € reçus</span>
+                  {receivedRevenue.toLocaleString("fr-FR")} <span className="text-xs font-normal text-muted-foreground">/ {amountAuto(totalRevenue)} € reçus</span>
                 </p>
                 <div className="h-1 rounded-full bg-muted overflow-hidden">
                   <div
@@ -500,7 +501,7 @@ export default async function ProjectOverviewPage({
                     <span className={`shrink-0 rounded-full px-1.5 py-0.5 text-xs font-medium ${revenueStatusCls[r.status] ?? ""}`}>
                       {revenueStatusLabel[r.status] ?? r.status}
                     </span>
-                    <span className="ml-auto shrink-0 text-xs font-medium tabular-nums amount-sensitive">{r.amount.toLocaleString("fr-FR")} €</span>
+                    <span className="ml-auto shrink-0 text-xs font-medium tabular-nums amount-sensitive">{amountAuto(r.amount)} €</span>
                   </div>
                 ))}
               </div>

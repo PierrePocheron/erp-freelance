@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label"
 import { createInvoice, createInvoiceFromQuote } from "@/actions/facturation"
 import { cn } from "@/lib/utils"
 import { toast } from "sonner"
+import { eur2 as fmtEur } from "@/lib/format"
 
 type Company = { id: string; name: string; city: string | null }
 type Client = { id: string; name: string; company: string | null; type: string; companyId: string | null }
@@ -26,9 +27,6 @@ type Quote = {
   client: { name: string; company: string | null }
 }
 
-function fmtEur(n: number) {
-  return n.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " €"
-}
 
 function clientLabel(c: Client) {
   if (c.type === "SELF") return "Perso"

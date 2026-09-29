@@ -7,10 +7,8 @@ import { PriorityIcon } from "./PriorityIcon"
 import { CATEGORY_CONFIG } from "./category-config"
 import { TechIcon } from "./TechIcon"
 import type { ProjectCategory } from "@/generated/prisma/enums"
+import { eur0 as fmtEur } from "@/lib/format"
 
-function fmtEur(n: number) {
-  return n.toLocaleString("fr-FR", { maximumFractionDigits: 0 }) + " €"
-}
 
 const statusConfig = {
   ACTIVE:    { label: "Actif",      className: "bg-emerald-500/15 text-emerald-600 border-emerald-500/20" },

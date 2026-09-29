@@ -10,6 +10,7 @@ import { ContactRow, type IncompleteContact } from "@/components/modules/crm/Inc
 import { updateCompany } from "@/actions/crm"
 import { updateRevenue } from "@/actions/revenue"
 import { confirmRecurringExpenseDate } from "@/actions/expense"
+import { amountAuto } from "@/lib/format"
 
 // Ouvre le volet depuis n'importe où (carte « À traiter » de l'accueil mobile).
 export const OPEN_INCOMPLETE_SHEET_EVENT = "erp:open-incomplete-sheet"
@@ -259,7 +260,7 @@ function RevenueRow({
           <span className="truncate">{revenue.label}</span>
         </p>
         <span className="shrink-0 text-xs font-semibold tabular-nums amount-sensitive">
-          {revenue.amount.toLocaleString("fr-FR")} €
+          {amountAuto(revenue.amount)} €
         </span>
       </div>
       <div className="grid grid-cols-1 gap-1.5">
@@ -316,7 +317,7 @@ function RecurringRow({ expense, onDone }: { expense: IncompleteRecurring; onDon
           <span className="truncate">{expense.label}</span>
         </p>
         <span className="shrink-0 text-xs font-semibold tabular-nums amount-sensitive">
-          {expense.amount.toLocaleString("fr-FR")} €
+          {amountAuto(expense.amount)} €
         </span>
       </div>
       <input

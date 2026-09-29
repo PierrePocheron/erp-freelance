@@ -14,6 +14,7 @@ import {
 import { cn } from "@/lib/utils"
 import { SubmitButton } from "@/components/ui/submit-button"
 import { runWithFlash } from "@/lib/flash"
+import { amountAuto } from "@/lib/format"
 
 const renewalTypes = [
   { value: "DOMAIN", label: "Domaine" },
@@ -201,7 +202,7 @@ export default async function ProjectPostDevPage({
                           <p className="text-xs mt-0.5 text-muted-foreground">
                             Acheté le {new Date(r.purchasedAt).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris", day: "numeric", month: "long", year: "numeric" })}
                             {r.periodMonths ? ` · ${r.periodMonths < 12 ? `${r.periodMonths} mois` : `${r.periodMonths / 12} an${r.periodMonths / 12 > 1 ? "s" : ""}`}` : ""}
-                            {r.amount ? <> · <span className="amount-sensitive">{`${r.amount.toLocaleString("fr-FR")} € HT`}</span></> : ""}
+                            {r.amount ? <> · <span className="amount-sensitive">{`${amountAuto(r.amount)} € HT`}</span></> : ""}
                           </p>
                         )}
                       </div>

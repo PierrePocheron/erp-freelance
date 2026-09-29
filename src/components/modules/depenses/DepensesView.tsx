@@ -10,8 +10,8 @@ import { ExpenseDonutChart, type DonutSegment } from "./ExpenseDonutChart"
 import { ExpenseDialog } from "./ExpenseDialog"
 import { RecurringExpenseDialog } from "./RecurringExpenseDialog"
 import type { ExpenseCategory } from "./ExpenseCategoryCombobox"
+import { amountAuto as fmt } from "@/lib/format"
 
-const fmt = (n: number) => n.toLocaleString("fr-FR", { maximumFractionDigits: 0 })
 
 function monthlyEquivalent(amount: number, frequency: string): number {
   if (frequency === "WEEKLY") return (amount * 52) / 12

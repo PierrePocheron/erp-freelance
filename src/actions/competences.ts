@@ -199,7 +199,9 @@ export async function linkOrCreateProjectSkill(projectId: string, name: string, 
   })
   if (!existing) {
     existing = await prisma.skill.create({
-      data: { userId, name: trimmed, type: "HARD", status: "TO_ACQUIRE", family: fam ?? undefined },
+      // Liée au projet comme techno UTILISÉE : elle est au moins « en apprentissage », pas « à
+      // acquérir » (#29). Une compétence existante garde son statut.
+      data: { userId, name: trimmed, type: "HARD", status: "LEARNING", family: fam ?? undefined },
       select: { id: true, family: true },
     })
   } else if (opts?.family) {

@@ -128,15 +128,6 @@ export async function saveProspectionSettings(data: { followUpDelayDays: number;
   revalidatePath("/prospection")
 }
 
-export async function updateAccentColors(_userId: string, colorsJson: string) {
-  const userId = await requireAuth()
-  await prisma.userProfile?.upsert({
-    where: { userId },
-    create: { userId, customAccentColors: colorsJson } as never,
-    update: { customAccentColors: colorsJson } as never,
-  })
-}
-
 export async function deleteAllUserData(_userId: string) {
   const userId = await requireAuth()
 

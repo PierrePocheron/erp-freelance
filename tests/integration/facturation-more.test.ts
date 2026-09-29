@@ -1,6 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest"
 import {
-  createQuote,
   createQuoteWithLines,
   updateQuoteStatus,
   revertQuoteToDraft,
@@ -92,38 +91,37 @@ const quo = (id: string) => prisma.quote.findUniqueOrThrow({ where: { id }, incl
 // ── Devis ─────────────────────────────────────────────────────────────────────
 
 describe("devis — création et numérotation", () => {
-  it("createQuote : numéro DEV-AAAA-001 par défaut, puis format/préfixe du profil ; notes et validité", async () => {
+  it("création de devis : numéro DEV-AAAA-001 par défaut, puis format/préfixe du profil ; validité", async () => {
     const { user, client } = await owner()
     const before = Date.now()
-    const q1 = await createQuote("ignored", { clientId: client.id, notes: "Note interne", expiresAtDays: 30, depositPercent: 25 })
+    const q1 = await createQuoteWithLines("ignored", { clientId: client.id, expiresAtDays: 30, depositPercent: 25, lines: [] })
     expect(q1.number).toMatch(/^DEV-\d{4}-001$/)
     expect(q1.userId).toBe(user.id)
-    expect(q1.notes).toBe("Note interne")
     expect(q1.depositPercent).toBe(25)
     expect(q1.emitterProfileId).toBeNull()
     const days = (q1.expiresAt!.getTime() - before) / 86_400_000
     expect(days).toBeGreaterThan(29.99)
     expect(days).toBeLessThan(30.01)
 
-    const q2 = await createQuote("ignored", { clientId: client.id })
+    const q2 = await createQuoteWithLines("ignored", { clientId: client.id, lines: [] })
     expect(q2.number).toMatch(/^DEV-\d{4}-002$/)
     expect(q2.expiresAt).toBeNull()
     expect(q2.notes).toBeNull()
 
     await prisma.userProfile.create({ data: { userId: user.id, quotePrefix: "DQ", quoteNumberFormat: "PREFIX-YYYY-NN" } })
-    const q3 = await createQuote("ignored", { clientId: client.id })
+    const q3 = await createQuoteWithLines("ignored", { clientId: client.id, lines: [] })
     expect(q3.number).toMatch(/^DQ-\d{4}-01$/)
   })
 
-  it("createQuote refuse le contact ou le projet d'un autre compte", async () => {
+  it("la création de devis refuse le contact ou le projet d'un autre compte", async () => {
     const victim = await makeUser()
     const vClient = await makeClient(victim.id)
     const vProject = await makeProject(victim.id, vClient.id)
     const other = await intruder()
     const own = await makeClient(other.id)
 
-    await expect(createQuote("ignored", { clientId: vClient.id })).rejects.toThrow(/Contact introuvable/)
-    await expect(createQuote("ignored", { clientId: own.id, projectId: vProject.id })).rejects.toThrow(/Projet introuvable/)
+    await expect(createQuoteWithLines("ignored", { clientId: vClient.id, lines: [] })).rejects.toThrow(/Contact introuvable/)
+    await expect(createQuoteWithLines("ignored", { clientId: own.id, projectId: vProject.id, lines: [] })).rejects.toThrow(/Projet introuvable/)
     expect(await prisma.quote.count()).toBe(0)
   })
 

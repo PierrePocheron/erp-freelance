@@ -991,6 +991,8 @@ export default async function DashboardPage() {
           {/* Tous ok — affiché si tous les widgets visibles sont vides */}
           {(!(has("taches") || has("projets")) || agendaTasks.length + inProgressItems.length === 0) &&
            (!has("facturation") || unpaidInvoices.length === 0) &&
+           (!has("revenus") || pendingRevenues.length === 0) &&
+           (!has("sante") || pendingReimbursements.length === 0) &&
            (!has("contacts") || (upcomingReminders.length === 0 && recentInteractions.length === 0 && followUpClients.length === 0)) &&
            (!has("prospection") || dashboardProspects.length === 0) &&
            (!has("projets") || (prods.length === 0 && upcomingMilestones.length === 0 && upcomingRenewals.length === 0)) &&

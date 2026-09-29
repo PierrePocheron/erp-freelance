@@ -1,6 +1,8 @@
 import { auth }  from "@/lib/auth"
 import { redirect } from "next/navigation"
 import { prisma }  from "@/lib/prisma"
+import Link from "next/link"
+import { ChevronLeft } from "lucide-react"
 import { FiscalSummary } from "@/components/modules/revenus/FiscalSummary"
 
 export default async function RecapitulatifPage({
@@ -84,6 +86,12 @@ export default async function RecapitulatifPage({
   return (
     <div className="space-y-6">
       <div>
+        <Link
+          href="/revenus"
+          className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground mb-3"
+        >
+          <ChevronLeft className="h-4 w-4" /> Revenus
+        </Link>
         <h1 className="text-2xl font-bold tracking-tight">Récapitulatif fiscal</h1>
         <p className="text-sm text-muted-foreground mt-0.5">
           Synthèse annuelle de vos revenus par source fiscale

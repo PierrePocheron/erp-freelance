@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useMemo, useRef, useState } from "react"
 import {
   User, Building2, Landmark, LayoutGrid, Plug, Database, Search, X, Send, Palette,
 } from "lucide-react"
@@ -70,6 +70,16 @@ const normalize = (s: string) =>
 export function SettingsShell({ nodes }: { nodes: Record<SectionId, React.ReactNode> }) {
   const [active, setActive] = useState<SectionId>("profil")
   const [query, setQuery]   = useState("")
+  const contentRef = useRef<HTMLDivElement>(null)
+
+  // Sous lg, les catégories sont empilées AU-DESSUS du contenu : sans ce défilement,
+  // un tap changeait une section hors de l'écran et rien ne semblait se passer.
+  function selectSection(id: SectionId) {
+    setActive(id)
+    if (!window.matchMedia("(min-width: 1024px)").matches) {
+      requestAnimationFrame(() => contentRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }))
+    }
+  }
 
   const matching = useMemo(() => {
     const q = normalize(query.trim())
@@ -122,7 +132,7 @@ export function SettingsShell({ nodes }: { nodes: Record<SectionId, React.ReactN
             return (
               <button
                 key={s.id}
-                onClick={() => setActive(s.id)}
+                onClick={() => selectSection(s.id)}
                 className={`flex items-center gap-3 w-full rounded-lg px-2.5 py-2 text-left transition-colors ${
                   isActive ? "bg-accent" : "hover:bg-accent/50"
                 }`}
@@ -148,7 +158,7 @@ export function SettingsShell({ nodes }: { nodes: Record<SectionId, React.ReactN
       {/* Toutes les sections restent montées (masquées en CSS) : changer de
           catégorie ne détruit pas un formulaire en cours d'édition — ses
           modifications non enregistrées survivent à l'aller-retour. */}
-      <div className="flex-1 min-w-0 w-full">
+      <div ref={contentRef} className="flex-1 min-w-0 w-full scroll-mt-16 lg:scroll-mt-0">
         {SECTIONS.map((s) => (
           <div key={s.id} hidden={s.id !== visibleId} className="space-y-6">
             {nodes[s.id]}

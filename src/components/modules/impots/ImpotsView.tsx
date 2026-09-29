@@ -117,7 +117,7 @@ export function ImpotsView({
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-start justify-between gap-4">
+      <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           {/* Titre visible en mobile ; en desktop, un h1 lu par les lecteurs d'écran (sr-only) prend le relais */}
           <h1 className="sr-only hidden sm:block">Impôts &amp; URSSAF</h1>

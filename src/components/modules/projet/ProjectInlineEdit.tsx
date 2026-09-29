@@ -321,7 +321,7 @@ export function ProjectDescriptionEdit({
       onClick={() => setEditing(true)}
       className="group flex items-center gap-2 text-left"
     >
-      <p className={cn("text-sm", value ? "text-muted-foreground" : "text-muted-foreground/50 italic")}>
+      <p className={cn("text-sm line-clamp-2 sm:line-clamp-none", value ? "text-muted-foreground" : "text-muted-foreground/50 italic")}>
         {value ?? "Ajouter une description..."}
       </p>
       <Pencil className="h-3 w-3 text-muted-foreground md:opacity-0 md:group-hover:opacity-100 focus:opacity-100 transition-opacity shrink-0" />

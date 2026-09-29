@@ -2,7 +2,7 @@ import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { notFound } from "next/navigation"
 import Link from "next/link"
-import { Users } from "lucide-react"
+import { ChevronLeft, Users } from "lucide-react"
 import { ProjectTabs } from "@/components/modules/projet/ProjectTabs"
 import { ProjectDateBadge } from "@/components/modules/projet/ProjectDateBadge"
 import { ProjectNameEdit, ProjectDescriptionEdit, ProjectHoursEdit, ProjectStatusEdit, ProjectPriorityEdit, ProjectCategoryEdit } from "@/components/modules/projet/ProjectInlineEdit"
@@ -66,7 +66,14 @@ export default async function ProjectLayout({
     <div className="space-y-5">
       <SetBreadcrumbLabel value={id} label={project.name} />
 
-      {/* Pas de bouton « ‹ Projets » : le fil d'Ariane (Projets › nom) joue déjà ce rôle. */}
+      {/* « ‹ Projets » sur mobile seulement : sur desktop le fil d'Ariane (Projets › nom)
+          joue ce rôle, mais il est masqué sous sm — sans ce lien, la PWA n'avait aucun retour. */}
+      <Link
+        href="/projets"
+        className="sm:hidden inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
+      >
+        <ChevronLeft className="h-4 w-4" /> Projets
+      </Link>
       {/* flex-wrap + min-w-0 : sur mobile la colonne de droite passe sous le titre
           au lieu de le compresser */}
       <div className="flex flex-wrap items-start justify-between gap-4">

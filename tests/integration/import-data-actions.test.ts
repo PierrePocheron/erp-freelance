@@ -164,7 +164,7 @@ describe("importData — sauvegarde complète", () => {
 })
 
 describe("importData — import partiel", () => {
-  it("une section en échec (donnée invalide) arrête l'import : erreur remontée, sections précédentes conservées", async () => {
+  it("une section en échec (donnée invalide) annule TOUT l'import (transaction, #35)", async () => {
     const user = await asNewUser()
     const res = await importData(JSON.stringify({
       data: {
@@ -180,10 +180,10 @@ describe("importData — import partiel", () => {
     expect(res.success).toBe(false)
     expect(res.error).toBeTruthy()
     expect(res.total).toBe(0)
-    expect(res.counts).toEqual({ Tags: 1, Contacts: 1 })
-    // Pas de transaction globale : ce qui précède l'erreur reste en base.
-    expect(await prisma.tag.count({ where: { userId: user.id } })).toBe(1)
-    expect(await prisma.client.count({ where: { userId: user.id } })).toBe(1)
+    expect(res.counts).toEqual({})
+    // Transaction unique : rien de ce qui précède l'erreur n'est conservé
+    expect(await prisma.tag.count({ where: { userId: user.id } })).toBe(0)
+    expect(await prisma.client.count({ where: { userId: user.id } })).toBe(0)
     expect(await prisma.project.count()).toBe(0)
     expect(await prisma.projectIdea.count()).toBe(0)
   })

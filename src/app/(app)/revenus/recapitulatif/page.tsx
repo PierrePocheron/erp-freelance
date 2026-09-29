@@ -1,6 +1,7 @@
 import { auth }  from "@/lib/auth"
 import { redirect } from "next/navigation"
 import { prisma }  from "@/lib/prisma"
+import { zonedMidnight, zonedParts } from "@/lib/dates"
 import Link from "next/link"
 import { ChevronLeft } from "lucide-react"
 import { FiscalSummary } from "@/components/modules/revenus/FiscalSummary"
@@ -15,7 +16,10 @@ export default async function RecapitulatifPage({
   const userId = session.user.id
 
   const { year: yearParam } = await searchParams
-  const year = yearParam ? parseInt(yearParam) : new Date().getFullYear()
+  const year = yearParam ? parseInt(yearParam) : zonedParts(new Date()).year
+  // Bornes de l'exercice en heure de Paris (la prod tourne en UTC)
+  const yearStart = zonedMidnight(`${year}-01-01`)
+  const yearEnd = new Date(zonedMidnight(`${year + 1}-01-01`).getTime() - 1)
 
   const [fiscalSources, revenues, paidInvoices] = await Promise.all([
     // Sources configurées
@@ -27,13 +31,16 @@ export default async function RecapitulatifPage({
       },
     }),
 
-    // Revenus manuels de l'année (toutes sources) — avec client, société et projet
+    // Revenus ENCAISSÉS de l'exercice (#38) : une seule clé d'exercice, la date d'encaissement
+    // (la période seulement si elle manque). Avant : les revenus en attente étaient comptés, et
+    // un revenu « 2025-12 » encaissé le 05/01/2026 apparaissait dans les DEUX récapitulatifs.
     prisma.revenue.findMany({
       where: {
         userId,
+        status: "RECEIVED",
         OR: [
-          { period: { startsWith: `${year}-` } },
-          { receivedAt: { gte: new Date(`${year}-01-01`), lte: new Date(`${year}-12-31T23:59:59`) } },
+          { receivedAt: { gte: yearStart, lte: yearEnd } },
+          { receivedAt: null, period: { startsWith: `${year}-` } },
         ],
       },
       select: {
@@ -58,10 +65,7 @@ export default async function RecapitulatifPage({
       where: {
         userId,
         status: "PAID",
-        paidAt: {
-          gte: new Date(`${year}-01-01`),
-          lte: new Date(`${year}-12-31T23:59:59`),
-        },
+        paidAt: { gte: yearStart, lte: yearEnd },
         emitter: { fiscalSourceId: { not: null } },
       },
       select: {

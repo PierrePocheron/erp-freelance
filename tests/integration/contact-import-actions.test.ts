@@ -8,6 +8,7 @@ import {
 } from "@/actions/contact-import"
 import { hasContactsScope, getGoogleContactsToken, fetchGoogleContacts, CONTACTS_SCOPES } from "@/lib/google-contacts"
 import { prisma } from "@/lib/prisma"
+import { parseVcf } from "@/lib/contact-import"
 import { setTestUser } from "./setup"
 import { makeUser, makeClient } from "./helpers/factories"
 
@@ -57,7 +58,7 @@ describe("previewVcfImport", () => {
     const user = await asNewUser()
     const jean = await makeClient(user.id, { type: "CLIENT", name: "Jean Test", firstName: "Jean", lastName: "Test", email: "jean.test@example.com" })
 
-    const proposals = await previewVcfImport(VCF)
+    const proposals = await previewVcfImport(parseVcf(VCF))
 
     expect(proposals).toHaveLength(2)
     const [sure, unknown] = proposals
@@ -73,14 +74,15 @@ describe("previewVcfImport", () => {
     await makeClient(owner.id, { name: "Jean Test", email: "jean.test@example.com" })
     await asNewUser()
 
-    const proposals = await previewVcfImport(VCF)
+    const proposals = await previewVcfImport(parseVcf(VCF))
     expect(proposals.every((p) => p.match === null && p.candidates.length === 0)).toBe(true)
   })
 
   it("refuse un fichier trop gros ou sans carte lisible", async () => {
     await asNewUser()
-    await expect(previewVcfImport("x".repeat(5_000_001))).rejects.toThrow("Fichier trop volumineux")
-    await expect(previewVcfImport("pas une vcard")).rejects.toThrow("Aucun contact lisible")
+    const many = Array.from({ length: 5001 }, (_, i) => ({ key: `k${i}`, source: "vcf" as const, name: `C${i}`, emails: [], phones: [] }))
+    await expect(previewVcfImport(many)).rejects.toThrow("Trop de contacts")
+    await expect(previewVcfImport(parseVcf("pas une vcard"))).rejects.toThrow("Aucun contact lisible")
   })
 })
 

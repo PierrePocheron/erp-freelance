@@ -171,7 +171,7 @@ export function HealthEventDialog({
                 type="submit" disabled={isPending || !title.trim()}
                 className="h-8 px-4 rounded-lg bg-primary text-primary-foreground text-sm font-medium disabled:opacity-40 hover:bg-primary/90 transition-colors"
               >
-                {isPending ? "…" : item ? "Mettre à jour" : "Enregistrer"}
+                {isPending ? "Enregistrement…" : item ? "Enregistrer" : "Ajouter"}
               </button>
             </div>
           </div>

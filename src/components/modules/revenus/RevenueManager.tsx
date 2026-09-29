@@ -1139,6 +1139,10 @@ export function RevenueManager({
                                   {r.notes && !r.isFromInvoice && (r.company || r.client || r.project) && (
                                     <p className="text-xs text-muted-foreground mt-0.5 truncate max-w-xs">{r.notes}</p>
                                   )}
+                                  {/* Colonne « statut / date » masquée sous sm : la date prévue n'avait aucun repli */}
+                                  {r.status !== "RECEIVED" && r.expectedAt && (
+                                    <p className="sm:hidden text-xs text-muted-foreground mt-0.5">prévu {fmtDate(r.expectedAt)}</p>
+                                  )}
                                 </td>
 
                                 {/* Montant */}

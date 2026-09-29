@@ -194,6 +194,13 @@ export function MonthlyRevenueChart({
   const router = useRouter()
   const [year, setYear] = useState(currentYear)
   const [data, setData] = useState(initialData)
+  // Nouvel encaissement → nouvelles données serveur : on les reprend si l'année courante est
+  // affichée (useState ignorait la nouvelle valeur initiale, #12).
+  const [syncedFrom, setSyncedFrom] = useState(initialData)
+  if (initialData !== syncedFrom) {
+    setSyncedFrom(initialData)
+    if (year === currentYear) setData(initialData)
+  }
   const [isPending, startTransition] = useTransition()
 
   function changeYear(delta: number) {

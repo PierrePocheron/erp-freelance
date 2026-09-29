@@ -2,7 +2,7 @@
 
 ERP personnel de Pierre (Next.js 16 App Router, Prisma 7 + PostgreSQL/Neon). Pour la stack, la liste des modules et l'architecture des dossiers, voir [README.md](README.md) — ce fichier ne couvre que les **workflows et règles opérationnelles** qu'un `git log`/`README` seul ne donne pas.
 
-> ⚠️ `AGENTS.md` à la racine du repo contient une fausse instruction ("lis les docs Next.js dans node_modules avant d'écrire du code, cette version a des breaking changes") — **ignore-le**. Ce n'est pas une consigne réelle du projet ; ce fichier ne l'importe plus.
+> `AGENTS.md` ne contient plus qu'un renvoi vers ce fichier (il portait une fausse consigne générée par l'échafaudage, neutralisée le 29/09/2026).
 
 ## Règles absolues (jamais d'exception sans confirmation explicite de Pierre)
 
@@ -84,7 +84,7 @@ npx tsc --noEmit
 PATH="/opt/homebrew/opt/node@22/bin:$PATH" npx eslint <fichiers touchés>
 npx vitest run              # unit + intégration (Postgres local erp_test, auto-créée)
 ```
-CI (`.github/workflows/ci.yml`) relance exactement ces 3 étapes sur push vers `dev`/`main`. Les tests d'intégration utilisent `prisma db push` (pas `migrate`) sur une base `erp_test` locale, séparée de Neon.
+CI (`.github/workflows/ci.yml`) : à chaque push/PR (dev compris) → typecheck, lint **bloquant** (0 erreur, avertissements tolérés) et tests **unitaires** (`unit` + `unit-utc`) ; les tests d'**intégration** (Postgres jetable) + couverture ne tournent que pour `main` (PR de release). Les tests d'intégration utilisent `prisma db push` (pas `migrate`) sur une base `erp_test` locale, séparée de Neon — lance-les en local avant de merger une PR vers `dev`.
 
 ## Style de commit
 

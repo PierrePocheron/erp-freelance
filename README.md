@@ -43,7 +43,7 @@ Le système de modules permet d'activer ou désactiver chaque section depuis **P
 | **Post-dev** | URLs prod/admin/hébergement, renouvellements domaine/hosting avec génération de facture, monitoring disponibilité |
 | **Facturation / Devis** | Pipeline DRAFT→SIGNED, acomptes, workflow dépôt, envoi email, signature PDF, conditions générales par modèle ; liste triée par date d'envoi avec colonne échéance de validité (devis périmé signalé « expiré ») |
 | **Facturation / Factures** | Génération depuis devis, types (acompte/solde/récurrent/standalone), verrouillage à l'émission, PDF figé, **template PDF personnalisable via les réglages** (logo typographique avec initiales par défaut, sous-titre, couleur accent), suivi paiement, relance, **import d'historique**, export ZIP, exclusion URSSAF par facture ; liste toutes années confondues avec filtre par année, numéros préfixés FA, colonne suivi des encaissements (versements partiels/multiples datés) et tri par les dates réelles du cycle de vie (émission, envoi, échéance) |
-| **Facturation / Récurrentes** | Modèles avec fréquence, activation/désactivation, génération manuelle, cron auto-génération à l'échéance |
+| **Facturation / Récurrentes** | Modèles avec fréquence, activation/désactivation, génération **manuelle** (bouton — aucune facture ne part toute seule ; le seul cron traite les renouvellements) |
 | **Catalogue produits** | Produits/services réutilisables — unité, prix, TVA, type de facturation |
 | **Revenus** | Suivi multi-source : Salaire, Freelance/AE, Étude rémunérée, Investissement, Locatif, Plateforme, Remboursement, Autre — accordéons par année/mois, édition inline dans le tableau, badge "Payé" en début de ligne, annulation de réception (erreur de saisie), carte KPI "En attente" cliquable (filtre + tout déplier), validation en lot, date prévisionnelle, association société/contact/projet cliquable, carte reçu/total sur la fiche projet, **carte « depuis toujours »** (total encaissé all-time), répartition par source fiscale (validé/en attente), **bouton « masquer les montants »** |
 | **Investissements** | Suivi du capital et de la rentabilité par plateforme (crowdlending, crowdfunding, immobilier participatif, PEA…) — relevés de valorisation datés **dissociés des dépôts/retraits** (un flux ne compte jamais comme gain), **graphe SVG maison** multi-courbes (crosshair, tooltip, dépôts en marches, filtres 3M/6M/12M/2A/3A/Tout), KPIs par plage (profit €, ROI, TWR time-weighted, annualisé, %/mois), signalement des apports manquants, fiche plateforme (historique + gain/% par intervalle), **rapport de performances exportable** (CSV + impression PDF, tableaux annuel/mensuel/par plateforme), carte dashboard, **bouton « masquer les montants »** |
@@ -102,7 +102,18 @@ RESEND_FROM_EMAIL=ERP <onboarding@resend.dev>
 
 # Uploads (Vercel Blob)
 BLOB_READ_WRITE_TOKEN=
+
+# Chiffrement au repos (IBAN/BIC, jetons OAuth) — openssl rand -base64 32
+ENCRYPTION_KEY=
+
+# Vercel Cron (/api/cron/*) et notifications push
+CRON_SECRET=
+NEXT_PUBLIC_VAPID_PUBLIC_KEY=
+VAPID_PRIVATE_KEY=
+VAPID_SUBJECT=
 ```
+
+Liste complète et commentée : `.env.example` et [`docs/DEPLOIEMENT.md`](docs/DEPLOIEMENT.md).
 
 ---
 
@@ -248,13 +259,15 @@ src/
 
 ```bash
 npm run dev          # Serveur de développement
-npm run build        # Build production (migrate + build)
+npx next build       # Vérifier la compilation (⚠️ PAS `npm run build` : il migre la base de PROD)
 npm run import       # Import de données : npm run import ./backup.json
 npm run seed         # Seed de la base (données de test)
 npx prisma studio    # Interface visuelle de la DB
-npx prisma migrate dev --name <nom>   # Nouvelle migration (dev uniquement)
-npx prisma migrate deploy             # Appliquer migrations en prod
+npx prisma migrate deploy             # Appliquer les migrations (Neon)
+npm run release -- <version>          # Release : PR dev → main, CI, tag, déploiement
 ```
+
+Nouvelle migration : **jamais `prisma migrate dev`** (`.env.local` pointe la production) — workflow `migrate diff` + `migrate deploy` décrit dans [`CLAUDE.md`](CLAUDE.md).
 
 ---
 

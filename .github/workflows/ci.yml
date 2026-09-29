@@ -38,12 +38,15 @@ jobs:
       - name: Typecheck
         run: npx tsc --noEmit
 
-      # Non bloquant pour l'instant : le code legacy porte une dette ESLint
-      # préexistante (entités non échappées, effets, vars inutilisées). On
-      # remonte les problèmes sans rougir la CI ; à durcir une fois la dette purgée.
+      # Bloquant : plus aucune erreur ESLint (les avertissements restent tolérés).
       - name: Lint
         run: npm run lint
-        continue-on-error: true
+
+      # Tests unitaires (sans base, quelques secondes) à CHAQUE push, dev compris : la
+      # poussée automatique sur dev suppose que la CI rattrape les régressions (#15).
+      # `unit` fige TZ=Europe/Paris, `unit-utc` rejoue le fuseau de la prod (UTC).
+      - name: Tests unitaires
+        run: npx vitest run --project unit --project unit-utc
 
   # Tests d'intégration + couverture + SonarCloud : uniquement pour les
   # changements destinés à main (release). Se déclenche sur un push direct sur

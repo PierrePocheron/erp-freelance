@@ -377,28 +377,6 @@ export async function createClient(
   return client
 }
 
-export async function updateClient(
-  clientId: string,
-  _userId: string,
-  data: {
-    name?: string
-    company?: string | null
-    email?: string | null
-    phone?: string | null
-    notes?: string | null
-    source?: string
-  }
-) {
-  const userId = await requireAuth()
-  await prisma.client.update({
-    where: { id: clientId, userId },
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    data: data as any,
-  })
-  revalidatePath(`/contacts/${clientId}`)
-  revalidatePath("/contacts")
-}
-
 export async function updateCompanyType(companyId: string, type: string | null) {
   const userId = await requireAuth()
   await prisma.company.update({
@@ -419,16 +397,6 @@ export async function updateClientType(clientId: string, _userId: string, type: 
   revalidatePath("/contacts")
 }
 
-
-export async function updateClientPriority(clientId: string, _userId: string, priorityScore: number) {
-  const userId = await requireAuth()
-  await prisma.client.update({
-    where: { id: clientId, userId },
-    data: { priorityScore },
-  })
-  revalidatePath(`/contacts/${clientId}`)
-  revalidatePath("/contacts")
-}
 
 export async function updateClientAll(
   clientId: string,

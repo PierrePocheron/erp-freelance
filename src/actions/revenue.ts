@@ -8,31 +8,6 @@ import { revalidatePath } from "next/cache"
 
 // ── Revenus ────────────────────────────────────────────────────────────────────
 
-export async function getRevenues(params?: {
-  year?: number
-  month?: number
-  type?: string
-}) {
-  const userId = await requireAuth()
-
-  const where: Record<string, unknown> = { userId }
-
-  if (params?.type) where.type = params.type
-
-  if (params?.year !== undefined && params?.month !== undefined) {
-    const m = String(params.month).padStart(2, "0")
-    where.period = `${params.year}-${m}`
-  } else if (params?.year !== undefined) {
-    where.period = { startsWith: `${params.year}-` }
-  }
-
-  return prisma.revenue.findMany({
-    where,
-    orderBy: [{ period: "desc" }, { createdAt: "desc" }],
-    include: { recurringRevenue: { select: { id: true, label: true } } },
-  })
-}
-
 export async function createRevenue(data: {
   type: string
   label: string
@@ -217,16 +192,6 @@ export async function deleteRevenue(id: string): Promise<{ error?: string }> {
 }
 
 // ── Revenus récurrents ─────────────────────────────────────────────────────────
-
-export async function getRecurringRevenues() {
-  const userId = await requireAuth()
-
-  return prisma.recurringRevenue.findMany({
-    where: { userId },
-    orderBy: { createdAt: "asc" },
-    include: { _count: { select: { revenues: true } } },
-  })
-}
 
 export async function createRecurringRevenue(data: {
   type: string

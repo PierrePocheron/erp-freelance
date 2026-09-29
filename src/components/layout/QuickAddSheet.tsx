@@ -18,6 +18,7 @@ import { createClientTask } from "@/actions/projet"
 import { searchProspectsQuick, markProspectsContacted } from "@/actions/prospection"
 import { getPendingRevenuesQuick, markRevenueReceived } from "@/actions/revenue"
 import type { ProspectStatus } from "@/generated/prisma/enums"
+import { eurAuto as formatEuro } from "@/lib/format"
 
 type Screen = "menu" | "expense" | "task" | "prospect" | "revenue"
 
@@ -476,9 +477,6 @@ type PendingRevenue = {
   expectedAt: Date | null
 }
 
-function formatEuro(n: number): string {
-  return n.toLocaleString("fr-FR", { minimumFractionDigits: 0, maximumFractionDigits: 2 }) + " €"
-}
 
 /**
  * Checklist des revenus en attente : un tap = reçu aujourd'hui par virement.

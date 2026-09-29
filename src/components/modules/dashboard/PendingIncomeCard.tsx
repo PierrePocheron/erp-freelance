@@ -10,12 +10,12 @@ import { updateInvoiceStatus } from "@/actions/facturation"
 import { markRevenueReceived } from "@/actions/revenue"
 import { markReimbursementReceived } from "@/actions/sante"
 import { toast } from "sonner"
+import { eur2 as eur } from "@/lib/format"
 
 export type PendingInvoice = { id: string; number: string; clientName: string; amount: number; dueDate: string | null; isLate: boolean }
 export type PendingRevenue = { id: string; label: string; amount: number; expectedAt: string | null }
 export type PendingReimbursement = { id: string; label: string; amount: number; source: string; expectedDate: string | null }
 
-const eur = (n: number) => `${n.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`
 const fmtDate = (d: string | null) =>
   d ? new Date(d).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris", day: "numeric", month: "short" }) : null
 

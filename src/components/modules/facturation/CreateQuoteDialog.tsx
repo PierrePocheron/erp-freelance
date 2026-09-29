@@ -15,6 +15,7 @@ import {
 import { createQuoteWithLines } from "@/actions/facturation"
 import { ClientCombobox } from "./ClientCombobox"
 import { toast } from "sonner"
+import { eur2 as fmtEur } from "@/lib/format"
 
 type Company = { id: string; name: string; city: string | null }
 type Client = { id: string; name: string; company: string | null; type: string; companyId: string | null }
@@ -96,9 +97,6 @@ function emptyLineForm(): LineFormState {
   return { productId: "", description: "", detail: "", quantity: "1", unitPrice: "0", taxRate: "0", billingType: "ONE_SHOT" }
 }
 
-function fmtEur(n: number) {
-  return n.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " €"
-}
 
 function fmtTaxLabel(rate: number) {
   return rate === 0 ? "0%" : `${String(rate).replace(".", ",")}%`

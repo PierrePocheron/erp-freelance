@@ -11,6 +11,7 @@ import { Th } from "@/components/ui/sortable-header"
 import { CreateInvoiceDialog } from "./CreateInvoiceDialog"
 import { ImportInvoiceModal } from "./ImportInvoiceModal"
 import { RevenueBars } from "./MonthlyRevenueChart"
+import { eurAuto as fmtEur, amountAuto } from "@/lib/format"
 
 type Invoice = {
   id: string
@@ -37,11 +38,6 @@ function displayNumber(number: string): string {
   return /^fa/i.test(number.trim()) ? number : `FA${number}`
 }
 
-const fmtEur = (n: number) =>
-  n.toLocaleString("fr-FR", {
-    minimumFractionDigits: Number.isInteger(n) ? 0 : 2,
-    maximumFractionDigits: 2,
-  }) + " €"
 const fmtDay = (d: Date | string) => new Date(d).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris" })
 
 /** Récapitulatif des encaissements d'une facture : montant réglé sur le montant
@@ -585,7 +581,7 @@ export function FacturesListView({
                 <div className="pt-1 border-t border-border/50 space-y-1">
                   <div className="flex items-end justify-between">
                     <span className={`amount-sensitive text-xl font-bold tabular-nums ${isLate ? "text-red-600" : ""}`}>
-                      {amount.toLocaleString("fr-FR")} €
+                      {amountAuto(amount)} €
                     </span>
                     <span className="text-xs text-muted-foreground">
                       {inv.issuedAt ? `émise le ${fmtDay(inv.issuedAt)}` : inv.sentAt ? `envoyée le ${fmtDay(inv.sentAt)}` : ""}

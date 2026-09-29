@@ -1,3 +1,4 @@
+import { eur0, eur2 } from "@/lib/format"
 // Calculs purs du module Investissements (importable serveur + client, testable).
 //
 // Modèle : chaque relevé (InvestmentEntry) porte le CAPITAL total sur la plateforme
@@ -444,11 +445,9 @@ export function aggregateGlobal(stats: PlatformStats[]): GlobalStats {
 // ── Formatage ─────────────────────────────────────────────────────────────────
 // Espace INSÉCABLE ( ) avant € / % : correct en typographie française et évite que
 // « 6 260 » et « € » se retrouvent sur deux lignes (wrap dans l'infobulle du graphe).
-// `|| 0` après arrondi : un résidu flottant (-0,004) s'affichait « -0,00 € » / « -0,0 % ».
-export const fmtEur = (n: number) =>
-  `${(Math.round(n) || 0).toLocaleString("fr-FR", { minimumFractionDigits: 0, maximumFractionDigits: 0 })} €`
-export const fmtEur2 = (n: number) =>
-  `${(Math.round(n * 100) / 100 || 0).toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`
+// Montants : délégués au module partagé (lib/format.ts, #44) — zéro normalisé, espace insécable.
+export const fmtEur = eur0
+export const fmtEur2 = eur2
 export const fmtPct = (r: number) =>
   `${(Math.round(r * 1000) / 10 || 0).toLocaleString("fr-FR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })} %`
 export const fmtPctSigned = (r: number) => `${r >= 0 ? "+" : ""}${fmtPct(r)}`

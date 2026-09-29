@@ -7,6 +7,7 @@ import { recordPayment, deletePayment } from "@/actions/facturation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { toast } from "sonner"
+import { eur2 as fmtEur } from "@/lib/format"
 
 type Payment = {
   id: string
@@ -15,9 +16,6 @@ type Payment = {
   note: string | null
 }
 
-function fmtEur(n: number) {
-  return n.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " €"
-}
 
 function fmtDate(d: Date) {
   return new Date(d).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris", day: "numeric", month: "short", year: "numeric" })

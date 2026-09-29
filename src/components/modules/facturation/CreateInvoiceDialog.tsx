@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { createInvoice, createInvoiceFromQuote } from "@/actions/facturation"
 import { cn } from "@/lib/utils"
+import { toast } from "sonner"
 
 type Company = { id: string; name: string; city: string | null }
 type Client = { id: string; name: string; company: string | null; type: string; companyId: string | null }
@@ -101,21 +102,29 @@ export function CreateInvoiceDialog({
     if (mode === "from_quote" && selectedQuoteId) {
       const invoiceType = fd.get("invoiceType") as "DEPOSIT" | "FINAL" | "RECURRING"
       startTransition(async () => {
-        const invoice = await createInvoiceFromQuote(selectedQuoteId, userId, invoiceType)
-        handleOpenChange(false)
-        router.push(`/facturation/factures/${invoice.id}`)
+        try {
+          const invoice = await createInvoiceFromQuote(selectedQuoteId, userId, invoiceType)
+          handleOpenChange(false)
+          router.push(`/facturation/factures/${invoice.id}`)
+        } catch {
+          toast.error("Échec de l'enregistrement")
+        }
       })
     } else {
       startTransition(async () => {
-        const invoice = await createInvoice(userId, {
-          clientId: selectedClientId,
-          projectId: (fd.get("projectId") as string) || undefined,
-          type: (fd.get("type") as string) || undefined,
-          dueDate: (fd.get("dueDate") as string) || undefined,
-          notes: (fd.get("notes") as string) || undefined,
-        })
-        handleOpenChange(false)
-        router.push(`/facturation/factures/${invoice.id}`)
+        try {
+          const invoice = await createInvoice(userId, {
+            clientId: selectedClientId,
+            projectId: (fd.get("projectId") as string) || undefined,
+            type: (fd.get("type") as string) || undefined,
+            dueDate: (fd.get("dueDate") as string) || undefined,
+            notes: (fd.get("notes") as string) || undefined,
+          })
+          handleOpenChange(false)
+          router.push(`/facturation/factures/${invoice.id}`)
+        } catch {
+          toast.error("Échec de l'enregistrement")
+        }
       })
     }
   }

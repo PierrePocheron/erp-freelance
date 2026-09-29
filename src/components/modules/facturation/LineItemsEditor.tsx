@@ -4,6 +4,7 @@ import { useState, useTransition } from "react"
 import { Trash2, Plus, Pencil, Check, X, ChevronDown } from "lucide-react"
 import { addQuoteLine, updateQuoteLine, deleteQuoteLine } from "@/actions/facturation"
 import { addInvoiceLine, updateInvoiceLine, deleteInvoiceLine } from "@/actions/facturation"
+import { toast } from "sonner"
 
 const TAX_RATES = [
   { value: 0, label: "0%" },
@@ -191,27 +192,35 @@ export function LineItemsEditor({ entityId, entityType, lines, editable = true }
 
   function handleAdd(data: LineFormData) {
     startTransition(async () => {
-      await addLine(entityId, "system", {
-        description: data.description,
-        detail: data.detail || undefined,
-        quantity: parseFloat(data.quantity),
-        unitPrice: parseFloat(data.unitPrice),
-        taxRate: parseFloat(data.taxRate),
-      })
-      setShowAdd(false)
+      try {
+        await addLine(entityId, "system", {
+          description: data.description,
+          detail: data.detail || undefined,
+          quantity: parseFloat(data.quantity),
+          unitPrice: parseFloat(data.unitPrice),
+          taxRate: parseFloat(data.taxRate),
+        })
+        setShowAdd(false)
+      } catch {
+        toast.error("Échec de l'enregistrement")
+      }
     })
   }
 
   function handleUpdate(lineId: string, data: LineFormData) {
     startTransition(async () => {
-      await updateLine(lineId, {
-        description: data.description,
-        detail: data.detail || undefined,
-        quantity: parseFloat(data.quantity),
-        unitPrice: parseFloat(data.unitPrice),
-        taxRate: parseFloat(data.taxRate),
-      })
-      setEditingId(null)
+      try {
+        await updateLine(lineId, {
+          description: data.description,
+          detail: data.detail || undefined,
+          quantity: parseFloat(data.quantity),
+          unitPrice: parseFloat(data.unitPrice),
+          taxRate: parseFloat(data.taxRate),
+        })
+        setEditingId(null)
+      } catch {
+        toast.error("Échec de l'enregistrement")
+      }
     })
   }
 

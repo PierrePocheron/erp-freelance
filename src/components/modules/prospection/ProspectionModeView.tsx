@@ -197,11 +197,15 @@ export function ProspectionModeView({
     const t = kind === "EMAIL_SENT" ? templates.find((x) => x.id === templateId) : undefined
     const tmpl = t ? { id: t.id, name: t.name } : null
     startTransition(async () => {
-      const { status: newStatus, event } = await logProspectAction(id, kind, note, tmpl)
-      setStatusById((prev) => ({ ...prev, [id]: newStatus }))
-      setEventsById((prev) => ({ ...prev, [id]: [event as ModeEvent, ...(prev[id] ?? [])] }))
-      markHandled(id)
-      toast.success(`${EVENT_CONFIG[kind].label} — statut : ${STATUS_CONFIG[newStatus].label}`)
+      try {
+        const { status: newStatus, event } = await logProspectAction(id, kind, note, tmpl)
+        setStatusById((prev) => ({ ...prev, [id]: newStatus }))
+        setEventsById((prev) => ({ ...prev, [id]: [event as ModeEvent, ...(prev[id] ?? [])] }))
+        markHandled(id)
+        toast.success(`${EVENT_CONFIG[kind].label} — statut : ${STATUS_CONFIG[newStatus].label}`)
+      } catch {
+        toast.error("Échec de l'enregistrement")
+      }
     })
   }
 
@@ -209,18 +213,22 @@ export function ProspectionModeView({
     const id = prospect.id
     const from = statusById[id]
     startTransition(async () => {
-      await updateProspectStatus(id, target)
-      setStatusById((prev) => ({ ...prev, [id]: target }))
-      if (from !== target) {
-        // Miroir local de l'événement STATUS_CHANGE créé côté serveur
-        const local: ModeEvent = {
-          id: `local-${Date.now()}`, kind: "STATUS_CHANGE",
-          fromStatus: from, toStatus: target, note: null, date: new Date(),
+      try {
+        await updateProspectStatus(id, target)
+        setStatusById((prev) => ({ ...prev, [id]: target }))
+        if (from !== target) {
+          // Miroir local de l'événement STATUS_CHANGE créé côté serveur
+          const local: ModeEvent = {
+            id: `local-${Date.now()}`, kind: "STATUS_CHANGE",
+            fromStatus: from, toStatus: target, note: null, date: new Date(),
+          }
+          setEventsById((prev) => ({ ...prev, [id]: [local, ...(prev[id] ?? [])] }))
         }
-        setEventsById((prev) => ({ ...prev, [id]: [local, ...(prev[id] ?? [])] }))
+        markHandled(id)
+        toast.success(`Statut : ${STATUS_CONFIG[target].label}`)
+      } catch {
+        toast.error("Échec de l'enregistrement")
       }
-      markHandled(id)
-      toast.success(`Statut : ${STATUS_CONFIG[target].label}`)
     })
   }
 
@@ -270,30 +278,38 @@ export function ProspectionModeView({
     if (!noteTitle.trim()) return
     const id = prospect.id
     startSaveNote(async () => {
-      if (editingNoteId) {
-        await updateProspectNote(editingNoteId, { title: noteTitle, content: noteContent })
-        setNotesById((prev) => ({
-          ...prev,
-          [id]: (prev[id] ?? []).map((n) =>
-            n.id === editingNoteId ? { ...n, title: noteTitle.trim(), content: noteContent.trim() || null } : n
-          ),
-        }))
-      } else {
-        const created = await createProspectNote(id, { title: noteTitle, content: noteContent })
-        setNotesById((prev) => ({ ...prev, [id]: [created as ModeNote, ...(prev[id] ?? [])] }))
-        markHandled(id)
+      try {
+        if (editingNoteId) {
+          await updateProspectNote(editingNoteId, { title: noteTitle, content: noteContent })
+          setNotesById((prev) => ({
+            ...prev,
+            [id]: (prev[id] ?? []).map((n) =>
+              n.id === editingNoteId ? { ...n, title: noteTitle.trim(), content: noteContent.trim() || null } : n
+            ),
+          }))
+        } else {
+          const created = await createProspectNote(id, { title: noteTitle, content: noteContent })
+          setNotesById((prev) => ({ ...prev, [id]: [created as ModeNote, ...(prev[id] ?? [])] }))
+          markHandled(id)
+        }
+        closeNoteForm()
+        toast.success("Note enregistrée")
+      } catch {
+        toast.error("Échec de l'enregistrement")
       }
-      closeNoteForm()
-      toast.success("Note enregistrée")
     })
   }
 
   function removeNote(noteId: string) {
     const id = prospect.id
     startSaveNote(async () => {
-      await deleteProspectNote(noteId)
-      setNotesById((prev) => ({ ...prev, [id]: (prev[id] ?? []).filter((n) => n.id !== noteId) }))
-      if (editingNoteId === noteId) closeNoteForm()
+      try {
+        await deleteProspectNote(noteId)
+        setNotesById((prev) => ({ ...prev, [id]: (prev[id] ?? []).filter((n) => n.id !== noteId) }))
+        if (editingNoteId === noteId) closeNoteForm()
+      } catch {
+        toast.error("Échec de la suppression")
+      }
     })
   }
 

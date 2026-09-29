@@ -13,6 +13,7 @@ import { createExpense, updateExpense, deleteExpense, createRecurringExpense, co
 import { ExpenseCategoryCombobox, type ExpenseCategory } from "./ExpenseCategoryCombobox"
 import { FREQUENCY_LABELS } from "@/lib/expense-constants"
 import { toDateInput } from "@/lib/dates"
+import { toast } from "sonner"
 
 export type ExpenseForEdit = {
   id: string
@@ -84,31 +85,39 @@ export function ExpenseDialog({
     }
 
     startTransition(async () => {
-      if (isEdit && isRecurring) {
-        // Une fréquence a été choisie sur une dépense ponctuelle → conversion
-        await convertExpenseToRecurring(expense.id, frequency, { ...shared, date: new Date(`${date}T00:00:00`) })
-      } else if (isEdit) {
-        await updateExpense(expense.id, { ...shared, date: new Date(`${date}T00:00:00`) })
-      } else if (isRecurring) {
-        await createRecurringExpense({
-          ...shared, frequency, dateToConfirm,
-          nextGenerationDate: new Date(`${date || toDateInput(new Date())}T00:00:00`),
-        })
-      } else {
-        await createExpense({ ...shared, date: new Date(`${date}T00:00:00`) })
+      try {
+        if (isEdit && isRecurring) {
+          // Une fréquence a été choisie sur une dépense ponctuelle → conversion
+          await convertExpenseToRecurring(expense.id, frequency, { ...shared, date: new Date(`${date}T00:00:00`) })
+        } else if (isEdit) {
+          await updateExpense(expense.id, { ...shared, date: new Date(`${date}T00:00:00`) })
+        } else if (isRecurring) {
+          await createRecurringExpense({
+            ...shared, frequency, dateToConfirm,
+            nextGenerationDate: new Date(`${date || toDateInput(new Date())}T00:00:00`),
+          })
+        } else {
+          await createExpense({ ...shared, date: new Date(`${date}T00:00:00`) })
+        }
+        if (!isEdit) resetForm()
+        setOpen(false)
+        router.refresh()
+      } catch {
+        toast.error("Échec de l'enregistrement")
       }
-      if (!isEdit) resetForm()
-      setOpen(false)
-      router.refresh()
     })
   }
 
   function handleDelete() {
     if (!expense) return
     startDelete(async () => {
-      await deleteExpense(expense.id)
-      setOpen(false)
-      router.refresh()
+      try {
+        await deleteExpense(expense.id)
+        setOpen(false)
+        router.refresh()
+      } catch {
+        toast.error("Échec de la suppression")
+      }
     })
   }
 

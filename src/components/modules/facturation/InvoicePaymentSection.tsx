@@ -6,6 +6,7 @@ import { Plus, Trash2, CheckCircle2 } from "lucide-react"
 import { recordPayment, deletePayment } from "@/actions/facturation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { toast } from "sonner"
 
 type Payment = {
   id: string
@@ -57,15 +58,23 @@ export function InvoicePaymentSection({
     const amt = parseFloat(amount)
     if (!amt || !paidAt) return
     startTransition(async () => {
-      await recordPayment(invoiceId, userId, { amount: amt, paidAt, note: note || undefined })
-      setShowForm(false)
+      try {
+        await recordPayment(invoiceId, userId, { amount: amt, paidAt, note: note || undefined })
+        setShowForm(false)
+      } catch {
+        toast.error("Échec de l'enregistrement")
+      }
     })
   }
 
   function handleDelete(paymentId: string) {
     startTransition(async () => {
-      await deletePayment(paymentId, invoiceId, userId)
-      setConfirmDelete(null)
+      try {
+        await deletePayment(paymentId, invoiceId, userId)
+        setConfirmDelete(null)
+      } catch {
+        toast.error("Échec de la suppression")
+      }
     })
   }
 

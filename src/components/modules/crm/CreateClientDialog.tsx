@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { createClient, createCompany } from "@/actions/crm"
 import { CompanyCombobox } from "./CompanyCombobox"
+import { toast } from "sonner"
 
 export function CreateClientDialog({
   userId,
@@ -75,26 +76,30 @@ export function CreateClientDialog({
     e.preventDefault()
     const fd = new FormData(e.currentTarget)
     startTransition(async () => {
-      const client = await createClient(userId, {
-        label: (fd.get("label") as string) || undefined,
-        firstName: (fd.get("firstName") as string) || undefined,
-        lastName: (fd.get("lastName") as string) || undefined,
-        companyId: company.id || undefined,
-        companyName: company.name.trim() || undefined,
-        email: (fd.get("email") as string) || undefined,
-        phone: (fd.get("phone") as string) || undefined,
-        jobTitle: (fd.get("jobTitle") as string) || undefined,
-        type: (fd.get("type") as string) || undefined,
-        source: (fd.get("source") as string) || undefined,
-        notes: (fd.get("notes") as string) || undefined,
-        address: (fd.get("address") as string) || undefined,
-        postalCode: (fd.get("postalCode") as string) || undefined,
-        city: (fd.get("city") as string) || undefined,
-        country: (fd.get("country") as string) || undefined,
-        siret: (fd.get("siret") as string) || undefined,
-      })
-      handleOpenChange(false)
-      router.push(`/contacts/${client.id}`)
+      try {
+        const client = await createClient(userId, {
+          label: (fd.get("label") as string) || undefined,
+          firstName: (fd.get("firstName") as string) || undefined,
+          lastName: (fd.get("lastName") as string) || undefined,
+          companyId: company.id || undefined,
+          companyName: company.name.trim() || undefined,
+          email: (fd.get("email") as string) || undefined,
+          phone: (fd.get("phone") as string) || undefined,
+          jobTitle: (fd.get("jobTitle") as string) || undefined,
+          type: (fd.get("type") as string) || undefined,
+          source: (fd.get("source") as string) || undefined,
+          notes: (fd.get("notes") as string) || undefined,
+          address: (fd.get("address") as string) || undefined,
+          postalCode: (fd.get("postalCode") as string) || undefined,
+          city: (fd.get("city") as string) || undefined,
+          country: (fd.get("country") as string) || undefined,
+          siret: (fd.get("siret") as string) || undefined,
+        })
+        handleOpenChange(false)
+        router.push(`/contacts/${client.id}`)
+      } catch {
+        toast.error("Échec de l'enregistrement")
+      }
     })
   }
 

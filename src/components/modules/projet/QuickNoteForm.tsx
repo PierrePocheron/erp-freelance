@@ -1,4 +1,5 @@
 "use client"
+import { toast } from "sonner"
 
 import { useRef } from "react"
 import { Button } from "@/components/ui/button"
@@ -30,7 +31,7 @@ export function QuickNoteForm({ action }: { action: (fd: FormData) => Promise<vo
       if (textareaRef.current) {
         textareaRef.current.style.height = "auto"
       }
-    })
+    }, () => toast.error("Échec de l'enregistrement de la note"))
   }
 
   return (

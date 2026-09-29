@@ -10,6 +10,7 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger,
 } from "@/components/ui/dialog"
 import { createMilestone, updateMilestone, deleteMilestone } from "@/actions/projet"
+import { toast } from "sonner"
 
 export const MILESTONE_TYPE_LABELS: Record<string, string> = {
   DEADLINE: "Échéance",
@@ -78,22 +79,30 @@ export function MilestoneDialog({ projectId, milestone }: { projectId: string; m
     }
 
     startTransition(async () => {
-      if (isEdit) {
-        await updateMilestone(milestone.id, projectId, { name: name.trim(), date: dateObj, endDate: endDateObj, type })
-      } else {
-        await createMilestone(projectId, { name: name.trim(), date: dateObj, endDate: endDateObj, type })
+      try {
+        if (isEdit) {
+          await updateMilestone(milestone.id, projectId, { name: name.trim(), date: dateObj, endDate: endDateObj, type })
+        } else {
+          await createMilestone(projectId, { name: name.trim(), date: dateObj, endDate: endDateObj, type })
+        }
+        setOpen(false)
+        router.refresh()
+      } catch {
+        toast.error("Échec de l'enregistrement")
       }
-      setOpen(false)
-      router.refresh()
     })
   }
 
   function handleDelete() {
     if (!milestone) return
     startDelete(async () => {
-      await deleteMilestone(milestone.id, projectId)
-      setOpen(false)
-      router.refresh()
+      try {
+        await deleteMilestone(milestone.id, projectId)
+        setOpen(false)
+        router.refresh()
+      } catch {
+        toast.error("Échec de la suppression")
+      }
     })
   }
 

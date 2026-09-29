@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/dialog"
 import { createQuoteWithLines } from "@/actions/facturation"
 import { ClientCombobox } from "./ClientCombobox"
+import { toast } from "sonner"
 
 type Company = { id: string; name: string; city: string | null }
 type Client = { id: string; name: string; company: string | null; type: string; companyId: string | null }
@@ -409,24 +410,28 @@ export function CreateQuoteDialog({
     if (!selectedClientId) return
     const fd = new FormData(e.currentTarget)
     startTransition(async () => {
-      const quote = await createQuoteWithLines(userId, {
-        clientId: selectedClientId,
-        projectId: (fd.get("projectId") as string) || undefined,
-        depositPercent: parseFloat(depositPercent) || 0,
-        expiresAtDays: parseFloat(expiresAtDays) > 0 ? parseFloat(expiresAtDays) : undefined,
-        generalConditions: generalConditions || undefined,
-        lines: draftLines.map((l) => ({
-          productId: l.productId,
-          description: l.description,
-          detail: l.detail || undefined,
-          quantity: l.quantity,
-          unitPrice: l.unitPrice,
-          taxRate: l.taxRate,
-          billingType: l.billingType,
-        })),
-      })
-      handleOpenChange(false)
-      router.push(`/facturation/devis/${quote.id}`)
+      try {
+        const quote = await createQuoteWithLines(userId, {
+          clientId: selectedClientId,
+          projectId: (fd.get("projectId") as string) || undefined,
+          depositPercent: parseFloat(depositPercent) || 0,
+          expiresAtDays: parseFloat(expiresAtDays) > 0 ? parseFloat(expiresAtDays) : undefined,
+          generalConditions: generalConditions || undefined,
+          lines: draftLines.map((l) => ({
+            productId: l.productId,
+            description: l.description,
+            detail: l.detail || undefined,
+            quantity: l.quantity,
+            unitPrice: l.unitPrice,
+            taxRate: l.taxRate,
+            billingType: l.billingType,
+          })),
+        })
+        handleOpenChange(false)
+        router.push(`/facturation/devis/${quote.id}`)
+      } catch {
+        toast.error("Échec de l'enregistrement")
+      }
     })
   }
 

@@ -24,6 +24,7 @@ import { residualTemplateVars, isValidEmailAddress } from "@/lib/email-template"
 import { gmailComposeUrl, copyEmailBody } from "@/lib/gmail"
 import { WEBSITE_TYPE_CONFIG } from "./status-config"
 import type { WebsiteType } from "@/generated/prisma/enums"
+import { errorMessage } from "@/lib/error-message"
 
 export type DraftItem = {
   id: string
@@ -92,7 +93,7 @@ export function EmailDraftsView({
         setConfirmOpen(false)
         router.refresh()
       } catch (e) {
-        toast.error(e instanceof Error ? e.message : "Erreur lors de l'envoi")
+        toast.error(errorMessage(e, "Erreur lors de l'envoi"))
       }
     })
   }
@@ -352,7 +353,7 @@ function DraftCard({ draft, open, onToggle, onChanged }: { draft: DraftItem; ope
         if (successMsg) toast.success(successMsg)
         onChanged()
       } catch (e) {
-        toast.error(e instanceof Error ? e.message : "Erreur")
+        toast.error(errorMessage(e, "Erreur"))
       }
     })
   }

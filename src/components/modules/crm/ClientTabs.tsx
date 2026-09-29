@@ -9,6 +9,7 @@ const tabs = [
   { label: "Interactions", suffix: "/interactions" },
   { label: "Rappels", suffix: "/rappels" },
   { label: "Projets", suffix: "/projets" },
+  { label: "Fichiers", suffix: "/fichiers" },
 ]
 
 export function ClientTabs({ clientId }: { clientId: string }) {

@@ -68,6 +68,7 @@ type RecurringRevenue = {
   companyId: string | null
   clientId: string | null
   projectId: string | null
+  fiscalSourceId?: string | null
   createdAt: string
   updatedAt: string
   _count: { revenues: number }
@@ -396,6 +397,7 @@ function RecurringForm({
   companies = [],
   clients = [],
   projects = [],
+  fiscalSources = [],
   initial,
   onClose,
   onSave,
@@ -405,6 +407,7 @@ function RecurringForm({
   companies?: Company[]
   clients?: Client[]
   projects?: Project[]
+  fiscalSources?: FiscalSource[]
   initial?: Partial<RecurringRevenue>
   onClose: () => void
   onSave: () => void
@@ -418,6 +421,7 @@ function RecurringForm({
   const [companyId,     setCompanyId]     = useState(initial?.companyId ?? "")
   const [clientId,      setClientId]      = useState(initial?.clientId ?? "")
   const [projectId,     setProjectId]     = useState(initial?.projectId ?? "")
+  const [fiscalSourceId, setFiscalSourceId] = useState(initial?.fiscalSourceId ?? "")
   const [error,         setError]         = useState("")
   const [isPending,     start]            = useTransition()
 
@@ -444,6 +448,7 @@ function RecurringForm({
         companyId: companyId || null,
         clientId: clientId || null,
         projectId: projectId || null,
+        fiscalSourceId: fiscalSourceId || null,
       }
       let res: { error?: string }
       if (initial?.id) {
@@ -478,6 +483,20 @@ function RecurringForm({
             ))}
           </select>
         </div>
+        {/* Sans source fiscale, un récurrent comptait 0 € au récapitulatif et n'était jamais proposé à l'URSSAF (#37) */}
+        {fiscalSources.length > 0 && (
+          <div className="space-y-1 sm:col-span-2">
+            <label className="text-xs font-medium text-muted-foreground">Source fiscale</label>
+            <select
+              value={fiscalSourceId}
+              onChange={e => setFiscalSourceId(e.target.value)}
+              className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+            >
+              <option value="">— Aucune —</option>
+              {fiscalSources.map(fs => <option key={fs.id} value={fs.id}>{fs.name}</option>)}
+            </select>
+          </div>
+        )}
         <div className="space-y-1">
           <label className="text-xs font-medium text-muted-foreground">Jour du mois</label>
           <Input
@@ -1288,6 +1307,7 @@ export function RevenueManager({
               companies={companies}
               clients={clients}
               projects={projects}
+              fiscalSources={fiscalSources}
               onClose={() => setShowRecurringForm(false)}
               onSave={() => { setShowRecurringForm(false); refresh() }}
             />
@@ -1300,6 +1320,7 @@ export function RevenueManager({
               companies={companies}
               clients={clients}
               projects={projects}
+              fiscalSources={fiscalSources}
               initial={editRecurring}
               onClose={() => setEditRecurring(null)}
               onSave={() => { setEditRecurring(null); refresh() }}

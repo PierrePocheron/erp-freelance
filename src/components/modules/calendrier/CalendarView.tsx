@@ -223,14 +223,6 @@ function layoutSpansForDays(events: CalendarEvent[], days: Date[]): { spans: Day
   return { spans, lanes: laneLastCol.length }
 }
 
-function loadBg(count: number): string {
-  if (count === 0) return ""
-  if (count === 1) return "bg-emerald-500/8"
-  if (count === 2) return "bg-amber-500/10"
-  if (count <= 4)  return "bg-orange-500/12"
-  return "bg-red-500/12"
-}
-
 function isTimedEvent(ev: CalendarEvent): boolean {
   if (ev.allDay === true) return false
   if (ev.allDay === false) return true
@@ -1722,7 +1714,7 @@ function MonthView({
               // milieu quand la case était vide et remontait selon le nombre d'événements.
               className={cn(
                 "flex flex-col items-stretch justify-start border-b border-r border-border/30 p-1 text-left transition-colors hover:bg-muted/30 min-w-0 overflow-hidden",
-                isWeekend ? "bg-muted/10" : loadBg(dayEvents.length),
+                isWeekend && "bg-muted/10",
                 i % 7 === 6 && "border-r-0",
                 isSelected && "ring-1 ring-inset ring-primary/40 bg-primary/5",
                 isDragOver && "ring-2 ring-inset ring-blue-400/70 bg-blue-50/10",

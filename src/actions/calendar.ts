@@ -21,7 +21,8 @@ import {
 } from "@/lib/google-calendar"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
-// Types locaux jusqu'à ce que `npx prisma generate` soit relancé (Node 20+)
+// Formes renvoyées au client (le calendrier est entièrement sur le client Prisma typé, #25 :
+// l'ancien SQL brut était le seul endroit où renommer une colonne passait le typage).
 
 export type CalendarCategory = {
   id: string
@@ -50,6 +51,15 @@ export type CalendarEventFull = {
   category: CalendarCategory | null
 }
 
+const CATEGORY_SELECT = { id: true, userId: true, name: true, color: true, isDefault: true, createdAt: true } as const
+const EVENT_SELECT = {
+  id: true, userId: true, title: true, description: true,
+  startDate: true, endDate: true, allDay: true,
+  sourceType: true, sourceId: true, categoryId: true, projectId: true, clientId: true,
+  createdAt: true, updatedAt: true,
+  category: { select: CATEGORY_SELECT },
+} as const
+
 // ─── Catégories par défaut ────────────────────────────────────────────────────
 
 const DEFAULT_CATEGORIES = [
@@ -63,38 +73,21 @@ const DEFAULT_CATEGORIES = [
 /**
  * Récupère les catégories de l'utilisateur.
  * Si aucune n'existe, crée les 5 catégories par défaut automatiquement.
- *
- * Note : utilise $queryRaw / $executeRaw car le model CalendarCategory
- * n'est pas encore dans le client généré (besoin de `npx prisma generate`).
  */
 export async function getOrCreateDefaultCategories(): Promise<CalendarCategory[]> {
   const userId = await requireAuth()
 
-  const existing = await prisma.$queryRaw<CalendarCategory[]>`
-    SELECT id, "userId", name, color, "isDefault", "createdAt"
-    FROM "CalendarCategory"
-    WHERE "userId" = ${userId}
-    ORDER BY "createdAt" ASC
-  `
-
+  const existing = await prisma.calendarCategory.findMany({
+    where: { userId }, orderBy: { createdAt: "asc" }, select: CATEGORY_SELECT,
+  })
   if (existing.length > 0) return existing
 
-  // Création automatique des catégories par défaut
+  // Une à une (horodatages distincts → ordre stable), sans erreur si un rendu parallèle
+  // les a déjà créées (@@unique([userId, name])).
   for (const cat of DEFAULT_CATEGORIES) {
-    const id = crypto.randomUUID()
-    await prisma.$executeRaw`
-      INSERT INTO "CalendarCategory" (id, "userId", name, color, "isDefault", "createdAt")
-      VALUES (${id}, ${userId}, ${cat.name}, ${cat.color}, ${cat.isDefault}, NOW())
-      ON CONFLICT ("userId", name) DO NOTHING
-    `
+    await prisma.calendarCategory.createMany({ data: [{ userId, ...cat }], skipDuplicates: true })
   }
-
-  return prisma.$queryRaw<CalendarCategory[]>`
-    SELECT id, "userId", name, color, "isDefault", "createdAt"
-    FROM "CalendarCategory"
-    WHERE "userId" = ${userId}
-    ORDER BY "createdAt" ASC
-  `
+  return prisma.calendarCategory.findMany({ where: { userId }, orderBy: { createdAt: "asc" }, select: CATEGORY_SELECT })
 }
 
 /**
@@ -109,16 +102,10 @@ export async function createCalendarCategory(data: {
   if (!data.name.trim()) return { error: "Le nom est requis" }
 
   try {
-    const id = crypto.randomUUID()
-    await prisma.$executeRaw`
-      INSERT INTO "CalendarCategory" (id, "userId", name, color, "isDefault", "createdAt")
-      VALUES (${id}, ${userId}, ${data.name.trim()}, ${data.color}, false, NOW())
-    `
-    const [category] = await prisma.$queryRaw<CalendarCategory[]>`
-      SELECT id, "userId", name, color, "isDefault", "createdAt"
-      FROM "CalendarCategory"
-      WHERE id = ${id}
-    `
+    const category = await prisma.calendarCategory.create({
+      data: { userId, name: data.name.trim(), color: data.color, isDefault: false },
+      select: CATEGORY_SELECT,
+    })
     revalidatePath("/calendrier")
     return { category }
   } catch {
@@ -132,16 +119,11 @@ export async function createCalendarCategory(data: {
 export async function deleteCalendarCategory(categoryId: string): Promise<void> {
   const userId = await requireAuth()
 
-  await prisma.$executeRaw`
-    DELETE FROM "CalendarCategory"
-    WHERE id = ${categoryId} AND "userId" = ${userId} AND "isDefault" = false
-  `
+  await prisma.calendarCategory.deleteMany({ where: { id: categoryId, userId, isDefault: false } })
   revalidatePath("/calendrier")
 }
 
 // ─── Événements calendrier ────────────────────────────────────────────────────
-// Note : calendarEvent existe dans l'ancien client MAIS categoryId et la
-// relation category sont nouveaux → on utilise du SQL brut pour ces champs.
 
 /**
  * Récupère les événements avec leur catégorie sur une période.
@@ -155,27 +137,11 @@ export async function getCalendarEvents(params?: {
   const from = params?.from ?? new Date(0)
   const to   = params?.to   ?? new Date("2099-12-31")
 
-  return prisma.$queryRaw<CalendarEventFull[]>`
-    SELECT
-      e.id, e."userId", e.title, e.description,
-      e."startDate", e."endDate", e."allDay",
-      e."sourceType", e."sourceId", e."categoryId",
-      e."projectId", e."clientId",
-      e."createdAt", e."updatedAt",
-      CASE WHEN c.id IS NOT NULL THEN
-        jsonb_build_object(
-          'id', c.id, 'userId', c."userId",
-          'name', c.name, 'color', c.color,
-          'isDefault', c."isDefault", 'createdAt', c."createdAt"
-        )
-      ELSE NULL END AS category
-    FROM "CalendarEvent" e
-    LEFT JOIN "CalendarCategory" c ON c.id = e."categoryId"
-    WHERE e."userId" = ${userId}
-      AND e."startDate" >= ${from}
-      AND e."startDate" <= ${to}
-    ORDER BY e."startDate" ASC
-  `
+  return prisma.calendarEvent.findMany({
+    where: { userId, startDate: { gte: from, lte: to } },
+    orderBy: { startDate: "asc" },
+    select: EVENT_SELECT,
+  })
 }
 
 /**
@@ -201,45 +167,22 @@ export async function createCalendarEvent(data: {
     return { error: e instanceof Error ? e.message : "Référence invalide" }
   }
 
-  const id          = crypto.randomUUID()
-  const now         = new Date()
-  const categoryId  = data.categoryId ?? null
-  const endDate     = data.endDate    ?? null
-  const allDay      = data.allDay     ?? false
-  const description = data.description ?? null
-  const projectId   = data.projectId  ?? null
-  const clientId    = data.clientId   ?? null
-
-  await prisma.$executeRaw`
-    INSERT INTO "CalendarEvent"
-      (id, "userId", title, description, "startDate", "endDate", "allDay",
-       "sourceType", "categoryId", "projectId", "clientId", "createdAt", "updatedAt")
-    VALUES (
-      ${id}, ${userId}, ${data.title.trim()}, ${description},
-      ${data.startDate}, ${endDate}, ${allDay},
-      'MANUAL', ${categoryId}, ${projectId}, ${clientId}, ${now}, ${now}
-    )
-  `
-
-  const [event] = await prisma.$queryRaw<CalendarEventFull[]>`
-    SELECT
-      e.id, e."userId", e.title, e.description,
-      e."startDate", e."endDate", e."allDay",
-      e."sourceType", e."sourceId", e."categoryId",
-      e."projectId", e."clientId",
-      e."createdAt", e."updatedAt",
-      CASE WHEN c.id IS NOT NULL THEN
-        jsonb_build_object(
-          'id', c.id, 'userId', c."userId",
-          'name', c.name, 'color', c.color,
-          'isDefault', c."isDefault", 'createdAt', c."createdAt"
-        )
-      ELSE NULL END AS category
-    FROM "CalendarEvent" e
-    LEFT JOIN "CalendarCategory" c ON c.id = e."categoryId"
-    WHERE e.id = ${id}
-  `
-
+  const created = await prisma.calendarEvent.create({
+    data: {
+      userId,
+      title: data.title.trim(),
+      description: data.description ?? null,
+      startDate: data.startDate,
+      endDate: data.endDate ?? null,
+      allDay: data.allDay ?? false,
+      sourceType: "MANUAL",
+      categoryId: data.categoryId ?? null,
+      projectId: data.projectId ?? null,
+      clientId: data.clientId ?? null,
+    },
+    select: EVENT_SELECT,
+  })
+  const event: CalendarEventFull = created
   revalidatePath("/calendrier")
   return { event }
 }
@@ -265,7 +208,7 @@ export async function updateCalendarEvent(
 
   // Un seul UPDATE scopé au propriétaire (anti-IDOR) : Prisma ignore les champs
   // `undefined` (donc seuls les champs fournis sont écrits) et gère `updatedAt`
-  // automatiquement (@updatedAt). Remplace 8 $executeRaw séquentiels.
+  // automatiquement (@updatedAt).
   await prisma.calendarEvent.updateMany({
     where: { id: eventId, userId },
     data: {
@@ -289,10 +232,7 @@ export async function updateCalendarEvent(
 export async function deleteCalendarEvent(eventId: string): Promise<void> {
   const userId = await requireAuth()
 
-  await prisma.$executeRaw`
-    DELETE FROM "CalendarEvent"
-    WHERE id = ${eventId} AND "userId" = ${userId}
-  `
+  await prisma.calendarEvent.deleteMany({ where: { id: eventId, userId } })
 
   revalidatePath("/calendrier")
 }
@@ -303,16 +243,11 @@ export async function deleteCalendarEvent(eventId: string): Promise<void> {
 export async function cancelCalendarEvent(eventId: string, reason?: string): Promise<void> {
   const userId = await requireAuth()
 
-  const rows = await prisma.$queryRaw<{ id: string }[]>`
-    SELECT id FROM "CalendarEvent" WHERE id = ${eventId} AND "userId" = ${userId} LIMIT 1
-  `
-  if (!rows[0]) throw new Error("Non autorisé")
-
-  await prisma.$executeRaw`
-    UPDATE "CalendarEvent"
-    SET "cancelledAt" = NOW(), outcome = ${reason?.trim() || null}, "updatedAt" = NOW()
-    WHERE id = ${eventId} AND "userId" = ${userId}
-  `
+  const { count } = await prisma.calendarEvent.updateMany({
+    where: { id: eventId, userId },
+    data: { cancelledAt: new Date(), outcome: reason?.trim() || null },
+  })
+  if (count === 0) throw new Error("Non autorisé")
   revalidatePath("/calendrier")
 }
 
@@ -322,16 +257,11 @@ export async function cancelCalendarEvent(eventId: string, reason?: string): Pro
 export async function uncancelCalendarEvent(eventId: string): Promise<void> {
   const userId = await requireAuth()
 
-  const rows = await prisma.$queryRaw<{ id: string }[]>`
-    SELECT id FROM "CalendarEvent" WHERE id = ${eventId} AND "userId" = ${userId} LIMIT 1
-  `
-  if (!rows[0]) throw new Error("Non autorisé")
-
-  await prisma.$executeRaw`
-    UPDATE "CalendarEvent"
-    SET "cancelledAt" = NULL, "updatedAt" = NOW()
-    WHERE id = ${eventId} AND "userId" = ${userId}
-  `
+  const { count } = await prisma.calendarEvent.updateMany({
+    where: { id: eventId, userId },
+    data: { cancelledAt: null },
+  })
+  if (count === 0) throw new Error("Non autorisé")
   revalidatePath("/calendrier")
 }
 
@@ -341,16 +271,11 @@ export async function uncancelCalendarEvent(eventId: string): Promise<void> {
 export async function setCalendarEventOutcome(eventId: string, outcome: string): Promise<void> {
   const userId = await requireAuth()
 
-  const rows = await prisma.$queryRaw<{ id: string }[]>`
-    SELECT id FROM "CalendarEvent" WHERE id = ${eventId} AND "userId" = ${userId} LIMIT 1
-  `
-  if (!rows[0]) throw new Error("Non autorisé")
-
-  await prisma.$executeRaw`
-    UPDATE "CalendarEvent"
-    SET outcome = ${outcome.trim() || null}, "cancelledAt" = NULL, "updatedAt" = NOW()
-    WHERE id = ${eventId} AND "userId" = ${userId}
-  `
+  const { count } = await prisma.calendarEvent.updateMany({
+    where: { id: eventId, userId },
+    data: { outcome: outcome.trim() || null, cancelledAt: null },
+  })
+  if (count === 0) throw new Error("Non autorisé")
   revalidatePath("/calendrier")
 }
 
@@ -375,23 +300,10 @@ async function pushEventToGoogle(userId: string, eventId: string): Promise<boole
     const accessToken = await getGoogleAccessToken(userId)
     if (!accessToken) return false
 
-    const rows = await prisma.$queryRaw<{
-      title: string
-      description: string | null
-      startDate: Date
-      endDate: Date | null
-      allDay: boolean
-      sourceType: string
-      sourceId: string | null
-      googleEventId: string | null
-    }[]>`
-      SELECT title, description, "startDate", "endDate", "allDay",
-             "sourceType", "sourceId", "googleEventId"
-      FROM "CalendarEvent"
-      WHERE id = ${eventId} AND "userId" = ${userId}
-      LIMIT 1
-    `
-    const ev = rows[0]
+    const ev = await prisma.calendarEvent.findFirst({
+      where: { id: eventId, userId },
+      select: { title: true, description: true, startDate: true, endDate: true, allDay: true, sourceType: true, sourceId: true, googleEventId: true },
+    })
     if (!ev) return true
 
     const end = ev.endDate ?? new Date(new Date(ev.startDate).getTime() + 30 * 60_000)
@@ -422,11 +334,10 @@ async function pushEventToGoogle(userId: string, eventId: string): Promise<boole
     )
 
     const syncedAt = updated ? new Date(updated) : new Date()
-    await prisma.$executeRaw`
-      UPDATE "CalendarEvent"
-      SET "googleEventId" = ${googleEventId}, "googleSyncedAt" = ${syncedAt}
-      WHERE id = ${eventId} AND "userId" = ${userId}
-    `
+    await prisma.calendarEvent.updateMany({
+      where: { id: eventId, userId },
+      data: { googleEventId, googleSyncedAt: syncedAt },
+    })
     return true
   } catch {
     // best-effort : on n'interrompt jamais l'action ERP
@@ -441,10 +352,8 @@ async function removeManualEventFromGoogle(userId: string, googleEventId: string
   try {
     const accessToken = await getGoogleAccessToken(userId)
     if (!accessToken) return
-    const rows = await prisma.$queryRaw<{ googleErpCalendarId: string | null }[]>`
-      SELECT "googleErpCalendarId" FROM "User" WHERE id = ${userId} LIMIT 1
-    `
-    const calendarId = rows[0]?.googleErpCalendarId
+    const user = await prisma.user.findUnique({ where: { id: userId }, select: { googleErpCalendarId: true } })
+    const calendarId = user?.googleErpCalendarId
     if (!calendarId) return
     await deleteGoogleEvent(accessToken, calendarId, googleEventId)
   } catch {
@@ -513,18 +422,22 @@ async function insertManualEvent(userId: string, data: {
   clientId: string | null
   sourceId?: string | null
 }) {
-  const id  = crypto.randomUUID()
-  const now = new Date()
-  await prisma.$executeRaw`
-    INSERT INTO "CalendarEvent"
-      (id, "userId", title, description, "startDate", "endDate", "allDay",
-       "sourceType", "sourceId", "categoryId", "projectId", "clientId", "createdAt", "updatedAt")
-    VALUES (
-      ${id}, ${userId}, ${data.title}, ${data.description},
-      ${data.startDate}, ${data.endDate}, ${data.allDay},
-      'MANUAL', ${data.sourceId ?? null}, ${data.categoryId}, ${data.projectId}, ${data.clientId}, ${now}, ${now}
-    )
-  `
+  const { id } = await prisma.calendarEvent.create({
+    data: {
+      userId,
+      title: data.title,
+      description: data.description,
+      startDate: data.startDate,
+      endDate: data.endDate,
+      allDay: data.allDay,
+      sourceType: "MANUAL",
+      sourceId: data.sourceId ?? null,
+      categoryId: data.categoryId,
+      projectId: data.projectId,
+      clientId: data.clientId,
+    },
+    select: { id: true },
+  })
   return id
 }
 
@@ -707,11 +620,10 @@ export async function moveCalendarItem(
         break
       }
       case "manual": {
-        await prisma.$executeRaw`
-          UPDATE "CalendarEvent"
-          SET "startDate" = ${newStart}, "endDate" = ${newEnd}, "allDay" = ${allDay}, "updatedAt" = NOW()
-          WHERE id = ${id} AND "userId" = ${userId}
-        `
+        await prisma.calendarEvent.updateMany({
+          where: { id, userId },
+          data: { startDate: newStart, endDate: newEnd, allDay },
+        })
         await pushEventToGoogle(userId, id)
         break
       }
@@ -1082,12 +994,10 @@ export async function syncGooglePush(): Promise<SyncResult> {
     const to = new Date()
     to.setMonth(to.getMonth() + 3)
 
-    const backlog = await prisma.$queryRaw<{ id: string }[]>`
-      SELECT id FROM "CalendarEvent"
-      WHERE "userId" = ${userId} AND "sourceType" = 'MANUAL'
-        AND "googleEventId" IS NULL
-        AND "startDate" >= ${pushFrom} AND "startDate" <= ${to}
-    `
+    const backlog = await prisma.calendarEvent.findMany({
+      where: { userId, sourceType: "MANUAL", googleEventId: null, startDate: { gte: pushFrom, lte: to } },
+      select: { id: true },
+    })
     let synced = 0
     let failed = 0
     for (const row of backlog) {

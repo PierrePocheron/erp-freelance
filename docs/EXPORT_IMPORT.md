@@ -20,23 +20,33 @@ Le fichier téléchargé s'appelle `erp-export-YYYY-MM-DD.json`.
 
 ### Ce qui est exporté
 
-```
-✅ Profil professionnel        ✅ Clients & interactions
-✅ Projets & jalons             ✅ Tâches & sous-tâches
-✅ Devis & lignes               ✅ Factures & paiements
-✅ Produits & conditions        ✅ Entrées de temps
-✅ Calendrier                   ✅ Post-dev & renouvellements
-✅ Tags & idées projets         ✅ Journal de bord
+**Tous les modules** (format 0.2.0) : profil et émetteurs, contacts, sociétés et organigramme,
+prospection (historique, notes, modèles, brouillons), projets, tâches, temps, frise, technos,
+devis, factures, paiements, factures récurrentes, journal des mails, calendrier, revenus
+(et récurrents, sources fiscales), dépenses (et récurrentes, catégories), déclarations URSSAF,
+santé, entretiens, compétences et questions, investissements.
 
-❌ Tokens OAuth & sessions      (inutiles dans un autre env)
-❌ Logs email & notifications   (données transientes)
+L'inventaire exact est `src/lib/backup-models.ts` — un test échoue si un modèle du schéma n'y est
+ni sauvegardé ni explicitement exclu.
+
 ```
+❌ Comptes, jetons OAuth, sessions     (propres à l'installation)
+❌ Notifications, abonnements push     (éphémères / propres à l'appareil)
+❌ Historique de monitoring            (régénéré par le cron)
+```
+
+### Restauration : tout ou rien
+
+L'import tourne dans **une seule transaction** : si une section échoue (fichier abîmé, valeur
+invalide), rien n'est écrit. Chaque référence (contact, projet, catégorie, source fiscale…) n'est
+conservée que si elle appartient à ton compte — un fichier forgé ne peut pas pointer vers les
+données d'un autre compte.
 
 ### Format du fichier
 
 ```json
 {
-  "version": "0.1.0",
+  "version": "0.2.0",
   "exportedAt": "2026-05-21T10:30:00Z",
   "stats": {
     "clients": 12,
@@ -95,7 +105,7 @@ npx tsx scripts/import.ts ./erp-export-2026-05-21.json
   📦  ERP Freelance — Import des données
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   📅  Export du   : 2026-05-21T10:30:00Z
-  🏷️   Version    : 0.1.0
+  🏷️   Version    : 0.2.0
   📊  Contenu    : 12 clients · 8 projets · 23 factures
 
   👤  Utilisateur : pierre@example.com

@@ -10,7 +10,7 @@ import { FacturationQuickActions } from "@/components/modules/facturation/Factur
 const faNumber = (n: string) => (/^fa/i.test(n.trim()) ? n : `FA${n}`)
 const fmtEur = (n: number) =>
   n.toLocaleString("fr-FR", { minimumFractionDigits: Number.isInteger(n) ? 0 : 2, maximumFractionDigits: 2 })
-const fmtDay = (d: Date | string) => new Date(d).toLocaleDateString("fr-FR")
+const fmtDay = (d: Date | string) => new Date(d).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris" })
 // Montant réglé d'une facture : somme des versements, sinon le net si soldée
 const invoicePaid = (inv: { status: string; totalHT: number; depositDeducted: number; payments: { amount: number }[] }) => {
   const net = inv.totalHT - inv.depositDeducted

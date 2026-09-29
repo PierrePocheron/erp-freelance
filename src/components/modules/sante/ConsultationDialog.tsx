@@ -1,5 +1,6 @@
 "use client"
 
+import { zonedDateKey } from "@/lib/dates"
 import { useState, useTransition } from "react"
 import { X, Trash2 } from "lucide-react"
 import { toast } from "sonner"
@@ -10,7 +11,7 @@ import type { HConsultation, HEvent } from "./HealthView"
 import type { PractitionerType } from "@/generated/prisma/enums"
 
 const toISO = (d: Date | string | null | undefined) =>
-  d ? new Date(d).toISOString().split("T")[0] : ""
+  d ? zonedDateKey(new Date(d)) : ""
 
 const PRACTITIONER_TYPES: PractitionerType[] = [
   "GENERAL", "OSTEOPATH", "SPECIALIST", "SOS_MEDECIN", "NURSE", "PHYSIO", "DENTIST", "OTHER",

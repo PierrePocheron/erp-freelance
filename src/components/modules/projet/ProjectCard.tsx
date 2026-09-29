@@ -108,8 +108,7 @@ export function ProjectCard({ project, showBilling = false }: Props) {
           {project.endDate && (
             <span className="flex items-center gap-1">
               <Calendar className="h-3 w-3" />
-              {new Date(project.endDate).toLocaleDateString("fr-FR", {
-                day: "numeric",
+              {new Date(project.endDate).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris", day: "numeric",
                 month: "short",
                 year: "numeric",
               })}

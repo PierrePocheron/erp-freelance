@@ -1,5 +1,6 @@
 "use client"
 
+import { zonedDateKey } from "@/lib/dates"
 import { useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
 import {
@@ -42,7 +43,7 @@ export function ExportSection({ stats }: Props) {
       const url = URL.createObjectURL(blob)
       const a = document.createElement("a")
       a.href = url
-      const date = new Date().toISOString().slice(0, 10)
+      const date = zonedDateKey(new Date())
       a.download = `erp-export-${date}.json`
       document.body.appendChild(a)
       a.click()
@@ -65,7 +66,7 @@ export function ExportSection({ stats }: Props) {
       const url = URL.createObjectURL(blob)
       const a = document.createElement("a")
       a.href = url
-      const date = new Date().toISOString().slice(0, 10)
+      const date = zonedDateKey(new Date())
       a.download = `erp-archive-${date}.zip`
       document.body.appendChild(a)
       a.click()

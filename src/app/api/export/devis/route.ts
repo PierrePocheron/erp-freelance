@@ -37,9 +37,9 @@ export async function GET() {
     q.project?.name ?? "",
     q.totalHT.toFixed(2),
     q.depositPercent.toString(),
-    new Date(q.createdAt).toLocaleDateString("fr-FR"),
-    q.sentAt ? new Date(q.sentAt).toLocaleDateString("fr-FR") : "",
-    q.acceptedAt ? new Date(q.acceptedAt).toLocaleDateString("fr-FR") : "",
+    new Date(q.createdAt).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris" }),
+    q.sentAt ? new Date(q.sentAt).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris" }) : "",
+    q.acceptedAt ? new Date(q.acceptedAt).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris" }) : "",
   ])
 
   const csv = [header, ...rows]

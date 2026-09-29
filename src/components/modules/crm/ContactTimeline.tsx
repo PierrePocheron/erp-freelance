@@ -41,8 +41,8 @@ const CHANNEL_LABEL: Record<string, string> = {
 }
 
 const fmt = (d: Date | string) =>
-  new Date(d).toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "2-digit" }) +
-  " · " + new Date(d).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })
+  new Date(d).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris", day: "numeric", month: "short", year: "2-digit" }) +
+  " · " + new Date(d).toLocaleTimeString("fr-FR", { timeZone: "Europe/Paris", hour: "2-digit", minute: "2-digit" })
 
 type Item =
   | { type: "event"; date: Date; ev: TimelineEvent }

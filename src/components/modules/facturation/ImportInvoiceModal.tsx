@@ -1,5 +1,6 @@
 "use client"
 
+import { zonedDateKey } from "@/lib/dates"
 import { useId, useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
 import { Upload, X, Check, RefreshCw } from "lucide-react"
@@ -30,7 +31,7 @@ export function ImportInvoiceModal({
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
 
-  const today = new Date().toISOString().slice(0, 10)
+  const today = zonedDateKey(new Date())
 
   // ── form state ────────────────────────────────────────────────────────────
   const [clientId,      setClientId]      = useState("")

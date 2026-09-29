@@ -67,7 +67,7 @@ function fmt(n: number) {
 }
 
 function fmtDate(iso: string) {
-  return new Date(iso).toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" })
+  return new Date(iso).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris", day: "numeric", month: "short", year: "numeric" })
 }
 
 function periodToMonthIndex(period: string): number {

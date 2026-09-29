@@ -112,8 +112,7 @@ export default async function ProjectPostDevPage({
                     {lastCheck.isUp ? "Site en ligne" : "Site hors ligne"}
                   </p>
                   <p className="text-xs text-muted-foreground">
-                    Vérifié le {new Date(lastCheck.checkedAt).toLocaleDateString("fr-FR", {
-                      day: "numeric", month: "short", hour: "2-digit", minute: "2-digit"
+                    Vérifié le {new Date(lastCheck.checkedAt).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit"
                     })}
                     {lastCheck.responseTimeMs && ` · ${lastCheck.responseTimeMs}ms`}
                   </p>
@@ -131,7 +130,7 @@ export default async function ProjectPostDevPage({
                   {postDev.monitoringChecks.slice(0, 20).reverse().map((check) => (
                     <div
                       key={check.id}
-                      title={`${new Date(check.checkedAt).toLocaleString("fr-FR")} — ${check.isUp ? "OK" : "KO"}`}
+                      title={`${new Date(check.checkedAt).toLocaleString("fr-FR", { timeZone: "Europe/Paris" })} — ${check.isUp ? "OK" : "KO"}`}
                       className={`h-6 w-2 rounded-sm ${check.isUp ? "bg-emerald-500" : "bg-red-500"}`}
                     />
                   ))}
@@ -194,13 +193,13 @@ export default async function ProjectPostDevPage({
                           <span className="text-sm font-medium">{r.name}</span>
                         </div>
                         <p className={cn("text-xs mt-0.5", isExpired ? "text-red-500 font-medium" : isSoon ? "text-amber-600 font-medium" : "text-muted-foreground")}>
-                          Expire le {expires.toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" })}
+                          Expire le {expires.toLocaleDateString("fr-FR", { timeZone: "Europe/Paris", day: "numeric", month: "long", year: "numeric" })}
                           {isExpired && " · Expiré !"}
                           {isSoon && !isExpired && ` · Dans ${daysLeft} jour${daysLeft !== 1 ? "s" : ""}`}
                         </p>
                         {r.purchasedAt && (
                           <p className="text-xs mt-0.5 text-muted-foreground">
-                            Acheté le {new Date(r.purchasedAt).toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" })}
+                            Acheté le {new Date(r.purchasedAt).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris", day: "numeric", month: "long", year: "numeric" })}
                             {r.periodMonths ? ` · ${r.periodMonths < 12 ? `${r.periodMonths} mois` : `${r.periodMonths / 12} an${r.periodMonths / 12 > 1 ? "s" : ""}`}` : ""}
                             {r.amount ? <> · <span className="amount-sensitive">{`${r.amount.toLocaleString("fr-FR")} € HT`}</span></> : ""}
                           </p>

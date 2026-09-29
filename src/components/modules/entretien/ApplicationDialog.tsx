@@ -1,5 +1,6 @@
 "use client"
 
+import { zonedDateKey } from "@/lib/dates"
 import { useId, useState, useTransition } from "react"
 import { X, Trash2, FileCheck2 } from "lucide-react"
 import { toast } from "sonner"
@@ -28,7 +29,7 @@ export function ApplicationDialog({
   // Premier contact (création uniquement)
   const [initEventEnabled, setInitEventEnabled] = useState(false)
   const [initEventType, setInitEventType] = useState<JobEventType>("CALL")
-  const [initEventDate, setInitEventDate] = useState(() => new Date().toISOString().split("T")[0])
+  const [initEventDate, setInitEventDate] = useState(() => zonedDateKey(new Date()))
   const [initEventTitle, setInitEventTitle] = useState("")
   const [initEventNotes, setInitEventNotes] = useState("")
 

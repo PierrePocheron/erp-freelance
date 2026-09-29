@@ -1,5 +1,6 @@
 "use client"
 
+import { zonedDateKey } from "@/lib/dates"
 import { useState, useTransition, useMemo, useEffect, useId } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import Link from "next/link"
@@ -79,14 +80,13 @@ type RecurringRevenue = {
 
 function periodLabel(period: string): string {
   const [year, month] = period.split("-")
-  return new Date(Number(year), Number(month) - 1).toLocaleDateString("fr-FR", {
-    month: "long", year: "numeric",
+  return new Date(Number(year), Number(month) - 1).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris", month: "long", year: "numeric",
   })
 }
 
 function fmtDate(d: string | null): string {
   if (!d) return "—"
-  return new Date(d).toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" })
+  return new Date(d).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris", day: "numeric", month: "short", year: "numeric" })
 }
 
 function fmt(n: number): string {
@@ -606,7 +606,7 @@ export function RevenueManager({
   const [editRecurring,     setEditRecurring]      = useState<RecurringRevenue | null>(null)
   const [confirmDelete,     setConfirmDelete]      = useState<string | null>(null)
   const [selectedIds,       setSelectedIds]        = useState<Set<string>>(new Set())
-  const [bulkDate,          setBulkDate]           = useState(() => new Date().toISOString().slice(0, 10))
+  const [bulkDate,          setBulkDate]           = useState(() => zonedDateKey(new Date()))
   const [isBulking,         startBulk]             = useTransition()
   const [quickMarkingId,    setQuickMarkingId]     = useState<string | null>(null)
   const [expandedPeriods,   setExpandedPeriods]    = useState<Set<string>>(new Set([getCurrentPeriod()]))

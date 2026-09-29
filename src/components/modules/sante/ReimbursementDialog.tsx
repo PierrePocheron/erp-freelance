@@ -1,5 +1,6 @@
 "use client"
 
+import { zonedDateKey } from "@/lib/dates"
 import { useState, useTransition } from "react"
 import { X, Trash2 } from "lucide-react"
 import { toast } from "sonner"
@@ -9,10 +10,10 @@ import type { HReimbursement, HConsultation } from "./HealthView"
 import type { ReimbursementSource, ReimbursementStatus } from "@/generated/prisma/enums"
 
 const toISO = (d: Date | string | null | undefined) =>
-  d ? new Date(d).toISOString().split("T")[0] : ""
+  d ? zonedDateKey(new Date(d)) : ""
 
 const fmtShort = (d: Date | string) =>
-  new Date(d).toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" })
+  new Date(d).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris", day: "numeric", month: "short", year: "numeric" })
 
 export function ReimbursementDialog({
   item,

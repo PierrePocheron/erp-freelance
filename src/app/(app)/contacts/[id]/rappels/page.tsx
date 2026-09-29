@@ -1,3 +1,4 @@
+import { zonedDateKey } from "@/lib/dates"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { notFound } from "next/navigation"
@@ -26,7 +27,7 @@ export default async function ClientRappelsPage({
 
   const tomorrow = new Date()
   tomorrow.setDate(tomorrow.getDate() + 1)
-  const defaultDate = tomorrow.toISOString().split("T")[0]
+  const defaultDate = zonedDateKey(tomorrow)
 
   const pending = client.reminders.filter((r) => !r.isDone)
   const done = client.reminders.filter((r) => r.isDone)
@@ -83,7 +84,7 @@ export default async function ClientRappelsPage({
                       </form>
                       <div className="flex-1">
                         <p className={cn("text-sm font-medium", isLate && "text-red-500")}>
-                          {new Date(r.dueDate).toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" })}
+                          {new Date(r.dueDate).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris", weekday: "long", day: "numeric", month: "long" })}
                           {isLate && " — En retard"}
                         </p>
                         {r.note && <p className="text-xs text-muted-foreground">{r.note}</p>}
@@ -111,7 +112,7 @@ export default async function ClientRappelsPage({
                     </form>
                     <div className="flex-1">
                       <p className="text-sm line-through text-muted-foreground">
-                        {new Date(r.dueDate).toLocaleDateString("fr-FR", { day: "numeric", month: "long" })}
+                        {new Date(r.dueDate).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris", day: "numeric", month: "long" })}
                       </p>
                       {r.note && <p className="text-xs text-muted-foreground">{r.note}</p>}
                     </div>

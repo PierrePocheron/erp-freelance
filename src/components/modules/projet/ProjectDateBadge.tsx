@@ -1,5 +1,6 @@
 "use client"
 
+import { zonedDateKey } from "@/lib/dates"
 import { useState, useTransition, useRef } from "react"
 import { Calendar, Pencil, Check, X } from "lucide-react"
 import { updateProjectDates } from "@/actions/projet"
@@ -18,11 +19,11 @@ export function ProjectDateBadge({ projectId, field, value, label }: Props) {
   const inputRef = useRef<HTMLInputElement>(null)
 
   const formatted = value
-    ? new Date(value).toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" })
+    ? new Date(value).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris", day: "numeric", month: "short", year: "numeric" })
     : null
 
   const toInputValue = (d: Date | null) =>
-    d ? new Date(d).toISOString().split("T")[0] : ""
+    d ? zonedDateKey(new Date(d)) : ""
 
   function handleSave() {
     const val = inputRef.current?.value

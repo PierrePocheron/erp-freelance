@@ -1,5 +1,6 @@
 "use client"
 
+import { zonedDateKey } from "@/lib/dates"
 import { useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
 import { Plus } from "lucide-react"
@@ -18,7 +19,7 @@ export function AddTimeEntryDialog({ projectId, tasks }: { projectId: string; ta
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
   const [taskId, setTaskId] = useState(tasks[0]?.id ?? "")
-  const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10))
+  const [date, setDate] = useState(() => zonedDateKey(new Date()))
   const [startTime, setStartTime] = useState("09:00")
   const [endTime, setEndTime] = useState("10:00")
   const [note, setNote] = useState("")

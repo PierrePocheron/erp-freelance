@@ -1,3 +1,4 @@
+import { zonedDateKey } from "@/lib/dates"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { notFound } from "next/navigation"
@@ -104,9 +105,9 @@ export default async function FactureDetailPage({
             {invoice.quote && <> · Devis <Link href={`/facturation/devis/${invoice.quote.id}`} className="hover:text-primary font-mono">{invoice.quote.number}</Link></>}
           </p>
           <p className="text-xs text-muted-foreground">
-            Créée le {new Date(invoice.createdAt).toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" })} à {new Date(invoice.createdAt).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}
-            {invoice.sentAt && ` · Envoyée le ${new Date(invoice.sentAt).toLocaleDateString("fr-FR")}`}
-            {invoice.paidAt && ` · Payée le ${new Date(invoice.paidAt).toLocaleDateString("fr-FR")}`}
+            Créée le {new Date(invoice.createdAt).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris", day: "numeric", month: "long", year: "numeric" })} à {new Date(invoice.createdAt).toLocaleTimeString("fr-FR", { timeZone: "Europe/Paris", hour: "2-digit", minute: "2-digit" })}
+            {invoice.sentAt && ` · Envoyée le ${new Date(invoice.sentAt).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris" })}`}
+            {invoice.paidAt && ` · Payée le ${new Date(invoice.paidAt).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris" })}`}
           </p>
         </div>
 
@@ -290,7 +291,7 @@ export default async function FactureDetailPage({
               <Input
                 name="dueDate"
                 type="date"
-                defaultValue={invoice.dueDate ? new Date(invoice.dueDate).toISOString().split("T")[0] : ""}
+                defaultValue={invoice.dueDate ? zonedDateKey(new Date(invoice.dueDate)) : ""}
                 className="h-8 w-48"
               />
             </div>
@@ -310,7 +311,7 @@ export default async function FactureDetailPage({
           <div className="space-y-2 text-sm">
             <div className="flex gap-2">
               <span className="text-muted-foreground">Échéance :</span>
-              <span>{invoice.dueDate ? new Date(invoice.dueDate).toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" }) : "—"}</span>
+              <span>{invoice.dueDate ? new Date(invoice.dueDate).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris", day: "numeric", month: "long", year: "numeric" }) : "—"}</span>
             </div>
             {invoice.notes && <p className="text-muted-foreground whitespace-pre-wrap">{invoice.notes}</p>}
             <p className="text-xs text-muted-foreground italic">Facture figée — annulez-la pour la corriger.</p>
@@ -393,7 +394,7 @@ export default async function FactureDetailPage({
           <div className="space-y-1.5">
             {invoice.emailLogs.map((log) => (
               <div key={log.id} className="flex items-center gap-3 text-sm text-muted-foreground">
-                <span className="text-xs">{new Date(log.sentAt).toLocaleDateString("fr-FR", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</span>
+                <span className="text-xs">{new Date(log.sentAt).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</span>
                 <span>→ {log.to}</span>
                 <span className="text-xs">{log.subject}</span>
               </div>

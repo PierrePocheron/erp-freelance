@@ -1,20 +1,21 @@
+import { zonedDateKey } from "@/lib/dates"
 // Config partagée des statuts, événements et formatters date du module entretien.
 // Importable côté serveur et client (pas de directive).
 
 // ── Formatters date ────────────────────────────────────────────────────────────
 
 export const fmtShort = (d: Date | string) =>
-  new Date(d).toLocaleDateString("fr-FR", { day: "numeric", month: "short" })
+  new Date(d).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris", day: "numeric", month: "short" })
 
 export const fmtDate = (d: Date | string) =>
-  new Date(d).toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" })
+  new Date(d).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris", day: "numeric", month: "short", year: "numeric" })
 
 export const fmtDateTime = (d: Date | string) =>
-  new Date(d).toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })
+  new Date(d).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris", day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })
 
 // Valeur pour un <input type="date"> (YYYY-MM-DD) — chaîne vide si date absente.
 export const toDateInputValue = (d: Date | string | null | undefined) =>
-  d ? new Date(d).toISOString().split("T")[0] : ""
+  d ? zonedDateKey(new Date(d)) : ""
 
 export const STATUS_CONFIG = {
   WISHLIST:  { label: "Repéré",       short: "Repéré",     cls: "bg-slate-500/15 text-slate-600 border-slate-500/20 dark:text-slate-400", dot: "bg-slate-400",   color: "#94a3b8" },

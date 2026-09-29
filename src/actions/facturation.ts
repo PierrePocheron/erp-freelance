@@ -1156,7 +1156,7 @@ export async function resendQuoteEmail(quoteId: string, _userId: string) {
     html: `
       <p>Bonjour ${escapeHtml(quote.client.name)},</p>
       <p>Je me permets de vous relancer concernant le devis <strong>${quote.number}</strong> d'un montant de <strong>${quote.totalHT.toLocaleString("fr-FR")} €</strong> HT que je vous ai adressé.</p>
-      ${quote.expiresAt ? `<p>Ce devis est valable jusqu'au ${new Date(quote.expiresAt).toLocaleDateString("fr-FR")}.</p>` : ""}
+      ${quote.expiresAt ? `<p>Ce devis est valable jusqu'au ${new Date(quote.expiresAt).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris" })}.</p>` : ""}
       <p>Le devis est joint à ce message.</p>
       <p>Cordialement,<br>${escapeHtml(quote.user.name)}</p>
     `,
@@ -1190,7 +1190,7 @@ export async function sendQuoteEmail(quoteId: string, _userId: string) {
     html: `
       <p>Bonjour ${escapeHtml(quote.client.name)},</p>
       <p>Veuillez trouver ci-joint le devis <strong>${quote.number}</strong> d'un montant de <strong>${quote.totalHT.toLocaleString("fr-FR")} €</strong> HT.</p>
-      ${quote.expiresAt ? `<p>Ce devis est valable jusqu'au ${new Date(quote.expiresAt).toLocaleDateString("fr-FR")}.</p>` : ""}
+      ${quote.expiresAt ? `<p>Ce devis est valable jusqu'au ${new Date(quote.expiresAt).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris" })}.</p>` : ""}
 
       <p>Cordialement,<br>${escapeHtml(quote.user.name)}</p>
     `,

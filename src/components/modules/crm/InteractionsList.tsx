@@ -1,5 +1,6 @@
 "use client"
 
+import { zonedDateKey } from "@/lib/dates"
 import { useState, useTransition } from "react"
 import { Mail, Phone, Users, MessageSquare, Coffee, MoreHorizontal, Trash2, Pencil, X, Check, ExternalLink } from "lucide-react"
 import { toast } from "sonner"
@@ -44,7 +45,7 @@ export function InteractionsList({
 
   function startEdit(i: Interaction) {
     setEditingId(i.id)
-    setEditDate(new Date(i.date).toISOString().split("T")[0])
+    setEditDate(zonedDateKey(new Date(i.date)))
     setEditChannel(i.channel)
     setEditSummary(i.summary)
     setEditResponse(i.response ?? "")
@@ -165,8 +166,7 @@ export function InteractionsList({
                 </span>
                 <span className="text-sm font-medium">{ch.label}</span>
                 <span className="text-xs text-muted-foreground">
-                  {new Date(interaction.date).toLocaleDateString("fr-FR", {
-                    weekday: "short", day: "numeric", month: "long", year: "numeric",
+                  {new Date(interaction.date).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris", weekday: "short", day: "numeric", month: "long", year: "numeric",
                   })}
                 </span>
               </div>

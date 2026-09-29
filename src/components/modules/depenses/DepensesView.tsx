@@ -122,7 +122,7 @@ export function DepensesView({
   const monthStart = useMemo(() => new Date(viewYear, viewMonth1 - 1, 1), [viewYear, viewMonth1])
   const monthEnd = useMemo(() => new Date(viewYear, viewMonth1, 0, 23, 59, 59), [viewYear, viewMonth1])
   const isCurrentMonth = monthKey === currentKey
-  const monthLabel = monthStart.toLocaleDateString("fr-FR", { month: "long", year: "numeric" })
+  const monthLabel = monthStart.toLocaleDateString("fr-FR", { timeZone: "Europe/Paris", month: "long", year: "numeric" })
 
   const activeRecurring = recurringExpenses.filter((r) => r.isActive)
 
@@ -353,7 +353,7 @@ export function DepensesView({
                     </span>
                   )}
                   <span className="shrink-0 text-xs text-muted-foreground whitespace-nowrap">
-                    {new Date(row.e.date).toLocaleDateString("fr-FR", { day: "numeric", month: "short" })}
+                    {new Date(row.e.date).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris", day: "numeric", month: "short" })}
                   </span>
                   <span className="shrink-0 text-sm font-medium tabular-nums w-16 text-right amount-sensitive">{fmt(row.e.amount)} €</span>
                   {/* Colonne pause/reprise à largeur FIXE : présente sur toutes les
@@ -404,7 +404,7 @@ export function DepensesView({
                     {FREQUENCY_LABELS[row.r.frequency]}
                   </span>
                   <span className="shrink-0 text-xs text-muted-foreground whitespace-nowrap">
-                    {row.kind === "NODATE" ? "—" : row.date.toLocaleDateString("fr-FR", { day: "numeric", month: "short" })}
+                    {row.kind === "NODATE" ? "—" : row.date.toLocaleDateString("fr-FR", { timeZone: "Europe/Paris", day: "numeric", month: "short" })}
                   </span>
                   <span className="shrink-0 text-sm font-medium tabular-nums w-16 text-right amount-sensitive">{fmt(row.r.amount)} €</span>
                   <div className="w-4 shrink-0 flex justify-center">

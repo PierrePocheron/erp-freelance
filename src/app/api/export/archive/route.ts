@@ -1,3 +1,4 @@
+import { zonedDateKey } from "@/lib/dates"
 import { apiSession } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { exportAllData } from "@/actions/export"
@@ -88,7 +89,7 @@ export async function GET() {
   }
 
   const content = await zip.generateAsync({ type: "nodebuffer" })
-  const date = new Date().toISOString().slice(0, 10)
+  const date = zonedDateKey(new Date())
 
   return new Response(new Uint8Array(content), {
     headers: {

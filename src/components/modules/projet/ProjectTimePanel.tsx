@@ -187,8 +187,8 @@ export async function ProjectTimePanel({ projectId, userId }: { projectId: strin
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium truncate">{entry.taskTitle}</p>
                     <p className="text-xs text-muted-foreground">
-                      {new Date(entry.startedAt).toLocaleDateString("fr-FR", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
-                      {entry.endedAt && ` → ${new Date(entry.endedAt).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}`}
+                      {new Date(entry.startedAt).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
+                      {entry.endedAt && ` → ${new Date(entry.endedAt).toLocaleTimeString("fr-FR", { timeZone: "Europe/Paris", hour: "2-digit", minute: "2-digit" })}`}
                     </p>
                   </div>
                   <span className="text-sm font-medium tabular-nums">{fmtSeconds(entry.duration ?? 0)}</span>

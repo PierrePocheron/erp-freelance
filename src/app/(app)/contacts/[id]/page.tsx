@@ -156,7 +156,7 @@ export default async function ClientOverviewPage({
     .reduce((s, i) => s + i.totalHT - i.depositDeducted, 0)
 
   const fmt = (d: Date | string) =>
-    new Date(d).toLocaleDateString("fr-FR", { day: "numeric", month: "short" })
+    new Date(d).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris", day: "numeric", month: "short" })
 
   return (
     <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">

@@ -1,5 +1,6 @@
 "use client"
 
+import { zonedDateKey } from "@/lib/dates"
 import { useState, useTransition, useMemo } from "react"
 import { Plus, Pencil, Trash2, Power, PowerOff, RefreshCw, RefreshCwIcon, X, Zap } from "lucide-react"
 import { useSortState, cmp } from "@/hooks/use-sortable"
@@ -197,7 +198,7 @@ export function RecurrentesManager({
     setClientId(row.client.id)
     setName(row.name)
     setFrequency(row.frequency)
-    setNextDate(new Date(row.nextGenerationDate).toISOString().split("T")[0])
+    setNextDate(zonedDateKey(new Date(row.nextGenerationDate)))
     setProjectId(row.project?.id ?? "")
     setLines(row.lines.map((l) => ({ ...l, localId: crypto.randomUUID() })))
   }
@@ -279,7 +280,7 @@ export function RecurrentesManager({
                     {row.totalHT > 0 ? <span className="amount-sensitive">{fmtEur(row.totalHT)}</span> : <span className="text-muted-foreground">—</span>}
                   </td>
                   <td className="px-4 py-3 text-sm text-muted-foreground">
-                    {new Date(row.nextGenerationDate).toLocaleDateString("fr-FR")}
+                    {new Date(row.nextGenerationDate).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris" })}
                   </td>
                   <td className="px-4 py-3">
                     <span className={`rounded-full border px-2 py-0.5 text-xs font-medium whitespace-nowrap ${

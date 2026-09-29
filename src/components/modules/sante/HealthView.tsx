@@ -59,7 +59,7 @@ export const PRACTITIONER_LABELS: Record<string, string> = {
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
 const fmtShort = (d: Date | string) =>
-  new Date(d).toLocaleDateString("fr-FR", { day: "numeric", month: "short" })
+  new Date(d).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris", day: "numeric", month: "short" })
 
 // ── HealthView ─────────────────────────────────────────────────────────────────
 

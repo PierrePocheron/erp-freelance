@@ -385,7 +385,7 @@ function Timeline({
                   <div className="flex items-baseline justify-between gap-2">
                     <p className="text-sm font-semibold leading-tight truncate group-hover:text-primary transition-colors">{it.company}</p>
                     <span className={cn("shrink-0 text-[11px] tabular-nums", it.future ? "text-amber-600 font-medium" : overdue ? "text-red-600 dark:text-red-400 font-medium" : "text-muted-foreground")}>
-                      {fmtShort(dt)}{hasTime ? ` · ${dt.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}` : ""}
+                      {fmtShort(dt)}{hasTime ? ` · ${dt.toLocaleTimeString("fr-FR", { timeZone: "Europe/Paris", hour: "2-digit", minute: "2-digit" })}` : ""}
                     </span>
                   </div>
                   <p className={cn("mt-0.5 text-xs leading-snug line-clamp-2", overdue ? "text-red-600 dark:text-red-400" : "text-muted-foreground")}>

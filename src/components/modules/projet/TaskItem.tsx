@@ -1,5 +1,6 @@
 "use client"
 
+import { zonedDateKey } from "@/lib/dates"
 import { useTransition, useState, useRef, useEffect } from "react"
 import {
   CheckCircle2, Circle, PlayCircle, Loader2, Trash2,
@@ -137,7 +138,7 @@ export function TaskItem({
 
   function saveDate() {
     const val = dateRef.current?.value || null
-    const current = task.dueDate ? new Date(task.dueDate).toISOString().split("T")[0] : null
+    const current = task.dueDate ? zonedDateKey(new Date(task.dueDate)) : null
     if (val !== current) startTransition(() => updateTaskDueDate(task.id, projectId, val))
     setEditingDate(false)
   }
@@ -156,7 +157,7 @@ export function TaskItem({
 
   function saveCompletedAt() {
     const val = completedAtRef.current?.value || null
-    const current = task.completedAt ? new Date(task.completedAt).toISOString().split("T")[0] : null
+    const current = task.completedAt ? zonedDateKey(new Date(task.completedAt)) : null
     if (val !== current) startTransition(() => updateTaskCompletedAt(task.id, projectId, val))
     setEditingCompletedAt(false)
   }
@@ -173,7 +174,7 @@ export function TaskItem({
   }
 
   const fmt = (d: Date | null) =>
-    d ? new Date(d).toLocaleDateString("fr-FR", { day: "numeric", month: "short" }) : null
+    d ? new Date(d).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris", day: "numeric", month: "short" }) : null
 
   return (
     <div className={cn("rounded-lg border border-transparent hover:border-border/60 transition-all", task.status === "DONE" && "opacity-55")}>
@@ -305,7 +306,7 @@ export function TaskItem({
               <input
                 ref={completedAtRef}
                 type="date"
-                defaultValue={task.completedAt ? new Date(task.completedAt).toISOString().split("T")[0] : ""}
+                defaultValue={task.completedAt ? zonedDateKey(new Date(task.completedAt)) : ""}
                 autoFocus
                 onBlur={saveCompletedAt}
                 onKeyDown={(e) => { if (e.key === "Enter") saveCompletedAt(); if (e.key === "Escape") setEditingCompletedAt(false) }}
@@ -323,7 +324,7 @@ export function TaskItem({
           )}
           {task.status !== "DONE" && (
             editingDate ? (
-              <input ref={dateRef} type="date" defaultValue={task.dueDate ? new Date(task.dueDate).toISOString().split("T")[0] : ""} autoFocus onBlur={saveDate} onKeyDown={(e) => { if (e.key === "Enter") saveDate(); if (e.key === "Escape") setEditingDate(false) }} className="h-5 text-xs bg-transparent border-b border-primary outline-none w-28" />
+              <input ref={dateRef} type="date" defaultValue={task.dueDate ? zonedDateKey(new Date(task.dueDate)) : ""} autoFocus onBlur={saveDate} onKeyDown={(e) => { if (e.key === "Enter") saveDate(); if (e.key === "Escape") setEditingDate(false) }} className="h-5 text-xs bg-transparent border-b border-primary outline-none w-28" />
             ) : (
               <button onClick={() => setEditingDate(true)} className={cn("md:opacity-0 md:group-hover:opacity-100 focus:opacity-100 transition-opacity", task.dueDate ? (new Date(task.dueDate) < new Date() ? "text-red-500 font-medium !opacity-100" : "text-muted-foreground") : "text-muted-foreground")} title="Échéance">
                 {task.dueDate ? `⏱ ${fmt(task.dueDate)}` : "⏱"}

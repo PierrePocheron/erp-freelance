@@ -1,3 +1,4 @@
+import { isZonedAllDay } from "@/lib/dates"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { isBillableInvoice } from "@/lib/invoice-state"
@@ -19,11 +20,11 @@ import { ProjectTimePanel } from "@/components/modules/projet/ProjectTimePanel"
 import { REVENUE_TYPE_LABELS } from "@/lib/revenue-constants"
 
 function fmtTime(d: Date | string) {
-  return new Date(d).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })
+  return new Date(d).toLocaleTimeString("fr-FR", { timeZone: "Europe/Paris", hour: "2-digit", minute: "2-digit" })
 }
 function hasTime(d: Date | string) {
   const dt = new Date(d)
-  return dt.getHours() !== 0 || dt.getMinutes() !== 0
+  return !isZonedAllDay(dt)
 }
 
 const quoteStatusLabel: Record<string, string> = {
@@ -257,7 +258,7 @@ export default async function ProjectOverviewPage({
                       {MILESTONE_TYPE_LABELS[m.type] ?? m.type}
                     </span>
                     <span className="shrink-0 text-xs text-muted-foreground whitespace-nowrap">
-                      {new Date(m.date).toLocaleDateString("fr-FR", { day: "numeric", month: "short" })}
+                      {new Date(m.date).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris", day: "numeric", month: "short" })}
                       {hasTime(m.date) && ` · ${fmtTime(m.date)}`}
                       {m.endDate && ` – ${fmtTime(m.endDate)}`}
                     </span>
@@ -340,9 +341,9 @@ export default async function ProjectOverviewPage({
               <div className="flex items-center justify-between">
                 <span className="text-muted-foreground flex items-center gap-1.5"><Calendar className="h-3.5 w-3.5" /> Période</span>
                 <span className="font-medium text-xs">
-                  {project.startDate ? new Date(project.startDate).toLocaleDateString("fr-FR", { day: "numeric", month: "short" }) : "?"}
+                  {project.startDate ? new Date(project.startDate).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris", day: "numeric", month: "short" }) : "?"}
                   {" → "}
-                  {project.endDate ? new Date(project.endDate).toLocaleDateString("fr-FR", { day: "numeric", month: "short" }) : "?"}
+                  {project.endDate ? new Date(project.endDate).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris", day: "numeric", month: "short" }) : "?"}
                 </span>
               </div>
             )}

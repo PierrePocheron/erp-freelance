@@ -118,7 +118,7 @@ function IdeaCard({
         )}
 
         <span className="text-xs text-muted-foreground shrink-0 hidden sm:inline">
-          {new Date(idea.createdAt).toLocaleDateString("fr-FR", { day: "numeric", month: "short" })}
+          {new Date(idea.createdAt).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris", day: "numeric", month: "short" })}
         </span>
 
         {isPending && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground shrink-0" />}

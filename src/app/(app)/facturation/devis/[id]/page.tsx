@@ -1,3 +1,4 @@
+import { zonedDateKey } from "@/lib/dates"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { notFound } from "next/navigation"
@@ -159,10 +160,10 @@ export default async function DevisDetailPage({
             )}
           </p>
           <p className="text-xs text-muted-foreground">
-            Créé le {new Date(quote.createdAt).toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" })}
-            {quote.validatedAt && ` · Validé le ${new Date(quote.validatedAt).toLocaleDateString("fr-FR")}`}
-            {quote.sentAt && ` · Envoyé le ${new Date(quote.sentAt).toLocaleDateString("fr-FR")}`}
-            {quote.acceptedAt && ` · Accepté le ${new Date(quote.acceptedAt).toLocaleDateString("fr-FR")}`}
+            Créé le {new Date(quote.createdAt).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris", day: "numeric", month: "long", year: "numeric" })}
+            {quote.validatedAt && ` · Validé le ${new Date(quote.validatedAt).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris" })}`}
+            {quote.sentAt && ` · Envoyé le ${new Date(quote.sentAt).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris" })}`}
+            {quote.acceptedAt && ` · Accepté le ${new Date(quote.acceptedAt).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris" })}`}
           </p>
         </div>
 
@@ -557,7 +558,7 @@ export default async function DevisDetailPage({
                 <Input
                   name="expiresAt"
                   type="date"
-                  defaultValue={quote.expiresAt ? new Date(quote.expiresAt).toISOString().split("T")[0] : ""}
+                  defaultValue={quote.expiresAt ? zonedDateKey(new Date(quote.expiresAt)) : ""}
                   className="h-8"
                 />
               </div>
@@ -577,7 +578,7 @@ export default async function DevisDetailPage({
         ) : (
           <div className="space-y-1.5 text-sm">
             <div className="flex gap-2"><span className="text-muted-foreground">Acompte :</span><span>{quote.depositPercent} %</span></div>
-            <div className="flex gap-2"><span className="text-muted-foreground">Expiration :</span><span>{quote.expiresAt ? new Date(quote.expiresAt).toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" }) : "—"}</span></div>
+            <div className="flex gap-2"><span className="text-muted-foreground">Expiration :</span><span>{quote.expiresAt ? new Date(quote.expiresAt).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris", day: "numeric", month: "long", year: "numeric" }) : "—"}</span></div>
             {quote.notes && <p className="text-muted-foreground whitespace-pre-wrap">{quote.notes}</p>}
             <p className="text-xs text-muted-foreground italic">Devis figé — repassez-le en brouillon pour le modifier.</p>
           </div>

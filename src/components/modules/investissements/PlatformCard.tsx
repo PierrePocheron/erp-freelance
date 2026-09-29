@@ -74,7 +74,7 @@ export function PlatformCard({
             <div>
               <p className={cn("text-xl font-bold tabular-nums amount-sensitive", staleCls)}>{fmtEur(stats.currentCapital)}</p>
               <p className="text-[11px] text-muted-foreground">
-                {stats.lastDate?.toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" })}
+                {stats.lastDate?.toLocaleDateString("fr-FR", { timeZone: "Europe/Paris", day: "numeric", month: "short", year: "numeric" })}
                 {" · "}{relDays(stats.daysSinceLast)}
               </p>
             </div>

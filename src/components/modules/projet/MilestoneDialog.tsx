@@ -1,5 +1,6 @@
 "use client"
 
+import { zonedDateKey } from "@/lib/dates"
 import { useId, useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
 import { Plus, Pencil, Trash2 } from "lucide-react"
@@ -41,7 +42,7 @@ export type MilestoneForEdit = {
 function toDateParts(d: Date | string | null): { date: string; time: string } {
   if (!d) return { date: "", time: "" }
   const dt = new Date(d)
-  const date = dt.toISOString().slice(0, 10)
+  const date = zonedDateKey(dt)
   const time = `${String(dt.getHours()).padStart(2, "0")}:${String(dt.getMinutes()).padStart(2, "0")}`
   return { date, time }
 }

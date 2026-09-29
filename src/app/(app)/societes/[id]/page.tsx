@@ -19,7 +19,7 @@ import { DeleteConfirmButton } from "@/components/modules/facturation/DeleteConf
 
 const fmt = (n: number) => n.toLocaleString("fr-FR", { minimumFractionDigits: 0, maximumFractionDigits: 0 })
 const fmtDate = (d: Date | string) =>
-  new Date(d).toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" })
+  new Date(d).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris", day: "numeric", month: "short", year: "numeric" })
 
 export default async function CompanyDetailPage({
   params,

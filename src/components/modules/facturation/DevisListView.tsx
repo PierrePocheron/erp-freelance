@@ -22,7 +22,7 @@ type Quote = {
   _count: { lines: number }
 }
 
-const fmtDay = (d: Date | string) => new Date(d).toLocaleDateString("fr-FR")
+const fmtDay = (d: Date | string) => new Date(d).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris" })
 
 /** Date de référence d'un devis (envoi au client, sinon insertion en base). */
 const quoteRefDate = (q: Quote) => new Date(q.sentAt ?? q.createdAt)

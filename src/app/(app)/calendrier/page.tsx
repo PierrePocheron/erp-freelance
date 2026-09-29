@@ -31,7 +31,7 @@ export default async function CalendrierPage() {
   const to = new Date()
   to.setMonth(to.getMonth() + 2)
 
-  const [categories, googleScope, projects, clients, tasks, milestones, reminders, interactions, invoices, renewals, calEvents, healthConsultations, jobApplications, jobEvents, recurringExpenses] = await Promise.all([
+  const [categories, googleScope, projects, clients, tasks, milestones, reminders, interactions, invoices, renewals, calEvents, healthConsultations, jobApplications, jobEvents, recurringExpenses, generatedExpenses] = await Promise.all([
     getOrCreateDefaultCategories(),
     hasCalendarScope(userId),
     prisma.project.findMany({
@@ -160,6 +160,12 @@ export default async function CalendrierPage() {
     prisma.recurringExpense.findMany({
       where: { userId, isActive: true, dateToConfirm: false },
       include: { category: { select: { name: true, color: true } } },
+    }),
+    // Échéances passées déjà matérialisées en dépenses (l'ouverture de /depenses les génère et
+    // avance nextGenerationDate) : sans elles, le loyer du 5 disparaissait du calendrier une fois généré.
+    prisma.expense.findMany({
+      where: { userId, recurringExpenseId: { not: null }, date: { gte: from, lte: to } },
+      select: { id: true, label: true, amount: true, date: true, category: { select: { name: true, color: true } } },
     }),
   ])
 
@@ -371,12 +377,22 @@ export default async function CalendrierPage() {
         date: occurrence,
         allDay: true,
         title: r.label,
-        subtitle: `${r.category?.name ?? "Sans catégorie"} · ${r.amount.toLocaleString("fr-FR")} €`,
+        subtitle: `${r.category?.name ?? "Sans catégorie"} · ${r.amount.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`,
         type: "expense" as const,
         href: "/depenses",
         categoryColor: r.category?.color ?? null,
       }))
     ),
+    ...generatedExpenses.map((e) => ({
+      id: `expense-gen-${e.id}`,
+      date: e.date,
+      allDay: true,
+      title: e.label,
+      subtitle: `${e.category?.name ?? "Sans catégorie"} · ${e.amount.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`,
+      type: "expense" as const,
+      href: "/depenses",
+      categoryColor: e.category?.color ?? null,
+    })),
   ]
 
   return (

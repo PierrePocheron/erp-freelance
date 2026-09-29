@@ -304,16 +304,11 @@ export async function getOrCreateErpCalendar(accessToken: string): Promise<strin
  * et le mémorise sur l'utilisateur. Retourne null si indisponible.
  */
 export async function getErpCalendarId(userId: string, accessToken: string): Promise<string | null> {
-  const rows = await prisma.$queryRaw<{ googleErpCalendarId: string | null }[]>`
-    SELECT "googleErpCalendarId" FROM "User" WHERE id = ${userId} LIMIT 1
-  `
-  const stored = rows[0]?.googleErpCalendarId
-  if (stored) return stored
+  const user = await prisma.user.findUnique({ where: { id: userId }, select: { googleErpCalendarId: true } })
+  if (user?.googleErpCalendarId) return user.googleErpCalendarId
 
   const calendarId = await getOrCreateErpCalendar(accessToken)
-  await prisma.$executeRaw`
-    UPDATE "User" SET "googleErpCalendarId" = ${calendarId} WHERE id = ${userId}
-  `
+  await prisma.user.update({ where: { id: userId }, data: { googleErpCalendarId: calendarId } })
   return calendarId
 }
 

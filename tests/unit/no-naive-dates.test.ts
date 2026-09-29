@@ -50,4 +50,8 @@ describe("dates : pas de formatage dans le fuseau du serveur", () => {
     )
     expect(hits).toEqual([])
   })
+
+  it("aucune comparaison de jours via toDateString (jour UTC en prod) — utiliser zonedDateKey", () => {
+    expect(offenders(/\.toDateString\(\)/)).toEqual([])
+  })
 })

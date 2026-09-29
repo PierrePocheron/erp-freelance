@@ -1,5 +1,5 @@
 import { auth } from "@/lib/auth"
-import { zonedDayStart, zonedDayStartOffset, zonedWeekday, zonedParts, zonedMidnight } from "@/lib/dates"
+import { zonedDayStart, zonedDayStartOffset, zonedWeekday, zonedParts, zonedMidnight, zonedDateKey } from "@/lib/dates"
 import { prisma } from "@/lib/prisma"
 import Link from "next/link"
 import {
@@ -113,7 +113,6 @@ export default async function DashboardPage() {
         client:  { select: { id: true, name: true, company: true } },
       },
       orderBy: { updatedAt: "desc" },
-      take: 5,
     }),
     prisma.reminder.findMany({
       where: {
@@ -208,7 +207,6 @@ export default async function DashboardPage() {
         client:  { select: { id: true, name: true, company: true } },
       },
       orderBy: { dueDate: "asc" },
-      take: 10,
     }),
     prisma.renewal.findMany({
       where: { postDev: { project: { userId } }, expiresAt: { lte: in30Days } },
@@ -455,12 +453,14 @@ export default async function DashboardPage() {
     .sort((a, b) => a.lastTouch.getTime() - b.lastTouch.getTime())
     .slice(0, 5)
 
-  // Groupes agenda semaine
-  const agendaOverdue      = agendaTasks.filter((t) => t.dueDate && new Date(t.dueDate) < todayStart)
-  const agendaWeek         = agendaTasks.filter((t) => t.dueDate && new Date(t.dueDate) >= todayStart && new Date(t.dueDate) <= weekEnd)
-  const agendaStartedOnly  = agendaTasks.filter((t) => t.status === "IN_PROGRESS" && (!t.dueDate || new Date(t.dueDate) > weekEnd))
-  // Tâches du jour, dérivées d'agendaTasks (évite le doublon avec "Cette semaine") — carte "Aujourd'hui & demain"
-  const agendaToday = agendaTasks.filter((t) => t.dueDate && new Date(t.dueDate).toDateString() === todayStart.toDateString())
+  // Groupes agenda — chaque tâche n'apparaît que dans UNE carte :
+  //   7 derniers jours → « À confirmer » ; aujourd'hui/demain → « Aujourd'hui & demain » ;
+  //   démarrées sans échéance proche → « En cours ». La carte « Tâches » garde le reste.
+  const afterTomorrowStart = zonedDayStartOffset(today, 2)
+  const todayKey = zonedDateKey(today)
+  const agendaOverdue = agendaTasks.filter((t) => t.dueDate && t.dueDate < confirmWindowStart)
+  const agendaWeek    = agendaTasks.filter((t) => t.dueDate && t.dueDate >= afterTomorrowStart && t.dueDate <= weekEnd)
+  const agendaToday   = agendaTasks.filter((t) => t.dueDate && zonedDateKey(t.dueDate) === todayKey)
 
   // ── Carte "À confirmer" — items du passé récent sans confirmation ────────────
   const confirmTaskItems = unconfirmedTasks.map((t) => ({
@@ -552,7 +552,7 @@ export default async function DashboardPage() {
       {/* KPI row */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
         {has("projets")     && <KPICard href="/projets"              icon={<Code2 className="h-4 w-4" />}     label="Projets actifs"  value={activeProjects}                                        color="indigo" />}
-        {has("facturation") && <KPICard href="/facturation/factures" icon={<TrendingUp className="h-4 w-4" />} label="En attente"       value={<span className="amount-sensitive">{totalPending.toLocaleString("fr-FR")} €</span>} color="blue"  />}
+        {has("facturation") && <KPICard href="/facturation/factures" icon={<TrendingUp className="h-4 w-4" />} label="Factures en attente" value={<span className="amount-sensitive">{totalPending.toLocaleString("fr-FR")} €</span>} color="blue"  />}
         {has("facturation") && <KPICard href="/facturation/factures" icon={<AlertCircle className="h-4 w-4" />} label="En retard"       value={lateInvoices}                                          color={lateInvoices > 0 ? "red" : "muted"} />}
         {has("facturation") && <KPICard href="/facturation/devis"    icon={<Clock className="h-4 w-4" />}      label="Devis envoyés"   value={pendingQuotes}                                         color="amber" />}
         {has("contacts")    && <KPICard href="/contacts"             icon={<Bell className="h-4 w-4" />}       label="Rappels"         value={upcomingReminders.length}                              color={upcomingReminders.some(r => new Date(r.dueDate) < new Date()) ? "red" : "muted"} />}
@@ -702,7 +702,7 @@ export default async function DashboardPage() {
           )}
 
           {/* Agenda semaine — en retard + cette semaine + en cours */}
-          {(has("taches") || has("projets")) && agendaTasks.length > 0 && (
+          {(has("taches") || has("projets")) && agendaOverdue.length + agendaWeek.length > 0 && (
             <Section title="Tâches" icon={<CheckSquare className="h-4 w-4" />} href="/taches">
               <div>
                 {/* En retard */}
@@ -753,7 +753,6 @@ export default async function DashboardPage() {
                       {agendaWeek.map((task) => {
                         const href = task.project ? `/projets/${task.project.id}/dev` : "/taches"
                         const sub  = task.project?.name ?? task.client?.company ?? task.client?.name ?? null
-                        const isToday = task.dueDate && new Date(task.dueDate).toDateString() === new Date(todayStart).toDateString()
                         return (
                           <div key={task.id} className="flex items-center gap-2 rounded-lg px-3 py-2 hover:bg-muted/50 transition-colors">
                             <form action={async () => {
@@ -773,46 +772,8 @@ export default async function DashboardPage() {
                                 {sub && <p className="text-xs text-muted-foreground">{sub}</p>}
                               </div>
                               {task.dueDate && (
-                                <span className={`text-xs shrink-0 ${isToday ? "text-primary font-medium" : "text-muted-foreground"}`}>
-                                  {isToday ? "Aujourd'hui" : new Date(task.dueDate).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris", weekday: "short", day: "numeric", month: "short" })}
-                                </span>
-                              )}
-                            </Link>
-                          </div>
-                        )
-                      })}
-                    </div>
-                  </div>
-                )}
-                {/* En cours sans date dans la semaine */}
-                {agendaStartedOnly.length > 0 && (
-                  <div>
-                    <p className="text-[10px] font-semibold uppercase tracking-wider text-amber-600 px-3 pt-2 pb-1">
-                      En cours · {agendaStartedOnly.length}
-                    </p>
-                    <div className="space-y-0.5">
-                      {agendaStartedOnly.map((task) => {
-                        const href = task.project ? `/projets/${task.project.id}/dev` : "/taches"
-                        const sub  = task.project?.name ?? task.client?.company ?? task.client?.name ?? null
-                        return (
-                          <div key={task.id} className="flex items-center gap-2 rounded-lg px-3 py-2 hover:bg-muted/50 transition-colors">
-                            <form action={async () => {
-                              "use server"
-                              const { completeTaskGlobal } = await import("@/actions/projet")
-                              await completeTaskGlobal(task.id)
-                            }}>
-                              <button type="submit" title="Marquer terminée" className="shrink-0 transition-colors">
-                                <PlayCircle className="h-3.5 w-3.5 text-amber-500 hover:text-emerald-500" />
-                              </button>
-                            </form>
-                            <Link href={href} className="flex-1 min-w-0 flex items-center gap-3">
-                              <div className="flex-1 min-w-0">
-                                <p className="text-sm font-medium truncate">{task.title}</p>
-                                {sub && <p className="text-xs text-muted-foreground">{sub}</p>}
-                              </div>
-                              {task.dueDate && (
-                                <span className="text-xs text-muted-foreground shrink-0">
-                                  {new Date(task.dueDate).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris", day: "numeric", month: "short" })}
+                                <span className="text-xs shrink-0 text-muted-foreground">
+                                  {new Date(task.dueDate).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris", weekday: "short", day: "numeric", month: "short" })}
                                 </span>
                               )}
                             </Link>
@@ -880,7 +841,7 @@ export default async function DashboardPage() {
           )}
 
           {/* Monitoring des prods */}
-          {has("projets") && <ProdMonitorCard prods={prods} />}
+          {has("projets") && prods.length > 0 && <ProdMonitorCard prods={prods} />}
 
           {/* Entretiens — candidatures actives */}
           {has("entretien") && <JobHuntCard applications={jobAppItems} />}
@@ -1028,7 +989,7 @@ export default async function DashboardPage() {
           )}
 
           {/* Tous ok — affiché si tous les widgets visibles sont vides */}
-          {(!(has("taches") || has("projets")) || agendaTasks.length === 0) &&
+          {(!(has("taches") || has("projets")) || agendaTasks.length + inProgressItems.length === 0) &&
            (!has("facturation") || unpaidInvoices.length === 0) &&
            (!has("contacts") || (upcomingReminders.length === 0 && recentInteractions.length === 0 && followUpClients.length === 0)) &&
            (!has("prospection") || dashboardProspects.length === 0) &&

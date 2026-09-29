@@ -538,7 +538,13 @@ export async function deleteClient(clientId: string, _userId: string) {
     ].filter(Boolean)
     throw new Error(`Impossible de supprimer ce contact : il est lié à ${parts.join(", ")}.`)
   }
+  const files = await prisma.clientFile.findMany({ where: { clientId, client: { userId } }, select: { fileUrl: true } })
   await prisma.client.delete({ where: { id: clientId, userId } })
+  // Les lignes ClientFile partent en cascade ; leurs fichiers stockés aussi (best-effort)
+  if (files.length) {
+    const { del } = await import("@vercel/blob")
+    await del(files.map((f) => f.fileUrl)).catch(() => {})
+  }
   revalidatePath("/contacts")
 }
 
@@ -633,3 +639,41 @@ export async function deleteReminder(reminderId: string, clientId: string) {
   revalidatePath(`/contacts/${clientId}`)
 }
 
+
+// ── Fichiers d'un contact (#28) ───────────────────────────────────────────────
+// Le modèle ClientFile et la route d'upload existaient, mais rien ne créait ni n'affichait les
+// lignes : l'onglet « Fichiers » de la fiche contact les branche.
+
+const CLIENT_FILE_TYPES = ["BRIEF", "CONTRACT", "LOGO", "OTHER"] as const
+
+export async function addClientFile(clientId: string, data: { name: string; fileUrl: string; type?: string }) {
+  const userId = await requireAuth()
+  const client = await prisma.client.findFirst({ where: { id: clientId, userId }, select: { id: true } })
+  if (!client) throw new Error("Contact introuvable")
+  // Seul un fichier déposé par CE compte via /api/upload est accepté (chemin uploads/<userId>/…) :
+  // pas de lien arbitraire, ni de fichier d'un autre compte.
+  let url: URL
+  try { url = new URL(data.fileUrl) } catch { throw new Error("Fichier invalide") }
+  if (url.protocol !== "https:" || !url.hostname.endsWith(".blob.vercel-storage.com") || !url.pathname.startsWith(`/uploads/${userId}/`)) {
+    throw new Error("Fichier invalide")
+  }
+  const type = (CLIENT_FILE_TYPES as readonly string[]).includes(data.type ?? "") ? (data.type as (typeof CLIENT_FILE_TYPES)[number]) : "OTHER"
+  await prisma.clientFile.create({
+    data: { clientId, name: data.name.trim().slice(0, 200) || "Fichier", fileUrl: data.fileUrl, type },
+  })
+  revalidatePath(`/contacts/${clientId}/fichiers`)
+}
+
+export async function deleteClientFile(fileId: string) {
+  const userId = await requireAuth()
+  const file = await prisma.clientFile.findFirst({
+    where: { id: fileId, client: { userId } },
+    select: { id: true, clientId: true, fileUrl: true },
+  })
+  if (!file) throw new Error("Fichier introuvable")
+  await prisma.clientFile.delete({ where: { id: file.id } })
+  // Stockage : best-effort (la ligne est déjà supprimée, un blob orphelin n'est pas bloquant)
+  const { del } = await import("@vercel/blob")
+  await del(file.fileUrl).catch(() => {})
+  revalidatePath(`/contacts/${file.clientId}/fichiers`)
+}

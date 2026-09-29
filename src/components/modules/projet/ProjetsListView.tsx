@@ -32,9 +32,11 @@ const ALL_STATUSES = Object.keys(statusConfig) as ProjectStatusKey[]
 
 /** Menu déroulant de filtre compact, multi-sélection, avec pastille colorée par option. */
 function FilterDropdown<T extends string>({
-  label, icon, options, selected, onToggle, onClear,
+  label, icon, options, selected, onToggle, onClear, align = "right",
 }: {
   label: string
+  /** Côté d'ancrage du menu : « left » pour un bouton proche du bord gauche (sinon coupé à 375 px) */
+  align?: "left" | "right"
   icon: React.ReactNode
   options: { value: T; label: string; count: number; swatch: React.ReactNode }[]
   selected: Set<T>
@@ -79,7 +81,7 @@ function FilterDropdown<T extends string>({
         <ChevronDown className={cn("h-3.5 w-3.5 transition-transform", open && "rotate-180")} />
       </button>
       {open && (
-        <div className="absolute right-0 z-30 mt-1 min-w-[14rem] rounded-xl border border-border bg-card shadow-xl p-1">
+        <div className={cn("absolute z-30 mt-1 min-w-[14rem] rounded-xl border border-border bg-card shadow-xl p-1", align === "left" ? "left-0" : "right-0")}>
           {options.map((o) => {
             const on = selected.has(o.value)
             return (
@@ -261,6 +263,7 @@ export function ProjetsListView({
           {/* Filtre Type (catégorie) — sélecteur compact multi-choix, couleurs + motifs des bannières */}
           <FilterDropdown
             label="Type"
+            align="left"
             icon={<SlidersHorizontal className="h-3.5 w-3.5" />}
             options={ALL_CATEGORIES.map((c) => ({
               value: c,

@@ -466,7 +466,7 @@ function ApplicationCard({ app, onOpen }: { app: JobApp; onOpen: () => void }) {
             onClick={togglePriority}
             title={isPriority ? "Retirer la priorité" : "Marquer prioritaire"}
             className={cn(
-              "rounded-md p-0.5 transition-all",
+              "rounded-md p-1.5 -m-1 transition-all",
               isPriority
                 ? "text-amber-500 hover:text-amber-600"
                 : "text-muted-foreground/30 pointer-fine:opacity-0 group-hover:opacity-100 focus:opacity-100 hover:text-amber-400"

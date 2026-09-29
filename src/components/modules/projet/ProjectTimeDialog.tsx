@@ -21,7 +21,7 @@ export function ProjectTimeDialog({ children }: { children: React.ReactNode }) {
       >
         <Clock className="h-3.5 w-3.5" /> Détail &amp; saisie
       </DialogTrigger>
-      <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-4xl">
+      <DialogContent className="max-h-[85dvh] overflow-y-auto sm:max-w-4xl">
         <DialogHeader>
           <DialogTitle>Suivi du temps</DialogTitle>
         </DialogHeader>

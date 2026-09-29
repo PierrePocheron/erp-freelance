@@ -251,7 +251,7 @@ export function ContactImportWizard({ hasGoogleScope, allContacts }: { hasGoogle
         </ul>
 
         {/* Barre d'action collante */}
-        <div className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-background/95 p-3 backdrop-blur supports-[backdrop-filter]:bg-background/80 sm:static sm:border-0 sm:bg-transparent sm:p-0 sm:backdrop-blur-none">
+        <div className="fixed inset-x-0 bottom-0 z-[60] border-t border-border bg-background/95 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur supports-[backdrop-filter]:bg-background/80 sm:static sm:border-0 sm:bg-transparent sm:p-0 sm:backdrop-blur-none">
           <div className="mx-auto flex max-w-3xl items-center justify-between gap-3">
             <p className="text-xs text-muted-foreground">
               {nbChanges} modification{nbChanges > 1 ? "s" : ""}{nbCreate ? ` · ${nbCreate} création${nbCreate > 1 ? "s" : ""}` : ""} à appliquer

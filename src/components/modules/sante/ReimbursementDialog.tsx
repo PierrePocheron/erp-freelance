@@ -76,7 +76,7 @@ export function ReimbursementDialog({
 
   return (
     <Dialog open onOpenChange={(o) => { if (!o) onClose() }}>
-      <DialogContent showCloseButton={false} className="sm:max-w-md max-h-[90vh] overflow-y-auto p-0 gap-0">
+      <DialogContent showCloseButton={false} className="sm:max-w-md max-h-[85dvh] overflow-y-auto p-0 gap-0">
         <div className="flex items-center justify-between px-5 py-4 border-b border-border/50 sticky top-0 bg-background">
           <DialogTitle className="text-sm font-semibold">{item ? "Modifier" : "Ajouter"} un remboursement</DialogTitle>
           <button onClick={onClose} className="text-muted-foreground hover:text-foreground transition-colors">

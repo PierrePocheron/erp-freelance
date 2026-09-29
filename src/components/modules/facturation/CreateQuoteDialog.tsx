@@ -458,7 +458,7 @@ export function CreateQuoteDialog({
         </DialogHeader>
 
         <form onSubmit={handleSubmit}>
-          <div className="overflow-y-auto max-h-[calc(80vh-10rem)] px-6 py-5 space-y-6">
+          <div className="overflow-y-auto max-h-[calc(80dvh-10rem)] px-6 py-5 space-y-6">
 
             {/* Société (optionnel) + Client + Projet */}
             {companies.length > 0 && (
@@ -548,7 +548,8 @@ export function CreateQuoteDialog({
 
               {/* Table with existing lines */}
               {draftLines.length > 0 && (
-                <div className="rounded-lg border border-border overflow-hidden">
+                // Lignes en grille 12 colonnes : largeur minimale + défilement horizontal sur mobile
+                <div className="rounded-lg border border-border overflow-x-auto [&>.grid]:min-w-[34rem]">
                   <div className="grid grid-cols-12 gap-2 px-3 py-2 text-xs font-medium text-muted-foreground bg-muted/30 border-b border-border">
                     <div className="col-span-5">Produit</div>
                     <div className="col-span-1 text-right">Qté</div>
@@ -607,14 +608,16 @@ export function CreateQuoteDialog({
                           <button
                             type="button"
                             onClick={() => startEdit(line.localId)}
-                            className="text-muted-foreground hover:text-foreground"
+                            aria-label="Modifier la ligne"
+                            className="p-2 -m-1.5 text-muted-foreground hover:text-foreground"
                           >
                             <Pencil className="h-3.5 w-3.5" />
                           </button>
                           <button
                             type="button"
                             onClick={() => setDraftLines((p) => p.filter((l) => l.localId !== line.localId))}
-                            className="text-muted-foreground hover:text-destructive"
+                            aria-label="Retirer la ligne"
+                            className="p-2 -m-1.5 text-muted-foreground hover:text-destructive"
                           >
                             <Trash2 className="h-3.5 w-3.5" />
                           </button>

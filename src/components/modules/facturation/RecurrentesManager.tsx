@@ -346,7 +346,7 @@ export function RecurrentesManager({
       <Dialog open={showCreate || editId !== null} onOpenChange={(v) => {
         if (!v) { setShowCreate(false); setEditId(null); resetForm() }
       }}>
-        <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
+        <DialogContent className="sm:max-w-lg max-h-[85dvh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editId ? "Modifier le modèle" : "Nouveau modèle récurrent"}</DialogTitle>
           </DialogHeader>

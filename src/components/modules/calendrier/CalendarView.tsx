@@ -1340,7 +1340,7 @@ export function CalendarView({
           </button>
         </div>
 
-        <h2 className="text-base font-semibold capitalize flex-1 min-w-0 truncate">{headerLabel()}</h2>
+        <h2 className="text-base font-semibold capitalize flex-1 min-w-32 truncate" title={headerLabel()}>{headerLabel()}</h2>
 
         {/* Dernière synchro Google, visible directement dans la barre */}
         {hasGoogleCalendar && (
@@ -1557,7 +1557,7 @@ export function CalendarView({
 
       {/* Dialog détail jour (toutes vues) */}
       <Dialog open={selectedDay !== null} onOpenChange={v => { if (!v) setSelectedDay(null) }}>
-          <DialogContent className="sm:max-w-md max-h-[85vh] flex flex-col overflow-hidden">
+          <DialogContent className="sm:max-w-md max-h-[85dvh] flex flex-col overflow-hidden">
             <DialogHeader className="shrink-0">
               {/* pr-8 : réserve la place du bouton ✕ (absolu, en haut à droite de DialogContent)
                   pour que le compteur ne passe pas dessous. */}

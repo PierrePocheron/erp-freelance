@@ -1056,7 +1056,7 @@ export function RevenueManager({
                                 </td>
 
                                 {/* Libellé + infos */}
-                                <td className="px-5 py-3 pl-2">
+                                <td className="py-3 pl-2 pr-2 sm:pr-5">
                                   <div className="flex items-center gap-2 flex-wrap">
                                     <span className={`text-xs px-2 py-0.5 rounded-full font-medium shrink-0 ${typeColor[r.type] ?? "text-muted-foreground bg-muted"}`}>
                                       {revenueTypeLabels[r.type] ?? r.type}
@@ -1123,7 +1123,7 @@ export function RevenueManager({
                                 </td>
 
                                 {/* Montant */}
-                                <td className="px-5 py-3 text-right font-semibold tabular-nums amount-sensitive">
+                                <td className="px-2 sm:px-5 py-3 text-right font-semibold tabular-nums whitespace-nowrap amount-sensitive">
                                   {fmt(r.amount)} €
                                 </td>
 
@@ -1155,7 +1155,7 @@ export function RevenueManager({
                                 </td>
 
                                 {/* Actions */}
-                                <td className="px-5 py-3 text-right">
+                                <td className="px-2 sm:px-5 py-3 text-right">
                                   {r.isFromInvoice ? (
                                     /* Entrée issue d'une facture — lien uniquement */
                                     r.invoiceHref ? (
@@ -1202,7 +1202,7 @@ export function RevenueManager({
                                         type="button"
                                         onClick={() => { setEditRevenue(r); setShowForm(false) }}
                                         aria-label="Modifier le revenu"
-                                        className="text-muted-foreground hover:text-foreground p-1 rounded"
+                                        className="text-muted-foreground hover:text-foreground p-2 -m-1 rounded"
                                       >
                                         <Pencil className="h-3.5 w-3.5" />
                                       </button>
@@ -1349,7 +1349,7 @@ export function RevenueManager({
                           <button
                             type="button"
                             onClick={() => { setEditRecurring(rec); setShowRecurringForm(false) }}
-                            className="text-muted-foreground hover:text-foreground p-1 rounded"
+                            className="text-muted-foreground hover:text-foreground p-2 -m-1 rounded"
                           >
                             <Pencil className="h-3.5 w-3.5" />
                           </button>
@@ -1388,7 +1388,7 @@ export function RevenueManager({
       {/* Floating bulk-mark bar — en mobile : au-dessus de la MobileBottomNav
           (bottom-20) et bornée à la largeur de l'écran avec retour à la ligne */}
       {selectedIds.size > 0 && (
-        <div className="fixed bottom-20 sm:bottom-6 left-3 right-3 sm:left-1/2 sm:right-auto sm:-translate-x-1/2 z-50 flex flex-wrap items-center justify-center gap-3 bg-card border border-border shadow-2xl rounded-2xl px-4 py-3">
+        <div className="fixed bottom-[calc(max(1.25rem,env(safe-area-inset-bottom))+4rem)] sm:bottom-6 left-3 right-3 sm:left-1/2 sm:right-auto sm:-translate-x-1/2 z-50 flex flex-wrap items-center justify-center gap-3 bg-card border border-border shadow-2xl rounded-2xl px-4 py-3">
           <span className="text-sm font-semibold text-foreground whitespace-nowrap">
             {selectedIds.size} sélectionné{selectedIds.size > 1 ? "s" : ""}
           </span>

@@ -14,8 +14,10 @@ import {
   deleteGoogleEvent,
   getErpCalendarId,
   checkGoogleCalendarStatus,
+  GOOGLE_FETCH_CAP,
   type SyncResult,
   type GoogleConnectionStatus,
+  type GoogleCalendarEvent,
 } from "@/lib/google-calendar"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -366,10 +368,12 @@ export async function setCalendarEventOutcome(eventId: string, outcome: string):
  *   pour que les modifs faites dans l'ERP soient répercutées et non réécrites au
  *   prochain import.
  */
-async function pushEventToGoogle(userId: string, eventId: string): Promise<void> {
+/** Pousse un événement vers Google. Best-effort : n'interrompt jamais l'action ERP, mais
+ *  renvoie false en cas d'échec pour que la synchro ne le compte pas comme réussi. */
+async function pushEventToGoogle(userId: string, eventId: string): Promise<boolean> {
   try {
     const accessToken = await getGoogleAccessToken(userId)
-    if (!accessToken) return
+    if (!accessToken) return false
 
     const rows = await prisma.$queryRaw<{
       title: string
@@ -388,7 +392,7 @@ async function pushEventToGoogle(userId: string, eventId: string): Promise<void>
       LIMIT 1
     `
     const ev = rows[0]
-    if (!ev) return
+    if (!ev) return true
 
     const end = ev.endDate ?? new Date(new Date(ev.startDate).getTime() + 30 * 60_000)
     const payload = {
@@ -401,14 +405,14 @@ async function pushEventToGoogle(userId: string, eventId: string): Promise<void>
 
     if (ev.sourceType === "GOOGLE") {
       // Événement importé : on met à jour sa copie dans l'agenda primaire.
-      if (!ev.sourceId) return
+      if (!ev.sourceId) return true
       await pushGoogleEvent(accessToken, "primary", payload, ev.sourceId)
-      return
+      return true
     }
 
     // Événement manuel → agenda dédié ERP.
     const calendarId = await getErpCalendarId(userId, accessToken)
-    if (!calendarId) return
+    if (!calendarId) return false
 
     const { id: googleEventId, updated } = await pushGoogleEvent(
       accessToken,
@@ -423,8 +427,10 @@ async function pushEventToGoogle(userId: string, eventId: string): Promise<void>
       SET "googleEventId" = ${googleEventId}, "googleSyncedAt" = ${syncedAt}
       WHERE id = ${eventId} AND "userId" = ${userId}
     `
+    return true
   } catch {
     // best-effort : on n'interrompt jamais l'action ERP
+    return false
   }
 }
 
@@ -441,6 +447,17 @@ async function removeManualEventFromGoogle(userId: string, googleEventId: string
     const calendarId = rows[0]?.googleErpCalendarId
     if (!calendarId) return
     await deleteGoogleEvent(accessToken, calendarId, googleEventId)
+  } catch {
+    // best-effort
+  }
+}
+
+/** Supprime dans l'agenda principal un événement importé. Best-effort. */
+async function removeImportedEventFromGoogle(userId: string, sourceId: string): Promise<void> {
+  try {
+    const accessToken = await getGoogleAccessToken(userId)
+    if (!accessToken) return
+    await deleteGoogleEvent(accessToken, "primary", sourceId)
   } catch {
     // best-effort
   }
@@ -863,15 +880,14 @@ export async function deleteCalendarItem(type: CalItemType, id: string): Promise
       }
       case "manual": {
         // Récupère l'id Google avant suppression pour répercuter côté agenda.
-        const rows = await prisma.$queryRaw<{ googleEventId: string | null }[]>`
-          SELECT "googleEventId" FROM "CalendarEvent"
-          WHERE id = ${id} AND "userId" = ${userId} LIMIT 1
-        `
-        await prisma.$executeRaw`
-          DELETE FROM "CalendarEvent" WHERE id = ${id} AND "userId" = ${userId}
-        `
-        const gid = rows[0]?.googleEventId
-        if (gid) await removeManualEventFromGoogle(userId, gid)
+        const ev = await prisma.calendarEvent.findFirst({
+          where: { id, userId },
+          select: { googleEventId: true, sourceType: true, sourceId: true },
+        })
+        await prisma.calendarEvent.deleteMany({ where: { id, userId } })
+        if (ev?.googleEventId) await removeManualEventFromGoogle(userId, ev.googleEventId)
+        // Importé de l'agenda principal : sans ça, il réapparaissait à la synchro suivante (#11)
+        else if (ev?.sourceType === "GOOGLE" && ev.sourceId) await removeImportedEventFromGoogle(userId, ev.sourceId)
         break
       }
     }
@@ -925,102 +941,117 @@ export async function syncGooglePull(monthsBack: number = 1): Promise<SyncResult
     const to = new Date()
     to.setMonth(to.getMonth() + 3)
 
-    // Agenda principal (événements importés) + agenda dédié ERP (nos événements
-    // poussés, pour détecter les modifs faites côté Google → arbitrage).
-    const calRows = await prisma.$queryRaw<{ googleErpCalendarId: string | null }[]>`
-      SELECT "googleErpCalendarId" FROM "User" WHERE id = ${userId} LIMIT 1
-    `
-    const erpCalendarId = calRows[0]?.googleErpCalendarId ?? null
+    // showDeleted : les suppressions récentes reviennent en status "cancelled" (#11).
+    const primaryEvents = await fetchGoogleEvents(accessToken, from, to, "primary", { showDeleted: true })
 
-    const googleEvents = await fetchGoogleEvents(accessToken, from, to)
-    if (erpCalendarId) {
-      const erpEvents = await fetchGoogleEvents(accessToken, from, to, erpCalendarId)
-      googleEvents.push(...erpEvents)
+    // Agenda dédié « ERP Freelance » : nos événements poussés (arbitrage des modifs faites
+    // côté Google). S'il a été supprimé dans Google, on oublie son id (il sera recréé au
+    // prochain push) au lieu de faire échouer tout l'import, agenda principal compris.
+    const user = await prisma.user.findUnique({ where: { id: userId }, select: { googleErpCalendarId: true } })
+    let erpEvents: GoogleCalendarEvent[] = []
+    if (user?.googleErpCalendarId) {
+      try {
+        erpEvents = await fetchGoogleEvents(accessToken, from, to, user.googleErpCalendarId, { showDeleted: true })
+      } catch (e) {
+        const status = (e as { status?: number }).status
+        if (status !== 404 && status !== 410) throw e
+        await prisma.user.update({ where: { id: userId }, data: { googleErpCalendarId: null } })
+      }
     }
 
-    // Récupère les sourceId Google déjà stockés
-    const existing = await prisma.$queryRaw<{ id: string; sourceId: string }[]>`
-      SELECT id, "sourceId"
-      FROM "CalendarEvent"
-      WHERE "userId" = ${userId} AND "sourceType" = 'GOOGLE'
-        AND "startDate" >= ${from} AND "startDate" <= ${to}
-    `
-    const existingBySourceId = Object.fromEntries(
-      existing.filter(e => e.sourceId).map(e => [e.sourceId, e.id])
-    )
+    // Miroirs poussés par google-task-sync (tâches ✅, jalons 🚩, entretiens 💼) : déjà
+    // projetés par /calendrier depuis leur entité — les ré-importer les affichait en double.
+    const [mirrorTasks, mirrorMilestones, mirrorApps] = await Promise.all([
+      prisma.task.findMany({ where: { OR: [{ userId }, { project: { userId } }], googleEventId: { not: null } }, select: { googleEventId: true } }),
+      prisma.milestone.findMany({ where: { project: { userId }, googleEventId: { not: null } }, select: { googleEventId: true } }),
+      prisma.jobApplication.findMany({ where: { userId, googleEventId: { not: null } }, select: { googleEventId: true } }),
+    ])
+    const mirrorIds = new Set([...mirrorTasks, ...mirrorMilestones, ...mirrorApps].map((r) => r.googleEventId!))
 
-    // Événements MANUAL déjà poussés vers Google (pour dédoublonnage + arbitrage).
-    const pushed = await prisma.$queryRaw<{ id: string; googleEventId: string; googleSyncedAt: Date | null }[]>`
-      SELECT id, "googleEventId", "googleSyncedAt"
-      FROM "CalendarEvent"
-      WHERE "userId" = ${userId} AND "sourceType" = 'MANUAL' AND "googleEventId" IS NOT NULL
-    `
-    const pushedByGoogleId = Object.fromEntries(
-      pushed.map(e => [e.googleEventId, e])
-    )
+    // Nos événements MANUAL poussés (dédoublonnage + arbitrage « dernière modif gagne »).
+    const pushed = await prisma.calendarEvent.findMany({
+      where: { userId, sourceType: "MANUAL", googleEventId: { not: null } },
+      select: { id: true, googleEventId: true, googleSyncedAt: true },
+    })
+    const pushedByGoogleId = new Map(pushed.map((e) => [e.googleEventId!, e]))
+
+    // Importés : recherche par sourceId SANS borne de date. Google renvoie ce qui CHEVAUCHE la
+    // fenêtre ; un événement commencé avant `from` n'était jamais retrouvé par un index borné
+    // sur startDate → une nouvelle ligne à chaque synchro (#42).
+    const existing = await prisma.calendarEvent.findMany({
+      where: { userId, sourceType: "GOOGLE", sourceId: { in: primaryEvents.map((g) => g.id) } },
+      select: { id: true, sourceId: true },
+    })
+    const existingBySourceId = new Map(existing.map((e) => [e.sourceId!, e.id]))
+
+    // Journée entière = date seule ("2026-09-10", fin EXCLUSIVE) → minuit Europe/Paris via
+    // parseGoogleDate, indépendamment du fuseau du serveur (UTC sur Vercel).
+    const fieldsOf = (g: GoogleCalendarEvent) => {
+      const startStr = g.start?.dateTime ?? g.start?.date
+      if (!g.summary || !startStr) return null
+      const endStr = g.end?.dateTime ?? g.end?.date
+      return {
+        title: g.summary,
+        description: g.description ?? null,
+        startDate: parseGoogleDate(startStr),
+        endDate: endStr ? parseGoogleDate(endStr) : null,
+        allDay: !g.start.dateTime,
+      }
+    }
 
     let synced = 0
-    for (const gEvent of googleEvents) {
-      if (!gEvent.summary || gEvent.status === "cancelled") continue
 
-      const startStr = gEvent.start.dateTime ?? gEvent.start.date
-      const endStr   = gEvent.end.dateTime ?? gEvent.end.date
-      if (!startStr) continue
-
-      // Journée entière = date seule ("2026-09-10", fin EXCLUSIVE). `new Date("2026-09-10")` = minuit
-      // UTC = 02:00 à Paris → l'événement débordait sur le lendemain (« Anniversaire Alex » sur 29 ET 30).
-      // On construit minuit Europe/Paris, indépendamment du fuseau du serveur (UTC sur Vercel).
-      const startDate   = parseGoogleDate(startStr)
-      const endDate     = endStr ? parseGoogleDate(endStr) : null
-      const allDay      = !gEvent.start.dateTime
-      const description = gEvent.description ?? null
-
-      // Cas d'un événement que NOUS avons poussé : ne pas créer de doublon GOOGLE.
-      // Arbitrage "dernière modif gagne" : on ne rapatrie la version Google que si
-      // elle est plus récente que notre dernière synchro (modifié hors ERP).
-      const mine = pushedByGoogleId[gEvent.id]
+    for (const g of erpEvents) {
+      if (mirrorIds.has(g.id)) continue
+      const mine = pushedByGoogleId.get(g.id)
+      if (g.status === "cancelled") {
+        // Supprimé dans Google → supprimé dans l'ERP (« suppression des deux côtés »)
+        if (mine) { await prisma.calendarEvent.deleteMany({ where: { id: mine.id, userId } }); synced++ }
+        continue
+      }
+      const fields = fieldsOf(g)
+      if (!fields) continue
+      const updatedAt = g.updated ? new Date(g.updated) : new Date()
       if (mine) {
-        const gUpdated = gEvent.updated ? new Date(gEvent.updated).getTime() : 0
-        const lastSync = mine.googleSyncedAt ? new Date(mine.googleSyncedAt).getTime() : 0
-        if (gUpdated > lastSync) {
-          await prisma.$executeRaw`
-            UPDATE "CalendarEvent"
-            SET title = ${gEvent.summary}, description = ${description},
-                "startDate" = ${startDate}, "endDate" = ${endDate},
-                "allDay" = ${allDay}, "googleSyncedAt" = ${gEvent.updated ? new Date(gEvent.updated) : new Date()},
-                "updatedAt" = NOW()
-            WHERE id = ${mine.id}
-          `
+        // On ne rapatrie la version Google que si elle est plus récente que notre dernière synchro.
+        if (updatedAt.getTime() > (mine.googleSyncedAt?.getTime() ?? 0) && g.updated) {
+          await prisma.calendarEvent.update({ where: { id: mine.id }, data: { ...fields, googleSyncedAt: updatedAt } })
           synced++
         }
         continue
       }
+      // Créé directement dans « ERP Freelance » côté Google : adopté comme événement ERP (MANUAL +
+      // googleEventId), pour que ses modifications repartent sur CET agenda et non sur primary (#42).
+      await prisma.calendarEvent.create({ data: { userId, ...fields, sourceType: "MANUAL", googleEventId: g.id, googleSyncedAt: updatedAt } })
+      synced++
+    }
 
-      const existingId  = existingBySourceId[gEvent.id]
-
+    const seen = new Set<string>()
+    for (const g of primaryEvents) {
+      if (mirrorIds.has(g.id) || pushedByGoogleId.has(g.id)) continue
+      const existingId = existingBySourceId.get(g.id)
+      if (g.status === "cancelled") {
+        if (existingId) { await prisma.calendarEvent.deleteMany({ where: { id: existingId, userId } }); synced++ }
+        continue
+      }
+      seen.add(g.id)
+      const fields = fieldsOf(g)
+      if (!fields) continue
       if (existingId) {
-        await prisma.$executeRaw`
-          UPDATE "CalendarEvent"
-          SET title = ${gEvent.summary}, description = ${description},
-              "startDate" = ${startDate}, "endDate" = ${endDate},
-              "allDay" = ${allDay}, "updatedAt" = NOW()
-          WHERE id = ${existingId}
-        `
+        await prisma.calendarEvent.update({ where: { id: existingId }, data: fields })
       } else {
-        const id  = crypto.randomUUID()
-        const now = new Date()
-        await prisma.$executeRaw`
-          INSERT INTO "CalendarEvent"
-            (id, "userId", title, description, "startDate", "endDate", "allDay",
-             "sourceType", "sourceId", "createdAt", "updatedAt")
-          VALUES (
-            ${id}, ${userId}, ${gEvent.summary}, ${description},
-            ${startDate}, ${endDate}, ${allDay},
-            'GOOGLE', ${gEvent.id}, ${now}, ${now}
-          )
-        `
+        await prisma.calendarEvent.create({ data: { userId, ...fields, sourceType: "GOOGLE", sourceId: g.id } })
       }
       synced++
+    }
+
+    // Suppressions anciennes : showDeleted ne remonte que les récentes. Un importé de la fenêtre
+    // absent de la réponse a disparu de Google — seulement si la lecture n'est pas tronquée.
+    if (primaryEvents.length < GOOGLE_FETCH_CAP) {
+      const { count } = await prisma.calendarEvent.deleteMany({
+        where: { userId, sourceType: "GOOGLE", sourceId: { notIn: [...seen] }, startDate: { gte: from, lte: to } },
+      })
+      synced += count
     }
 
     revalidatePath("/calendrier")
@@ -1058,9 +1089,16 @@ export async function syncGooglePush(): Promise<SyncResult> {
         AND "startDate" >= ${pushFrom} AND "startDate" <= ${to}
     `
     let synced = 0
+    let failed = 0
     for (const row of backlog) {
-      await pushEventToGoogle(userId, row.id)
-      synced++
+      if (await pushEventToGoogle(userId, row.id)) synced++
+      else failed++
+    }
+    // Google en panne : ni « N synchronisés », ni horodatage frais (sinon le seuil de
+    // fraîcheur bloquait la nouvelle tentative automatique alors que rien n'était parti).
+    if (failed > 0) {
+      revalidatePath("/calendrier")
+      return { synced, error: `${failed} événement${failed > 1 ? "s n'ont" : " n'a"} pas pu être envoyé${failed > 1 ? "s" : ""} à Google Agenda` }
     }
 
     // Push = dernière étape d'un cycle de synchro (le client fait pull puis

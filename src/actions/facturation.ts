@@ -4,7 +4,6 @@ import { prisma } from "@/lib/prisma"
 import { requireAuth } from "@/lib/require-auth"
 import { revalidatePath } from "next/cache"
 import { type NumberFormat, buildNumberParts } from "@/lib/number-format"
-import { auth } from "@/lib/auth"
 import { nextInvoiceNumber, defaultEmitterId, nextNumberFrom } from "@/lib/invoice-helpers"
 import { enforceRateLimit } from "@/lib/rate-limit"
 import { escapeHtml } from "@/lib/escape-html"
@@ -24,8 +23,12 @@ import {
   canCancelInvoice,
   canRevertQuoteToDraft,
 } from "@/lib/invoice-state"
-import { zonedDayStart, parseCivilDate, advanceByFrequency } from "@/lib/dates"
+import { zonedDayStart, zonedMidnight, zonedParts, zonedDateKey, parseCivilDate, advanceByFrequency, daysLate } from "@/lib/dates"
+import { assertOwnedRefs } from "@/lib/owned-refs"
 import { createRenewalDraftInvoice } from "@/lib/renewal-invoice"
+
+// Montants des mails clients : toujours 2 décimales (« 1 234,50 € », pas « 1 234,5 € »).
+const eurMail = (n: number) => n.toLocaleString("fr-FR", { style: "currency", currency: "EUR" })
 
 
 // ── Verrouillage d'édition ──────────────────────────────────────────────────────
@@ -94,23 +97,7 @@ async function preferredEmitterForClient(userId: string, clientId: string): Prom
  * alors rendue sur la page et dans le PDF, tous les contrôles de propriété du
  * document étant par ailleurs satisfaits.
  */
-async function assertDocumentRefsOwned(
-  userId: string,
-  refs: { clientId?: string | null; projectId?: string | null; quoteId?: string | null },
-) {
-  if (refs.clientId) {
-    const client = await prisma.client.findFirst({ where: { id: refs.clientId, userId }, select: { id: true } })
-    if (!client) throw new Error("Contact introuvable")
-  }
-  if (refs.projectId) {
-    const project = await prisma.project.findFirst({ where: { id: refs.projectId, userId }, select: { id: true } })
-    if (!project) throw new Error("Projet introuvable")
-  }
-  if (refs.quoteId) {
-    const quote = await prisma.quote.findFirst({ where: { id: refs.quoteId, userId }, select: { id: true } })
-    if (!quote) throw new Error("Devis introuvable")
-  }
-}
+const assertDocumentRefsOwned = assertOwnedRefs
 
 export async function createQuoteWithLines(
   _userId: string,
@@ -168,45 +155,17 @@ export async function createQuoteWithLines(
   return quote
 }
 
-export async function createQuote(
-  _userId: string,
-  data: {
-    clientId: string
-    projectId?: string
-    depositPercent?: number
-    notes?: string
-    expiresAtDays?: number
-  }
-) {
-  const userId = await requireAuth()
-  await assertDocumentRefsOwned(userId, { clientId: data.clientId, projectId: data.projectId })
-  const number = await nextQuoteNumber(userId)
-  const expiresAt = data.expiresAtDays
-    ? new Date(Date.now() + data.expiresAtDays * 24 * 60 * 60 * 1000)
-    : null
-  const quote = await prisma.quote.create({
-    data: {
-      userId,
-      clientId: data.clientId,
-      projectId: data.projectId || null,
-      emitterProfileId: await defaultEmitterId(userId),
-      number,
-      depositPercent: data.depositPercent ?? 0,
-      notes: data.notes || null,
-      expiresAt,
-    },
-  })
-  revalidatePath("/facturation/devis")
-  revalidatePath("/facturation")
-  return quote
-}
-
 export async function updateQuoteStatus(quoteId: string, _userId: string, status: string) {
   const realUserId = await requireAuth()
   const data: Record<string, unknown> = { status }
   if (status === "VALIDATED") data.validatedAt = new Date()
   if (status === "SENT") data.sentAt = new Date()
-  if (status === "ACCEPTED") data.acceptedAt = new Date()
+  if (status === "ACCEPTED" || status === "WAITING_DEPOSIT") {
+    // Un devis avec acompte passe par WAITING_DEPOSIT : sans ça, il n'avait jamais de date
+    // d'acceptation (ni sur le PDF, ni dans l'export).
+    const current = await prisma.quote.findFirst({ where: { id: quoteId, userId: realUserId }, select: { acceptedAt: true } })
+    if (current && !current.acceptedAt) data.acceptedAt = new Date()
+  }
   await prisma.quote.update({ where: { id: quoteId, userId: realUserId }, data })
   revalidatePath(`/facturation/devis/${quoteId}`)
   revalidatePath("/facturation/devis")
@@ -408,26 +367,38 @@ export async function createInvoiceFromQuote(quoteId: string, _userId: string, t
     include: { lines: true },
   })
   if (!quote) throw new Error("Devis introuvable")
+  // Un seul solde par devis : la page du devis masque le bouton, mais « Nouvelle facture →
+  // depuis un devis » le permettait. (Plusieurs acomptes restent possibles : le solde les additionne.)
+  if (type === "FINAL") {
+    const existing = await prisma.invoice.findFirst({
+      where: { quoteId: quote.id, type: "FINAL", status: { not: "CANCELLED" } },
+      select: { number: true },
+    })
+    if (existing) throw new Error(`Une facture de solde existe déjà pour ce devis (${existing.number})`)
+  }
 
   const number = await nextInvoiceNumber(userId)
   const isDeposit = type === "DEPOSIT"
   const depositTotal = isDeposit ? depositAmount(quote.totalHT, quote.depositPercent) : quote.totalHT
 
-  // Sur la facture de solde, on déduit le montant des acomptes réellement facturés
-  // (factures DEPOSIT non annulées) plutôt qu'un pourcentage théorique. Faute
-  // d'acompte émis, on retombe sur le % du devis s'il est renseigné.
+  // Sur la facture de solde, on déduit ce qui a déjà été facturé sur le devis : les acomptes
+  // réellement émis (faute d'acompte, le % théorique du devis) ET les factures intermédiaires
+  // (type RECURRING) — sans elles, intermédiaire + solde facturaient le devis deux fois (#14).
   let depositDeducted = 0
   if (type === "FINAL") {
-    const deposits = await prisma.invoice.findMany({
-      where: { quoteId: quote.id, type: "DEPOSIT", status: { not: "CANCELLED" } },
-      select: { totalHT: true },
+    const previous = await prisma.invoice.findMany({
+      where: { quoteId: quote.id, type: { in: ["DEPOSIT", "RECURRING"] }, status: { not: "CANCELLED" } },
+      select: { type: true, totalHT: true, depositDeducted: true },
     })
     depositDeducted = computeDepositDeducted(
-      deposits.map((d) => d.totalHT),
+      previous.filter((d) => d.type === "DEPOSIT").map((d) => d.totalHT),
       quote.totalHT,
       quote.depositPercent
-    )
+    ) + previous
+      .filter((d) => d.type === "RECURRING")
+      .reduce((sum, d) => sum + netAmount(d.totalHT, d.depositDeducted), 0)
   }
+  const isIntermediate = type === "RECURRING"
 
   const invoice = await prisma.invoice.create({
     data: {
@@ -439,7 +410,8 @@ export async function createInvoiceFromQuote(quoteId: string, _userId: string, t
       emitterProfileId: quote.emitterProfileId ?? (await defaultEmitterId(userId)),
       number,
       type: isDeposit ? "DEPOSIT" : type === "RECURRING" ? "RECURRING" : "FINAL",
-      totalHT: isDeposit ? depositTotal : quote.totalHT,
+      // Intermédiaire : brouillon à compléter (montant de la situation), pas le total du devis
+      totalHT: isDeposit ? depositTotal : isIntermediate ? 0 : quote.totalHT,
       depositDeducted,
       generalConditions: quote.generalConditions ?? null,
       lines: {
@@ -449,7 +421,17 @@ export async function createInvoiceFromQuote(quoteId: string, _userId: string, t
         // « TOTAL HT : 1 800 € », et la moindre retouche du brouillon faisait
         // passer `totalHT` à 5 400 € (recalcInvoiceTotal somme les lignes), donc
         // une déduction d'acompte fausse sur la facture de solde.
-        create: isDeposit
+        create: isIntermediate
+          ? [{
+              description: `Facture intermédiaire sur devis ${quote.number} — montant à compléter`,
+              detail: null,
+              quantity: 1,
+              unitPrice: 0,
+              taxRate: quote.lines[0]?.taxRate ?? 0,
+              total: 0,
+              productId: null,
+            }]
+          : isDeposit
           ? [{
               description: quote.depositPercent > 0
                 ? `Acompte ${quote.depositPercent} % sur devis ${quote.number}`
@@ -524,12 +506,18 @@ export async function recordPayment(
     include: { payments: true },
   })
   if (!invoice) return
+  // Une facture annulée passait en PAYÉE au premier paiement saisi ; un brouillon aussi, sans
+  // avoir jamais été émis (ni numéro figé ni PDF gelé).
+  if (invoice.status === "CANCELLED") throw new Error("Paiement impossible sur une facture annulée")
+  if (invoice.status === "DRAFT") throw new Error("Émets la facture avant d'enregistrer un paiement")
+  if (!(data.amount > 0)) throw new Error("Montant de paiement invalide")
 
+  const paidAt = parseCivilDate(data.paidAt)
   await prisma.payment.create({
     data: {
       invoiceId,
       amount: data.amount,
-      paidAt: new Date(data.paidAt),
+      paidAt,
       note: data.note || null,
     },
   })
@@ -539,10 +527,47 @@ export async function recordPayment(
   if (isInvoiceSettled(net, totalPaid) && invoice.status !== "PAID") {
     await prisma.invoice.update({
       where: { id: invoiceId },
-      data: { status: "PAID", paidAt: new Date(data.paidAt) },
+      data: { status: "PAID", paidAt },
     })
+    // Acompte encaissé → le devis passe de lui-même en « acompte reçu » (avant : deux clics,
+    // à deux endroits, pour la même information).
+    if (invoice.type === "DEPOSIT" && invoice.quoteId) {
+      await prisma.quote.updateMany({
+        where: { id: invoice.quoteId, userId, status: "WAITING_DEPOSIT" },
+        data: { status: "DEPOSIT_RECEIVED" },
+      })
+      revalidatePath(`/facturation/devis/${invoice.quoteId}`)
+    }
   }
 
+  revalidatePath(`/facturation/factures/${invoiceId}`)
+  revalidatePath("/facturation/factures")
+  revalidatePath("/facturation")
+}
+
+/**
+ * « Marquer payée » : enregistre un paiement du montant restant dû à la date donnée
+ * (aujourd'hui par défaut). Avant, le statut passait à PAYÉE sans aucun paiement : la section
+ * affichait « 0 € payé » à côté de « intégralement payée », et la date d'encaissement — qui
+ * fixe la période URSSAF — était forcément celle du clic (#20).
+ */
+export async function markInvoicePaid(invoiceId: string, _userId: string, paidAt?: string) {
+  const userId = await requireAuth()
+  const invoice = await prisma.invoice.findFirst({
+    where: { id: invoiceId, userId },
+    select: { status: true, totalHT: true, depositDeducted: true, payments: { select: { amount: true } } },
+  })
+  if (!invoice) throw new Error("Facture introuvable")
+  if (invoice.status === "PAID") return
+  const remaining = Math.round((netAmount(invoice.totalHT, invoice.depositDeducted) - invoice.payments.reduce((s, p) => s + p.amount, 0)) * 100) / 100
+  const date = paidAt || zonedDateKey(new Date())
+  if (remaining > 0) {
+    await recordPayment(invoiceId, userId, { amount: remaining, paidAt: date, note: "Solde (facture marquée payée)" })
+    return
+  }
+  // Déjà intégralement réglée par des paiements : seul le statut manquait
+  if (invoice.status === "DRAFT" || invoice.status === "CANCELLED") throw new Error("Seule une facture émise peut être marquée payée")
+  await prisma.invoice.update({ where: { id: invoiceId }, data: { status: "PAID", paidAt: parseCivilDate(date) } })
   revalidatePath(`/facturation/factures/${invoiceId}`)
   revalidatePath("/facturation/factures")
   revalidatePath("/facturation")
@@ -600,6 +625,16 @@ export async function markLateInvoices(_userId: string) {
 
 export async function updateInvoiceStatus(invoiceId: string, _userId: string, status: string) {
   const userId = await requireAuth()
+  // Émission et annulation ont leurs propres actions (gel du PDF, séquence) ; repasser une
+  // facture émise en DRAFT la rendait de nouveau modifiable.
+  if (!["SENT", "PAID", "LATE"].includes(status)) throw new Error("Changement de statut non autorisé")
+  const current = await prisma.invoice.findFirst({ where: { id: invoiceId, userId }, select: { status: true } })
+  if (!current) throw new Error("Facture introuvable")
+  if (current.status === "DRAFT" || current.status === "CANCELLED") {
+    throw new Error("Seule une facture émise peut changer de statut")
+  }
+  // Payée = un paiement du reste dû (tous les appelants : fiche, tableau de bord, graphe)
+  if (status === "PAID") return markInvoicePaid(invoiceId, userId)
   const data: Record<string, unknown> = { status }
   if (status === "ISSUED") data.issuedAt = new Date()
   if (status === "SENT") data.sentAt = new Date()
@@ -618,10 +653,11 @@ export async function issueInvoice(invoiceId: string, _userId: string) {
   const userId = await requireAuth()
   const invoice = await prisma.invoice.findFirst({
     where: { id: invoiceId, userId },
-    select: { status: true, number: true },
+    select: { status: true, number: true, totalHT: true },
   })
   if (!invoice) throw new Error("Facture introuvable")
   if (!canIssueInvoice(invoice.status)) throw new Error("Seule une facture en brouillon peut être émise")
+  if (!(invoice.totalHT > 0)) throw new Error("Ajoute au moins une ligne avant d'émettre la facture")
 
   // Gel du PDF : rendu pendant que la facture est encore cohérente, avant le
   // changement de statut. Un échec Blob ne doit pas bloquer l'émission — la
@@ -756,7 +792,8 @@ export async function updateInvoiceEmitter(invoiceId: string, emitterProfileId: 
 
 export async function deleteInvoice(invoiceId: string, _userId: string) {
   const userId = await requireAuth()
-  await prisma.invoice.delete({ where: { id: invoiceId, userId } })
+  const { count } = await prisma.invoice.deleteMany({ where: { id: invoiceId, userId, status: "DRAFT" } })
+  if (count === 0) throw new Error("Seule une facture en brouillon peut être supprimée (sinon : l'annuler)")
   revalidatePath("/facturation/factures")
   revalidatePath("/facturation")
 }
@@ -922,6 +959,7 @@ export async function createRecurringInvoice(
   }
 ) {
   const userId = await requireAuth()
+  await assertDocumentRefsOwned(userId, { clientId: data.clientId, projectId: data.projectId })
   const rec = await (prisma as never as { recurringInvoice: { create: (args: unknown) => Promise<{ id: string }> } }).recurringInvoice.create({
     data: {
       userId,
@@ -1155,8 +1193,8 @@ export async function resendQuoteEmail(quoteId: string, _userId: string) {
     attachments: await pdfAttachment("devis", quoteId, userId, quote.number),
     html: `
       <p>Bonjour ${escapeHtml(quote.client.name)},</p>
-      <p>Je me permets de vous relancer concernant le devis <strong>${quote.number}</strong> d'un montant de <strong>${quote.totalHT.toLocaleString("fr-FR")} €</strong> HT que je vous ai adressé.</p>
-      ${quote.expiresAt ? `<p>Ce devis est valable jusqu'au ${new Date(quote.expiresAt).toLocaleDateString("fr-FR")}.</p>` : ""}
+      <p>Je me permets de vous relancer concernant le devis <strong>${quote.number}</strong> d'un montant de <strong>${eurMail(quote.totalHT)}</strong> HT que je vous ai adressé.</p>
+      ${quote.expiresAt ? `<p>Ce devis est valable jusqu'au ${new Date(quote.expiresAt).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris" })}.</p>` : ""}
       <p>Le devis est joint à ce message.</p>
       <p>Cordialement,<br>${escapeHtml(quote.user.name)}</p>
     `,
@@ -1189,8 +1227,8 @@ export async function sendQuoteEmail(quoteId: string, _userId: string) {
     attachments: await pdfAttachment("devis", quoteId, userId, quote.number),
     html: `
       <p>Bonjour ${escapeHtml(quote.client.name)},</p>
-      <p>Veuillez trouver ci-joint le devis <strong>${quote.number}</strong> d'un montant de <strong>${quote.totalHT.toLocaleString("fr-FR")} €</strong> HT.</p>
-      ${quote.expiresAt ? `<p>Ce devis est valable jusqu'au ${new Date(quote.expiresAt).toLocaleDateString("fr-FR")}.</p>` : ""}
+      <p>Veuillez trouver ci-joint le devis <strong>${quote.number}</strong> d'un montant de <strong>${eurMail(quote.totalHT)}</strong> HT.</p>
+      ${quote.expiresAt ? `<p>Ce devis est valable jusqu'au ${new Date(quote.expiresAt).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris" })}.</p>` : ""}
 
       <p>Cordialement,<br>${escapeHtml(quote.user.name)}</p>
     `,
@@ -1224,7 +1262,7 @@ export async function sendInvoiceEmail(invoiceId: string, _userId: string) {
     attachments: await pdfAttachment("facture", invoiceId, userId, invoice.number),
     html: `
       <p>Bonjour ${escapeHtml(invoice.client.name)},</p>
-      <p>Veuillez trouver ci-joint la facture <strong>${invoice.number}</strong> d'un montant de <strong>${invoice.totalHT.toLocaleString("fr-FR")} €</strong>.</p>
+      <p>Veuillez trouver ci-joint la facture <strong>${invoice.number}</strong> d'un montant de <strong>${eurMail(invoice.totalHT - invoice.depositDeducted)}</strong>.</p>
 
       <p>Cordialement,<br>${escapeHtml(invoice.user.name)}</p>
     `,
@@ -1262,9 +1300,7 @@ export async function sendInvoiceReminder(invoiceId: string, _userId: string) {
   const resend = getResend()
 
   const isLate = invoice.status === "LATE"
-  const daysLate = invoice.dueDate
-    ? Math.ceil((Date.now() - new Date(invoice.dueDate).getTime()) / 86400000)
-    : null
+  const lateDays = daysLate(invoice.dueDate)
 
   const subject = isLate
     ? `Relance — Facture ${invoice.number} en retard`
@@ -1277,9 +1313,9 @@ export async function sendInvoiceReminder(invoiceId: string, _userId: string) {
     attachments: await pdfAttachment("facture", invoiceId, userId, invoice.number),
     html: `
       <p>Bonjour ${escapeHtml(invoice.client.name)},</p>
-      ${isLate && daysLate
-        ? `<p>Sauf erreur de notre part, la facture <strong>${invoice.number}</strong> d'un montant de <strong>${(invoice.totalHT - invoice.depositDeducted).toLocaleString("fr-FR")} €</strong> est en retard de <strong>${daysLate} jour(s)</strong>.</p>`
-        : `<p>Nous vous rappelons que la facture <strong>${invoice.number}</strong> d'un montant de <strong>${(invoice.totalHT - invoice.depositDeducted).toLocaleString("fr-FR")} €</strong> est toujours en attente de règlement.</p>`
+      ${isLate && lateDays
+        ? `<p>Sauf erreur de notre part, la facture <strong>${invoice.number}</strong> d'un montant de <strong>${eurMail((invoice.totalHT - invoice.depositDeducted))}</strong> est en retard de <strong>${lateDays} jour(s)</strong>.</p>`
+        : `<p>Nous vous rappelons que la facture <strong>${invoice.number}</strong> d'un montant de <strong>${eurMail((invoice.totalHT - invoice.depositDeducted))}</strong> est toujours en attente de règlement.</p>`
       }
       <p>La facture est jointe à ce message.</p>
       <p>Cordialement,<br>${escapeHtml(invoice.user.name)}</p>
@@ -1330,6 +1366,7 @@ export async function importHistoricalInvoice(_userId: string, data: {
   const lineTotalTTC = totalHT * (1 + data.taxRate / 100)
 
   // Numéro : externe s'il est fourni, sinon auto-généré
+  await assertDocumentRefsOwned(userId, { clientId: data.clientId, projectId: data.projectId })
   const number = data.customNumber?.trim() || await nextInvoiceNumber(userId)
 
   const isPaid = data.isPaid
@@ -1380,8 +1417,8 @@ export async function getMonthlyRevenue(year: number): Promise<number[]> {
   if (!session) return Array(12).fill(0)
   const userId = session.user.id
 
-  const start = new Date(year, 0, 1)
-  const end = new Date(year, 11, 31, 23, 59, 59, 999)
+  const start = zonedMidnight(`${year}-01-01`)
+  const end = new Date(zonedMidnight(`${year + 1}-01-01`).getTime() - 1)
 
   const invoices = await prisma.invoice.findMany({
     where: { userId, status: "PAID", paidAt: { gte: start, lte: end } },
@@ -1390,7 +1427,7 @@ export async function getMonthlyRevenue(year: number): Promise<number[]> {
 
   return Array.from({ length: 12 }, (_, m) =>
     invoices
-      .filter((i) => i.paidAt && new Date(i.paidAt).getMonth() === m)
+      .filter((i) => i.paidAt && zonedParts(new Date(i.paidAt)).month === m + 1)
       .reduce((s, i) => s + netAmount(i.totalHT, i.depositDeducted), 0)
   )
 }

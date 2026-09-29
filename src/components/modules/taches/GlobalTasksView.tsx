@@ -341,12 +341,12 @@ function TaskRow({ task }: { task: Task }) {
       {/* Échéance ou date de complétion */}
       {task.status === "DONE" && task.completedAt ? (
         <span className="text-xs text-emerald-600 shrink-0">
-          ✓ {new Date(task.completedAt).toLocaleDateString("fr-FR", { day: "numeric", month: "short" })}
+          ✓ {new Date(task.completedAt).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris", day: "numeric", month: "short" })}
         </span>
       ) : task.dueDate && task.status !== "DONE" ? (
         <span className={cn("text-xs shrink-0", overdue ? "text-red-500 font-medium" : "text-muted-foreground")}>
           {overdue && <AlertTriangle className="h-3 w-3 inline mr-0.5" />}
-          {new Date(task.dueDate).toLocaleDateString("fr-FR", { day: "numeric", month: "short" })}
+          {new Date(task.dueDate).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris", day: "numeric", month: "short" })}
         </span>
       ) : null}
 
@@ -365,7 +365,7 @@ function TaskRow({ task }: { task: Task }) {
         onClick={() => setEditOpen(true)}
         title="Modifier la tâche"
         aria-label="Modifier la tâche"
-        className="flex h-9 w-9 shrink-0 items-center justify-center text-muted-foreground transition-opacity hover:text-foreground focus:opacity-100 md:opacity-0 md:group-hover:opacity-100"
+        className="flex h-9 w-9 shrink-0 items-center justify-center text-muted-foreground transition-opacity hover:text-foreground focus:opacity-100 pointer-fine:opacity-0 group-hover:opacity-100"
       >
         <Pencil className="h-3.5 w-3.5" />
       </button>
@@ -376,7 +376,7 @@ function TaskRow({ task }: { task: Task }) {
         disabled={isDeleting}
         title={confirmDelete ? "Confirmer la suppression" : "Supprimer la tâche"}
         aria-label={confirmDelete ? "Confirmer la suppression de la tâche" : "Supprimer la tâche"}
-        className={`flex h-9 w-9 shrink-0 items-center justify-center transition-opacity disabled:opacity-30 focus:opacity-100 md:opacity-0 md:group-hover:opacity-100 ${
+        className={`flex h-9 w-9 shrink-0 items-center justify-center transition-opacity disabled:opacity-30 focus:opacity-100 pointer-fine:opacity-0 group-hover:opacity-100 ${
           confirmDelete ? "text-red-500 md:opacity-100" : "text-muted-foreground hover:text-red-500"
         }`}
       >
@@ -751,14 +751,18 @@ export function GlobalTasksView({
         )}
       </div>
 
-      {/* Résultat */}
-      <p className="text-xs text-muted-foreground">{filtered.length} tâche{filtered.length !== 1 ? "s" : ""}</p>
+      {/* Résultat + création d'une tâche perso (sans ça, on ne pouvait créer
+          qu'à l'intérieur d'un groupe existant — impossible avec 0 tâche) */}
+      <div className="flex flex-wrap items-center justify-between gap-x-3 [&>form]:flex-1">
+        <p className="text-xs text-muted-foreground">{filtered.length} tâche{filtered.length !== 1 ? "s" : ""}</p>
+        <QuickAddClientTask clientId={null} />
+      </div>
 
       {/* Groupes — 2 colonnes en desktop (multicol équilibré, un groupe n'est
           jamais coupé entre deux colonnes) pour afficher plus de sociétés d'un coup */}
       {clientGroups.length === 0 ? (
         <div className="rounded-xl border border-dashed border-border py-16 text-center text-sm text-muted-foreground">
-          Aucune tâche pour ces filtres
+          {tasks.length === 0 ? "Aucune tâche pour l'instant" : "Aucune tâche pour ces filtres"}
         </div>
       ) : (
         <div className="gap-3 lg:columns-2 [&>*]:mb-3 [&>*]:break-inside-avoid">

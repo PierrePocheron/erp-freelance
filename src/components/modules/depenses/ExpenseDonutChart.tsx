@@ -91,7 +91,7 @@ export function ExpenseDonutChart({
         {hoveredArc ? (
           <>
             <p className="text-xs text-muted-foreground truncate max-w-full">{hoveredArc.label}</p>
-            <p className="text-lg font-bold tabular-nums amount-sensitive" style={{ color: hoveredArc.color }}>
+            <p className="text-lg font-bold tabular-nums amount-sensitive">
               {hoveredArc.value.toLocaleString("fr-FR", { maximumFractionDigits: 0 })} €
             </p>
             <p className="text-[10px] text-muted-foreground">{Math.round(hoveredArc.fraction * 100)}%</p>

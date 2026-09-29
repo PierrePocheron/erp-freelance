@@ -1,5 +1,6 @@
 "use client"
 
+import { zonedDateKey } from "@/lib/dates"
 import { useId, useState, useTransition } from "react"
 import { X, Trash2 } from "lucide-react"
 import { toast } from "sonner"
@@ -9,7 +10,7 @@ import type { HEvent } from "./HealthView"
 import type { HealthEventType } from "@/generated/prisma/enums"
 
 const toISO = (d: Date | string | null | undefined) =>
-  d ? new Date(d).toISOString().split("T")[0] : ""
+  d ? zonedDateKey(new Date(d)) : ""
 
 export function HealthEventDialog({
   item,
@@ -170,7 +171,7 @@ export function HealthEventDialog({
                 type="submit" disabled={isPending || !title.trim()}
                 className="h-8 px-4 rounded-lg bg-primary text-primary-foreground text-sm font-medium disabled:opacity-40 hover:bg-primary/90 transition-colors"
               >
-                {isPending ? "…" : item ? "Mettre à jour" : "Enregistrer"}
+                {isPending ? "Enregistrement…" : item ? "Enregistrer" : "Ajouter"}
               </button>
             </div>
           </div>

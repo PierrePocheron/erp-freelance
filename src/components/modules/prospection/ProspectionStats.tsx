@@ -51,7 +51,7 @@ export function ProspectionStats({ counts }: { counts: Counts }) {
   }, [])
 
   return (
-    <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4 lg:grid-cols-9">
+    <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4 lg:grid-cols-5 2xl:grid-cols-9">
       <Tile icon={<TrendingUp className="h-4 w-4 text-amber-500" />}     label="Actifs"        value={counts.active}       active={!current}                  onClick={() => setStatus(null)} />
       <Tile icon={<Send className="h-4 w-4 text-blue-500" />}            label="À contacter"   value={counts.toContact}    active={current === "TO_CONTACT"}   onClick={() => toggle("TO_CONTACT")} />
       <Tile icon={<MessageSquare className="h-4 w-4 text-sky-500" />}    label="Contactés"     value={counts.contacted}    active={current === "CONTACTED"}    onClick={() => toggle("CONTACTED")} />
@@ -77,7 +77,7 @@ function Tile({
 }) {
   const inner = (
     <>
-      <div className="flex items-center gap-1.5 text-xs text-muted-foreground">{icon}<span className="truncate">{label}</span></div>
+      <div className="flex items-center gap-1.5 text-xs text-muted-foreground">{icon}<span className="truncate" title={label}>{label}</span></div>
       <p className={`text-xl font-bold tabular-nums ${variant === "success" ? "text-emerald-600" : variant === "muted" ? "text-muted-foreground" : ""}`}>
         {value}
       </p>

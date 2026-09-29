@@ -1,5 +1,6 @@
 "use client"
 
+import { zonedDateKey } from "@/lib/dates"
 import { useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
 import { Plus, FileText, FilePlus } from "lucide-react"
@@ -9,6 +10,8 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { createInvoice, createInvoiceFromQuote } from "@/actions/facturation"
 import { cn } from "@/lib/utils"
+import { toast } from "sonner"
+import { eur2 as fmtEur } from "@/lib/format"
 
 type Company = { id: string; name: string; city: string | null }
 type Client = { id: string; name: string; company: string | null; type: string; companyId: string | null }
@@ -24,9 +27,6 @@ type Quote = {
   client: { name: string; company: string | null }
 }
 
-function fmtEur(n: number) {
-  return n.toLocaleString("fr-FR", { minimumFractionDigits: 2 }) + " €"
-}
 
 function clientLabel(c: Client) {
   if (c.type === "SELF") return "Perso"
@@ -85,7 +85,7 @@ export function CreateInvoiceDialog({
 
   const defaultDue = new Date()
   defaultDue.setDate(defaultDue.getDate() + 30)
-  const defaultDueStr = defaultDue.toISOString().split("T")[0]
+  const defaultDueStr = zonedDateKey(defaultDue)
 
   function handleQuoteSelect(quoteId: string) {
     setSelectedQuoteId(quoteId)
@@ -100,27 +100,35 @@ export function CreateInvoiceDialog({
     if (mode === "from_quote" && selectedQuoteId) {
       const invoiceType = fd.get("invoiceType") as "DEPOSIT" | "FINAL" | "RECURRING"
       startTransition(async () => {
-        const invoice = await createInvoiceFromQuote(selectedQuoteId, userId, invoiceType)
-        handleOpenChange(false)
-        router.push(`/facturation/factures/${invoice.id}`)
+        try {
+          const invoice = await createInvoiceFromQuote(selectedQuoteId, userId, invoiceType)
+          handleOpenChange(false)
+          router.push(`/facturation/factures/${invoice.id}`)
+        } catch {
+          toast.error("Échec de l'enregistrement")
+        }
       })
     } else {
       startTransition(async () => {
-        const invoice = await createInvoice(userId, {
-          clientId: selectedClientId,
-          projectId: (fd.get("projectId") as string) || undefined,
-          type: (fd.get("type") as string) || undefined,
-          dueDate: (fd.get("dueDate") as string) || undefined,
-          notes: (fd.get("notes") as string) || undefined,
-        })
-        handleOpenChange(false)
-        router.push(`/facturation/factures/${invoice.id}`)
+        try {
+          const invoice = await createInvoice(userId, {
+            clientId: selectedClientId,
+            projectId: (fd.get("projectId") as string) || undefined,
+            type: (fd.get("type") as string) || undefined,
+            dueDate: (fd.get("dueDate") as string) || undefined,
+            notes: (fd.get("notes") as string) || undefined,
+          })
+          handleOpenChange(false)
+          router.push(`/facturation/factures/${invoice.id}`)
+        } catch {
+          toast.error("Échec de l'enregistrement")
+        }
       })
     }
   }
 
   return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
+    <Dialog open={open} onOpenChange={handleOpenChange} disablePointerDismissal>
       {!isControlled && (
         <DialogTrigger className="inline-flex items-center gap-2 rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground shadow hover:bg-primary/90 transition-colors">
           <Plus className="h-4 w-4" />
@@ -207,10 +215,10 @@ export function CreateInvoiceDialog({
                   {selectedQuote && selectedQuote.depositPercent > 0 && (
                     <>
                       <option value="DEPOSIT">Acompte ({selectedQuote.depositPercent}% · {fmtEur(selectedQuote.totalHT * selectedQuote.depositPercent / 100)})</option>
-                      <option value="FINAL">Solde (montant total)</option>
+                      <option value="FINAL">Solde (acomptes et intermédiaires déduits)</option>
                     </>
                   )}
-                  <option value="RECURRING">Intermédiaire (montant total)</option>
+                  <option value="RECURRING">Intermédiaire (montant à compléter)</option>
                 </select>
               </div>
             </>

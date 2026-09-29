@@ -12,8 +12,7 @@ type Entry = {
 }
 
 function formatDate(date: Date) {
-  return new Date(date).toLocaleDateString("fr-FR", {
-    day: "numeric", month: "short", hour: "2-digit", minute: "2-digit",
+  return new Date(date).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit",
   })
 }
 
@@ -130,7 +129,7 @@ export function JournalEntryItem({ entry, projectId }: { entry: Entry; projectId
 
       {/* Actions (hover) */}
       {!editing && !confirmDelete && (
-        <div className="flex items-start gap-0.5 md:opacity-0 md:group-hover:opacity-100 focus:opacity-100 transition-opacity shrink-0 pt-0.5">
+        <div className="flex items-start gap-0.5 pointer-fine:opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity shrink-0 pt-0.5">
           <button
             onClick={startEdit}
             className="rounded p-1 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"

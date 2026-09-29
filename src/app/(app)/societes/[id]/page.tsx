@@ -1,3 +1,4 @@
+import { invoiceStatusMeta } from "@/lib/invoice-state"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { notFound, redirect } from "next/navigation"
@@ -5,10 +6,9 @@ import Link from "next/link"
 import { SetBreadcrumbLabel } from "@/components/layout/BreadcrumbContext"
 import {
   ChevronLeft, Building2, Mail, Phone, Globe, MapPin,
-  Users, FolderOpen, Trash2, ExternalLink, Receipt, FileText,
+  Users, FolderOpen, ExternalLink, Receipt, FileText,
   TrendingUp, Clock, AlertTriangle, CheckCircle2, ListTodo,
 } from "lucide-react"
-import { Button } from "@/components/ui/button"
 import { deleteCompany } from "@/actions/crm"
 import { NewContactForCompanyButton } from "@/components/modules/societes/NewContactForCompanyButton"
 import { NewProjectForCompanyButton } from "@/components/modules/societes/NewProjectForCompanyButton"
@@ -16,10 +16,12 @@ import { CompanyTypeSelect } from "@/components/modules/societes/CompanyTypeSele
 import { CompanyCategoryInline } from "@/components/modules/societes/CompanyCategoryInline"
 import { CompanyOrgBoard } from "@/components/modules/societes/CompanyOrgBoard"
 import { STATUS_CONFIG, type JobAppStatus } from "@/components/modules/entretien/status-config"
+import { DeleteConfirmButton } from "@/components/modules/facturation/DeleteConfirmButton"
+import { runWithFlash } from "@/lib/flash"
+import { amount0 as fmt } from "@/lib/format"
 
-const fmt = (n: number) => n.toLocaleString("fr-FR", { minimumFractionDigits: 0, maximumFractionDigits: 0 })
 const fmtDate = (d: Date | string) =>
-  new Date(d).toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" })
+  new Date(d).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris", day: "numeric", month: "short", year: "numeric" })
 
 export default async function CompanyDetailPage({
   params,
@@ -389,8 +391,8 @@ export default async function CompanyDetailPage({
                         ) : "—"}
                       </td>
                       <td className="px-5 py-3">
-                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${invoiceStatusColor[inv.status] ?? "text-muted-foreground bg-muted"}`}>
-                          {invoiceStatusLabel[inv.status] ?? inv.status}
+                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${invoiceStatusMeta(inv.status).cls}`}>
+                          {invoiceStatusMeta(inv.status).label}
                         </span>
                       </td>
                       <td className="px-5 py-3 text-right font-medium tabular-nums amount-sensitive">
@@ -778,18 +780,16 @@ export default async function CompanyDetailPage({
             <p className="text-xs text-muted-foreground">
               La suppression détache contacts et projets, mais ne les supprime pas.
             </p>
-            <form
-              action={async () => {
-                "use server"
+            <DeleteConfirmButton
+              label="Supprimer cette société"
+              className="w-full"
+              confirmTitle="Supprimer cette société ?"
+              confirmMessage={`${company.name} sera supprimée. Ses contacts et projets sont conservés, mais détachés.`}
+              action={async () => { "use server"; await runWithFlash(async () => {
                 await deleteCompany(id)
                 redirect("/societes")
-              }}
-            >
-              <Button type="submit" variant="destructive" size="sm" className="w-full gap-1.5">
-                <Trash2 className="h-3.5 w-3.5" />
-                Supprimer cette société
-              </Button>
-            </form>
+              }) }}
+            />
           </div>
 
         </div>
@@ -807,34 +807,20 @@ const FISCAL_BUCKET_LABELS: Record<string, string> = {
 }
 
 const projectStatusLabel: Record<string, string> = {
-  ACTIVE: "En cours", COMPLETED: "Terminé", ON_HOLD: "En pause",
-  CANCELLED: "Annulé", DRAFT: "Brouillon", PAUSED: "En pause", ARCHIVED: "Archivé",
+  ACTIVE: "Actif", COMPLETED: "Terminé", PAUSED: "En pause", CANCELLED: "Annulé", ARCHIVED: "Archivé",
 }
 const projectStatusColor: Record<string, string> = {
   ACTIVE: "text-emerald-600 bg-emerald-500/10",
   COMPLETED: "text-blue-600 bg-blue-500/10",
   PAUSED: "text-amber-600 bg-amber-500/10",
-  ON_HOLD: "text-amber-600 bg-amber-500/10",
   CANCELLED: "text-red-600 bg-red-500/10",
   ARCHIVED: "text-muted-foreground bg-muted",
-  DRAFT: "text-muted-foreground bg-muted",
-}
-
-const invoiceStatusLabel: Record<string, string> = {
-  DRAFT: "Brouillon", ISSUED: "Émise", SENT: "Envoyée", PAID: "Payée", LATE: "En retard",
-}
-const invoiceStatusColor: Record<string, string> = {
-  DRAFT: "text-muted-foreground bg-muted",
-  ISSUED: "text-violet-600 bg-violet-500/10",
-  SENT:  "text-blue-600 bg-blue-500/10",
-  PAID:  "text-emerald-600 bg-emerald-500/10",
-  LATE:  "text-red-600 bg-red-500/10",
 }
 
 const quoteStatusLabel: Record<string, string> = {
   DRAFT: "Brouillon", VALIDATED: "Validé", SENT: "Envoyé",
   ACCEPTED: "Accepté", IN_PROGRESS: "En cours", SIGNED: "Signé", REJECTED: "Refusé",
-  WAITING_DEPOSIT: "Acompte att.", DEPOSIT_RECEIVED: "Acompte reçu",
+  WAITING_DEPOSIT: "Attente acompte", DEPOSIT_RECEIVED: "Acompte reçu",
 }
 const quoteStatusColor: Record<string, string> = {
   DRAFT: "text-muted-foreground bg-muted",

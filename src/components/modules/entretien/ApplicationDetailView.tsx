@@ -1,5 +1,6 @@
 "use client"
 
+import { zonedDateKey, zonedDateTimeKey } from "@/lib/dates"
 import { Fragment, useEffect, useId, useState, useTransition } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
@@ -114,7 +115,7 @@ function salaryLabel(app: DetailApp): string | null {
 }
 
 const toDateInput = (d: Date | string | null | undefined) =>
-  d ? new Date(d).toISOString().split("T")[0] : ""
+  d ? zonedDateKey(new Date(d)) : ""
 
 // Styles partagés des champs en mode édition
 const inputCls = "w-full h-9 rounded-lg border border-input bg-background px-3 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
@@ -472,7 +473,7 @@ export function ApplicationDetailView({
   // Add event form
   const [showAddEvent, setShowAddEvent] = useState(false)
   const [evType, setEvType] = useState<JobEventType>("CALL")
-  const [evDate, setEvDate] = useState(() => new Date().toISOString().slice(0, 16))
+  const [evDate, setEvDate] = useState(() => zonedDateTimeKey(new Date()))
   const [evTitle, setEvTitle] = useState("")
   const [evNotes, setEvNotes] = useState("")
   const [evContactId, setEvContactId] = useState(app.contactId ?? "")

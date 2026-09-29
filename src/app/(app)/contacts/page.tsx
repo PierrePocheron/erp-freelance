@@ -96,11 +96,11 @@ export default async function CRMPage() {
       {/* Stats */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
         <StatCard icon={<Users className="h-4 w-4" />}               label="Total"      value={clients.length} />
-        <StatCard icon={<TrendingUp className="h-4 w-4 text-blue-500" />} label="Clients" value={activeClients.length} />
-        <StatCard icon={<Target className="h-4 w-4 text-amber-500" />} label="Prospects"  value={prospectCount} link="/prospection" />
-        <StatCard icon={<Users className="h-4 w-4 text-violet-500" />} label="Perso"     value={personalClients.length} />
+        <StatCard icon={<TrendingUp className="h-4 w-4" />} label="Clients" value={activeClients.length} />
+        <StatCard icon={<Target className="h-4 w-4" />} label="Prospects"  value={prospectCount} link="/prospection" />
+        <StatCard icon={<Users className="h-4 w-4" />} label="Perso"     value={personalClients.length} />
         {toComplete.length > 0 && (
-          <StatCard icon={<AlertCircle className="h-4 w-4 text-rose-500" />} label="À compléter" value={toComplete.length} highlight="rose" />
+          <StatCard icon={<AlertCircle className="h-4 w-4" />} label="À compléter" value={toComplete.length} />
         )}
         {/* Données manquantes (prénom/nom ou coordonnées) — distinct du type "À compléter" ci-dessus */}
         {incompleteCount > 0 ? (
@@ -112,7 +112,7 @@ export default async function CRMPage() {
             }))}
           />
         ) : (
-          <StatCard icon={<Thermometer className="h-4 w-4 text-amber-500" />} label="Rappels" value={pendingReminders} />
+          <StatCard icon={<Thermometer className="h-4 w-4" />} label="Rappels" value={pendingReminders} />
         )}
       </div>
 
@@ -123,23 +123,17 @@ export default async function CRMPage() {
 }
 
 function StatCard({
-  icon, label, value, highlight, link,
+  icon, label, value, link,
 }: {
   icon: React.ReactNode
   label: string
   value: number
-  highlight?: "rose" | "amber"
   link?: string
 }) {
-  const cls = highlight === "rose"
-    ? { border: "border-rose-500/30 bg-rose-500/5", text: "text-rose-600" }
-    : highlight === "amber"
-    ? { border: "border-amber-500/30 bg-amber-500/5", text: "text-amber-600" }
-    : { border: "border-border/50 bg-card", text: "" }
   const inner = (
-    <div className={`rounded-xl border p-4 space-y-1 transition-colors ${cls.border} ${link ? "hover:border-border cursor-pointer" : ""}`}>
-      <div className={`flex items-center gap-2 text-xs ${highlight ? cls.text : "text-muted-foreground"}`}>{icon}{label}</div>
-      <p className={`text-2xl font-bold ${cls.text}`}>{value}</p>
+    <div className={`rounded-xl border border-border/50 bg-card p-4 space-y-1 transition-colors ${link ? "hover:border-border cursor-pointer" : ""}`}>
+      <div className="flex items-center gap-2 text-xs text-muted-foreground">{icon}{label}</div>
+      <p className="text-xl font-bold">{value}</p>
     </div>
   )
   return link ? <Link href={link}>{inner}</Link> : inner

@@ -1,7 +1,6 @@
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { notFound } from "next/navigation"
-import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { upsertPostDev, deleteRenewal } from "@/actions/postdev"
 import { createInvoiceFromRenewal } from "@/actions/facturation"
@@ -13,6 +12,9 @@ import {
   Trash2, CheckCircle2, XCircle, Clock, RefreshCw, Receipt,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { SubmitButton } from "@/components/ui/submit-button"
+import { runWithFlash } from "@/lib/flash"
+import { amountAuto } from "@/lib/format"
 
 const renewalTypes = [
   { value: "DOMAIN", label: "Domaine" },
@@ -56,15 +58,14 @@ export default async function ProjectPostDevPage({
           <h2 className="font-semibold">URLs de production</h2>
         </div>
         <form
-          action={async (fd: FormData) => {
-            "use server"
+          action={async (fd: FormData) => { "use server"; await runWithFlash(async () => {
             await upsertPostDev(id, userId, {
               prodUrl: (fd.get("prodUrl") as string) || null,
               adminUrl: (fd.get("adminUrl") as string) || null,
               hostingUrl: (fd.get("hostingUrl") as string) || null,
               registrarUrl: (fd.get("registrarUrl") as string) || null,
             })
-          }}
+          }, "URLs enregistrées") }}
           className="space-y-3"
         >
           <div className="space-y-1">
@@ -83,7 +84,7 @@ export default async function ProjectPostDevPage({
             <label htmlFor="registrarUrl" className="text-xs text-muted-foreground flex items-center gap-1.5"><Building2 className="h-3 w-3" />Registrar domaine</label>
             <Input id="registrarUrl" name="registrarUrl" type="url" defaultValue={postDev?.registrarUrl ?? ""} placeholder="https://ovh.com" className="h-8 font-mono text-xs" />
           </div>
-          <Button type="submit" size="sm" variant="outline" className="w-full">Enregistrer</Button>
+          <SubmitButton size="sm" variant="outline" className="w-full">Enregistrer</SubmitButton>
         </form>
       </div>
 
@@ -112,8 +113,7 @@ export default async function ProjectPostDevPage({
                     {lastCheck.isUp ? "Site en ligne" : "Site hors ligne"}
                   </p>
                   <p className="text-xs text-muted-foreground">
-                    Vérifié le {new Date(lastCheck.checkedAt).toLocaleDateString("fr-FR", {
-                      day: "numeric", month: "short", hour: "2-digit", minute: "2-digit"
+                    Vérifié le {new Date(lastCheck.checkedAt).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit"
                     })}
                     {lastCheck.responseTimeMs && ` · ${lastCheck.responseTimeMs}ms`}
                   </p>
@@ -131,7 +131,7 @@ export default async function ProjectPostDevPage({
                   {postDev.monitoringChecks.slice(0, 20).reverse().map((check) => (
                     <div
                       key={check.id}
-                      title={`${new Date(check.checkedAt).toLocaleString("fr-FR")} — ${check.isUp ? "OK" : "KO"}`}
+                      title={`${new Date(check.checkedAt).toLocaleString("fr-FR", { timeZone: "Europe/Paris" })} — ${check.isUp ? "OK" : "KO"}`}
                       className={`h-6 w-2 rounded-sm ${check.isUp ? "bg-emerald-500" : "bg-red-500"}`}
                     />
                   ))}
@@ -194,28 +194,28 @@ export default async function ProjectPostDevPage({
                           <span className="text-sm font-medium">{r.name}</span>
                         </div>
                         <p className={cn("text-xs mt-0.5", isExpired ? "text-red-500 font-medium" : isSoon ? "text-amber-600 font-medium" : "text-muted-foreground")}>
-                          Expire le {expires.toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" })}
+                          Expire le {expires.toLocaleDateString("fr-FR", { timeZone: "Europe/Paris", day: "numeric", month: "long", year: "numeric" })}
                           {isExpired && " · Expiré !"}
                           {isSoon && !isExpired && ` · Dans ${daysLeft} jour${daysLeft !== 1 ? "s" : ""}`}
                         </p>
                         {r.purchasedAt && (
                           <p className="text-xs mt-0.5 text-muted-foreground">
-                            Acheté le {new Date(r.purchasedAt).toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" })}
+                            Acheté le {new Date(r.purchasedAt).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris", day: "numeric", month: "long", year: "numeric" })}
                             {r.periodMonths ? ` · ${r.periodMonths < 12 ? `${r.periodMonths} mois` : `${r.periodMonths / 12} an${r.periodMonths / 12 > 1 ? "s" : ""}`}` : ""}
-                            {r.amount ? <> · <span className="amount-sensitive">{`${r.amount.toLocaleString("fr-FR")} € HT`}</span></> : ""}
+                            {r.amount ? <> · <span className="amount-sensitive">{`${amountAuto(r.amount)} € HT`}</span></> : ""}
                           </p>
                         )}
                       </div>
                       {r.amount && r.amount > 0 && (
-                        <form action={async () => { "use server"; const inv = await createInvoiceFromRenewal(r.id, ""); redirect(`/facturation/factures/${inv.id}`) }}>
-                          <Button type="submit" size="sm" variant="outline" className="h-7 gap-1 text-xs">
+                        <form action={async () => { "use server"; await runWithFlash(async () => { const inv = await createInvoiceFromRenewal(r.id, ""); redirect(`/facturation/factures/${inv.id}`) }) }}>
+                          <SubmitButton pendingLabel="Création…" size="sm" variant="outline" className="h-7 gap-1 text-xs">
                             <Receipt className="h-3.5 w-3.5" />
                             Facturer
-                          </Button>
+                          </SubmitButton>
                         </form>
                       )}
-                      <form action={async () => { "use server"; await deleteRenewal(r.id, id) }}>
-                        <button type="submit" aria-label={`Supprimer le renouvellement ${r.name}`} className="md:opacity-0 md:group-hover:opacity-100 focus:opacity-100 text-muted-foreground hover:text-destructive transition-opacity">
+                      <form action={async () => { "use server"; await runWithFlash(async () => { await deleteRenewal(r.id, id) }) }}>
+                        <button type="submit" aria-label={`Supprimer le renouvellement ${r.name}`} className="pointer-fine:opacity-0 group-hover:opacity-100 focus:opacity-100 text-muted-foreground hover:text-destructive transition-opacity">
                           <Trash2 className="h-3.5 w-3.5" />
                         </button>
                       </form>

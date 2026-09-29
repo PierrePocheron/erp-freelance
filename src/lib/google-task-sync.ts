@@ -7,11 +7,14 @@
  */
 
 import { prisma } from "@/lib/prisma"
+import { isZonedAllDay } from "@/lib/dates"
 import { getGoogleAccessToken, getErpCalendarId, pushGoogleEvent, deleteGoogleEvent } from "@/lib/google-calendar"
 import { meetingFormat } from "@/components/modules/entretien/status-config"
 
+// Heure lue en heure de Paris : getHours() lit le fuseau du serveur (UTC en prod) → un jalon
+// « journée entière » stocké à minuit Paris partait chez Google en créneau de durée nulle.
 function hasTime(d: Date): boolean {
-  return d.getHours() !== 0 || d.getMinutes() !== 0
+  return !isZonedAllDay(d)
 }
 
 /**

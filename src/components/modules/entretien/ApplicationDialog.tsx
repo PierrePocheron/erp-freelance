@@ -1,5 +1,6 @@
 "use client"
 
+import { zonedDateKey } from "@/lib/dates"
 import { useId, useState, useTransition } from "react"
 import { X, Trash2, FileCheck2 } from "lucide-react"
 import { toast } from "sonner"
@@ -28,7 +29,7 @@ export function ApplicationDialog({
   // Premier contact (création uniquement)
   const [initEventEnabled, setInitEventEnabled] = useState(false)
   const [initEventType, setInitEventType] = useState<JobEventType>("CALL")
-  const [initEventDate, setInitEventDate] = useState(() => new Date().toISOString().split("T")[0])
+  const [initEventDate, setInitEventDate] = useState(() => zonedDateKey(new Date()))
   const [initEventTitle, setInitEventTitle] = useState("")
   const [initEventNotes, setInitEventNotes] = useState("")
 
@@ -112,8 +113,8 @@ export function ApplicationDialog({
   }
 
   return (
-    <Dialog open onOpenChange={(o) => { if (!o) onClose() }}>
-      <DialogContent showCloseButton={false} className="sm:max-w-lg max-h-[90vh] overflow-y-auto p-0 gap-0">
+    <Dialog open onOpenChange={(o) => { if (!o) onClose() }} disablePointerDismissal>
+      <DialogContent showCloseButton={false} className="sm:max-w-lg max-h-[85dvh] overflow-y-auto p-0 gap-0">
         <div className="flex items-center justify-between px-5 py-4 border-b border-border/50 sticky top-0 bg-background z-10">
           <DialogTitle className="text-sm font-semibold">{item ? "Modifier" : "Nouvelle"} candidature</DialogTitle>
           <button onClick={onClose} aria-label="Fermer" className="text-muted-foreground hover:text-foreground transition-colors">
@@ -436,7 +437,7 @@ export function ApplicationDialog({
               </button>
               <button type="submit" disabled={isPending || !companyName.trim() || !position.trim()}
                 className="h-8 px-4 rounded-lg bg-primary text-primary-foreground text-sm font-medium disabled:opacity-40 hover:bg-primary/90 transition-colors">
-                {isPending ? "…" : item ? "Mettre à jour" : "Créer"}
+                {isPending ? "Enregistrement…" : item ? "Enregistrer" : "Créer"}
               </button>
             </div>
           </div>

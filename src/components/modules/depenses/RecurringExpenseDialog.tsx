@@ -3,6 +3,7 @@
 import { useState, useTransition, useId } from "react"
 import { useRouter } from "next/navigation"
 import { Plus, Pencil, Trash2 } from "lucide-react"
+import { useArmedDelete } from "@/hooks/use-armed-delete"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
@@ -14,6 +15,7 @@ import { ExpenseCategoryCombobox, type ExpenseCategory } from "./ExpenseCategory
 import { toDateInput } from "@/lib/dates"
 
 import { FREQUENCY_LABELS } from "@/lib/expense-constants"
+import { toast } from "sonner"
 
 export type RecurringExpenseForEdit = {
   id: string
@@ -40,6 +42,7 @@ export function RecurringExpenseDialog({
   const [open, setOpen] = useState(false)
   const [isPending, startTransition] = useTransition()
   const [isDeleting, startDelete] = useTransition()
+  const { isArmed, confirmFirst } = useArmedDelete()
 
   const [label, setLabel]         = useState(recurringExpense?.label ?? "")
   const [amount, setAmount]       = useState(recurringExpense ? String(recurringExpense.amount) : "")
@@ -55,7 +58,8 @@ export function RecurringExpenseDialog({
     e.preventDefault()
     const amountNum = parseFloat(amount.replace(",", "."))
     // Une dépense ponctuelle exige une date ; une récurrente peut être « à compléter ».
-    if (!label.trim() || !amountNum || amountNum <= 0) return
+    if (!(amountNum > 0)) { toast.error("Montant invalide : saisis un nombre supérieur à 0"); return }
+    if (!label.trim()) return
     if (isOneTime && !nextDate) return
     if (!isOneTime && !dateToConfirm && !nextDate) return
 
@@ -69,26 +73,35 @@ export function RecurringExpenseDialog({
     const dateObj = new Date(`${nextDate || toDateInput(new Date())}T00:00:00`)
 
     startTransition(async () => {
-      if (frequency === "ONETIME") {
-        // Conversion / création d'une dépense ponctuelle
-        if (isEdit) await convertRecurringToExpense(recurringExpense.id, { ...shared, date: dateObj })
-        else await createExpense({ ...shared, date: dateObj })
-      } else {
-        const payload = { ...shared, frequency, nextGenerationDate: dateObj, dateToConfirm }
-        if (isEdit) await updateRecurringExpense(recurringExpense.id, payload)
-        else await createRecurringExpense(payload)
+      try {
+        if (frequency === "ONETIME") {
+          // Conversion / création d'une dépense ponctuelle
+          if (isEdit) await convertRecurringToExpense(recurringExpense.id, { ...shared, date: dateObj })
+          else await createExpense({ ...shared, date: dateObj })
+        } else {
+          const payload = { ...shared, frequency, nextGenerationDate: dateObj, dateToConfirm }
+          if (isEdit) await updateRecurringExpense(recurringExpense.id, payload)
+          else await createRecurringExpense(payload)
+        }
+        setOpen(false)
+        router.refresh()
+      } catch {
+        toast.error("Échec de l'enregistrement")
       }
-      setOpen(false)
-      router.refresh()
     })
   }
 
   function handleDelete() {
+    if (!confirmFirst(recurringExpense?.id)) return
     if (!recurringExpense) return
     startDelete(async () => {
-      await deleteRecurringExpense(recurringExpense.id)
-      setOpen(false)
-      router.refresh()
+      try {
+        await deleteRecurringExpense(recurringExpense.id)
+        setOpen(false)
+        router.refresh()
+      } catch {
+        toast.error("Échec de la suppression")
+      }
     })
   }
 
@@ -96,7 +109,7 @@ export function RecurringExpenseDialog({
     <Dialog open={open} onOpenChange={setOpen}>
       {isEdit ? (
         <DialogTrigger
-          render={<button className="text-muted-foreground hover:text-foreground transition-colors md:opacity-0 md:group-hover:opacity-100 focus:opacity-100" title="Modifier" />}
+          render={<button className="text-muted-foreground hover:text-foreground transition-colors pointer-fine:opacity-0 group-hover:opacity-100 focus:opacity-100" title="Modifier" />}
         >
           <Pencil className="h-3.5 w-3.5" />
         </DialogTrigger>
@@ -186,7 +199,7 @@ export function RecurringExpenseDialog({
                 className="flex items-center gap-1.5 text-xs text-red-600 hover:text-red-700 disabled:opacity-50 transition-colors"
               >
                 <Trash2 className="h-3.5 w-3.5" />
-                Supprimer
+                {isArmed(recurringExpense?.id) ? "Confirmer la suppression" : "Supprimer"}
               </button>
             ) : <span />}
             <div className="flex gap-2">

@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Package } from "lucide-react"
 import { ProductCard } from "@/components/modules/facturation/ProductCard"
+import { runWithFlash } from "@/lib/flash"
 
 export default async function ProduitsPage() {
   const session = await auth()
@@ -31,8 +32,7 @@ export default async function ProduitsPage() {
           <div className="rounded-xl border border-border/50 bg-card p-5 space-y-4 sticky top-6">
             <h3 className="font-semibold text-sm">Nouveau produit</h3>
             <form
-              action={async (fd: FormData) => {
-                "use server"
+              action={async (fd: FormData) => { "use server"; await runWithFlash(async () => {
                 await createProduct(userId, {
                   name: fd.get("name") as string,
                   description: (fd.get("description") as string) || undefined,
@@ -41,7 +41,7 @@ export default async function ProduitsPage() {
                   billingType: (fd.get("billingType") as string) || "ONE_SHOT",
                   defaultTaxRate: Number(fd.get("defaultTaxRate")) || 0,
                 })
-              }}
+              }, "Produit ajouté") }}
               className="space-y-3"
             >
               <div className="space-y-1">

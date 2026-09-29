@@ -142,9 +142,17 @@ export async function updateCompany(
   await assertCompanyRefsOwned(userId, { categoryId: data.categoryId, fiscalSourceId: data.fiscalSourceId })
   await prisma.company.update({ where: { id: companyId, userId }, data: clean as never })
 
-  // Resynchronise le cache d'affichage des contacts si le nom a changé.
+  // Resynchronise les caches d'affichage si le nom a changé (#45) : le nom de société des
+  // contacts, le NOM des contacts qui n'en ont pas d'autre (computeContactName retombe sur la
+  // société : cas le plus courant en saisie rapide) et le nom des candidatures liées.
   if (clean.name && clean.name !== before.name) {
-    await prisma.client.updateMany({ where: { companyId, userId }, data: { company: clean.name as string } })
+    const newName = clean.name as string
+    await prisma.client.updateMany({ where: { companyId, userId }, data: { company: newName } })
+    await prisma.client.updateMany({
+      where: { companyId, userId, name: before.name, ...NO_OWN_NAME },
+      data: { name: newName },
+    })
+    await prisma.jobApplication.updateMany({ where: { companyId, userId }, data: { companyName: newName } })
   }
   revalidatePath("/societes")
   revalidatePath(`/societes/${companyId}`)
@@ -170,8 +178,25 @@ export async function createCompanyCategory(name: string, color: string) {
   return category
 }
 
+// Contact sans libellé ni prénom/nom : son nom affiché est celui de sa société.
+const NO_OWN_NAME = {
+  AND: [
+    { OR: [{ label: null }, { label: "" }] },
+    { OR: [{ firstName: null }, { firstName: "" }] },
+    { OR: [{ lastName: null }, { lastName: "" }] },
+  ],
+}
+
 export async function deleteCompany(companyId: string) {
   const userId = await requireAuth()
+  const company = await prisma.company.findFirst({ where: { id: companyId, userId }, select: { name: true } })
+  if (!company) throw new Error("Société introuvable")
+  // Contacts sans nom propre : leur nom venait de la société → il devient un libellé explicite
+  // (sinon ils portaient le nom d'une société qui n'existe plus, sans qu'on sache pourquoi, #45).
+  await prisma.client.updateMany({
+    where: { companyId, userId, name: company.name, ...NO_OWN_NAME },
+    data: { label: company.name },
+  })
   // Détache les contacts (companyId → null via FK SET NULL) puis nettoie le cache.
   await prisma.client.updateMany({ where: { companyId, userId }, data: { company: null } })
   await prisma.company.delete({ where: { id: companyId, userId } })
@@ -343,6 +368,10 @@ export async function createClient(
   }
 ) {
   const userId = await requireAuth()
+  // Un contact entièrement vide devenait « Sans nom » : au moins un nom, un libellé ou une société
+  if (![data.label, data.firstName, data.lastName, data.companyName].some((v) => v?.trim()) && !data.companyId) {
+    throw new Error("Renseigne au moins un nom, un libellé ou une société")
+  }
   const { companyId, companyName } = await resolveCompany(userId, data)
   const name = computeContactName({
     label: data.label,
@@ -377,28 +406,6 @@ export async function createClient(
   return client
 }
 
-export async function updateClient(
-  clientId: string,
-  _userId: string,
-  data: {
-    name?: string
-    company?: string | null
-    email?: string | null
-    phone?: string | null
-    notes?: string | null
-    source?: string
-  }
-) {
-  const userId = await requireAuth()
-  await prisma.client.update({
-    where: { id: clientId, userId },
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    data: data as any,
-  })
-  revalidatePath(`/contacts/${clientId}`)
-  revalidatePath("/contacts")
-}
-
 export async function updateCompanyType(companyId: string, type: string | null) {
   const userId = await requireAuth()
   await prisma.company.update({
@@ -419,16 +426,6 @@ export async function updateClientType(clientId: string, _userId: string, type: 
   revalidatePath("/contacts")
 }
 
-
-export async function updateClientPriority(clientId: string, _userId: string, priorityScore: number) {
-  const userId = await requireAuth()
-  await prisma.client.update({
-    where: { id: clientId, userId },
-    data: { priorityScore },
-  })
-  revalidatePath(`/contacts/${clientId}`)
-  revalidatePath("/contacts")
-}
 
 export async function updateClientAll(
   clientId: string,
@@ -525,6 +522,22 @@ export async function updateClientAll(
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 export async function deleteClient(clientId: string, _userId: string) {
   const userId = await requireAuth()
+  // Devis, factures et factures récurrentes sont en Restrict : la suppression échouait
+  // sur une violation de clé étrangère brute (#36). On refuse avec un message clair — un
+  // document comptable ne doit de toute façon pas perdre son destinataire.
+  const [quotes, invoices, recurring] = await Promise.all([
+    prisma.quote.count({ where: { clientId, userId } }),
+    prisma.invoice.count({ where: { clientId, userId } }),
+    prisma.recurringInvoice.count({ where: { clientId, userId } }),
+  ])
+  if (quotes + invoices + recurring > 0) {
+    const parts = [
+      invoices && `${invoices} facture${invoices > 1 ? "s" : ""}`,
+      quotes && `${quotes} devis`,
+      recurring && `${recurring} facture${recurring > 1 ? "s" : ""} récurrente${recurring > 1 ? "s" : ""}`,
+    ].filter(Boolean)
+    throw new Error(`Impossible de supprimer ce contact : il est lié à ${parts.join(", ")}.`)
+  }
   await prisma.client.delete({ where: { id: clientId, userId } })
   revalidatePath("/contacts")
 }

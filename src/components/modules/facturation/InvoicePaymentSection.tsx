@@ -1,10 +1,13 @@
 "use client"
 
+import { zonedDateKey } from "@/lib/dates"
 import { useState, useTransition } from "react"
 import { Plus, Trash2, CheckCircle2 } from "lucide-react"
 import { recordPayment, deletePayment } from "@/actions/facturation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { toast } from "sonner"
+import { eur2 as fmtEur } from "@/lib/format"
 
 type Payment = {
   id: string
@@ -13,12 +16,9 @@ type Payment = {
   note: string | null
 }
 
-function fmtEur(n: number) {
-  return n.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " €"
-}
 
 function fmtDate(d: Date) {
-  return new Date(d).toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" })
+  return new Date(d).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris", day: "numeric", month: "short", year: "numeric" })
 }
 
 export function InvoicePaymentSection({
@@ -36,7 +36,7 @@ export function InvoicePaymentSection({
 }) {
   const [showForm, setShowForm] = useState(false)
   const [amount, setAmount] = useState("")
-  const [paidAt, setPaidAt] = useState(new Date().toISOString().split("T")[0])
+  const [paidAt, setPaidAt] = useState(zonedDateKey(new Date()))
   const [note, setNote] = useState("")
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
@@ -47,7 +47,7 @@ export function InvoicePaymentSection({
 
   function openForm() {
     setAmount(remaining > 0 ? remaining.toFixed(2) : "")
-    setPaidAt(new Date().toISOString().split("T")[0])
+    setPaidAt(zonedDateKey(new Date()))
     setNote("")
     setShowForm(true)
   }
@@ -56,15 +56,23 @@ export function InvoicePaymentSection({
     const amt = parseFloat(amount)
     if (!amt || !paidAt) return
     startTransition(async () => {
-      await recordPayment(invoiceId, userId, { amount: amt, paidAt, note: note || undefined })
-      setShowForm(false)
+      try {
+        await recordPayment(invoiceId, userId, { amount: amt, paidAt, note: note || undefined })
+        setShowForm(false)
+      } catch {
+        toast.error("Échec de l'enregistrement")
+      }
     })
   }
 
   function handleDelete(paymentId: string) {
     startTransition(async () => {
-      await deletePayment(paymentId, invoiceId, userId)
-      setConfirmDelete(null)
+      try {
+        await deletePayment(paymentId, invoiceId, userId)
+        setConfirmDelete(null)
+      } catch {
+        toast.error("Échec de la suppression")
+      }
     })
   }
 
@@ -137,7 +145,7 @@ export function InvoicePaymentSection({
                 <button
                   type="button"
                   onClick={() => setConfirmDelete(p.id)}
-                  className="md:opacity-0 md:group-hover:opacity-100 focus:opacity-100 text-muted-foreground hover:text-destructive transition-opacity shrink-0"
+                  className="pointer-fine:opacity-0 group-hover:opacity-100 focus:opacity-100 text-muted-foreground hover:text-destructive transition-opacity shrink-0"
                 >
                   <Trash2 className="h-3.5 w-3.5" />
                 </button>
@@ -151,7 +159,10 @@ export function InvoicePaymentSection({
 
       {/* Formulaire */}
       {showForm && (
-        <div className="rounded-lg border border-border/60 bg-muted/20 p-3 space-y-3">
+        <form
+          onSubmit={(e) => { e.preventDefault(); handleRecord() }}
+          className="rounded-lg border border-border/60 bg-muted/20 p-3 space-y-3"
+        >
           <p className="text-xs font-medium">Nouveau paiement</p>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
@@ -190,15 +201,14 @@ export function InvoicePaymentSection({
               Annuler
             </Button>
             <Button
-              type="button"
+              type="submit"
               size="sm"
               disabled={isPending || !amount || !paidAt}
-              onClick={handleRecord}
             >
               {isPending ? "Enregistrement…" : "Enregistrer"}
             </Button>
           </div>
-        </div>
+        </form>
       )}
     </div>
   )

@@ -37,11 +37,12 @@ export function expiresAtFromDays(days: number | null | undefined, now: Date = n
   return new Date(now.getTime() + days * DAY_MS)
 }
 
-// Nombre de jours de retard d'une facture (arrondi au jour supérieur). null si
-// aucune échéance. Peut être négatif si l'échéance est dans le futur.
+// Nombre de jours de retard d'une facture, en jours CIVILS de Paris. null si aucune
+// échéance ; négatif si l'échéance est dans le futur. (Un Math.ceil sur les instants
+// comptait un jour de trop pour une échéance stockée à minuit Paris.)
 export function daysLate(dueDate: Date | null | undefined, now: Date = new Date()): number | null {
   if (!dueDate) return null
-  return Math.ceil((now.getTime() - new Date(dueDate).getTime()) / DAY_MS)
+  return Math.round((zonedDayStart(now).getTime() - zonedDayStart(new Date(dueDate)).getTime()) / DAY_MS)
 }
 
 export type RecurringFrequency = "WEEKLY" | "MONTHLY" | "QUARTERLY" | "YEARLY"
@@ -186,6 +187,12 @@ export function zonedParts(date: Date): { year: number; month: number; day: numb
 export function zonedDateKey(date: Date): string {
   const { year, month, day } = zonedParts(date)
   return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`
+}
+
+/** "AAAA-MM-JJTHH:mm" (valeur d'un <input type="datetime-local">) dans le fuseau de l'app. */
+export function zonedDateTimeKey(date: Date): string {
+  const { hour, minute } = zonedParts(date)
+  return `${zonedDateKey(date)}T${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`
 }
 
 /** Minuit (dans le fuseau de l'app) du jour civil qui contient `date`. */

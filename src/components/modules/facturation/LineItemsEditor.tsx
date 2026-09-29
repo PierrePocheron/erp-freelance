@@ -2,8 +2,11 @@
 
 import { useState, useTransition } from "react"
 import { Trash2, Plus, Pencil, Check, X, ChevronDown } from "lucide-react"
+import { useArmedDelete } from "@/hooks/use-armed-delete"
 import { addQuoteLine, updateQuoteLine, deleteQuoteLine } from "@/actions/facturation"
 import { addInvoiceLine, updateInvoiceLine, deleteInvoiceLine } from "@/actions/facturation"
+import { toast } from "sonner"
+import { eur2 as fmtEur } from "@/lib/format"
 
 const TAX_RATES = [
   { value: 0, label: "0%" },
@@ -47,9 +50,6 @@ const emptyForm: LineFormData = {
   taxRate: "0",
 }
 
-function fmtEur(n: number) {
-  return n.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " €"
-}
 
 function fmtTaxLabel(rate: number) {
   return rate === 0 ? "0%" : `${String(rate).replace(".", ",")}%`
@@ -179,6 +179,7 @@ function LineForm({
 
 export function LineItemsEditor({ entityId, entityType, lines, editable = true }: Props) {
   const [isPending, startTransition] = useTransition()
+  const { isArmed, confirmFirst } = useArmedDelete()
   const [editingId, setEditingId] = useState<string | null>(null)
   const [showAdd, setShowAdd] = useState(false)
 
@@ -191,32 +192,43 @@ export function LineItemsEditor({ entityId, entityType, lines, editable = true }
 
   function handleAdd(data: LineFormData) {
     startTransition(async () => {
-      await addLine(entityId, "system", {
-        description: data.description,
-        detail: data.detail || undefined,
-        quantity: parseFloat(data.quantity),
-        unitPrice: parseFloat(data.unitPrice),
-        taxRate: parseFloat(data.taxRate),
-      })
-      setShowAdd(false)
+      try {
+        await addLine(entityId, "system", {
+          description: data.description,
+          detail: data.detail || undefined,
+          quantity: parseFloat(data.quantity),
+          unitPrice: parseFloat(data.unitPrice),
+          taxRate: parseFloat(data.taxRate),
+        })
+        setShowAdd(false)
+      } catch {
+        toast.error("Échec de l'enregistrement")
+      }
     })
   }
 
   function handleUpdate(lineId: string, data: LineFormData) {
     startTransition(async () => {
-      await updateLine(lineId, {
-        description: data.description,
-        detail: data.detail || undefined,
-        quantity: parseFloat(data.quantity),
-        unitPrice: parseFloat(data.unitPrice),
-        taxRate: parseFloat(data.taxRate),
-      })
-      setEditingId(null)
+      try {
+        await updateLine(lineId, {
+          description: data.description,
+          detail: data.detail || undefined,
+          quantity: parseFloat(data.quantity),
+          unitPrice: parseFloat(data.unitPrice),
+          taxRate: parseFloat(data.taxRate),
+        })
+        setEditingId(null)
+      } catch {
+        toast.error("Échec de l'enregistrement")
+      }
     })
   }
 
   return (
     <div>
+      {/* Grille 12 colonnes illisible sous ~576 px (montants qui se chevauchent) : défilement horizontal */}
+      <div className="overflow-x-auto">
+      <div className="min-w-[36rem]">
       {/* En-tête */}
       <div className="grid grid-cols-12 gap-2 px-4 py-2.5 text-xs font-medium text-muted-foreground bg-muted/30 border-b border-border">
         <div className="col-span-6">Prestation</div>
@@ -267,17 +279,17 @@ export function LineItemsEditor({ entityId, entityType, lines, editable = true }
                   <button
                     onClick={() => setEditingId(line.id)}
                     aria-label="Modifier la ligne"
-                    className="md:opacity-0 md:group-hover:opacity-100 focus:opacity-100 text-muted-foreground hover:text-foreground transition-opacity"
+                    className="p-2 -m-1.5 pointer-fine:opacity-0 group-hover:opacity-100 focus:opacity-100 text-muted-foreground hover:text-foreground transition-opacity"
                   >
                     <Pencil className="h-3.5 w-3.5" />
                   </button>
                   <button
-                    onClick={() => startTransition(() => deleteLine(line.id))}
+                    onClick={() => { if (confirmFirst(line.id)) startTransition(() => deleteLine(line.id)) }}
                     disabled={isPending}
-                    aria-label="Supprimer la ligne"
-                    className="md:opacity-0 md:group-hover:opacity-100 focus:opacity-100 text-muted-foreground hover:text-destructive transition-opacity"
+                    aria-label={isArmed(line.id) ? "Confirmer la suppression de la ligne" : "Supprimer la ligne"}
+                    className={`p-2 -m-1.5 group-hover:opacity-100 focus:opacity-100 hover:text-destructive transition-opacity ${isArmed(line.id) ? "text-destructive" : "pointer-fine:opacity-0 text-muted-foreground"}`}
                   >
-                    <Trash2 className="h-3.5 w-3.5" />
+                    {isArmed(line.id) ? <Check className="h-3.5 w-3.5" /> : <Trash2 className="h-3.5 w-3.5" />}
                   </button>
                 </>
               )}
@@ -285,6 +297,8 @@ export function LineItemsEditor({ entityId, entityType, lines, editable = true }
           </div>
         )
       )}
+      </div>
+      </div>
 
       {/* Formulaire d'ajout */}
       {editable && (

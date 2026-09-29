@@ -2,15 +2,16 @@
 
 import ForceGraph2D from "react-force-graph-2d"
 import type { ForceGraphMethods, NodeObject } from "react-force-graph-2d"
-import { useRef, useEffect, useCallback, useMemo, forwardRef, useImperativeHandle } from "react"
+import { useRef, useEffect, useCallback, useMemo, useState, forwardRef, useImperativeHandle } from "react"
 import type { RawNode, RawLink, NodeType } from "./graph-types"
 import { nodeColor, NODE_RADIUS } from "./graph-types"
+import { amount0 } from "@/lib/format"
 
 // Formatte un montant de façon compacte pour le canvas
 function fmtAmount(n: number): string {
   if (n >= 10_000) return `${Math.round(n / 1000)}k €`
   if (n >= 1_000)  return `${(n / 1000).toLocaleString("fr-FR", { maximumFractionDigits: 1 })}k €`
-  return `${Math.round(n).toLocaleString("fr-FR")} €`
+  return `${amount0(n)} €`
 }
 
 // Ordre de rendu : les nœuds parents sont peints en dernier → leur hitbox gagne
@@ -185,6 +186,17 @@ export const ForceGraphCanvas = forwardRef<GraphMethods, Props>(function ForceGr
   ref
 ) {
   const fgRef       = useRef<ForceGraphMethods<NodeObject, object> | undefined>(undefined)
+  // « Masquer les montants » (.hide-amounts sur <html>) : le flou CSS n'atteint pas le texte
+  // peint dans le <canvas> (#41) → on suit la classe et on ne peint plus les montants.
+  const [hideAmounts, setHideAmounts] = useState(false)
+  useEffect(() => {
+    const html = document.documentElement
+    const sync = () => setHideAmounts(html.classList.contains("hide-amounts"))
+    sync()
+    const obs = new MutationObserver(sync)
+    obs.observe(html, { attributes: true, attributeFilter: ["class"] })
+    return () => obs.disconnect()
+  }, [])
   const lastClick   = useRef<{ id: string | number; time: number } | null>(null)
   const singleTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -490,7 +502,7 @@ export const ForceGraphCanvas = forwardRef<GraphMethods, Props>(function ForceGr
       if (n.amount !== undefined && screenFont >= 7 && (n.type === "INVOICE" || n.type === "QUOTE" || n.type === "REVENUE")) {
         const rawAmt      = 9 / globalScale
         const amtFontSize = Math.max(3.5, Math.min(r * 0.55, rawAmt))
-        const amtText     = fmtAmount(n.amount)
+        const amtText     = hideAmounts ? "•••" : fmtAmount(n.amount)
         ctx.font = `600 ${amtFontSize}px -apple-system, "Inter", sans-serif`
         ctx.textAlign = "center"; ctx.textBaseline = "top"
         const amtColor = isDark ? "rgba(248,250,252,0.65)" : "rgba(15,23,42,0.55)"
@@ -502,7 +514,7 @@ export const ForceGraphCanvas = forwardRef<GraphMethods, Props>(function ForceGr
     }
 
     ctx.globalAlpha = prevAlpha
-  }, [collapsedIds, isDark, highlightedIds, dimmedIds])
+  }, [collapsedIds, isDark, highlightedIds, dimmedIds, hideAmounts])
 
   // Nœuds triés par profondeur croissante → COMPANY/SOURCE rendu en dernier
   const sortedNodes = useMemo(

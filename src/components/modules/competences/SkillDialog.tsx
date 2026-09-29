@@ -3,6 +3,7 @@
 import { useEffect, useId, useMemo, useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
 import { Trash2 } from "lucide-react"
+import { useArmedDelete } from "@/hooks/use-armed-delete"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -10,6 +11,7 @@ import { Label } from "@/components/ui/label"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { createSkill, updateSkill, deleteSkill, type SkillInput } from "@/actions/competences"
 import { SKILL_LEVELS } from "./skill-config"
+import { errorMessage } from "@/lib/error-message"
 
 export type SkillForEdit = {
   id: string
@@ -53,6 +55,7 @@ export function SkillDialog({
   const isEdit = !!skillForEdit
   const [isPending, start] = useTransition()
   const [isDeleting, startDelete] = useTransition()
+  const { isArmed, confirmFirst } = useArmedDelete()
 
   const [name, setName] = useState("")
   const [type, setType] = useState<"HARD" | "SOFT">("HARD")
@@ -130,12 +133,13 @@ export function SkillDialog({
         onOpenChange(false)
         router.refresh()
       } catch (err) {
-        toast.error(err instanceof Error ? err.message : "Enregistrement impossible")
+        toast.error(errorMessage(err, "Enregistrement impossible"))
       }
     })
   }
 
   function handleDelete() {
+    if (!confirmFirst(skillForEdit?.id)) return
     if (!skillForEdit) return
     startDelete(async () => {
       try {
@@ -151,7 +155,7 @@ export function SkillDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-md max-h-[85dvh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{isEdit ? "Modifier la compétence" : "Nouvelle compétence"}</DialogTitle>
         </DialogHeader>
@@ -222,7 +226,7 @@ export function SkillDialog({
             {isEdit ? (
               <Button type="button" variant="ghost" onClick={handleDelete} disabled={isDeleting || isPending}
                 className="gap-1.5 text-muted-foreground hover:text-destructive">
-                <Trash2 className="h-3.5 w-3.5" /> Supprimer
+                <Trash2 className="h-3.5 w-3.5" /> {isArmed(skillForEdit?.id) ? "Confirmer la suppression" : "Supprimer"}
               </Button>
             ) : <span />}
             <div className="flex items-center gap-2">

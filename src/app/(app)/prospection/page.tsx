@@ -115,10 +115,11 @@ export default async function ProspectionPage() {
           <StartSessionDialog />
           <Link
             href="/prospection/brouillons"
+            aria-label="Brouillons"
             className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border border-input text-sm text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
           >
             <NotebookPen className="h-3.5 w-3.5" />
-            Brouillons
+            <span className="hidden sm:inline">Brouillons</span>
             {pendingDrafts > 0 && (
               <span className="inline-flex items-center justify-center min-w-5 h-5 px-1 rounded-full bg-primary text-primary-foreground text-[11px] font-semibold tabular-nums">
                 {pendingDrafts}
@@ -127,17 +128,19 @@ export default async function ProspectionPage() {
           </Link>
           <Link
             href="/prospection/modeles"
+            aria-label="Modèles de mails"
             className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border border-input text-sm text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
           >
             <Mail className="h-3.5 w-3.5" />
-            Modèles de mails
+            <span className="hidden sm:inline">Modèles de mails</span>
           </Link>
           <Link
             href="/prospection/appels"
+            aria-label="Modèles d'appel"
             className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border border-input text-sm text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
           >
             <Phone className="h-3.5 w-3.5" />
-            Modèles d&apos;appel
+            <span className="hidden sm:inline">Modèles d&apos;appel</span>
           </Link>
           <ImportCsvDialog />
         </div>

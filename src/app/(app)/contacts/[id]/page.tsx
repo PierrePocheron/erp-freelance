@@ -4,15 +4,16 @@ import { prisma } from "@/lib/prisma"
 import { notFound } from "next/navigation"
 import { redirect } from "next/navigation"
 import { deleteClient } from "@/actions/crm"
-import { Bell, MessageSquare, Trash2 } from "lucide-react"
+import { Bell, MessageSquare } from "lucide-react"
 import Link from "next/link"
-import { Button } from "@/components/ui/button"
 import { STATUS_CONFIG, type JobAppStatus } from "@/components/modules/entretien/status-config"
 import { ClientInfoCard } from "@/components/modules/crm/ClientInfoCard"
 import { ContactActivity } from "@/components/modules/crm/ContactActivity"
 import { ClientTasksSection } from "@/components/modules/crm/ClientTasksSection"
 import { ClientProjectsCard } from "@/components/modules/crm/ClientProjectsCard"
 import { FiscalCategoryCard } from "@/components/modules/crm/FiscalCategoryCard"
+import { DeleteConfirmButton } from "@/components/modules/facturation/DeleteConfirmButton"
+import { runWithFlash } from "@/lib/flash"
 
 export default async function ClientOverviewPage({
   params,
@@ -156,7 +157,7 @@ export default async function ClientOverviewPage({
     .reduce((s, i) => s + i.totalHT - i.depositDeducted, 0)
 
   const fmt = (d: Date | string) =>
-    new Date(d).toLocaleDateString("fr-FR", { day: "numeric", month: "short" })
+    new Date(d).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris", day: "numeric", month: "short" })
 
   return (
     <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
@@ -265,13 +266,13 @@ export default async function ClientOverviewPage({
             {totalBilled > 0 && (
               <div className="flex items-center justify-between text-xs">
                 <span className="text-muted-foreground">Facturé (payé)</span>
-                <span className="font-medium text-emerald-600 amount-sensitive">{totalBilled.toLocaleString("fr-FR")} €</span>
+                <span className="font-medium text-emerald-600 amount-sensitive">{totalBilled.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €</span>
               </div>
             )}
             {pendingAmount > 0 && (
               <div className="flex items-center justify-between text-xs">
                 <span className="text-muted-foreground">En attente</span>
-                <span className="font-medium text-amber-600 amount-sensitive">{pendingAmount.toLocaleString("fr-FR")} €</span>
+                <span className="font-medium text-amber-600 amount-sensitive">{pendingAmount.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €</span>
               </div>
             )}
           </div>
@@ -330,18 +331,16 @@ export default async function ClientOverviewPage({
 
         {/* Danger zone — propriétaire uniquement */}
         {isOwner && (
-          <form
-            action={async () => {
-              "use server"
+          <DeleteConfirmButton
+            label="Supprimer ce contact"
+            className="w-full"
+            confirmTitle="Supprimer ce contact ?"
+            confirmMessage={`${client.name} sera supprimé, avec ses interactions, rappels, notes, historique de prospection et fichiers. Cette action est irréversible.`}
+            action={async () => { "use server"; await runWithFlash(async () => {
               await deleteClient(id, userId)
               redirect("/contacts")
-            }}
-          >
-            <Button type="submit" variant="destructive" size="sm" className="w-full">
-              <Trash2 className="h-3.5 w-3.5" />
-              Supprimer ce contact
-            </Button>
-          </form>
+            }) }}
+          />
         )}
       </div>
     </div>

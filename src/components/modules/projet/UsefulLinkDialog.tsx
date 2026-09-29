@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
 import { Plus, Pencil, Trash2 } from "lucide-react"
+import { useArmedDelete } from "@/hooks/use-armed-delete"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
@@ -10,6 +11,7 @@ import {
 } from "@/components/ui/dialog"
 import { createUsefulLink, updateUsefulLink, deleteUsefulLink } from "@/actions/projet"
 import { LINK_CATEGORY_CONFIG } from "@/lib/link-categories"
+import { toast } from "sonner"
 
 export type UsefulLinkForEdit = { id: string; label: string; url: string; category: string }
 
@@ -19,6 +21,7 @@ export function UsefulLinkDialog({ projectId, link }: { projectId: string; link?
   const [open, setOpen] = useState(false)
   const [isPending, startTransition] = useTransition()
   const [isDeleting, startDelete] = useTransition()
+  const { isArmed, confirmFirst } = useArmedDelete()
 
   const [label, setLabel]       = useState(link?.label ?? "")
   const [url, setUrl]           = useState(link?.url ?? "")
@@ -28,22 +31,31 @@ export function UsefulLinkDialog({ projectId, link }: { projectId: string; link?
     e.preventDefault()
     if (!label.trim() || !url.trim()) return
     startTransition(async () => {
-      if (isEdit) {
-        await updateUsefulLink(link.id, projectId, { label: label.trim(), url: url.trim(), category })
-      } else {
-        await createUsefulLink(projectId, { label: label.trim(), url: url.trim(), category })
+      try {
+        if (isEdit) {
+          await updateUsefulLink(link.id, projectId, { label: label.trim(), url: url.trim(), category })
+        } else {
+          await createUsefulLink(projectId, { label: label.trim(), url: url.trim(), category })
+        }
+        setOpen(false)
+        router.refresh()
+      } catch {
+        toast.error("Échec de l'enregistrement")
       }
-      setOpen(false)
-      router.refresh()
     })
   }
 
   function handleDelete() {
+    if (!confirmFirst(link?.id)) return
     if (!link) return
     startDelete(async () => {
-      await deleteUsefulLink(link.id, projectId)
-      setOpen(false)
-      router.refresh()
+      try {
+        await deleteUsefulLink(link.id, projectId)
+        setOpen(false)
+        router.refresh()
+      } catch {
+        toast.error("Échec de la suppression")
+      }
     })
   }
 
@@ -51,7 +63,7 @@ export function UsefulLinkDialog({ projectId, link }: { projectId: string; link?
     <Dialog open={open} onOpenChange={setOpen}>
       {isEdit ? (
         <DialogTrigger
-          render={<button className="text-muted-foreground hover:text-foreground transition-colors md:opacity-0 md:group-hover:opacity-100 focus:opacity-100" title="Modifier" />}
+          render={<button className="text-muted-foreground hover:text-foreground transition-colors pointer-fine:opacity-0 group-hover:opacity-100 focus:opacity-100" title="Modifier" />}
         >
           <Pencil className="h-3.5 w-3.5" />
         </DialogTrigger>
@@ -94,7 +106,7 @@ export function UsefulLinkDialog({ projectId, link }: { projectId: string; link?
                 className="flex items-center gap-1.5 text-xs text-red-600 hover:text-red-700 disabled:opacity-50 transition-colors"
               >
                 <Trash2 className="h-3.5 w-3.5" />
-                Supprimer
+                {isArmed(link?.id) ? "Confirmer la suppression" : "Supprimer"}
               </button>
             ) : <span />}
             <div className="flex gap-2">

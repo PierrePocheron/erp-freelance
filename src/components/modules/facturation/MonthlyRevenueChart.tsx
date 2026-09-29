@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation"
 import { ChevronLeft, ChevronRight, BarChart3 } from "lucide-react"
 import { getMonthlyRevenue } from "@/actions/facturation"
 import { cn } from "@/lib/utils"
+import { amountAuto } from "@/lib/format"
 
 const MONTHS_FR = ["Jan", "Fév", "Mar", "Avr", "Mai", "Jun", "Jul", "Aoû", "Sep", "Oct", "Nov", "Déc"]
 
@@ -85,7 +86,7 @@ export function RevenueBars({
         </div>
 
         <span className="ml-auto text-xs text-muted-foreground tabular-nums">
-          {yearTotal > 0 ? <span className="amount-sensitive">{yearTotal.toLocaleString("fr-FR")} € encaissé</span> : "factures payées"}
+          {yearTotal > 0 ? <span className="amount-sensitive">{amountAuto(yearTotal)} € encaissé</span> : "factures payées"}
         </span>
       </div>
 
@@ -119,7 +120,7 @@ export function RevenueBars({
               >
                 <p className="font-semibold text-foreground">{MONTHS_FR[m]} {year}</p>
                 <p className={cn("tabular-nums", v > 0 ? "text-primary font-medium" : "text-muted-foreground")}>
-                  {v > 0 ? <span className="amount-sensitive">{v.toLocaleString("fr-FR")} €</span> : "Aucun encaissement"}
+                  {v > 0 ? <span className="amount-sensitive">{amountAuto(v)} €</span> : "Aucun encaissement"}
                 </p>
                 {clickable && clickHint && (
                   <p className="text-muted-foreground mt-0.5">{clickHint}</p>
@@ -194,6 +195,13 @@ export function MonthlyRevenueChart({
   const router = useRouter()
   const [year, setYear] = useState(currentYear)
   const [data, setData] = useState(initialData)
+  // Nouvel encaissement → nouvelles données serveur : on les reprend si l'année courante est
+  // affichée (useState ignorait la nouvelle valeur initiale, #12).
+  const [syncedFrom, setSyncedFrom] = useState(initialData)
+  if (initialData !== syncedFrom) {
+    setSyncedFrom(initialData)
+    if (year === currentYear) setData(initialData)
+  }
   const [isPending, startTransition] = useTransition()
 
   function changeYear(delta: number) {

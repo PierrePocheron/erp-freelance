@@ -135,9 +135,9 @@ export function PlatformDetail({ platform }: { platform: PlatformData }) {
               </thead>
               <tbody>
                 {rows.map(({ entry, interval, isDeposit }) => (
-                  <tr key={entry.id} className={cn("border-b border-border/40 last:border-0 hover:bg-muted/30", isDeposit && (entry.contribution < 0 ? "bg-amber-500/[0.03]" : "bg-blue-500/[0.03]"))}>
+                  <tr key={entry.id} className="border-b border-border/40 last:border-0 hover:bg-muted/30">
                     <td className="whitespace-nowrap px-4 py-2">
-                      {new Date(entry.date).toLocaleDateString("fr-FR", { day: "2-digit", month: "short", year: "numeric" })}
+                      {new Date(entry.date).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris", day: "2-digit", month: "short", year: "numeric" })}
                     </td>
                     <td className="px-4 py-2 text-right font-medium tabular-nums amount-sensitive">
                       {isDeposit

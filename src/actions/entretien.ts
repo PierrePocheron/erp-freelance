@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache"
 import { prisma } from "@/lib/prisma"
+import { parseCivilDate } from "@/lib/dates"
 import { requireAuth } from "@/lib/require-auth"
 import type { JobApplicationStatus, JobEventType } from "@/generated/prisma/enums"
 import { CLOSED_STATUSES } from "@/components/modules/entretien/status-config"
@@ -53,8 +54,9 @@ function buildData(data: ApplicationInput) {
     salaryNote: data.salaryNote?.trim() || null,
     notes: data.notes?.trim() || null,
     contactId: data.contactId || null,
-    appliedAt: data.appliedAt ? new Date(data.appliedAt) : null,
-    nextActionAt: data.nextActionAt ? new Date(data.nextActionAt) : null,
+    // Saisies civiles (date seule ou date+heure) lues en heure de Paris — new Date() les prenait en UTC
+    appliedAt: data.appliedAt ? parseCivilDate(data.appliedAt) : null,
+    nextActionAt: data.nextActionAt ? parseCivilDate(data.nextActionAt) : null,
     nextActionLabel: data.nextActionLabel?.trim() || null,
     nextActionFormat: data.nextActionFormat?.trim() || null,
     competencyDossierValidated: data.competencyDossierValidated ?? false,
@@ -100,7 +102,7 @@ export async function createJobApplication(data: ApplicationInput & { initialEve
   if (!data.position.trim()) throw new Error("Le poste est requis")
   const companyId = await resolveCompanyId(userId, data.companyName, data.companyId)
   const app = await prisma.jobApplication.create({
-    data: { userId, ...buildData({ ...data, companyId }) },
+    data: { userId, ...buildData({ ...data, companyId, contactId: await ownedContactId(userId, data.contactId) }) },
   })
   if (data.initialEvent?.title?.trim()) {
     await prisma.jobApplicationEvent.create({
@@ -130,7 +132,7 @@ export async function updateJobApplication(id: string, data: ApplicationInput) {
     select: { status: true, closedAt: true },
   })
   const companyId = await resolveCompanyId(userId, data.companyName, data.companyId)
-  const built = buildData({ ...data, companyId })
+  const built = buildData({ ...data, companyId, contactId: await ownedContactId(userId, data.contactId) })
   // Si déjà clos et reste clos, on garde la date de clôture initiale
   if (existing && CLOSED_STATUSES.includes(existing.status) && CLOSED_STATUSES.includes(built.status) && existing.closedAt) {
     built.closedAt = existing.closedAt
@@ -215,7 +217,7 @@ export async function addApplicationEvent(
       userId,
       applicationId,
       contactId: await ownedContactId(userId, data.contactId),
-      date: new Date(data.date),
+      date: parseCivilDate(data.date),
       type: data.type,
       title: data.title.trim(),
       notes: data.notes?.trim() || null,
@@ -336,7 +338,7 @@ export async function updateApplicationEvent(
   await prisma.jobApplicationEvent.update({
     where: { id },
     data: {
-      ...(data.date !== undefined ? { date: new Date(data.date) } : {}),
+      ...(data.date !== undefined ? { date: parseCivilDate(data.date) } : {}),
       ...(data.type !== undefined ? { type: data.type } : {}),
       ...(data.title !== undefined ? { title: data.title?.trim() || "" } : {}),
       ...(data.notes !== undefined ? { notes: data.notes?.trim() || null } : {}),

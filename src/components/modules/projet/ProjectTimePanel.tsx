@@ -1,7 +1,8 @@
 import { prisma } from "@/lib/prisma"
-import { Clock, Timer, TrendingUp, AlertTriangle, Trash2, Download } from "lucide-react"
+import { Clock, Timer, TrendingUp, AlertTriangle, Download } from "lucide-react"
 import { deleteTimeEntry } from "@/actions/timetracking"
 import { AddTimeEntryDialog } from "@/components/modules/projet/AddTimeEntryDialog"
+import { ArmedDeleteSubmit } from "@/components/ui/armed-delete-submit"
 
 function fmtSeconds(s: number): string {
   const h = Math.floor(s / 3600)
@@ -12,8 +13,11 @@ function fmtSeconds(s: number): string {
 }
 
 function fmtHours(h: number): string {
-  const int = Math.floor(h)
-  const min = Math.round((h - int) * 60)
+  // Arrondi sur le total de minutes : arrondir les minutes après coup donnait
+  // « 1h60 » pour 1,999 h.
+  const total = Math.round(h * 60)
+  const int = Math.floor(total / 60)
+  const min = total % 60
   if (int > 0 && min > 0) return `${int}h${String(min).padStart(2, "0")}`
   if (int > 0) return `${int}h`
   return `${min}m`
@@ -75,7 +79,7 @@ export async function ProjectTimePanel({ projectId, userId }: { projectId: strin
           <p className="text-xl font-bold">{estimatedHours ? fmtHours(estimatedHours) : "—"}</p>
           <p className="text-xs text-muted-foreground">budget initial</p>
         </div>
-        <div className={`rounded-xl border p-3.5 space-y-1 ${isOver ? "border-red-500/30 bg-red-500/5" : budgetPercent && budgetPercent > 80 ? "border-amber-500/30 bg-amber-500/5" : "border-border/50 bg-card"}`}>
+        <div className="rounded-xl border border-border/50 bg-card p-3.5 space-y-1">
           <div className="flex items-center gap-2 text-muted-foreground text-xs">
             {isOver ? <AlertTriangle className="h-3.5 w-3.5 text-red-500" /> : <TrendingUp className="h-3.5 w-3.5" />} Utilisation
           </div>
@@ -187,8 +191,8 @@ export async function ProjectTimePanel({ projectId, userId }: { projectId: strin
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium truncate">{entry.taskTitle}</p>
                     <p className="text-xs text-muted-foreground">
-                      {new Date(entry.startedAt).toLocaleDateString("fr-FR", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
-                      {entry.endedAt && ` → ${new Date(entry.endedAt).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}`}
+                      {new Date(entry.startedAt).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
+                      {entry.endedAt && ` → ${new Date(entry.endedAt).toLocaleTimeString("fr-FR", { timeZone: "Europe/Paris", hour: "2-digit", minute: "2-digit" })}`}
                     </p>
                   </div>
                   <span className="text-sm font-medium tabular-nums">{fmtSeconds(entry.duration ?? 0)}</span>
@@ -196,9 +200,7 @@ export async function ProjectTimePanel({ projectId, userId }: { projectId: strin
                     "use server"
                     await deleteTimeEntry(entry.id, userId, projectId)
                   }}>
-                    <button type="submit" aria-label="Supprimer cette entrée" className="text-muted-foreground hover:text-destructive md:opacity-0 md:group-hover:opacity-100 focus:opacity-100 transition-opacity">
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </button>
+                    <ArmedDeleteSubmit label="Supprimer cette entrée" />
                   </form>
                 </div>
               ))}

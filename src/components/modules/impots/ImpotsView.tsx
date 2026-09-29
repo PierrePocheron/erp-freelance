@@ -1,5 +1,6 @@
 "use client"
 
+import { zonedDateKey } from "@/lib/dates"
 import { useState, useMemo, useEffect, useTransition } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
@@ -20,6 +21,7 @@ import {
   FISCAL_CATEGORY_LABELS, FISCAL_CATEGORY_SHORT,
   type FiscalCategory, type UrssafRates, type DeclarationFrequency,
 } from "@/lib/urssaf"
+import { amountAuto as fmt } from "@/lib/format"
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -68,11 +70,9 @@ const LINE_STATUS_META: Record<string, { label: string; cls: string }> = {
 
 const ALL_CATEGORIES: FiscalCategory[] = ["BNC", "BIC_SERVICES", "BIC_SALES"]
 
-const fmt = (n: number) =>
-  n.toLocaleString("fr-FR", { maximumFractionDigits: 2 })
 
 const fmtDate = (iso: string | null) =>
-  iso ? new Date(iso).toLocaleDateString("fr-FR") : "—"
+  iso ? new Date(iso).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris" }) : "—"
 
 // ── Composant principal ────────────────────────────────────────────────────────
 
@@ -116,7 +116,7 @@ export function ImpotsView({
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-start justify-between gap-4">
+      <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           {/* Titre visible en mobile ; en desktop, un h1 lu par les lecteurs d'écran (sr-only) prend le relais */}
           <h1 className="sr-only hidden sm:block">Impôts &amp; URSSAF</h1>
@@ -205,7 +205,7 @@ function StatCard({ label, value, icon: Icon, accent, sensitive }: {
     accent === "amber"   ? "text-amber-600 dark:text-amber-400" :
     accent === "red"     ? "text-red-600 dark:text-red-400" : ""
   return (
-    <div className="rounded-xl border border-border bg-card p-4">
+    <div className="rounded-xl border border-border/50 bg-card p-4">
       <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1.5">
         <Icon className="h-3.5 w-3.5" />
         {label}
@@ -269,7 +269,7 @@ function DeclarationCard({ declaration: d, expanded, onToggle, onPay, rates, vlE
   }
 
   return (
-    <div className="rounded-xl border border-border bg-card overflow-hidden">
+    <div className="rounded-xl border border-border/50 bg-card overflow-hidden">
       {/* Ligne résumé */}
       <button onClick={onToggle} className="flex items-center gap-4 w-full p-4 text-left hover:bg-accent/50 transition-colors">
         <div className="flex-1 min-w-0">
@@ -312,7 +312,7 @@ function DeclarationCard({ declaration: d, expanded, onToggle, onPay, rates, vlE
               const catTotal = lines.reduce((s, l) => s + l.amount, 0)
               const est = estimate.byCategory[cat]
               return (
-                <div key={cat} className="rounded-lg border border-border bg-card p-3">
+                <div key={cat} className="rounded-lg border border-border/50 bg-card p-3">
                   <p className="text-xs font-semibold mb-2">{FISCAL_CATEGORY_LABELS[cat]}</p>
                   <div className="space-y-1">
                     {lines.map(l => (
@@ -688,7 +688,7 @@ function PayDialog({ declaration: d, rates, vlEnabled, onClose, onSaved }: {
   const [cotisations, setCotisations] = useState(String(estimate.totalCotisations))
   const [cfp, setCfp]                 = useState(String(estimate.totalCFP))
   const [vl, setVl]                   = useState(String(estimate.totalVL))
-  const [paidAt, setPaidAt]           = useState(new Date().toISOString().slice(0, 10))
+  const [paidAt, setPaidAt]           = useState(zonedDateKey(new Date()))
   const [error, setError]             = useState<string | null>(null)
 
   const parse = (s: string) => {

@@ -8,6 +8,7 @@ import { navItems } from "@/components/layout/Sidebar"
 import { OPEN_COMMAND_PALETTE_EVENT } from "@/components/layout/CommandPalette"
 import { OPEN_INCOMPLETE_SHEET_EVENT } from "@/components/modules/dashboard/IncompleteDataSheet"
 import { PushNotificationsCard } from "@/components/layout/PushNotificationsCard"
+import { amountAuto } from "@/lib/format"
 
 type MobileHomeProps = {
   /** Montant total en attente de réception (factures + revenus + remboursements), en € */
@@ -114,7 +115,7 @@ export function MobileHome({ pendingAmount, toConfirmCount, incomplete }: Mobile
                 href="/revenus?filtre=attente"
                 icon={<Hourglass className="h-4 w-4 text-amber-500" />}
                 label="En attente de réception"
-                value={`${pendingAmount.toLocaleString("fr-FR")} €`}
+                value={`${amountAuto(pendingAmount)} €`}
                 valueClass="text-amber-600"
                 sensitive
               />

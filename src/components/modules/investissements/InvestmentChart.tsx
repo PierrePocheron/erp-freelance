@@ -60,7 +60,7 @@ function fmtK(v: number): string {
   return v.toLocaleString("fr-FR")
 }
 
-const fmtDateTick = (t: number) => new Date(t).toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit" })
+const fmtDateTick = (t: number) => new Date(t).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris", day: "2-digit", month: "2-digit" })
 
 export function InvestmentChart({ platforms, range, onRangeChange }: { platforms: ChartPlatform[]; range: RangeKey; onRangeChange: (r: RangeKey) => void }) {
   const containerRef = useRef<HTMLDivElement>(null)
@@ -262,7 +262,7 @@ export function InvestmentChart({ platforms, range, onRangeChange }: { platforms
                 }}
               >
                 <p className="mb-1 text-[10px] font-medium text-muted-foreground">
-                  {new Date(hover.t).toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" })}
+                  {new Date(hover.t).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris", day: "numeric", month: "short", year: "numeric" })}
                 </p>
                 <div className="space-y-0.5">
                   {hover.rows.map((r, i) => (

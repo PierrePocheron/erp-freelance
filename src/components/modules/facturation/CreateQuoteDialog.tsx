@@ -14,6 +14,8 @@ import {
 } from "@/components/ui/dialog"
 import { createQuoteWithLines } from "@/actions/facturation"
 import { ClientCombobox } from "./ClientCombobox"
+import { toast } from "sonner"
+import { eur2 as fmtEur } from "@/lib/format"
 
 type Company = { id: string; name: string; city: string | null }
 type Client = { id: string; name: string; company: string | null; type: string; companyId: string | null }
@@ -95,9 +97,6 @@ function emptyLineForm(): LineFormState {
   return { productId: "", description: "", detail: "", quantity: "1", unitPrice: "0", taxRate: "0", billingType: "ONE_SHOT" }
 }
 
-function fmtEur(n: number) {
-  return n.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " €"
-}
 
 function fmtTaxLabel(rate: number) {
   return rate === 0 ? "0%" : `${String(rate).replace(".", ",")}%`
@@ -127,6 +126,7 @@ function LineForm({
   submitLabel?: string
 }) {
   const [form, setForm] = useState(initial)
+  const [lineError, setLineError] = useState<string | null>(null)
   const subtotal = (parseFloat(form.quantity) || 0) * (parseFloat(form.unitPrice) || 0)
   const activeProducts = products.filter((p) => p.isActive)
 
@@ -154,11 +154,26 @@ function LineForm({
 
   function handleConfirm() {
     if (!form.description.trim()) return
+    // Vide = valeur par défaut (quantité 1, prix 0) ; sinon une quantité ≤ 0 ou un prix
+    // négatif passaient tels quels (0 devenait 1 sans prévenir).
+    if (form.quantity !== "" && !(parseFloat(form.quantity) > 0)) return setLineError("La quantité doit être supérieure à 0")
+    if (form.unitPrice !== "" && !(parseFloat(form.unitPrice) >= 0)) return setLineError("Le prix HT ne peut pas être négatif")
+    setLineError(null)
     onSubmit(form)
   }
 
   return (
-    <div className="space-y-2.5 p-3 bg-muted/20 rounded-lg border border-border/60">
+    // Entrée dans un champ de la ligne valide la ligne : sans ça, elle soumettait
+    // le formulaire parent et créait le devis sans la ligne en cours de saisie.
+    <div
+      onKeyDown={(e) => {
+        if (e.key === "Enter" && e.target instanceof HTMLInputElement) {
+          e.preventDefault()
+          handleConfirm()
+        }
+      }}
+      className="space-y-2.5 p-3 bg-muted/20 rounded-lg border border-border/60"
+    >
 
       {/* Sélecteur catalogue */}
       {activeProducts.length > 0 && (
@@ -262,6 +277,8 @@ function LineForm({
           <span className="amount-sensitive">{fmtEur(subtotal)}</span>
         </div>
       </div>
+
+      {lineError && <p role="alert" className="text-xs text-destructive">{lineError}</p>}
 
       <div className="flex justify-end gap-2">
         <button
@@ -399,29 +416,33 @@ export function CreateQuoteDialog({
     if (!selectedClientId) return
     const fd = new FormData(e.currentTarget)
     startTransition(async () => {
-      const quote = await createQuoteWithLines(userId, {
-        clientId: selectedClientId,
-        projectId: (fd.get("projectId") as string) || undefined,
-        depositPercent: parseFloat(depositPercent) || 0,
-        expiresAtDays: parseFloat(expiresAtDays) > 0 ? parseFloat(expiresAtDays) : undefined,
-        generalConditions: generalConditions || undefined,
-        lines: draftLines.map((l) => ({
-          productId: l.productId,
-          description: l.description,
-          detail: l.detail || undefined,
-          quantity: l.quantity,
-          unitPrice: l.unitPrice,
-          taxRate: l.taxRate,
-          billingType: l.billingType,
-        })),
-      })
-      handleOpenChange(false)
-      router.push(`/facturation/devis/${quote.id}`)
+      try {
+        const quote = await createQuoteWithLines(userId, {
+          clientId: selectedClientId,
+          projectId: (fd.get("projectId") as string) || undefined,
+          depositPercent: parseFloat(depositPercent) || 0,
+          expiresAtDays: parseFloat(expiresAtDays) > 0 ? parseFloat(expiresAtDays) : undefined,
+          generalConditions: generalConditions || undefined,
+          lines: draftLines.map((l) => ({
+            productId: l.productId,
+            description: l.description,
+            detail: l.detail || undefined,
+            quantity: l.quantity,
+            unitPrice: l.unitPrice,
+            taxRate: l.taxRate,
+            billingType: l.billingType,
+          })),
+        })
+        handleOpenChange(false)
+        router.push(`/facturation/devis/${quote.id}`)
+      } catch {
+        toast.error("Échec de l'enregistrement")
+      }
     })
   }
 
   return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
+    <Dialog open={open} onOpenChange={handleOpenChange} disablePointerDismissal>
       {!isControlled && (
         <DialogTrigger className="inline-flex items-center gap-2 rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground shadow hover:bg-primary/90 transition-colors">
           <Plus className="h-4 w-4" />
@@ -435,7 +456,7 @@ export function CreateQuoteDialog({
         </DialogHeader>
 
         <form onSubmit={handleSubmit}>
-          <div className="overflow-y-auto max-h-[calc(80vh-10rem)] px-6 py-5 space-y-6">
+          <div className="overflow-y-auto max-h-[calc(80dvh-10rem)] px-6 py-5 space-y-6">
 
             {/* Société (optionnel) + Client + Projet */}
             {companies.length > 0 && (
@@ -525,7 +546,8 @@ export function CreateQuoteDialog({
 
               {/* Table with existing lines */}
               {draftLines.length > 0 && (
-                <div className="rounded-lg border border-border overflow-hidden">
+                // Lignes en grille 12 colonnes : largeur minimale + défilement horizontal sur mobile
+                <div className="rounded-lg border border-border overflow-x-auto [&>.grid]:min-w-[34rem]">
                   <div className="grid grid-cols-12 gap-2 px-3 py-2 text-xs font-medium text-muted-foreground bg-muted/30 border-b border-border">
                     <div className="col-span-5">Produit</div>
                     <div className="col-span-1 text-right">Qté</div>
@@ -580,18 +602,20 @@ export function CreateQuoteDialog({
                         <div className="col-span-2 text-right font-semibold amount-sensitive">
                           {fmtEur(line.quantity * line.unitPrice)}
                         </div>
-                        <div className="col-span-1 flex items-center justify-end gap-1 md:opacity-0 md:group-hover:opacity-100 focus:opacity-100 transition-opacity">
+                        <div className="col-span-1 flex items-center justify-end gap-1 pointer-fine:opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
                           <button
                             type="button"
                             onClick={() => startEdit(line.localId)}
-                            className="text-muted-foreground hover:text-foreground"
+                            aria-label="Modifier la ligne"
+                            className="p-2 -m-1.5 text-muted-foreground hover:text-foreground"
                           >
                             <Pencil className="h-3.5 w-3.5" />
                           </button>
                           <button
                             type="button"
                             onClick={() => setDraftLines((p) => p.filter((l) => l.localId !== line.localId))}
-                            className="text-muted-foreground hover:text-destructive"
+                            aria-label="Retirer la ligne"
+                            className="p-2 -m-1.5 text-muted-foreground hover:text-destructive"
                           >
                             <Trash2 className="h-3.5 w-3.5" />
                           </button>
@@ -718,7 +742,12 @@ export function CreateQuoteDialog({
               <Button type="button" variant="outline" onClick={() => handleOpenChange(false)}>
                 Annuler
               </Button>
-              <Button type="submit" disabled={isPending || !selectedClientId}>
+              {/* Ligne ouverte = pas encore dans draftLines : créer maintenant la perdrait sans prévenir */}
+              <Button
+                type="submit"
+                disabled={isPending || !selectedClientId || showAddForm || editingLocalId !== null}
+                title={showAddForm || editingLocalId !== null ? "Validez ou annulez la ligne en cours" : undefined}
+              >
                 {isPending ? "Création..." : "Créer le devis"}
               </Button>
             </div>

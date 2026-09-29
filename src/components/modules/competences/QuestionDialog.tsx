@@ -3,6 +3,7 @@
 import { useEffect, useId, useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
 import { Trash2 } from "lucide-react"
+import { useArmedDelete } from "@/hooks/use-armed-delete"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -34,6 +35,7 @@ export function QuestionDialog({
   const isEdit = !!questionForEdit
   const [isPending, start] = useTransition()
   const [isDeleting, startDelete] = useTransition()
+  const { isArmed, confirmFirst } = useArmedDelete()
 
   const [question, setQuestion] = useState("")
   const [answer, setAnswer] = useState("")
@@ -74,6 +76,7 @@ export function QuestionDialog({
     })
   }
   function handleDelete() {
+    if (!confirmFirst(questionForEdit?.id)) return
     if (!questionForEdit) return
     startDelete(async () => {
       try { await deleteInterviewQuestion(questionForEdit.id); onOpenChange(false); router.refresh() }
@@ -86,7 +89,7 @@ export function QuestionDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-lg max-h-[85dvh] overflow-y-auto">
         <DialogHeader><DialogTitle>{isEdit ? "Modifier la question" : "Nouvelle question technique"}</DialogTitle></DialogHeader>
         <form onSubmit={submit} className="space-y-3">
           <div className="space-y-1">
@@ -131,7 +134,7 @@ export function QuestionDialog({
           <div className="flex items-center justify-between gap-2 pt-1">
             {isEdit ? (
               <Button type="button" variant="ghost" onClick={handleDelete} disabled={isDeleting || isPending} className="gap-1.5 text-muted-foreground hover:text-destructive">
-                <Trash2 className="h-3.5 w-3.5" /> Supprimer
+                <Trash2 className="h-3.5 w-3.5" /> {isArmed(questionForEdit?.id) ? "Confirmer la suppression" : "Supprimer"}
               </Button>
             ) : <span />}
             <div className="flex items-center gap-2">

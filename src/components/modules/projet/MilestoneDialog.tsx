@@ -1,14 +1,17 @@
 "use client"
 
+import { zonedDateKey } from "@/lib/dates"
 import { useId, useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
 import { Plus, Pencil, Trash2 } from "lucide-react"
+import { useArmedDelete } from "@/hooks/use-armed-delete"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger,
 } from "@/components/ui/dialog"
 import { createMilestone, updateMilestone, deleteMilestone } from "@/actions/projet"
+import { toast } from "sonner"
 
 export const MILESTONE_TYPE_LABELS: Record<string, string> = {
   DEADLINE: "Échéance",
@@ -41,7 +44,7 @@ export type MilestoneForEdit = {
 function toDateParts(d: Date | string | null): { date: string; time: string } {
   if (!d) return { date: "", time: "" }
   const dt = new Date(d)
-  const date = dt.toISOString().slice(0, 10)
+  const date = zonedDateKey(dt)
   const time = `${String(dt.getHours()).padStart(2, "0")}:${String(dt.getMinutes()).padStart(2, "0")}`
   return { date, time }
 }
@@ -53,6 +56,7 @@ export function MilestoneDialog({ projectId, milestone }: { projectId: string; m
   const [open, setOpen] = useState(false)
   const [isPending, startTransition] = useTransition()
   const [isDeleting, startDelete] = useTransition()
+  const { isArmed, confirmFirst } = useArmedDelete()
   const [error, setError] = useState<string | null>(null)
 
   const initialDate = milestone ? toDateParts(milestone.date) : { date: "", time: "" }
@@ -77,22 +81,31 @@ export function MilestoneDialog({ projectId, milestone }: { projectId: string; m
     }
 
     startTransition(async () => {
-      if (isEdit) {
-        await updateMilestone(milestone.id, projectId, { name: name.trim(), date: dateObj, endDate: endDateObj, type })
-      } else {
-        await createMilestone(projectId, { name: name.trim(), date: dateObj, endDate: endDateObj, type })
+      try {
+        if (isEdit) {
+          await updateMilestone(milestone.id, projectId, { name: name.trim(), date: dateObj, endDate: endDateObj, type })
+        } else {
+          await createMilestone(projectId, { name: name.trim(), date: dateObj, endDate: endDateObj, type })
+        }
+        setOpen(false)
+        router.refresh()
+      } catch {
+        toast.error("Échec de l'enregistrement")
       }
-      setOpen(false)
-      router.refresh()
     })
   }
 
   function handleDelete() {
+    if (!confirmFirst(milestone?.id)) return
     if (!milestone) return
     startDelete(async () => {
-      await deleteMilestone(milestone.id, projectId)
-      setOpen(false)
-      router.refresh()
+      try {
+        await deleteMilestone(milestone.id, projectId)
+        setOpen(false)
+        router.refresh()
+      } catch {
+        toast.error("Échec de la suppression")
+      }
     })
   }
 
@@ -100,7 +113,7 @@ export function MilestoneDialog({ projectId, milestone }: { projectId: string; m
     <Dialog open={open} onOpenChange={setOpen}>
       {isEdit ? (
         <DialogTrigger
-          render={<button className="text-muted-foreground hover:text-foreground transition-colors md:opacity-0 md:group-hover:opacity-100 focus:opacity-100" title="Modifier" />}
+          render={<button className="text-muted-foreground hover:text-foreground transition-colors pointer-fine:opacity-0 group-hover:opacity-100 focus:opacity-100" title="Modifier" />}
         >
           <Pencil className="h-3.5 w-3.5" />
         </DialogTrigger>
@@ -156,7 +169,7 @@ export function MilestoneDialog({ projectId, milestone }: { projectId: string; m
                 className="flex items-center gap-1.5 text-xs text-red-600 hover:text-red-700 disabled:opacity-50 transition-colors"
               >
                 <Trash2 className="h-3.5 w-3.5" />
-                Supprimer
+                {isArmed(milestone?.id) ? "Confirmer la suppression" : "Supprimer"}
               </button>
             ) : <span />}
             <div className="flex gap-2">

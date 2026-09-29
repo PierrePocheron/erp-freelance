@@ -132,12 +132,26 @@ function sumByCategory(lines: LineInput[]) {
   }
 }
 
+// Anti-IDOR : une ligne ne peut viser qu'une facture / un revenu de l'utilisateur (sinon la
+// facture d'un autre compte était rattachée — et disparaissait des suggestions de son propriétaire).
+async function linesOwnedError(userId: string, lines: LineInput[]): Promise<string | null> {
+  const invoiceIds = [...new Set(lines.map(l => l.invoiceId).filter((x): x is string => !!x))]
+  const revenueIds = [...new Set(lines.map(l => l.revenueId).filter((x): x is string => !!x))]
+  const [inv, rev] = await Promise.all([
+    invoiceIds.length ? prisma.invoice.count({ where: { id: { in: invoiceIds }, userId } }) : 0,
+    revenueIds.length ? prisma.revenue.count({ where: { id: { in: revenueIds }, userId } }) : 0,
+  ])
+  return inv !== invoiceIds.length || rev !== revenueIds.length ? "Ligne invalide : document introuvable" : null
+}
+
 export async function createUrssafDeclaration(data: {
   period: string
   lines:  LineInput[]
   notes?: string | null
 }): Promise<{ id?: string; error?: string }> {
   const userId = await requireAuth()
+  const linesError = await linesOwnedError(userId, data.lines)
+  if (linesError) return { error: linesError }
 
   const existing = await prisma.urssafDeclaration.findUnique({
     where: { userId_period: { userId, period: data.period } },
@@ -180,6 +194,8 @@ export async function updateUrssafDeclarationLines(
   const decl = await prisma.urssafDeclaration.findFirst({ where: { id, userId } })
   if (!decl) return { error: "Déclaration introuvable" }
   if (decl.status !== "DRAFT") return { error: "Seule une déclaration en brouillon est modifiable" }
+  const linesError = await linesOwnedError(userId, lines)
+  if (linesError) return { error: linesError }
 
   await prisma.$transaction([
     prisma.urssafDeclarationLine.deleteMany({ where: { declarationId: id } }),
@@ -215,7 +231,8 @@ export async function markUrssafDeclared(
 
   await prisma.urssafDeclaration.update({
     where: { id },
-    data: { status: "DECLARED", declaredAt },
+    // Une déclaration déjà PAYÉE garde son statut (elle repassait en DECLARED)
+    data: { status: decl.status === "PAID" ? "PAID" : "DECLARED", declaredAt },
   })
   await completeUrssafReminderTask(userId, decl.period)
   revalidatePath("/impots")
@@ -296,15 +313,18 @@ export async function ensureUrssafReminderTask(_userId: string, frequency: Decla
   }
   if (existingTask || existingDeclaration) return
 
-  await prisma.task.create({
-    data: {
+  // @@unique([userId, urssafPeriod]) + skipDuplicates : deux rendus parallèles du layout ne
+  // créent plus deux rappels pour la même période (#32).
+  await prisma.task.createMany({
+    data: [{
       userId,
       title:       `Déclarer l'URSSAF — ${periodLabel(period)}`,
       description: `Rappel : chiffre d'affaires à déclarer sur autoentrepreneur.urssaf.fr pour la période ${periodLabel(period)}. Ouvrez la page Impôts de l'app pour préparer et enregistrer la déclaration.`,
       dueDate:     declarationAvailableFrom(period),
       priority:    "MEDIUM",
       urssafPeriod: period,
-    },
+    }],
+    skipDuplicates: true,
   })
 }
 

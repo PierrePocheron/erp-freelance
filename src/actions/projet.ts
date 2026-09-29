@@ -3,6 +3,7 @@
 import { prisma } from "@/lib/prisma"
 import { parseCivilDate } from "@/lib/dates"
 import { requireAuth } from "@/lib/require-auth"
+import { assertOwnedRefs } from "@/lib/owned-refs"
 import { revalidatePath } from "next/cache"
 import { z } from "zod"
 import {
@@ -47,6 +48,7 @@ export async function convertIdeaToProject(
   const userId = await requireAuth()
   const idea = await prisma.projectIdea.findUnique({ where: { id: ideaId, userId } })
   if (!idea) throw new Error("Idée introuvable")
+  await assertOwnedRefs(userId, { companyId })
 
   const project = await prisma.project.create({
     data: {
@@ -83,6 +85,8 @@ export async function createProject(_userId: string, formData: FormData) {
   const userId = await requireAuth()
   const parsed = CreateProjectSchema.parse(Object.fromEntries(formData))
   const contactId = parsed.contactId || null
+  // Anti-IDOR : société et contact d'un autre compte refusés (sinon leurs données s'affichaient sur la fiche)
+  await assertOwnedRefs(userId, { companyId: parsed.companyId, clientId: contactId })
   // Anti-IDOR : ne retenir le jobApplicationId que s'il appartient à l'utilisateur
   let jobApplicationId: string | null = null
   if (parsed.jobApplicationId) {
@@ -267,6 +271,11 @@ export async function createTask(projectId: string, formData: FormData) {
   const proj = await prisma.project.findFirst({ where: { id: projectId, userId }, select: { id: true } })
   if (!proj) throw new Error("Projet introuvable")
   const parsed = TaskSchema.parse(Object.fromEntries(formData))
+  // Anti-IDOR : la tâche parente et le jalon doivent appartenir à CE projet
+  if (parsed.parentTaskId && !(await prisma.task.findFirst({ where: { id: parsed.parentTaskId, projectId }, select: { id: true } })))
+    throw new Error("Tâche parente introuvable")
+  if (parsed.milestoneId && !(await prisma.milestone.findFirst({ where: { id: parsed.milestoneId, projectId }, select: { id: true } })))
+    throw new Error("Jalon introuvable")
   const task = await prisma.task.create({
     data: {
       userId,
@@ -276,7 +285,7 @@ export async function createTask(projectId: string, formData: FormData) {
       milestoneId: parsed.milestoneId || null,
       parentTaskId: parsed.parentTaskId || null,
       estimatedHours: parsed.estimatedHours,
-      dueDate: parsed.dueDate ? new Date(parsed.dueDate) : undefined,
+      dueDate: parsed.dueDate ? parseCivilDate(parsed.dueDate) : undefined,
     },
   })
   await syncTaskGoogleState(userId, task.id)
@@ -482,7 +491,7 @@ export async function updateTaskTagColor(tagId: string, projectId: string, color
   const userId = await requireAuth()
   const proj = await prisma.project.findFirst({ where: { id: projectId, userId }, select: { id: true } })
   if (!proj) throw new Error("Projet introuvable")
-  await prisma.taskTag.update({ where: { id: tagId }, data: { color } })
+  await prisma.taskTag.updateMany({ where: { id: tagId, projectId }, data: { color } })
   revalidatePath(`/projets/${projectId}`)
 }
 
@@ -490,6 +499,11 @@ export async function addTagToTask(taskId: string, tagId: string, projectId: str
   const userId = await requireAuth()
   const proj = await prisma.project.findFirst({ where: { id: projectId, userId }, select: { id: true } })
   if (!proj) throw new Error("Projet introuvable")
+  const [ownTask, ownTag] = await Promise.all([
+    prisma.task.findFirst({ where: { id: taskId, projectId }, select: { id: true } }),
+    prisma.taskTag.findFirst({ where: { id: tagId, projectId }, select: { id: true } }),
+  ])
+  if (!ownTask || !ownTag) throw new Error("Tâche ou étiquette introuvable")
   await prisma.task.update({
     where: { id: taskId },
     data: { taskTags: { connect: { id: tagId } } },
@@ -501,6 +515,11 @@ export async function removeTagFromTask(taskId: string, tagId: string, projectId
   const userId = await requireAuth()
   const proj = await prisma.project.findFirst({ where: { id: projectId, userId }, select: { id: true } })
   if (!proj) throw new Error("Projet introuvable")
+  const [ownTask, ownTag] = await Promise.all([
+    prisma.task.findFirst({ where: { id: taskId, projectId }, select: { id: true } }),
+    prisma.taskTag.findFirst({ where: { id: tagId, projectId }, select: { id: true } }),
+  ])
+  if (!ownTask || !ownTag) throw new Error("Tâche ou étiquette introuvable")
   await prisma.task.update({
     where: { id: taskId },
     data: { taskTags: { disconnect: { id: tagId } } },
@@ -557,7 +576,7 @@ export async function reorderTask(taskId: string, projectId: string, direction: 
   const userId = await requireAuth()
   const proj = await prisma.project.findFirst({ where: { id: projectId, userId }, select: { id: true } })
   if (!proj) throw new Error("Projet introuvable")
-  const task = await prisma.task.findUnique({ where: { id: taskId } })
+  const task = await prisma.task.findFirst({ where: { id: taskId, projectId } })
   if (!task) return
   const siblings = await prisma.task.findMany({
     where: { projectId, parentTaskId: task.parentTaskId },
@@ -589,7 +608,7 @@ export async function updateTaskFields(
   const data: Record<string, unknown> = {}
   if (fields.title !== undefined && fields.title.trim()) data.title = fields.title.trim()
   if ("description" in fields) data.description = fields.description?.trim() || null
-  if ("dueDate" in fields) data.dueDate = fields.dueDate ? new Date(fields.dueDate) : null
+  if ("dueDate" in fields) data.dueDate = fields.dueDate ? parseCivilDate(fields.dueDate) : null
   if (fields.priority) data.priority = fields.priority
   if (fields.importance !== undefined) data.importance = Math.max(1, Math.min(4, fields.importance))
   if ("estimatedHours" in fields) data.estimatedHours = fields.estimatedHours ?? null

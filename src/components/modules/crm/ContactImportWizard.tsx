@@ -4,6 +4,7 @@ import { useMemo, useRef, useState, useSyncExternalStore } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
+import { parseVcf } from "@/lib/contact-import"
 import { Smartphone, FileUp, Loader2, Check, X, ChevronDown, Search, UserPlus, ArrowRight, Mail, Phone, Settings } from "lucide-react"
 import { cn } from "@/lib/utils"
 import {
@@ -12,6 +13,7 @@ import {
 } from "@/actions/contact-import"
 import type { Proposal, Confidence, Change, ImportSource } from "@/lib/contact-import"
 import { avatarColor, initials } from "@/lib/initials"
+import { errorMessage } from "@/lib/error-message"
 
 type Stage = "source" | "loading" | "review" | "done"
 type ContactLite = { id: string; name: string; company: string | null }
@@ -61,7 +63,7 @@ export function ContactImportWizard({ hasGoogleScope, allContacts }: { hasGoogle
       setProposals(list); setStage("review")
       if (list.length === 0) toast.info("Rien à rapprocher : tout est déjà à jour.")
     } catch (e) {
-      const msg = e instanceof Error ? e.message : "Erreur"
+      const msg = errorMessage(e, "Erreur")
       if (msg === "NO_SCOPE") toast.error("Accès Google Contacts non autorisé — active-le dans Réglages › Intégrations.")
       else toast.error(msg)
       setStage("source")
@@ -83,8 +85,11 @@ export function ContactImportWizard({ hasGoogleScope, allContacts }: { hasGoogle
   async function onFile(e: React.ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0]; e.target.value = ""
     if (!f) return
-    const text = await f.text()
-    await run(() => previewVcfImport(text))
+    // Analyse locale (photos et champs inutiles écartés) : seul l'essentiel part au serveur (#21)
+    if (f.size > 25 * 1024 * 1024) { toast.error("Fichier trop volumineux (25 Mo max)"); return }
+    const imported = parseVcf(await f.text())
+    if (imported.length === 0) { toast.error("Aucun contact lisible dans ce fichier .vcf"); return }
+    await run(() => previewVcfImport(imported))
   }
 
   // ── Édition locale des propositions ──
@@ -125,7 +130,7 @@ export function ContactImportWizard({ hasGoogleScope, allContacts }: { hasGoogle
       setResult(r); setStage("done")
       toast.success(`${r.updated} contact${r.updated > 1 ? "s" : ""} enrichi${r.updated > 1 ? "s" : ""}${r.created ? ` · ${r.created} créé${r.created > 1 ? "s" : ""}` : ""}`)
       router.refresh()
-    } catch (e) { toast.error(e instanceof Error ? e.message : "Erreur à l'application") }
+    } catch (e) { toast.error(errorMessage(e, "Erreur à l'application")) }
     finally { setBusy(false) }
   }
 
@@ -251,7 +256,7 @@ export function ContactImportWizard({ hasGoogleScope, allContacts }: { hasGoogle
         </ul>
 
         {/* Barre d'action collante */}
-        <div className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-background/95 p-3 backdrop-blur supports-[backdrop-filter]:bg-background/80 sm:static sm:border-0 sm:bg-transparent sm:p-0 sm:backdrop-blur-none">
+        <div className="fixed inset-x-0 bottom-0 z-[60] border-t border-border bg-background/95 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur supports-[backdrop-filter]:bg-background/80 sm:static sm:border-0 sm:bg-transparent sm:p-0 sm:backdrop-blur-none">
           <div className="mx-auto flex max-w-3xl items-center justify-between gap-3">
             <p className="text-xs text-muted-foreground">
               {nbChanges} modification{nbChanges > 1 ? "s" : ""}{nbCreate ? ` · ${nbCreate} création${nbCreate > 1 ? "s" : ""}` : ""} à appliquer

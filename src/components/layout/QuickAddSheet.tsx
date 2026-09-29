@@ -1,5 +1,6 @@
 "use client"
 
+import { zonedDateKey } from "@/lib/dates"
 import { useEffect, useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
 import {
@@ -17,6 +18,7 @@ import { createClientTask } from "@/actions/projet"
 import { searchProspectsQuick, markProspectsContacted } from "@/actions/prospection"
 import { getPendingRevenuesQuick, markRevenueReceived } from "@/actions/revenue"
 import type { ProspectStatus } from "@/generated/prisma/enums"
+import { eurAuto as formatEuro } from "@/lib/format"
 
 type Screen = "menu" | "expense" | "task" | "prospect" | "revenue"
 
@@ -41,9 +43,9 @@ const TITLES: Record<Screen, string> = {
   revenue: "Revenus en attente",
 }
 
-/** "YYYY-MM-DD" en heure locale (toISOString décale d'un jour la nuit). */
+/** "YYYY-MM-DD" du jour civil à Paris (toISOString décale d'un jour la nuit). */
 function localISODate(d: Date): string {
-  return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().split("T")[0]
+  return zonedDateKey(d)
 }
 
 const inputCls = "w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring placeholder:text-muted-foreground/50"
@@ -475,9 +477,6 @@ type PendingRevenue = {
   expectedAt: Date | null
 }
 
-function formatEuro(n: number): string {
-  return n.toLocaleString("fr-FR", { minimumFractionDigits: 0, maximumFractionDigits: 2 }) + " €"
-}
 
 /**
  * Checklist des revenus en attente : un tap = reçu aujourd'hui par virement.
@@ -550,7 +549,7 @@ function RevenueQuickList() {
             <span className="truncate text-sm font-medium text-foreground">{rev.label}</span>
             {rev.expectedAt && (
               <span className="text-xs text-muted-foreground">
-                Attendu le {new Date(rev.expectedAt).toLocaleDateString("fr-FR", { day: "numeric", month: "short" })}
+                Attendu le {new Date(rev.expectedAt).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris", day: "numeric", month: "short" })}
               </span>
             )}
           </span>

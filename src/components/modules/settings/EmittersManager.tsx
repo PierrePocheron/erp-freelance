@@ -12,6 +12,7 @@ import {
 import {
   createEmitter, updateEmitter, deleteEmitter, setDefaultEmitter, type EmitterData,
 } from "@/actions/emitter"
+import { errorMessage } from "@/lib/error-message"
 
 export type Emitter = {
   id: string
@@ -195,14 +196,14 @@ function EmitterEditorDialog({ emitter, onClose }: { emitter: Emitter | null; on
         else await createEmitter(data)
         onClose()
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Erreur lors de l'enregistrement")
+        setError(errorMessage(err, "Erreur lors de l'enregistrement"))
       }
     })
   }
 
   return (
     <Dialog open onOpenChange={(v) => { if (!v) onClose() }}>
-      <DialogContent className="sm:max-w-2xl max-h-[85vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-2xl max-h-[85dvh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{isEdit ? "Modifier la société" : "Nouvelle société"}</DialogTitle>
         </DialogHeader>

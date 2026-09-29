@@ -1,7 +1,9 @@
 "use client"
 
+import { zonedDateKey } from "@/lib/dates"
 import { useState, useTransition, useMemo } from "react"
-import { Plus, Pencil, Trash2, Power, PowerOff, RefreshCw, RefreshCwIcon, X, Zap } from "lucide-react"
+import { Plus, Pencil, Trash2, Power, PowerOff, RefreshCw, RefreshCwIcon, X, Zap, Check } from "lucide-react"
+import { useArmedDelete } from "@/hooks/use-armed-delete"
 import { useSortState, cmp } from "@/hooks/use-sortable"
 import { Th } from "@/components/ui/sortable-header"
 import { useRouter } from "next/navigation"
@@ -22,6 +24,7 @@ import {
   generateInvoiceFromRecurring,
 } from "@/actions/facturation"
 import { ClientCombobox } from "./ClientCombobox"
+import { eur2 as fmtEur } from "@/lib/format"
 
 type Client = { id: string; name: string; company: string | null; type: string }
 type Project = { id: string; name: string; clientId: string | null }
@@ -65,7 +68,6 @@ const FREQ_BADGE: Record<string, string> = {
   CUSTOM: "bg-muted text-muted-foreground border-border",
 }
 
-const fmtEur = (v: number) => v.toLocaleString("fr-FR", { minimumFractionDigits: 2 }) + " €"
 
 export function RecurrentesManager({
   userId,
@@ -84,6 +86,7 @@ export function RecurrentesManager({
   const [showCreate, setShowCreate] = useState(false)
   const [editId, setEditId] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
+  const { isArmed, confirmFirst } = useArmedDelete()
   const { sortCol, sortDir, toggle } = useSortState("nextGenerationDate", "asc")
 
   const sortedRows = useMemo(() => {
@@ -174,6 +177,7 @@ export function RecurrentesManager({
   }
 
   function handleDelete(id: string) {
+    if (!confirmFirst(id)) return
     startTransition(async () => {
       await deleteRecurringInvoice(id, userId)
       toast.success("Modèle supprimé")
@@ -197,7 +201,7 @@ export function RecurrentesManager({
     setClientId(row.client.id)
     setName(row.name)
     setFrequency(row.frequency)
-    setNextDate(new Date(row.nextGenerationDate).toISOString().split("T")[0])
+    setNextDate(zonedDateKey(new Date(row.nextGenerationDate)))
     setProjectId(row.project?.id ?? "")
     setLines(row.lines.map((l) => ({ ...l, localId: crypto.randomUUID() })))
   }
@@ -279,7 +283,7 @@ export function RecurrentesManager({
                     {row.totalHT > 0 ? <span className="amount-sensitive">{fmtEur(row.totalHT)}</span> : <span className="text-muted-foreground">—</span>}
                   </td>
                   <td className="px-4 py-3 text-sm text-muted-foreground">
-                    {new Date(row.nextGenerationDate).toLocaleDateString("fr-FR")}
+                    {new Date(row.nextGenerationDate).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris" })}
                   </td>
                   <td className="px-4 py-3">
                     <span className={`rounded-full border px-2 py-0.5 text-xs font-medium whitespace-nowrap ${
@@ -324,10 +328,10 @@ export function RecurrentesManager({
                         type="button"
                         onClick={() => handleDelete(row.id)}
                         disabled={isPending}
-                        className="p-1.5 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
-                        title="Supprimer"
+                        className={`p-1.5 rounded hover:text-destructive hover:bg-destructive/10 transition-colors ${isArmed(row.id) ? "text-destructive" : "text-muted-foreground"}`}
+                        title={isArmed(row.id) ? "Confirmer la suppression" : "Supprimer"}
                       >
-                        <Trash2 className="h-3.5 w-3.5" />
+                        {isArmed(row.id) ? <Check className="h-3.5 w-3.5" /> : <Trash2 className="h-3.5 w-3.5" />}
                       </button>
                     </div>
                   </td>
@@ -342,7 +346,7 @@ export function RecurrentesManager({
       <Dialog open={showCreate || editId !== null} onOpenChange={(v) => {
         if (!v) { setShowCreate(false); setEditId(null); resetForm() }
       }}>
-        <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
+        <DialogContent className="sm:max-w-lg max-h-[85dvh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editId ? "Modifier le modèle" : "Nouveau modèle récurrent"}</DialogTitle>
           </DialogHeader>

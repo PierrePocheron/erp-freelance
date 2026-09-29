@@ -1,3 +1,4 @@
+import { invoiceStatusMeta } from "@/lib/invoice-state"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import Link from "next/link"
@@ -5,12 +6,11 @@ import { TrendingUp, Clock, AlertCircle, CheckCircle2, Settings } from "lucide-r
 import { markLateInvoices } from "@/actions/facturation"
 import { MonthlyRevenueChart } from "@/components/modules/facturation/MonthlyRevenueChart"
 import { FacturationQuickActions } from "@/components/modules/facturation/FacturationQuickActions"
+import { amountAuto as fmtEur } from "@/lib/format"
 
 // Helpers d'affichage cohérents avec la liste des factures
 const faNumber = (n: string) => (/^fa/i.test(n.trim()) ? n : `FA${n}`)
-const fmtEur = (n: number) =>
-  n.toLocaleString("fr-FR", { minimumFractionDigits: Number.isInteger(n) ? 0 : 2, maximumFractionDigits: 2 })
-const fmtDay = (d: Date | string) => new Date(d).toLocaleDateString("fr-FR")
+const fmtDay = (d: Date | string) => new Date(d).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris" })
 // Montant réglé d'une facture : somme des versements, sinon le net si soldée
 const invoicePaid = (inv: { status: string; totalHT: number; depositDeducted: number; payments: { amount: number }[] }) => {
   const net = inv.totalHT - inv.depositDeducted
@@ -166,56 +166,49 @@ export default async function FacturationOverviewPage({
       {/* KPIs */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <KPI
-          icon={<CheckCircle2 className="h-4 w-4 text-emerald-500" />}
+          icon={<CheckCircle2 className="h-4 w-4 text-muted-foreground" />}
           label="Encaissé"
           value={`${fmtEur(paidThisYear)} €`}
           sub={selectedYear ? `en ${selectedYear}` : "toutes années"}
           sensitive
         />
         <KPI
-          icon={<Clock className="h-4 w-4 text-blue-500" />}
+          icon={<Clock className="h-4 w-4 text-muted-foreground" />}
           label="En attente"
-          value={`${totalPending.toLocaleString("fr-FR")} €`}
+          value={`${totalPending.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`}
           sub={`${allPending.filter((i) => i.status === "SENT").length} facture(s) envoyée(s)`}
           sensitive
         />
         <KPI
-          icon={<AlertCircle className="h-4 w-4 text-red-500" />}
+          icon={<AlertCircle className="h-4 w-4 text-muted-foreground" />}
           label="En retard"
-          value={`${totalLate.toLocaleString("fr-FR")} €`}
+          value={`${totalLate.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`}
           sub={`${allPending.filter((i) => i.status === "LATE").length} facture(s)`}
           alert={totalLate > 0}
           sensitive
         />
         <KPI
-          icon={<TrendingUp className="h-4 w-4 text-amber-500" />}
+          icon={<TrendingUp className="h-4 w-4 text-muted-foreground" />}
           label="Devis envoyés"
           value={String(quotesWaiting)}
           sub="en attente de réponse"
         />
       </div>
 
-      {/* Graphique mensuel */}
-      <MonthlyRevenueChart
-        initialData={monthlyRevenue}
-        currentYear={now.getFullYear()}
-        currentMonth={currentMonth}
-      />
-
       {/* Factures en retard — priorité */}
       {allPending.some((i) => i.status === "LATE") && (
         <div className="space-y-3">
           <div className="flex items-center justify-between">
-            <h2 className="text-sm font-medium text-red-500 flex items-center gap-1.5">
+            <h2 className="text-sm font-medium uppercase tracking-wider text-red-500 flex items-center gap-1.5">
               <AlertCircle className="h-3.5 w-3.5" /> Factures en retard
             </h2>
           </div>
-          <div className="rounded-xl border border-red-500/20 bg-red-500/5 overflow-hidden">
+          <div className="rounded-xl border border-border/50 bg-card overflow-hidden">
             {allPending.filter((i) => i.status === "LATE").map((inv) => (
               <Link
                 key={inv.id}
                 href={`/facturation/factures/${inv.id}`}
-                className="flex items-center gap-3 px-4 py-2.5 border-b border-red-500/10 last:border-0 hover:bg-red-500/10 transition-colors text-sm"
+                className="flex items-center gap-3 px-4 py-2.5 border-b border-border/50 last:border-0 hover:bg-muted/30 transition-colors text-sm"
               >
                 <span className="font-mono text-xs text-muted-foreground w-24 shrink-0">{faNumber(inv.number)}</span>
                 <span className="flex-1 text-muted-foreground">{inv.client.company ?? inv.client.name}</span>
@@ -233,6 +226,13 @@ export default async function FacturationOverviewPage({
           </div>
         </div>
       )}
+
+      {/* Graphique mensuel */}
+      <MonthlyRevenueChart
+        initialData={monthlyRevenue}
+        currentYear={now.getFullYear()}
+        currentMonth={currentMonth}
+      />
 
       {/* Dernières factures */}
       <div className="space-y-3">
@@ -253,7 +253,7 @@ export default async function FacturationOverviewPage({
                   <th className="px-4 py-2.5 text-left font-medium">Client</th>
                   <th className="px-4 py-2.5 text-left font-medium">Statut</th>
                   <th className="px-4 py-2.5 text-right font-medium">Montant HT</th>
-                  <th className="px-4 py-2.5 text-left font-medium">Payé</th>
+                  <th className="px-4 py-2.5 text-right font-medium">Payé</th>
                   <th className="px-4 py-2.5 text-left font-medium hidden sm:table-cell">Émise le</th>
                   <th className="px-4 py-2.5 text-left font-medium hidden md:table-cell">Échéance</th>
                 </tr>
@@ -270,10 +270,10 @@ export default async function FacturationOverviewPage({
                     <td className="px-4 py-2.5">
                       <InvoiceStatusBadge status={inv.status} />
                     </td>
-                    <td className="px-4 py-2.5 text-right font-medium amount-sensitive">
+                    <td className="px-4 py-2.5 text-right font-medium tabular-nums amount-sensitive">
                       {fmtEur(inv.totalHT - inv.depositDeducted)} €
                     </td>
-                    <td className="px-4 py-2.5 text-xs whitespace-nowrap">
+                    <td className="px-4 py-2.5 text-xs text-right whitespace-nowrap">
                       {(() => {
                         const net = inv.totalHT - inv.depositDeducted
                         const paid = invoicePaid(inv)
@@ -365,7 +365,7 @@ function YearTab({ label, href, active }: { label: string; href: string; active:
 
 function KPI({ icon, label, value, sub, alert, sensitive }: { icon: React.ReactNode; label: string; value: string; sub: string; alert?: boolean; sensitive?: boolean }) {
   return (
-    <div className={`rounded-xl border p-4 space-y-1 ${alert ? "border-red-500/20 bg-red-500/5" : "border-border/50 bg-card"}`}>
+    <div className="rounded-xl border border-border/50 bg-card p-4 space-y-1">
       <div className="flex items-center gap-2 text-muted-foreground text-xs">{icon}{label}</div>
       <p className={`text-xl font-bold ${alert ? "text-red-500" : ""} ${sensitive ? "amount-sensitive" : ""}`}>{value}</p>
       <p className="text-xs text-muted-foreground">{sub}</p>
@@ -390,12 +390,6 @@ function QuoteStatusBadge({ status }: { status: string }) {
 }
 
 function InvoiceStatusBadge({ status }: { status: string }) {
-  const map: Record<string, { label: string; cls: string }> = {
-    DRAFT: { label: "Brouillon", cls: "bg-muted text-muted-foreground" },
-    SENT: { label: "Envoyée", cls: "bg-blue-500/15 text-blue-600" },
-    PAID: { label: "Payée", cls: "bg-emerald-500/15 text-emerald-600" },
-    LATE: { label: "En retard", cls: "bg-red-500/15 text-red-600" },
-  }
-  const { label, cls } = map[status] ?? { label: status, cls: "" }
+  const { label, cls } = invoiceStatusMeta(status)
   return <span className={`rounded-full px-2 py-0.5 text-xs font-medium whitespace-nowrap ${cls}`}>{label}</span>
 }

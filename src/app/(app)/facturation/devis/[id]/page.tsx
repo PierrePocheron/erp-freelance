@@ -1,3 +1,4 @@
+import { zonedDateKey } from "@/lib/dates"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { notFound } from "next/navigation"
@@ -8,7 +9,6 @@ import {
   Send, ChevronRight, Clock, Check, PenLine, ExternalLink,
   Banknote, Play, Undo2,
 } from "lucide-react"
-import { Button } from "@/components/ui/button"
 import { LineItemsEditor } from "@/components/modules/facturation/LineItemsEditor"
 import { DeleteConfirmButton } from "@/components/modules/facturation/DeleteConfirmButton"
 import { SignedUploadButton } from "@/components/modules/facturation/SignedUploadButton"
@@ -26,6 +26,8 @@ import {
 } from "@/actions/facturation"
 import { redirect } from "next/navigation"
 import { Input } from "@/components/ui/input"
+import { SubmitButton } from "@/components/ui/submit-button"
+import { runWithFlash } from "@/lib/flash"
 
 // ── Status metadata ───────────────────────────────────────────────────────────
 
@@ -159,10 +161,10 @@ export default async function DevisDetailPage({
             )}
           </p>
           <p className="text-xs text-muted-foreground">
-            Créé le {new Date(quote.createdAt).toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" })}
-            {quote.validatedAt && ` · Validé le ${new Date(quote.validatedAt).toLocaleDateString("fr-FR")}`}
-            {quote.sentAt && ` · Envoyé le ${new Date(quote.sentAt).toLocaleDateString("fr-FR")}`}
-            {quote.acceptedAt && ` · Accepté le ${new Date(quote.acceptedAt).toLocaleDateString("fr-FR")}`}
+            Créé le {new Date(quote.createdAt).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris", day: "numeric", month: "long", year: "numeric" })}
+            {quote.validatedAt && ` · Validé le ${new Date(quote.validatedAt).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris" })}`}
+            {quote.sentAt && ` · Envoyé le ${new Date(quote.sentAt).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris" })}`}
+            {quote.acceptedAt && ` · Accepté le ${new Date(quote.acceptedAt).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris" })}`}
           </p>
         </div>
 
@@ -176,19 +178,19 @@ export default async function DevisDetailPage({
             Imprimer PDF
           </a>
           {(quote.status === "DRAFT" || quote.status === "VALIDATED") && quote.client.email && (
-            <form action={async () => { "use server"; await sendQuoteEmail(id, userId) }}>
-              <Button type="submit" size="sm">
+            <form action={async () => { "use server"; await runWithFlash(async () => { await sendQuoteEmail(id, userId) }, "Devis envoyé au client") }}>
+              <SubmitButton pendingLabel="Envoi…" size="sm">
                 <Send className="h-3.5 w-3.5" />
                 Envoyer par email
-              </Button>
+              </SubmitButton>
             </form>
           )}
           {quote.status === "SENT" && quote.client.email && (
-            <form action={async () => { "use server"; await resendQuoteEmail(id, userId) }}>
-              <Button type="submit" size="sm" variant="outline">
+            <form action={async () => { "use server"; await runWithFlash(async () => { await resendQuoteEmail(id, userId) }, "Relance envoyée") }}>
+              <SubmitButton pendingLabel="Envoi…" size="sm" variant="outline">
                 <Send className="h-3.5 w-3.5" />
                 Relancer
-              </Button>
+              </SubmitButton>
             </form>
           )}
         </div>
@@ -226,36 +228,33 @@ export default async function DevisDetailPage({
           <div className="mt-4 flex flex-wrap gap-2">
 
             {quote.status === "DRAFT" && (
-              <form action={async () => {
-                "use server"
+              <form action={async () => { "use server"; await runWithFlash(async () => {
                 await updateQuoteStatus(id, userId, "VALIDATED")
-              }}>
-                <Button type="submit" size="sm">
+              }, "Statut du devis mis à jour") }}>
+                <SubmitButton size="sm">
                   <CheckCircle2 className="h-3.5 w-3.5" />
                   Valider le devis
-                </Button>
+                </SubmitButton>
               </form>
             )}
 
             {quote.status === "VALIDATED" && (
               <>
-                <form action={async () => {
-                  "use server"
+                <form action={async () => { "use server"; await runWithFlash(async () => {
                   await updateQuoteStatus(id, userId, "SENT")
-                }}>
-                  <Button type="submit" size="sm">
+                }, "Statut du devis mis à jour") }}>
+                  <SubmitButton size="sm">
                     <Send className="h-3.5 w-3.5" />
                     Marquer comme envoyé
-                  </Button>
+                  </SubmitButton>
                 </form>
-                <form action={async () => {
-                  "use server"
+                <form action={async () => { "use server"; await runWithFlash(async () => {
                   await revertQuoteToDraft(id, userId)
-                }}>
-                  <Button type="submit" size="sm" variant="outline">
+                }, "Devis repassé en brouillon") }}>
+                  <SubmitButton size="sm" variant="outline">
                     <Undo2 className="h-3.5 w-3.5" />
                     Repasser en brouillon
-                  </Button>
+                  </SubmitButton>
                 </form>
               </>
             )}
@@ -263,60 +262,58 @@ export default async function DevisDetailPage({
             {quote.status === "SENT" && (
               <>
                 {hasDeposit ? (
-                  <form action={async () => {
-                    "use server"
+                  <form action={async () => { "use server"; await runWithFlash(async () => {
                     await updateQuoteStatus(id, userId, "WAITING_DEPOSIT")
-                  }}>
-                    <Button type="submit" size="sm" className="bg-amber-500 hover:bg-amber-600 text-white border-none">
+                  }, "Statut du devis mis à jour") }}>
+                    <SubmitButton size="sm" className="bg-amber-500 hover:bg-amber-600 text-white border-none">
                       <Banknote className="h-3.5 w-3.5" />
-                      En attente d&apos;acompte
-                    </Button>
+                      Accepté — attente d&apos;acompte
+                    </SubmitButton>
                   </form>
                 ) : (
-                  <form action={async () => {
-                    "use server"
+                  <form action={async () => { "use server"; await runWithFlash(async () => {
                     await updateQuoteStatus(id, userId, "ACCEPTED")
-                  }}>
-                    <Button type="submit" size="sm" className="bg-emerald-500 hover:bg-emerald-600 text-white border-none">
+                  }, "Statut du devis mis à jour") }}>
+                    <SubmitButton size="sm" className="bg-emerald-500 hover:bg-emerald-600 text-white border-none">
                       <CheckCircle2 className="h-3.5 w-3.5" />
                       Accepté par le client
-                    </Button>
+                    </SubmitButton>
                   </form>
                 )}
-                <form action={async () => {
-                  "use server"
-                  await updateQuoteStatus(id, userId, "REJECTED")
-                }}>
-                  <Button type="submit" size="sm" variant="destructive">
-                    <XCircle className="h-3.5 w-3.5" />
-                    Refusé
-                  </Button>
-                </form>
+                <DeleteConfirmButton
+                  label="Refusé"
+                  icon={<XCircle className="h-3.5 w-3.5" />}
+                  confirmTitle={`Marquer le devis ${quote.number} comme refusé ?`}
+                  confirmMessage="Le devis sort du pipeline, et l'interface ne permet pas de revenir en arrière."
+                  confirmLabel="Marquer refusé"
+                  pendingLabel="Enregistrement…"
+                  action={async () => { "use server"; await runWithFlash(async () => {
+                    await updateQuoteStatus(id, userId, "REJECTED")
+                  }, "Statut du devis mis à jour") }}
+                />
               </>
             )}
 
             {quote.status === "WAITING_DEPOSIT" && (
               <>
                 {!hasDepositInvoice && (
-                  <form action={async () => {
-                    "use server"
+                  <form action={async () => { "use server"; await runWithFlash(async () => {
                     const inv = await createInvoiceFromQuote(id, userId, "DEPOSIT")
                     redirect(`/facturation/factures/${inv.id}`)
-                  }}>
-                    <Button type="submit" size="sm" variant="outline">
+                  }) }}>
+                    <SubmitButton pendingLabel="Création…" size="sm" variant="outline">
                       <FileText className="h-3.5 w-3.5" />
                       Générer facture acompte ({quote.depositPercent}%)
-                    </Button>
+                    </SubmitButton>
                   </form>
                 )}
-                <form action={async () => {
-                  "use server"
+                <form action={async () => { "use server"; await runWithFlash(async () => {
                   await updateQuoteStatus(id, userId, "DEPOSIT_RECEIVED")
-                }}>
-                  <Button type="submit" size="sm" className="bg-emerald-500 hover:bg-emerald-600 text-white border-none">
+                }, "Statut du devis mis à jour") }}>
+                  <SubmitButton size="sm" className="bg-emerald-500 hover:bg-emerald-600 text-white border-none">
                     <CheckCircle2 className="h-3.5 w-3.5" />
                     Acompte reçu
-                  </Button>
+                  </SubmitButton>
                 </form>
               </>
             )}
@@ -324,75 +321,69 @@ export default async function DevisDetailPage({
             {quote.status === "DEPOSIT_RECEIVED" && (
               <>
                 {!hasDepositInvoice && (
-                  <form action={async () => {
-                    "use server"
+                  <form action={async () => { "use server"; await runWithFlash(async () => {
                     const inv = await createInvoiceFromQuote(id, userId, "DEPOSIT")
                     redirect(`/facturation/factures/${inv.id}`)
-                  }}>
-                    <Button type="submit" size="sm" variant="outline">
+                  }) }}>
+                    <SubmitButton pendingLabel="Création…" size="sm" variant="outline">
                       <FileText className="h-3.5 w-3.5" />
                       Facture acompte ({quote.depositPercent}%)
-                    </Button>
+                    </SubmitButton>
                   </form>
                 )}
-                <form action={async () => {
-                  "use server"
+                <form action={async () => { "use server"; await runWithFlash(async () => {
                   await updateQuoteStatus(id, userId, "IN_PROGRESS")
-                }}>
-                  <Button type="submit" size="sm" className="bg-indigo-500 hover:bg-indigo-600 text-white border-none">
+                }, "Statut du devis mis à jour") }}>
+                  <SubmitButton size="sm" className="bg-indigo-500 hover:bg-indigo-600 text-white border-none">
                     <Play className="h-3.5 w-3.5" />
                     Démarrer le développement
-                  </Button>
+                  </SubmitButton>
                 </form>
               </>
             )}
 
             {quote.status === "ACCEPTED" && (
-              <form action={async () => {
-                "use server"
+              <form action={async () => { "use server"; await runWithFlash(async () => {
                 await updateQuoteStatus(id, userId, "IN_PROGRESS")
-              }}>
-                <Button type="submit" size="sm" className="bg-indigo-500 hover:bg-indigo-600 text-white border-none">
+              }, "Statut du devis mis à jour") }}>
+                <SubmitButton size="sm" className="bg-indigo-500 hover:bg-indigo-600 text-white border-none">
                   <Play className="h-3.5 w-3.5" />
                   Démarrer le développement
-                </Button>
+                </SubmitButton>
               </form>
             )}
 
             {(quote.status === "IN_PROGRESS" || quote.status === "SIGNED") && (
               <div className="flex flex-wrap gap-2">
                 {hasDeposit && !hasDepositInvoice && (
-                  <form action={async () => {
-                    "use server"
+                  <form action={async () => { "use server"; await runWithFlash(async () => {
                     const inv = await createInvoiceFromQuote(id, userId, "DEPOSIT")
                     redirect(`/facturation/factures/${inv.id}`)
-                  }}>
-                    <Button type="submit" size="sm" variant="outline">
+                  }) }}>
+                    <SubmitButton pendingLabel="Création…" size="sm" variant="outline">
                       <FileText className="h-3.5 w-3.5" />
                       Facture acompte ({quote.depositPercent}%)
-                    </Button>
+                    </SubmitButton>
                   </form>
                 )}
-                <form action={async () => {
-                  "use server"
+                <form action={async () => { "use server"; await runWithFlash(async () => {
                   const inv = await createInvoiceFromQuote(id, userId, "RECURRING")
                   redirect(`/facturation/factures/${inv.id}`)
-                }}>
-                  <Button type="submit" size="sm" variant="outline">
+                }) }}>
+                  <SubmitButton pendingLabel="Création…" size="sm" variant="outline">
                     <FileText className="h-3.5 w-3.5" />
                     Facture intermédiaire
-                  </Button>
+                  </SubmitButton>
                 </form>
                 {!hasFinalInvoice && (
-                  <form action={async () => {
-                    "use server"
+                  <form action={async () => { "use server"; await runWithFlash(async () => {
                     const inv = await createInvoiceFromQuote(id, userId, "FINAL")
                     redirect(`/facturation/factures/${inv.id}`)
-                  }}>
-                    <Button type="submit" size="sm" variant="outline">
+                  }) }}>
+                    <SubmitButton pendingLabel="Création…" size="sm" variant="outline">
                       <FileText className="h-3.5 w-3.5" />
                       Facture solde
-                    </Button>
+                    </SubmitButton>
                   </form>
                 )}
               </div>
@@ -422,10 +413,9 @@ export default async function DevisDetailPage({
             </p>
           </div>
           <SignedUploadButton
-            action={async (fileUrl: string) => {
-              "use server"
+            action={async (fileUrl: string) => { "use server"; await runWithFlash(async () => {
               await signQuoteWithFile(id, userId, fileUrl)
-            }}
+            }) }}
           />
         </div>
       )}
@@ -453,7 +443,7 @@ export default async function DevisDetailPage({
           <h2 className="font-semibold text-sm">Prestations</h2>
           {quote.depositPercent > 0 && (
             <span className="text-xs text-muted-foreground">
-              Acompte {quote.depositPercent}% · <span className="amount-sensitive">{depositAmount.toLocaleString("fr-FR", { minimumFractionDigits: 2 })} €</span>
+              Acompte {quote.depositPercent}% · <span className="amount-sensitive">{depositAmount.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €</span>
             </span>
           )}
         </div>
@@ -472,15 +462,15 @@ export default async function DevisDetailPage({
           <div className="space-y-1.5 text-sm max-w-xs ml-auto">
             <div className="flex justify-between">
               <span className="text-muted-foreground">Total HT</span>
-              <span className="amount-sensitive">{totalHT.toLocaleString("fr-FR", { minimumFractionDigits: 2 })} €</span>
+              <span className="amount-sensitive">{totalHT.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €</span>
             </div>
             <div className="flex justify-between">
               <span className="text-muted-foreground">Total TVA</span>
-              <span className="amount-sensitive">{totalTVA.toLocaleString("fr-FR", { minimumFractionDigits: 2 })} €</span>
+              <span className="amount-sensitive">{totalTVA.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €</span>
             </div>
             <div className="flex justify-between font-bold border-t border-border pt-1.5">
               <span>Total TTC</span>
-              <span className="text-primary text-base amount-sensitive">{totalTTC.toLocaleString("fr-FR", { minimumFractionDigits: 2 })} €</span>
+              <span className="text-primary text-base amount-sensitive">{totalTTC.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €</span>
             </div>
           </div>
         </div>
@@ -494,7 +484,7 @@ export default async function DevisDetailPage({
             {quote.invoices.map((inv) => (
               <Link key={inv.id} href={`/facturation/factures/${inv.id}`} className="flex items-center gap-3 text-sm hover:text-primary transition-colors">
                 <span className="font-mono text-xs text-muted-foreground">{inv.number}</span>
-                <span>{inv.type === "DEPOSIT" ? "Acompte" : inv.type === "FINAL" ? "Solde" : inv.type}</span>
+                <span>{inv.type === "DEPOSIT" ? "Acompte" : inv.type === "FINAL" ? "Solde" : inv.type === "RECURRING" ? "Intermédiaire" : inv.type}</span>
                 <span className={`rounded-full px-2 py-0.5 text-xs font-medium whitespace-nowrap ml-auto ${
                   inv.status === "PAID" ? "bg-emerald-500/15 text-emerald-600" :
                   inv.status === "SENT" ? "bg-blue-500/15 text-blue-600" :
@@ -522,10 +512,9 @@ export default async function DevisDetailPage({
           emitters={emitters}
           currentId={quote.emitterProfileId}
           editable={isEditable}
-          action={async (emitterProfileId: string | null) => {
-            "use server"
+          action={async (emitterProfileId: string | null) => { "use server"; await runWithFlash(async () => {
             await updateQuoteEmitter(id, emitterProfileId)
-          }}
+          }) }}
         />
       </div>
 
@@ -534,14 +523,13 @@ export default async function DevisDetailPage({
         <h2 className="font-semibold text-sm">Paramètres</h2>
         {isEditable ? (
           <form
-            action={async (fd: FormData) => {
-              "use server"
+            action={async (fd: FormData) => { "use server"; await runWithFlash(async () => {
               await updateQuoteSettings(id, userId, {
                 depositPercent: Number(fd.get("depositPercent")) || 0,
                 expiresAt: (fd.get("expiresAt") as string) || null,
                 notes: (fd.get("notes") as string) || null,
               })
-            }}
+            }, "Enregistré") }}
             className="space-y-3"
           >
             <div className="grid grid-cols-2 gap-4">
@@ -554,7 +542,7 @@ export default async function DevisDetailPage({
                 <Input
                   name="expiresAt"
                   type="date"
-                  defaultValue={quote.expiresAt ? new Date(quote.expiresAt).toISOString().split("T")[0] : ""}
+                  defaultValue={quote.expiresAt ? zonedDateKey(new Date(quote.expiresAt)) : ""}
                   className="h-8"
                 />
               </div>
@@ -569,12 +557,12 @@ export default async function DevisDetailPage({
                 className="flex w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring resize-none"
               />
             </div>
-            <Button type="submit" size="sm" variant="outline">Enregistrer</Button>
+            <SubmitButton size="sm" variant="outline">Enregistrer</SubmitButton>
           </form>
         ) : (
           <div className="space-y-1.5 text-sm">
             <div className="flex gap-2"><span className="text-muted-foreground">Acompte :</span><span>{quote.depositPercent} %</span></div>
-            <div className="flex gap-2"><span className="text-muted-foreground">Expiration :</span><span>{quote.expiresAt ? new Date(quote.expiresAt).toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" }) : "—"}</span></div>
+            <div className="flex gap-2"><span className="text-muted-foreground">Expiration :</span><span>{quote.expiresAt ? new Date(quote.expiresAt).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris", day: "numeric", month: "long", year: "numeric" }) : "—"}</span></div>
             {quote.notes && <p className="text-muted-foreground whitespace-pre-wrap">{quote.notes}</p>}
             <p className="text-xs text-muted-foreground italic">Devis figé — repassez-le en brouillon pour le modifier.</p>
           </div>
@@ -589,12 +577,11 @@ export default async function DevisDetailPage({
         </div>
         {isEditable ? (
           <form
-            action={async (fd: FormData) => {
-              "use server"
+            action={async (fd: FormData) => { "use server"; await runWithFlash(async () => {
               await updateQuoteSettings(id, userId, {
                 generalConditions: (fd.get("generalConditions") as string) || null,
               })
-            }}
+            }, "Enregistré") }}
             className="space-y-3"
           >
             <textarea
@@ -604,7 +591,7 @@ export default async function DevisDetailPage({
               placeholder="Ex : Paiement à 30 jours. En cas de retard, une pénalité de 1,5% par mois sera appliquée..."
               className="flex w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring resize-none"
             />
-            <Button type="submit" size="sm" variant="outline">Enregistrer les conditions</Button>
+            <SubmitButton size="sm" variant="outline">Enregistrer les conditions</SubmitButton>
           </form>
         ) : quote.generalConditions ? (
           <p className="text-sm text-muted-foreground whitespace-pre-wrap">{quote.generalConditions}</p>
@@ -620,11 +607,10 @@ export default async function DevisDetailPage({
             label="Supprimer ce devis"
             confirmTitle="Supprimer le devis ?"
             confirmMessage={`Le devis ${quote.number} sera supprimé définitivement. Cette action est irréversible.`}
-            action={async () => {
-              "use server"
+            action={async () => { "use server"; await runWithFlash(async () => {
               await deleteQuote(id, userId)
               redirect("/facturation/devis")
-            }}
+            }) }}
           />
         </div>
       )}

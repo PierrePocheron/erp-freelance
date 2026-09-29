@@ -4,6 +4,7 @@ import { prisma }   from "@/lib/prisma"
 import { GraphView } from "@/components/modules/graph/GraphView"
 import type { RawNode, RawLink } from "@/components/modules/graph/graph-types"
 import { isContactIncomplete } from "@/lib/contact"
+import { amountAuto } from "@/lib/format"
 
 export default async function GraphPage() {
   const session = await auth()
@@ -216,7 +217,7 @@ export default async function GraphPage() {
           { label: "Statut",   value: PROJECT_STATUS_LABELS[p.status] ?? p.status },
           { label: "Factures", value: String(invCount) },
           { label: "Devis",    value: String(qCount)   },
-          ...(p.startDate ? [{ label: "Début", value: new Date(p.startDate).toLocaleDateString("fr-FR") }] : []),
+          ...(p.startDate ? [{ label: "Début", value: new Date(p.startDate).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris" }) }] : []),
         ],
       },
     })
@@ -252,11 +253,11 @@ export default async function GraphPage() {
       amount:   inv.totalHT,
       meta: {
         href:     `/facturation/factures/${inv.id}`,
-        subtitle: `${inv.totalHT.toLocaleString("fr-FR")} € HT`,
+        subtitle: `${amountAuto(inv.totalHT)} € HT`,
         details: [
           { label: "Statut",  value: INVOICE_STATUS_LABELS[inv.status] ?? inv.status },
-          { label: "Montant", value: `${inv.totalHT.toLocaleString("fr-FR")} € HT` },
-          ...(inv.paidAt ? [{ label: "Payée le", value: new Date(inv.paidAt).toLocaleDateString("fr-FR") }] : []),
+          { label: "Montant", value: `${amountAuto(inv.totalHT)} € HT` },
+          ...(inv.paidAt ? [{ label: "Payée le", value: new Date(inv.paidAt).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris" }) }] : []),
         ],
       },
     })
@@ -278,10 +279,10 @@ export default async function GraphPage() {
       amount:   q.totalHT,
       meta: {
         href:     `/facturation/devis/${q.id}`,
-        subtitle: `${q.totalHT.toLocaleString("fr-FR")} € HT`,
+        subtitle: `${amountAuto(q.totalHT)} € HT`,
         details: [
           { label: "Statut",  value: QUOTE_STATUS_LABELS[q.status] ?? q.status },
-          { label: "Montant", value: `${q.totalHT.toLocaleString("fr-FR")} € HT` },
+          { label: "Montant", value: `${amountAuto(q.totalHT)} € HT` },
         ],
       },
     })
@@ -313,7 +314,7 @@ export default async function GraphPage() {
     const parentId = rawParent && revenueNodeIds.has(rawParent) ? rawParent : null
 
     const date    = rev.receivedAt ?? rev.expectedAt
-    const dateStr = date ? new Date(date).toLocaleDateString("fr-FR") : "—"
+    const dateStr = date ? new Date(date).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris" }) : "—"
 
     nodes.push({
       id:         revNodeId,
@@ -325,9 +326,9 @@ export default async function GraphPage() {
       amount:     rev.amount,
       meta: {
         href:     `/revenus`,
-        subtitle: `${rev.amount.toLocaleString("fr-FR")} €`,
+        subtitle: `${amountAuto(rev.amount)} €`,
         details: [
-          { label: "Montant", value: `${rev.amount.toLocaleString("fr-FR", { minimumFractionDigits: 2 })} €` },
+          { label: "Montant", value: `${rev.amount.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €` },
           { label: "Statut",  value: rev.status === "RECEIVED" ? "Reçu" : "En attente" },
           { label: "Date",    value: dateStr },
         ],
@@ -507,7 +508,7 @@ export default async function GraphPage() {
         links.push({ source: srcNodeId, target: platId })
       }
       const date    = rev.receivedAt ?? rev.expectedAt
-      const dateStr = date ? new Date(date).toLocaleDateString("fr-FR") : "—"
+      const dateStr = date ? new Date(date).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris" }) : "—"
       // Le préfixe plateforme est déjà porté par le nœud parent → on l'enlève du label
       const shortLabel = rev.label.includes("—") ? rev.label.split("—").slice(1).join("—").trim() : rev.label
       nodes.push({
@@ -519,9 +520,9 @@ export default async function GraphPage() {
         amount:  rev.amount,
         meta: {
           href:     "/revenus",
-          subtitle: `${rev.amount.toLocaleString("fr-FR")} €`,
+          subtitle: `${amountAuto(rev.amount)} €`,
           details: [
-            { label: "Montant", value: `${rev.amount.toLocaleString("fr-FR", { minimumFractionDigits: 2 })} €` },
+            { label: "Montant", value: `${rev.amount.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €` },
             { label: "Statut",  value: rev.status === "RECEIVED" ? "Reçu" : "En attente" },
             { label: "Date",    value: dateStr },
           ],
@@ -624,7 +625,7 @@ export default async function GraphPage() {
   }
 
   return (
-    <div className="h-screen -m-6 overflow-hidden">
+    <div className="h-screen -m-3 sm:-m-6 overflow-hidden">
       <GraphView rawNodes={nodes} rawLinks={links} />
     </div>
   )

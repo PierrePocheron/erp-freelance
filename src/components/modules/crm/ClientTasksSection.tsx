@@ -3,11 +3,13 @@
 import { useState, useTransition, useRef } from "react"
 import {
   CheckCircle2, Circle, PlayCircle, Loader2,
-  AlertTriangle, Pencil, Trash2, Plus, ChevronDown, ChevronRight,
+  AlertTriangle, Pencil, Trash2, Plus, ChevronDown, ChevronRight, Check,
 } from "lucide-react"
+import { useArmedDelete } from "@/hooks/use-armed-delete"
 import { startTask, completeTask, reopenTask, deleteTask, updateTaskFields, createClientTask } from "@/actions/projet"
 import { TaskEditSheet, type TaskForEdit } from "@/components/modules/taches/TaskEditSheet"
 import { cn } from "@/lib/utils"
+import { zonedDayStart } from "@/lib/dates"
 
 type Tag = { id: string; name: string; color: string }
 type ProjectRef = { id: string; name: string }
@@ -29,7 +31,8 @@ type ClientTask = {
 }
 
 function isOverdue(task: ClientTask) {
-  return task.dueDate && task.status !== "DONE" && new Date(task.dueDate) < new Date()
+  // Dû aujourd'hui ≠ en retard (dates jour stockées à minuit)
+  return task.dueDate && task.status !== "DONE" && new Date(task.dueDate) < zonedDayStart(new Date())
 }
 
 // ── Task Row ──────────────────────────────────────────────────────────────────
@@ -37,6 +40,7 @@ function isOverdue(task: ClientTask) {
 function TaskRow({ task }: { task: ClientTask }) {
   const [isPending, startTransitionFn] = useTransition()
   const [isDeleting, startDeleteTransition] = useTransition()
+  const { isArmed, confirmFirst } = useArmedDelete()
   const [isSavingTitle, startTitleTransition] = useTransition()
   const [editOpen, setEditOpen] = useState(false)
   const [editingTitle, setEditingTitle] = useState(false)
@@ -60,7 +64,7 @@ function TaskRow({ task }: { task: ClientTask }) {
   }
 
   function handleDelete() {
-    startDeleteTransition(() => deleteTask(task.id))
+    if (confirmFirst()) startDeleteTransition(() => deleteTask(task.id))
   }
 
   function saveTitle() {
@@ -139,12 +143,12 @@ function TaskRow({ task }: { task: ClientTask }) {
         {task.dueDate && task.status !== "DONE" && (
           <span className={cn("text-xs shrink-0", overdue ? "text-red-500 font-medium" : "text-muted-foreground")}>
             {overdue && <AlertTriangle className="h-3 w-3 inline mr-0.5" />}
-            {new Date(task.dueDate).toLocaleDateString("fr-FR", { day: "numeric", month: "short" })}
+            {new Date(task.dueDate).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris", day: "numeric", month: "short" })}
           </span>
         )}
         {task.status === "DONE" && task.completedAt && (
           <span className="text-xs text-emerald-600 shrink-0">
-            ✓ {new Date(task.completedAt).toLocaleDateString("fr-FR", { day: "numeric", month: "short" })}
+            ✓ {new Date(task.completedAt).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris", day: "numeric", month: "short" })}
           </span>
         )}
 
@@ -152,17 +156,18 @@ function TaskRow({ task }: { task: ClientTask }) {
         <button
           onClick={() => setEditOpen(true)}
           title="Modifier"
-          className="shrink-0 md:opacity-0 md:group-hover:opacity-100 focus:opacity-100 transition-opacity text-muted-foreground hover:text-foreground"
+          className="shrink-0 pointer-fine:opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity text-muted-foreground hover:text-foreground"
         >
           <Pencil className="h-3.5 w-3.5" />
         </button>
         <button
           onClick={handleDelete}
           disabled={isDeleting}
-          title="Supprimer"
-          className="shrink-0 md:opacity-0 md:group-hover:opacity-100 focus:opacity-100 transition-opacity text-muted-foreground hover:text-red-500 disabled:opacity-30"
+          title={isArmed() ? "Confirmer la suppression" : "Supprimer"}
+          aria-label={isArmed() ? "Confirmer la suppression de la tâche" : "Supprimer la tâche"}
+          className={cn("shrink-0 focus:opacity-100 transition-opacity disabled:opacity-30", isArmed() ? "text-red-500" : "pointer-fine:opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-red-500")}
         >
-          {isDeleting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+          {isDeleting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : isArmed() ? <Check className="h-3.5 w-3.5" /> : <Trash2 className="h-3.5 w-3.5" />}
         </button>
       </div>
 

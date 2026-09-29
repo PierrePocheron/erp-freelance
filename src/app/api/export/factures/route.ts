@@ -1,3 +1,4 @@
+import { zonedDateKey } from "@/lib/dates"
 import { apiSession } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { NextRequest } from "next/server"
@@ -85,8 +86,8 @@ export async function GET(req: NextRequest) {
     const client = inv.client.company ?? inv.client.name
     const project = inv.project?.name ?? ""
     const net = inv.totalHT - inv.depositDeducted
-    const dueDate = inv.dueDate ? new Date(inv.dueDate).toLocaleDateString("fr-FR") : ""
-    const createdAt = new Date(inv.createdAt).toLocaleDateString("fr-FR")
+    const dueDate = inv.dueDate ? new Date(inv.dueDate).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris" }) : ""
+    const createdAt = new Date(inv.createdAt).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris" })
     rows.push([
       csvCell(inv.number, true),
       csvCell(client, true),
@@ -103,7 +104,7 @@ export async function GET(req: NextRequest) {
 
   // BOM UTF-8 en tête pour qu'Excel (Windows) affiche correctement les accents.
   const csv = "﻿" + rows.join("\n")
-  const now = new Date().toISOString().split("T")[0]
+  const now = zonedDateKey(new Date())
 
   return new Response(csv, {
     headers: {

@@ -43,9 +43,9 @@ export async function GET(
   for (const task of project.tasks) {
     for (const entry of task.timeEntries) {
       if (!entry.endedAt || !entry.duration) continue
-      const date = new Date(entry.startedAt).toLocaleDateString("fr-FR")
-      const start = new Date(entry.startedAt).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })
-      const end = new Date(entry.endedAt).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })
+      const date = new Date(entry.startedAt).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris" })
+      const start = new Date(entry.startedAt).toLocaleTimeString("fr-FR", { timeZone: "Europe/Paris", hour: "2-digit", minute: "2-digit" })
+      const end = new Date(entry.endedAt).toLocaleTimeString("fr-FR", { timeZone: "Europe/Paris", hour: "2-digit", minute: "2-digit" })
       const durationMin = Math.round(entry.duration / 60)
       const durationH = (entry.duration / 3600).toFixed(2).replace(".", ",")
       rows.push([

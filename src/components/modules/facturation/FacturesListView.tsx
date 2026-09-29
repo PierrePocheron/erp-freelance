@@ -1,5 +1,7 @@
 "use client"
 
+import { INVOICE_STATUS_META } from "@/lib/invoice-state"
+import { zonedDayStart } from "@/lib/dates"
 import { useState, useMemo, useCallback } from "react"
 import Link from "next/link"
 import { useSearchParams } from "next/navigation"
@@ -9,6 +11,7 @@ import { Th } from "@/components/ui/sortable-header"
 import { CreateInvoiceDialog } from "./CreateInvoiceDialog"
 import { ImportInvoiceModal } from "./ImportInvoiceModal"
 import { RevenueBars } from "./MonthlyRevenueChart"
+import { eurAuto as fmtEur, amountAuto } from "@/lib/format"
 
 type Invoice = {
   id: string
@@ -35,12 +38,7 @@ function displayNumber(number: string): string {
   return /^fa/i.test(number.trim()) ? number : `FA${number}`
 }
 
-const fmtEur = (n: number) =>
-  n.toLocaleString("fr-FR", {
-    minimumFractionDigits: Number.isInteger(n) ? 0 : 2,
-    maximumFractionDigits: 2,
-  }) + " €"
-const fmtDay = (d: Date | string) => new Date(d).toLocaleDateString("fr-FR")
+const fmtDay = (d: Date | string) => new Date(d).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris" })
 
 /** Récapitulatif des encaissements d'une facture : montant réglé sur le montant
  *  total, + date(s) des versements. Affiche TOUJOURS « payé / total » (vert =
@@ -96,14 +94,7 @@ type Client = { id: string; name: string; company: string | null; type: string; 
 type Project = { id: string; name: string; clientId: string | null; companyId: string | null }
 type Quote = { id: string; number: string; clientId: string; projectId: string | null; totalHT: number; depositPercent: number; status: string; client: { name: string; company: string | null } }
 
-const statusConfig: Record<string, { label: string; cls: string }> = {
-  DRAFT: { label: "Brouillon", cls: "bg-muted text-muted-foreground border-border" },
-  ISSUED: { label: "Émise", cls: "bg-violet-500/15 text-violet-600 border-violet-500/20" },
-  SENT: { label: "Envoyée", cls: "bg-blue-500/15 text-blue-600 border-blue-500/20" },
-  PAID: { label: "Payée", cls: "bg-emerald-500/15 text-emerald-600 border-emerald-500/20" },
-  LATE: { label: "En retard", cls: "bg-red-500/15 text-red-600 border-red-500/20" },
-  CANCELLED: { label: "Annulée", cls: "bg-muted text-muted-foreground border-border line-through" },
-}
+const statusConfig = INVOICE_STATUS_META as Record<string, { label: string; cls: string }>
 
 const typeLabels: Record<string, string> = {
   DEPOSIT: "Acompte",
@@ -140,7 +131,7 @@ function invoiceRefDate(inv: Invoice): Date {
 
 function monthKeyLabel(key: string): string {
   const [y, m] = key.split("-").map(Number)
-  return new Date(y, m - 1, 1).toLocaleDateString("fr-FR", { month: "long", year: "numeric" })
+  return new Date(y, m - 1, 1).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris", month: "long", year: "numeric" })
 }
 
 export function FacturesListView({
@@ -487,7 +478,7 @@ export function FacturesListView({
                 <Th label="Type"      col="type"      sortCol={sortCol} sortDir={sortDir} onSort={toggle} className="px-4 py-3 hidden sm:table-cell" />
                 <Th label="Statut"    col="status"    sortCol={sortCol} sortDir={sortDir} onSort={toggle} className="px-4 py-3" />
                 <Th label="Montant HT" col="amount"  sortCol={sortCol} sortDir={sortDir} onSort={toggle} className="px-4 py-3" align="right" />
-                <th className="px-4 py-3 text-left font-medium text-muted-foreground whitespace-nowrap">Payé</th>
+                <th className="px-4 py-3 text-right font-medium text-muted-foreground whitespace-nowrap">Payé</th>
                 <Th label="Émise le"  col="issued"    sortCol={sortCol} sortDir={sortDir} onSort={toggle} className="px-4 py-3 hidden md:table-cell" />
                 <Th label="Envoyée"   col="sent"      sortCol={sortCol} sortDir={sortDir} onSort={toggle} className="px-4 py-3 hidden xl:table-cell" />
                 <Th label="Échéance"  col="dueDate"   sortCol={sortCol} sortDir={sortDir} onSort={toggle} className="px-4 py-3 hidden lg:table-cell" />
@@ -496,7 +487,8 @@ export function FacturesListView({
             <tbody>
               {sorted.map((inv) => {
                 const status = statusConfig[inv.status] ?? { label: inv.status, cls: "bg-muted text-muted-foreground border-border" }
-                const isLate = inv.dueDate && inv.status === "SENT" && new Date(inv.dueDate) < new Date()
+                // LATE (posé par markLateInvoices) ou envoyée et échue AVANT aujourd'hui — une facture due aujourd'hui n'est pas en retard
+                const isLate = inv.status === "LATE" || (inv.status === "SENT" && !!inv.dueDate && new Date(inv.dueDate) < zonedDayStart(new Date()))
                 return (
                   <tr key={inv.id} className={`border-b border-border/50 last:border-0 hover:bg-muted/30 transition-colors ${isLate ? "bg-red-500/5" : ""}`}>
                     <td className="px-4 py-3">
@@ -520,11 +512,11 @@ export function FacturesListView({
                     <td className="px-4 py-3">
                       <span className={`rounded-full border px-2 py-0.5 text-xs font-medium whitespace-nowrap ${status.cls}`}>{status.label}</span>
                     </td>
-                    <td className="px-4 py-3 text-right font-medium">
-                      <span className="amount-sensitive">{(inv.totalHT - inv.depositDeducted).toLocaleString("fr-FR")} €</span>
+                    <td className="px-4 py-3 text-right font-medium tabular-nums">
+                      <span className="amount-sensitive">{fmtEur(inv.totalHT - inv.depositDeducted)}</span>
                     </td>
                     <td className="px-4 py-3">
-                      <PaidInfo payments={inv.payments} net={inv.totalHT - inv.depositDeducted} status={inv.status} paidAt={inv.paidAt} />
+                      <PaidInfo payments={inv.payments} net={inv.totalHT - inv.depositDeducted} status={inv.status} paidAt={inv.paidAt} align="right" />
                     </td>
                     <td className="px-4 py-3 text-xs text-muted-foreground hidden md:table-cell">
                       {inv.issuedAt ? fmtDay(inv.issuedAt) : <span className="text-muted-foreground/40">—</span>}
@@ -545,14 +537,14 @@ export function FacturesListView({
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {sorted.map((inv) => {
             const status = statusConfig[inv.status] ?? { label: inv.status, cls: "bg-muted text-muted-foreground border-border" }
-            const isLate = inv.dueDate && inv.status === "SENT" && new Date(inv.dueDate) < new Date()
+            const isLate = inv.status === "LATE" || (inv.status === "SENT" && !!inv.dueDate && new Date(inv.dueDate) < zonedDayStart(new Date()))
             const amount = inv.totalHT - inv.depositDeducted
             return (
               // La carte entière est cliquable via un overlay, pour que client et
               // projet restent des liens propres (pas de <a> imbriqués).
               <div
                 key={inv.id}
-                className={`relative rounded-xl border bg-card p-4 hover:shadow-sm transition-all space-y-3 ${isLate ? "border-red-500/40 bg-red-500/5" : "border-border/50 hover:border-border"}`}
+                className={`relative rounded-xl border bg-card p-4 hover:shadow-sm transition-all space-y-3 border-border/50 hover:border-border`}
               >
                 <Link
                   href={`/facturation/factures/${inv.id}`}
@@ -589,7 +581,7 @@ export function FacturesListView({
                 <div className="pt-1 border-t border-border/50 space-y-1">
                   <div className="flex items-end justify-between">
                     <span className={`amount-sensitive text-xl font-bold tabular-nums ${isLate ? "text-red-600" : ""}`}>
-                      {amount.toLocaleString("fr-FR")} €
+                      {amountAuto(amount)} €
                     </span>
                     <span className="text-xs text-muted-foreground">
                       {inv.issuedAt ? `émise le ${fmtDay(inv.issuedAt)}` : inv.sentAt ? `envoyée le ${fmtDay(inv.sentAt)}` : ""}
@@ -597,7 +589,7 @@ export function FacturesListView({
                   </div>
                   {inv.dueDate && (
                     <p className={`text-xs text-right ${isLate ? "text-red-500 font-medium" : "text-muted-foreground"}`}>
-                      échéance {new Date(inv.dueDate).toLocaleDateString("fr-FR")}
+                      échéance {new Date(inv.dueDate).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris" })}
                     </p>
                   )}
                   <div className="flex items-center justify-between pt-1">

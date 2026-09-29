@@ -324,13 +324,13 @@ type DocProps = {
 }
 
 function fmtDateShort(d: Date | null | undefined) {
-  return d ? new Date(d).toLocaleDateString("fr-FR") : "—"
+  return d ? new Date(d).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris" }) : "—"
 }
 
 // « 27 MAI 2026 » — date exacte en capitales, comme sur les factures Canva.
 function fmtDateCaps(d: Date) {
   return new Date(d)
-    .toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" })
+    .toLocaleDateString("fr-FR", { timeZone: "Europe/Paris", day: "numeric", month: "long", year: "numeric" })
     .toUpperCase()
 }
 

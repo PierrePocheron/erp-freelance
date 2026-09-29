@@ -1,6 +1,7 @@
+import { isZonedAllDay } from "@/lib/dates"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
-import { isBillableInvoice } from "@/lib/invoice-state"
+import { invoiceStatusMeta, isBillableInvoice } from "@/lib/invoice-state"
 import { notFound } from "next/navigation"
 import Link from "next/link"
 import { Calendar, Clock, CheckSquare, BookOpen, FileText, Receipt, Flag, Wallet } from "lucide-react"
@@ -17,13 +18,14 @@ import { ProjectSkillsBar } from "@/components/modules/projet/ProjectSkillsBar"
 import { ProjectTimeDialog } from "@/components/modules/projet/ProjectTimeDialog"
 import { ProjectTimePanel } from "@/components/modules/projet/ProjectTimePanel"
 import { REVENUE_TYPE_LABELS } from "@/lib/revenue-constants"
+import { amountAuto } from "@/lib/format"
 
 function fmtTime(d: Date | string) {
-  return new Date(d).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })
+  return new Date(d).toLocaleTimeString("fr-FR", { timeZone: "Europe/Paris", hour: "2-digit", minute: "2-digit" })
 }
 function hasTime(d: Date | string) {
   const dt = new Date(d)
-  return dt.getHours() !== 0 || dt.getMinutes() !== 0
+  return !isZonedAllDay(dt)
 }
 
 const quoteStatusLabel: Record<string, string> = {
@@ -42,15 +44,6 @@ const quoteStatusCls: Record<string, string> = {
   SIGNED: "bg-teal-500/15 text-teal-600",
   REJECTED: "bg-red-500/15 text-red-600",
 }
-const invoiceStatusLabel: Record<string, string> = {
-  DRAFT: "Brouillon", SENT: "Envoyée", PAID: "Payée", LATE: "En retard",
-}
-const invoiceStatusCls: Record<string, string> = {
-  DRAFT: "bg-muted text-muted-foreground",
-  SENT: "bg-blue-500/15 text-blue-600",
-  PAID: "bg-emerald-500/15 text-emerald-600",
-  LATE: "bg-red-500/15 text-red-600",
-}
 const invoiceTypeLabel: Record<string, string> = {
   DEPOSIT: "Acompte", FINAL: "Solde", RECURRING: "Récurrent", STANDALONE: "Standard",
 }
@@ -62,10 +55,15 @@ const revenueStatusCls: Record<string, string> = {
 
 export default async function ProjectOverviewPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>
+  searchParams: Promise<{ temps?: string }>
 }) {
   const { id } = await params
+  // Détail du temps chargé seulement quand la modale est ouverte (?temps=1) — sa requête
+  // (tâches, sous-tâches, toutes les entrées) partait à chaque affichage de la fiche (#18).
+  const showTime = (await searchParams).temps === "1"
   const session = await auth()
   const userId = session!.user.id
 
@@ -153,8 +151,10 @@ export default async function ProjectOverviewPage({
   const isOver = project.estimatedHours ? totalTrackedHours > project.estimatedHours : false
 
   function fmtH(h: number) {
-    const int = Math.floor(h)
-    const min = Math.round((h - int) * 60)
+    // Arrondi sur le total de minutes (sinon « 1h60 » pour 1,999 h).
+    const total = Math.round(h * 60)
+    const int = Math.floor(total / 60)
+    const min = total % 60
     if (int > 0 && min > 0) return `${int}h${String(min).padStart(2, "0")}`
     if (int > 0) return `${int}h`
     return `${min}m`
@@ -250,14 +250,15 @@ export default async function ProjectOverviewPage({
                   m.status === "IN_PROGRESS" ? "En cours" :
                   isPast ? "En retard" : "À venir"
                 return (
-                  <div key={m.id} className="flex items-center gap-2 py-1 group">
+                  // flex-wrap : à 375 px, type + date/heure + statut en shrink-0 réduisaient le nom à « … »
+                  <div key={m.id} className="flex flex-wrap items-center gap-x-2 gap-y-0.5 py-1 group">
                     <MilestoneToggle milestoneId={m.id} projectId={id} status={m.status} />
-                    <span className="flex-1 text-sm truncate min-w-0">{m.name}</span>
+                    <span className="flex-1 text-sm truncate min-w-[40%]" title={m.name}>{m.name}</span>
                     <span className={`shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-medium ${MILESTONE_TYPE_COLORS[m.type] ?? MILESTONE_TYPE_COLORS.OTHER}`}>
                       {MILESTONE_TYPE_LABELS[m.type] ?? m.type}
                     </span>
                     <span className="shrink-0 text-xs text-muted-foreground whitespace-nowrap">
-                      {new Date(m.date).toLocaleDateString("fr-FR", { day: "numeric", month: "short" })}
+                      {new Date(m.date).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris", day: "numeric", month: "short" })}
                       {hasTime(m.date) && ` · ${fmtTime(m.date)}`}
                       {m.endDate && ` – ${fmtTime(m.endDate)}`}
                     </span>
@@ -279,7 +280,7 @@ export default async function ProjectOverviewPage({
         </div>
 
         {/* Suivi — temps, budget, livrables, période */}
-        <div className={`rounded-xl border p-5 space-y-3 ${isOver ? "border-red-500/30 bg-red-500/5" : budgetPct && budgetPct > 80 ? "border-amber-500/30 bg-amber-500/5" : "border-border/50 bg-card"}`}>
+        <div className="rounded-xl border border-border/50 bg-card p-5 space-y-3">
           <div className="flex items-center gap-2 font-semibold text-sm">
             <Clock className="h-4 w-4 text-muted-foreground" />
             Suivi
@@ -340,9 +341,9 @@ export default async function ProjectOverviewPage({
               <div className="flex items-center justify-between">
                 <span className="text-muted-foreground flex items-center gap-1.5"><Calendar className="h-3.5 w-3.5" /> Période</span>
                 <span className="font-medium text-xs">
-                  {project.startDate ? new Date(project.startDate).toLocaleDateString("fr-FR", { day: "numeric", month: "short" }) : "?"}
+                  {project.startDate ? new Date(project.startDate).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris", day: "numeric", month: "short" }) : "?"}
                   {" → "}
-                  {project.endDate ? new Date(project.endDate).toLocaleDateString("fr-FR", { day: "numeric", month: "short" }) : "?"}
+                  {project.endDate ? new Date(project.endDate).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris", day: "numeric", month: "short" }) : "?"}
                 </span>
               </div>
             )}
@@ -416,7 +417,7 @@ export default async function ProjectOverviewPage({
                       <span className={`rounded-full px-1.5 py-0.5 text-xs font-medium ${quoteStatusCls[q.status] ?? ""}`}>
                         {quoteStatusLabel[q.status] ?? q.status}
                       </span>
-                      <span className="ml-auto text-xs font-medium tabular-nums amount-sensitive">{q.totalHT.toLocaleString("fr-FR")} €</span>
+                      <span className="ml-auto text-xs font-medium tabular-nums amount-sensitive">{amountAuto(q.totalHT)} €</span>
                     </Link>
                   ))}
                 </div>
@@ -443,8 +444,8 @@ export default async function ProjectOverviewPage({
                       >
                         <span className="font-mono text-xs text-muted-foreground">{faNumber(inv.number)}</span>
                         <span className="text-xs text-muted-foreground">{invoiceTypeLabel[inv.type] ?? inv.type}</span>
-                        <span className={`rounded-full px-1.5 py-0.5 text-xs font-medium ${invoiceStatusCls[inv.status] ?? ""}`}>
-                          {invoiceStatusLabel[inv.status] ?? inv.status}
+                        <span className={`rounded-full px-1.5 py-0.5 text-xs font-medium ${invoiceStatusMeta(inv.status).cls}`}>
+                          {invoiceStatusMeta(inv.status).label}
                         </span>
                         <span className={`ml-auto text-xs font-medium tabular-nums whitespace-nowrap amount-sensitive ${full ? "text-emerald-600" : paid > 0 ? "text-amber-600" : isLate ? "text-red-500" : "text-muted-foreground"}`}>
                           {fmtEur(paid)} / {fmtEur(amount)} €
@@ -467,7 +468,7 @@ export default async function ProjectOverviewPage({
                       <span className={`shrink-0 rounded-full px-1.5 py-0.5 text-xs font-medium ${revenueStatusCls[r.status] ?? ""}`}>
                         {revenueStatusLabel[r.status] ?? r.status}
                       </span>
-                      <span className="shrink-0 text-xs font-medium tabular-nums amount-sensitive">{r.amount.toLocaleString("fr-FR")} €</span>
+                      <span className="shrink-0 text-xs font-medium tabular-nums amount-sensitive">{amountAuto(r.amount)} €</span>
                     </div>
                   ))}
                 </div>
@@ -482,7 +483,7 @@ export default async function ProjectOverviewPage({
 
               <div className="space-y-1">
                 <p className="text-lg font-bold amount-sensitive">
-                  {receivedRevenue.toLocaleString("fr-FR")} <span className="text-xs font-normal text-muted-foreground">/ {totalRevenue.toLocaleString("fr-FR")} € reçus</span>
+                  {receivedRevenue.toLocaleString("fr-FR")} <span className="text-xs font-normal text-muted-foreground">/ {amountAuto(totalRevenue)} € reçus</span>
                 </p>
                 <div className="h-1 rounded-full bg-muted overflow-hidden">
                   <div
@@ -500,7 +501,7 @@ export default async function ProjectOverviewPage({
                     <span className={`shrink-0 rounded-full px-1.5 py-0.5 text-xs font-medium ${revenueStatusCls[r.status] ?? ""}`}>
                       {revenueStatusLabel[r.status] ?? r.status}
                     </span>
-                    <span className="ml-auto shrink-0 text-xs font-medium tabular-nums amount-sensitive">{r.amount.toLocaleString("fr-FR")} €</span>
+                    <span className="ml-auto shrink-0 text-xs font-medium tabular-nums amount-sensitive">{amountAuto(r.amount)} €</span>
                   </div>
                 ))}
               </div>
@@ -519,7 +520,7 @@ export default async function ProjectOverviewPage({
           <div className="flex items-center gap-2 font-semibold text-sm">
             <Clock className="h-4 w-4 text-muted-foreground" />
             Temps
-            <span className="ml-auto"><ProjectTimeDialog><ProjectTimePanel projectId={id} userId={userId} /></ProjectTimeDialog></span>
+            <span className="ml-auto"><ProjectTimeDialog open={showTime}>{showTime && <ProjectTimePanel projectId={id} userId={userId} />}</ProjectTimeDialog></span>
           </div>
           <div className="grid grid-cols-3 gap-3 text-center">
             <div className="rounded-lg bg-muted/40 py-2">

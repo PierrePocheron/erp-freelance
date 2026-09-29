@@ -9,6 +9,7 @@ import {
   NotebookPen, AlertTriangle, ChevronDown, Copy,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { useArmedDelete } from "@/hooks/use-armed-delete"
 import { toast } from "sonner"
 import { STATUS_CONFIG, WEBSITE_TYPE_CONFIG } from "./status-config"
 import type { EmailTemplateOption, SendTarget } from "./SendEmailDialog"
@@ -88,8 +89,8 @@ type TimelineItem =
   | { type: "note"; date: Date; note: ModeNote }
 
 const fmtDate = (d: Date | string) =>
-  new Date(d).toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "2-digit" }) +
-  " · " + new Date(d).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })
+  new Date(d).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris", day: "numeric", month: "short", year: "2-digit" }) +
+  " · " + new Date(d).toLocaleTimeString("fr-FR", { timeZone: "Europe/Paris", hour: "2-digit", minute: "2-digit" })
 
 const domainAge = (d: Date | string | null) => {
   if (!d) return null
@@ -151,6 +152,7 @@ export function ProspectionModeView({
   const [noteTitle, setNoteTitle] = useState("")
   const [noteContent, setNoteContent] = useState("")
   const [isSavingNote, startSaveNote] = useTransition()
+  const { isArmed, confirmFirst } = useArmedDelete()
 
   const prospect = sessionProspects[Math.min(index, sessionProspects.length - 1)]
   const status = STATUS_CONFIG[statusById[prospect.id]] ?? STATUS_CONFIG.TO_CONTACT
@@ -197,11 +199,15 @@ export function ProspectionModeView({
     const t = kind === "EMAIL_SENT" ? templates.find((x) => x.id === templateId) : undefined
     const tmpl = t ? { id: t.id, name: t.name } : null
     startTransition(async () => {
-      const { status: newStatus, event } = await logProspectAction(id, kind, note, tmpl)
-      setStatusById((prev) => ({ ...prev, [id]: newStatus }))
-      setEventsById((prev) => ({ ...prev, [id]: [event as ModeEvent, ...(prev[id] ?? [])] }))
-      markHandled(id)
-      toast.success(`${EVENT_CONFIG[kind].label} — statut : ${STATUS_CONFIG[newStatus].label}`)
+      try {
+        const { status: newStatus, event } = await logProspectAction(id, kind, note, tmpl)
+        setStatusById((prev) => ({ ...prev, [id]: newStatus }))
+        setEventsById((prev) => ({ ...prev, [id]: [event as ModeEvent, ...(prev[id] ?? [])] }))
+        markHandled(id)
+        toast.success(`${EVENT_CONFIG[kind].label} — statut : ${STATUS_CONFIG[newStatus].label}`)
+      } catch {
+        toast.error("Échec de l'enregistrement")
+      }
     })
   }
 
@@ -209,18 +215,22 @@ export function ProspectionModeView({
     const id = prospect.id
     const from = statusById[id]
     startTransition(async () => {
-      await updateProspectStatus(id, target)
-      setStatusById((prev) => ({ ...prev, [id]: target }))
-      if (from !== target) {
-        // Miroir local de l'événement STATUS_CHANGE créé côté serveur
-        const local: ModeEvent = {
-          id: `local-${Date.now()}`, kind: "STATUS_CHANGE",
-          fromStatus: from, toStatus: target, note: null, date: new Date(),
+      try {
+        await updateProspectStatus(id, target)
+        setStatusById((prev) => ({ ...prev, [id]: target }))
+        if (from !== target) {
+          // Miroir local de l'événement STATUS_CHANGE créé côté serveur
+          const local: ModeEvent = {
+            id: `local-${Date.now()}`, kind: "STATUS_CHANGE",
+            fromStatus: from, toStatus: target, note: null, date: new Date(),
+          }
+          setEventsById((prev) => ({ ...prev, [id]: [local, ...(prev[id] ?? [])] }))
         }
-        setEventsById((prev) => ({ ...prev, [id]: [local, ...(prev[id] ?? [])] }))
+        markHandled(id)
+        toast.success(`Statut : ${STATUS_CONFIG[target].label}`)
+      } catch {
+        toast.error("Échec de l'enregistrement")
       }
-      markHandled(id)
-      toast.success(`Statut : ${STATUS_CONFIG[target].label}`)
     })
   }
 
@@ -270,30 +280,39 @@ export function ProspectionModeView({
     if (!noteTitle.trim()) return
     const id = prospect.id
     startSaveNote(async () => {
-      if (editingNoteId) {
-        await updateProspectNote(editingNoteId, { title: noteTitle, content: noteContent })
-        setNotesById((prev) => ({
-          ...prev,
-          [id]: (prev[id] ?? []).map((n) =>
-            n.id === editingNoteId ? { ...n, title: noteTitle.trim(), content: noteContent.trim() || null } : n
-          ),
-        }))
-      } else {
-        const created = await createProspectNote(id, { title: noteTitle, content: noteContent })
-        setNotesById((prev) => ({ ...prev, [id]: [created as ModeNote, ...(prev[id] ?? [])] }))
-        markHandled(id)
+      try {
+        if (editingNoteId) {
+          await updateProspectNote(editingNoteId, { title: noteTitle, content: noteContent })
+          setNotesById((prev) => ({
+            ...prev,
+            [id]: (prev[id] ?? []).map((n) =>
+              n.id === editingNoteId ? { ...n, title: noteTitle.trim(), content: noteContent.trim() || null } : n
+            ),
+          }))
+        } else {
+          const created = await createProspectNote(id, { title: noteTitle, content: noteContent })
+          setNotesById((prev) => ({ ...prev, [id]: [created as ModeNote, ...(prev[id] ?? [])] }))
+          markHandled(id)
+        }
+        closeNoteForm()
+        toast.success("Note enregistrée")
+      } catch {
+        toast.error("Échec de l'enregistrement")
       }
-      closeNoteForm()
-      toast.success("Note enregistrée")
     })
   }
 
   function removeNote(noteId: string) {
+    if (!confirmFirst(noteId)) return
     const id = prospect.id
     startSaveNote(async () => {
-      await deleteProspectNote(noteId)
-      setNotesById((prev) => ({ ...prev, [id]: (prev[id] ?? []).filter((n) => n.id !== noteId) }))
-      if (editingNoteId === noteId) closeNoteForm()
+      try {
+        await deleteProspectNote(noteId)
+        setNotesById((prev) => ({ ...prev, [id]: (prev[id] ?? []).filter((n) => n.id !== noteId) }))
+        if (editingNoteId === noteId) closeNoteForm()
+      } catch {
+        toast.error("Échec de la suppression")
+      }
     })
   }
 
@@ -783,12 +802,12 @@ export function ProspectionModeView({
                           {item.note.title}
                         </p>
                         <span className="flex items-center gap-1.5">
-                          <span className="flex items-center gap-1 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity">
+                          <span className={cn("flex items-center gap-1 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity", !isArmed(item.note.id) && "pointer-fine:opacity-0")}>
                             <button onClick={() => openEditNote(item.note)} className="text-muted-foreground hover:text-foreground transition-colors" title="Modifier la note">
                               <Pencil className="h-3.5 w-3.5" />
                             </button>
-                            <button onClick={() => removeNote(item.note.id)} disabled={isSavingNote} className="text-muted-foreground hover:text-red-500 transition-colors" title="Supprimer la note">
-                              <Trash2 className="h-3.5 w-3.5" />
+                            <button onClick={() => removeNote(item.note.id)} disabled={isSavingNote} className={cn("hover:text-red-500 transition-colors", isArmed(item.note.id) ? "text-red-500" : "text-muted-foreground")} title={isArmed(item.note.id) ? "Confirmer la suppression" : "Supprimer la note"}>
+                              {isArmed(item.note.id) ? <Check className="h-3.5 w-3.5" /> : <Trash2 className="h-3.5 w-3.5" />}
                             </button>
                           </span>
                           <span className="text-xs text-muted-foreground">{fmtDate(item.note.createdAt)}</span>

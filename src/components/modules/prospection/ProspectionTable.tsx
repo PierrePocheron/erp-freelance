@@ -70,7 +70,7 @@ const PAGE_SIZES = [25, 50, 100, 0] // 0 = tous
 const PAGE_SIZE_KEY = "erp-prospection-pagesize"
 
 const fmtShort = (d: Date | string) =>
-  new Date(d).toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "2-digit" })
+  new Date(d).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris", day: "numeric", month: "short", year: "2-digit" })
 
 export function ProspectionTable({
   prospects,
@@ -290,7 +290,7 @@ export function ProspectionTable({
     return (
       <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border py-10 text-center">
         <p className="text-sm text-muted-foreground">Aucun prospect pour le moment</p>
-        <p className="text-xs text-muted-foreground/60 mt-1">Ajout rapide ci-dessus, ou import CSV à venir</p>
+        <p className="text-xs text-muted-foreground/60 mt-1">Ajout rapide ci-dessus, ou « Importer » en haut de page</p>
       </div>
     )
   }
@@ -610,7 +610,7 @@ export function ProspectionTable({
                         onClick={() => generateMailForRow(p)}
                         title={mailTemplateId ? "Générer le mail personnalisé (Gmail)" : "Choisir un modèle en haut pour générer le mail"}
                         className={cn(
-                          "p-1.5 rounded transition-colors md:opacity-0 md:group-hover:opacity-100 focus:opacity-100",
+                          "p-1.5 rounded transition-colors pointer-fine:opacity-0 group-hover:opacity-100 focus:opacity-100",
                           p.email?.trim()
                             ? "text-muted-foreground hover:text-primary hover:bg-primary/10"
                             : "text-muted-foreground/30 hover:text-muted-foreground/50"

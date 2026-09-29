@@ -16,6 +16,7 @@ import { Label } from "@/components/ui/label"
 import { createProject } from "@/actions/projet"
 import { createCompany } from "@/actions/crm"
 import { CATEGORY_CONFIG, ALL_CATEGORIES } from "./category-config"
+import { toast } from "sonner"
 
 type Company = { id: string; name: string; city: string | null }
 type Contact = { id: string; name: string; company: string | null; companyId: string | null }
@@ -71,9 +72,13 @@ export function CreateProjectDialog({
     if (selectedContactId) formData.set("contactId", selectedContactId)
     if (selectedJobApplicationId) formData.set("jobApplicationId", selectedJobApplicationId)
     startTransition(async () => {
-      const project = await createProject(userId, formData)
-      handleOpenChange(false)
-      router.push(`/projets/${project.id}`)
+      try {
+        const project = await createProject(userId, formData)
+        handleOpenChange(false)
+        router.push(`/projets/${project.id}`)
+      } catch {
+        toast.error("Échec de l'enregistrement")
+      }
     })
   }
 
@@ -81,15 +86,19 @@ export function CreateProjectDialog({
     e.preventDefault()
     const fd = new FormData(e.currentTarget)
     startCreatingCompany(async () => {
-      const created = await createCompany({
-        name: (fd.get("companyName") as string).trim(),
-        city: (fd.get("companyCity") as string) || undefined,
-        email: (fd.get("companyEmail") as string) || undefined,
-        phone: (fd.get("companyPhone") as string) || undefined,
-      })
-      setCompanies((prev) => [...prev, { id: created.id, name: created.name, city: created.city }])
-      setSelectedCompanyId(created.id)
-      setShowNewCompany(false)
+      try {
+        const created = await createCompany({
+          name: (fd.get("companyName") as string).trim(),
+          city: (fd.get("companyCity") as string) || undefined,
+          email: (fd.get("companyEmail") as string) || undefined,
+          phone: (fd.get("companyPhone") as string) || undefined,
+        })
+        setCompanies((prev) => [...prev, { id: created.id, name: created.name, city: created.city }])
+        setSelectedCompanyId(created.id)
+        setShowNewCompany(false)
+      } catch {
+        toast.error("Échec de l'enregistrement")
+      }
     })
   }
 
@@ -101,7 +110,7 @@ export function CreateProjectDialog({
           Nouveau projet
         </DialogTrigger>
       )}
-      <DialogContent className="sm:max-w-md flex flex-col p-0 gap-0 max-h-[90vh]">
+      <DialogContent className="sm:max-w-md flex flex-col p-0 gap-0 max-h-[85dvh]">
         <div className="px-4 pt-4 pb-2 shrink-0">
           <DialogHeader>
             <DialogTitle>

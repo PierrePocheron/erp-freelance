@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation"
 import { CheckSquare, CheckCircle2, Circle, Loader2, PlayCircle } from "lucide-react"
 import { completeTask, reopenTask } from "@/actions/projet"
 import { cn } from "@/lib/utils"
+import { toast } from "sonner"
 
 type TaskRow = {
   id: string
@@ -28,9 +29,13 @@ function TaskToggle({ task, projectId }: { task: TaskRow; projectId: string }) {
 
   function toggle() {
     startTransition(async () => {
-      if (task.status === "DONE") await reopenTask(task.id, projectId)
-      else await completeTask(task.id, projectId)
-      router.refresh()
+      try {
+        if (task.status === "DONE") await reopenTask(task.id, projectId)
+        else await completeTask(task.id, projectId)
+        router.refresh()
+      } catch {
+        toast.error("Échec de l'enregistrement")
+      }
     })
   }
 
@@ -104,7 +109,7 @@ export function ProjectTasksCard({ tasks, projectId }: { tasks: TaskRow[]; proje
                   "shrink-0 text-xs whitespace-nowrap",
                   new Date(t.dueDate) < new Date() ? "text-red-500 font-medium" : "text-muted-foreground"
                 )}>
-                  {new Date(t.dueDate).toLocaleDateString("fr-FR", { day: "numeric", month: "short" })}
+                  {new Date(t.dueDate).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris", day: "numeric", month: "short" })}
                 </span>
               )}
             </div>

@@ -4,8 +4,8 @@ import Link from "next/link"
 import { TrendingUp, Clock, CheckCircle2, Repeat, BarChart2, Wallet, ArrowRight, Infinity as InfinityIcon } from "lucide-react"
 import { REVENUE_TYPE_LABELS, PAYMENT_METHOD_LABELS } from "@/lib/revenue-constants"
 import { RevenueManager } from "@/components/modules/revenus/RevenueManager"
+import { amount0 as fmt } from "@/lib/format"
 
-const fmt = (n: number) => n.toLocaleString("fr-FR", { minimumFractionDigits: 0, maximumFractionDigits: 0 })
 
 function invPeriod(d: Date | null): string | null {
   if (!d) return null

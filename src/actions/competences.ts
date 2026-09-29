@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache"
 import { prisma } from "@/lib/prisma"
 import { requireAuth } from "@/lib/require-auth"
+import { parseCivilDate } from "@/lib/dates"
 import type { SkillType, SkillStatus, ProjectSkillRole, QuestionStatus, SkillFamily } from "@/generated/prisma/enums"
 import { suggestFamily } from "@/lib/tech-icons"
 import { syncTaskGoogleState } from "@/lib/google-task-sync"
@@ -198,7 +199,9 @@ export async function linkOrCreateProjectSkill(projectId: string, name: string, 
   })
   if (!existing) {
     existing = await prisma.skill.create({
-      data: { userId, name: trimmed, type: "HARD", status: "TO_ACQUIRE", family: fam ?? undefined },
+      // Liée au projet comme techno UTILISÉE : elle est au moins « en apprentissage », pas « à
+      // acquérir » (#29). Une compétence existante garde son statut.
+      data: { userId, name: trimmed, type: "HARD", status: "LEARNING", family: fam ?? undefined },
       select: { id: true, family: true },
     })
   } else if (opts?.family) {
@@ -367,7 +370,8 @@ export async function scheduleSkillWork(
   const skill = await prisma.skill.findFirst({ where: { id: skillId, userId }, select: { id: true, name: true } })
   if (!skill) throw new Error("Compétence introuvable")
 
-  const start = new Date(`${opts.date}T${(opts.startTime || "09:00")}:00`)
+  // Heure saisie = heure de Paris (new Date() la lisait dans le fuseau du serveur : 09:00 → 11:00 en prod)
+  const start = parseCivilDate(`${opts.date}T${opts.startTime || "09:00"}`)
   if (Number.isNaN(start.getTime())) throw new Error("Date invalide")
   // Durée estimée si un créneau de fin est fourni.
   let estimatedHours: number | null = null

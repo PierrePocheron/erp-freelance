@@ -7,10 +7,8 @@ import { PriorityIcon } from "./PriorityIcon"
 import { CATEGORY_CONFIG } from "./category-config"
 import { TechIcon } from "./TechIcon"
 import type { ProjectCategory } from "@/generated/prisma/enums"
+import { eur0 as fmtEur } from "@/lib/format"
 
-function fmtEur(n: number) {
-  return n.toLocaleString("fr-FR", { maximumFractionDigits: 0 }) + " €"
-}
 
 const statusConfig = {
   ACTIVE:    { label: "Actif",      className: "bg-emerald-500/15 text-emerald-600 border-emerald-500/20" },
@@ -108,8 +106,7 @@ export function ProjectCard({ project, showBilling = false }: Props) {
           {project.endDate && (
             <span className="flex items-center gap-1">
               <Calendar className="h-3 w-3" />
-              {new Date(project.endDate).toLocaleDateString("fr-FR", {
-                day: "numeric",
+              {new Date(project.endDate).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris", day: "numeric",
                 month: "short",
                 year: "numeric",
               })}

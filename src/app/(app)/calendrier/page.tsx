@@ -31,7 +31,7 @@ export default async function CalendrierPage() {
   const to = new Date()
   to.setMonth(to.getMonth() + 2)
 
-  const [categories, googleScope, projects, clients, tasks, milestones, reminders, interactions, invoices, renewals, calEvents, healthConsultations, jobApplications, jobEvents, recurringExpenses] = await Promise.all([
+  const [categories, googleScope, projects, clients, tasks, milestones, reminders, interactions, invoices, renewals, calEvents, healthConsultations, jobApplications, jobEvents, recurringExpenses, generatedExpenses] = await Promise.all([
     getOrCreateDefaultCategories(),
     hasCalendarScope(userId),
     prisma.project.findMany({
@@ -161,6 +161,14 @@ export default async function CalendrierPage() {
       where: { userId, isActive: true, dateToConfirm: false },
       include: { category: { select: { name: true, color: true } } },
     }),
+    // Dépenses RÉELLES de la fenêtre (#19) : ponctuelles, et échéances récurrentes déjà
+    // matérialisées (l'ouverture de /depenses les génère et avance nextGenerationDate — sans
+    // elles, le loyer du 5 disparaissait une fois généré). Pas de doublon avec la projection
+    // ci-dessous, qui ne part que de nextGenerationDate.
+    prisma.expense.findMany({
+      where: { userId, date: { gte: from, lte: to } },
+      select: { id: true, label: true, amount: true, date: true, category: { select: { name: true, color: true } } },
+    }),
   ])
 
   // Dernière synchro Google réussie + seuil de fraîcheur configuré
@@ -280,7 +288,7 @@ export default async function CalendrierPage() {
         id: inv.id,
         date: inv.dueDate!,
         title: inv.number,
-        subtitle: `Échéance · ${net.toLocaleString("fr-FR", { minimumFractionDigits: 2 })} €`,
+        subtitle: `Échéance · ${net.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`,
         type: "invoice" as const,
         href: `/facturation/factures/${inv.id}`,
         isLate: inv.status === "LATE",
@@ -371,12 +379,22 @@ export default async function CalendrierPage() {
         date: occurrence,
         allDay: true,
         title: r.label,
-        subtitle: `${r.category?.name ?? "Sans catégorie"} · ${r.amount.toLocaleString("fr-FR")} €`,
+        subtitle: `${r.category?.name ?? "Sans catégorie"} · ${r.amount.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`,
         type: "expense" as const,
         href: "/depenses",
         categoryColor: r.category?.color ?? null,
       }))
     ),
+    ...generatedExpenses.map((e) => ({
+      id: `expense-gen-${e.id}`,
+      date: e.date,
+      allDay: true,
+      title: e.label,
+      subtitle: `${e.category?.name ?? "Sans catégorie"} · ${e.amount.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`,
+      type: "expense" as const,
+      href: "/depenses",
+      categoryColor: e.category?.color ?? null,
+    })),
   ]
 
   return (

@@ -1,10 +1,12 @@
 "use client"
 
+import { zonedDateKey } from "@/lib/dates"
 import { useTransition, useState, useRef, useEffect } from "react"
 import {
   CheckCircle2, Circle, PlayCircle, Loader2, Trash2,
-  ChevronUp, ChevronDown, AlignLeft, Tag, X,
+  ChevronUp, ChevronDown, AlignLeft, Tag, X, Check,
 } from "lucide-react"
+import { useArmedDelete } from "@/hooks/use-armed-delete"
 import {
   startTask, completeTask, reopenTask, deleteTask,
   updateTaskPriority, updateTaskImportance, reorderTask,
@@ -14,6 +16,7 @@ import {
 import { AddTaskForm } from "./AddTaskForm"
 import { TimeTracker } from "./TimeTracker"
 import { cn } from "@/lib/utils"
+import { toast } from "sonner"
 
 // ── Priority / Importance badge config ──────────────────────────────────────
 
@@ -100,6 +103,13 @@ export function TaskItem({
   onStatusChange?: (taskId: string, status: "TODO" | "IN_PROGRESS" | "DONE") => void
 }) {
   const [isPending, startTransition] = useTransition()
+  // Toute mise à jour inline passe par ici : un échec serveur affiche un toast au lieu de
+  // remplacer la page par error.tsx.
+  const run = (fn: () => Promise<unknown>) =>
+    startTransition(async () => {
+      try { await fn() } catch { toast.error("Échec de l'enregistrement") }
+    })
+  const { isArmed, confirmFirst } = useArmedDelete()
   const subs = task.subTasks ?? []
   const [showSubs, setShowSubs] = useState(subs.length > 0)
   const [editingTitle, setEditingTitle] = useState(false)
@@ -131,49 +141,49 @@ export function TaskItem({
 
   function saveTitle() {
     const val = titleRef.current?.value.trim()
-    if (val && val !== task.title) startTransition(() => updateTaskTitle(task.id, projectId, val))
+    if (val && val !== task.title) run(() => updateTaskTitle(task.id, projectId, val))
     setEditingTitle(false)
   }
 
   function saveDate() {
     const val = dateRef.current?.value || null
-    const current = task.dueDate ? new Date(task.dueDate).toISOString().split("T")[0] : null
-    if (val !== current) startTransition(() => updateTaskDueDate(task.id, projectId, val))
+    const current = task.dueDate ? zonedDateKey(new Date(task.dueDate)) : null
+    if (val !== current) run(() => updateTaskDueDate(task.id, projectId, val))
     setEditingDate(false)
   }
 
   function saveHours() {
     const raw = hoursRef.current?.value
     const val = raw ? parseFloat(raw) : null
-    if (val !== task.estimatedHours) startTransition(() => updateTaskEstimatedHours(task.id, projectId, val))
+    if (val !== task.estimatedHours) run(() => updateTaskEstimatedHours(task.id, projectId, val))
     setEditingHours(false)
   }
 
   function saveDescription() {
     const val = descRef.current?.value.trim() || null
-    if (val !== task.description) startTransition(() => updateTaskDescription(task.id, projectId, val))
+    if (val !== task.description) run(() => updateTaskDescription(task.id, projectId, val))
   }
 
   function saveCompletedAt() {
     const val = completedAtRef.current?.value || null
-    const current = task.completedAt ? new Date(task.completedAt).toISOString().split("T")[0] : null
-    if (val !== current) startTransition(() => updateTaskCompletedAt(task.id, projectId, val))
+    const current = task.completedAt ? zonedDateKey(new Date(task.completedAt)) : null
+    if (val !== current) run(() => updateTaskCompletedAt(task.id, projectId, val))
     setEditingCompletedAt(false)
   }
 
   function cyclePriority() {
     const idx = PRIORITY_CYCLE.indexOf(task.priority)
     const next = PRIORITY_FROM_NUM[((idx + 1) % 4) + 1]
-    startTransition(() => updateTaskPriority(task.id, projectId, next))
+    run(() => updateTaskPriority(task.id, projectId, next))
   }
 
   function cycleImportance() {
     const next = (task.importance % 4) + 1
-    startTransition(() => updateTaskImportance(task.id, projectId, next))
+    run(() => updateTaskImportance(task.id, projectId, next))
   }
 
   const fmt = (d: Date | null) =>
-    d ? new Date(d).toLocaleDateString("fr-FR", { day: "numeric", month: "short" }) : null
+    d ? new Date(d).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris", day: "numeric", month: "short" }) : null
 
   return (
     <div className={cn("rounded-lg border border-transparent hover:border-border/60 transition-all", task.status === "DONE" && "opacity-55")}>
@@ -181,11 +191,11 @@ export function TaskItem({
       <div className="flex items-center gap-2 px-2 py-2 group">
 
         {/* Réordonner */}
-        <div className="flex flex-col gap-0.5 md:opacity-0 md:group-hover:opacity-100 focus:opacity-100 transition-opacity shrink-0">
-          <button aria-label="Monter la tâche" disabled={isFirst || isPending} onClick={() => startTransition(() => reorderTask(task.id, projectId, "up"))} className="text-muted-foreground hover:text-foreground disabled:opacity-20">
+        <div className="flex flex-col gap-0.5 pointer-fine:opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity shrink-0">
+          <button aria-label="Monter la tâche" disabled={isFirst || isPending} onClick={() => run(() => reorderTask(task.id, projectId, "up"))} className="text-muted-foreground hover:text-foreground disabled:opacity-20">
             <ChevronUp className="h-3 w-3" />
           </button>
-          <button aria-label="Descendre la tâche" disabled={isLast || isPending} onClick={() => startTransition(() => reorderTask(task.id, projectId, "down"))} className="text-muted-foreground hover:text-foreground disabled:opacity-20">
+          <button aria-label="Descendre la tâche" disabled={isLast || isPending} onClick={() => run(() => reorderTask(task.id, projectId, "down"))} className="text-muted-foreground hover:text-foreground disabled:opacity-20">
             <ChevronDown className="h-3 w-3" />
           </button>
         </div>
@@ -194,15 +204,15 @@ export function TaskItem({
         {isPending ? (
           <Loader2 className="h-4 w-4 animate-spin shrink-0 text-muted-foreground" />
         ) : task.status === "DONE" ? (
-          <button onClick={() => { startTransition(() => reopenTask(task.id, projectId)); onStatusChange?.(task.id, "TODO") }} title="Rouvrir" className="shrink-0 text-emerald-500 hover:text-muted-foreground transition-colors">
+          <button onClick={() => { run(() => reopenTask(task.id, projectId)); onStatusChange?.(task.id, "TODO") }} title="Rouvrir" className="shrink-0 text-emerald-500 hover:text-muted-foreground transition-colors">
             <CheckCircle2 className="h-4 w-4" />
           </button>
         ) : task.status === "IN_PROGRESS" ? (
-          <button onClick={() => { startTransition(() => completeTask(task.id, projectId)); onStatusChange?.(task.id, "DONE") }} title="Terminer" className="shrink-0 text-amber-500 hover:text-emerald-500 transition-colors">
+          <button onClick={() => { run(() => completeTask(task.id, projectId)); onStatusChange?.(task.id, "DONE") }} title="Terminer" className="shrink-0 text-amber-500 hover:text-emerald-500 transition-colors">
             <PlayCircle className="h-4 w-4" />
           </button>
         ) : (
-          <button onClick={() => { startTransition(() => startTask(task.id, projectId)); onStatusChange?.(task.id, "IN_PROGRESS") }} title="Démarrer" className="shrink-0 text-muted-foreground hover:text-amber-500 transition-colors">
+          <button onClick={() => { run(() => startTask(task.id, projectId)); onStatusChange?.(task.id, "IN_PROGRESS") }} title="Démarrer" className="shrink-0 text-muted-foreground hover:text-amber-500 transition-colors">
             <Circle className="h-4 w-4" />
           </button>
         )}
@@ -240,7 +250,7 @@ export function TaskItem({
                   <button
                     type="button"
                     aria-label={`Retirer le tag ${tag.name}`}
-                    onClick={() => startTransition(() => removeTagFromTask(task.id, tag.id, projectId))}
+                    onClick={() => run(() => removeTagFromTask(task.id, tag.id, projectId))}
                     className="ml-0.5 opacity-60 hover:opacity-100"
                   >
                     <X className="h-2.5 w-2.5" />
@@ -257,7 +267,7 @@ export function TaskItem({
             <button
               type="button"
               onClick={() => setShowTagPicker((v) => !v)}
-              className="md:opacity-0 md:group-hover:opacity-100 focus:opacity-100 transition-opacity text-muted-foreground hover:text-foreground"
+              className="pointer-fine:opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity text-muted-foreground hover:text-foreground"
               title="Assigner un tag"
             >
               <Tag className="h-3.5 w-3.5" />
@@ -305,7 +315,7 @@ export function TaskItem({
               <input
                 ref={completedAtRef}
                 type="date"
-                defaultValue={task.completedAt ? new Date(task.completedAt).toISOString().split("T")[0] : ""}
+                defaultValue={task.completedAt ? zonedDateKey(new Date(task.completedAt)) : ""}
                 autoFocus
                 onBlur={saveCompletedAt}
                 onKeyDown={(e) => { if (e.key === "Enter") saveCompletedAt(); if (e.key === "Escape") setEditingCompletedAt(false) }}
@@ -323,9 +333,9 @@ export function TaskItem({
           )}
           {task.status !== "DONE" && (
             editingDate ? (
-              <input ref={dateRef} type="date" defaultValue={task.dueDate ? new Date(task.dueDate).toISOString().split("T")[0] : ""} autoFocus onBlur={saveDate} onKeyDown={(e) => { if (e.key === "Enter") saveDate(); if (e.key === "Escape") setEditingDate(false) }} className="h-5 text-xs bg-transparent border-b border-primary outline-none w-28" />
+              <input ref={dateRef} type="date" defaultValue={task.dueDate ? zonedDateKey(new Date(task.dueDate)) : ""} autoFocus onBlur={saveDate} onKeyDown={(e) => { if (e.key === "Enter") saveDate(); if (e.key === "Escape") setEditingDate(false) }} className="h-5 text-xs bg-transparent border-b border-primary outline-none w-28" />
             ) : (
-              <button onClick={() => setEditingDate(true)} className={cn("md:opacity-0 md:group-hover:opacity-100 focus:opacity-100 transition-opacity", task.dueDate ? (new Date(task.dueDate) < new Date() ? "text-red-500 font-medium !opacity-100" : "text-muted-foreground") : "text-muted-foreground")} title="Échéance">
+              <button onClick={() => setEditingDate(true)} className={cn("pointer-fine:opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity", task.dueDate ? (new Date(task.dueDate) < new Date() ? "text-red-500 font-medium !opacity-100" : "text-muted-foreground") : "text-muted-foreground")} title="Échéance">
                 {task.dueDate ? `⏱ ${fmt(task.dueDate)}` : "⏱"}
               </button>
             )
@@ -334,13 +344,13 @@ export function TaskItem({
             editingHours ? (
               <input ref={hoursRef} type="number" min="0" step="0.5" defaultValue={task.estimatedHours ?? ""} autoFocus onBlur={saveHours} onKeyDown={(e) => { if (e.key === "Enter") saveHours(); if (e.key === "Escape") setEditingHours(false) }} className="h-5 text-xs bg-transparent border-b border-primary outline-none w-14" placeholder="0h" />
             ) : (
-              <button onClick={() => setEditingHours(true)} className={cn("transition-opacity", task.estimatedHours ? "text-muted-foreground opacity-100" : "md:opacity-0 md:group-hover:opacity-100 focus:opacity-100 text-muted-foreground")} title="Heures estimées">
+              <button onClick={() => setEditingHours(true)} className={cn("transition-opacity", task.estimatedHours ? "text-muted-foreground opacity-100" : "pointer-fine:opacity-0 group-hover:opacity-100 focus:opacity-100 text-muted-foreground")} title="Heures estimées">
                 {task.estimatedHours ? `${task.estimatedHours}h` : "~h"}
               </button>
             )
           )}
           {task.status !== "DONE" && (
-            <button onClick={() => setShowDescription((v) => !v)} className={cn("transition-opacity", task.description ? "text-muted-foreground opacity-100" : "md:opacity-0 md:group-hover:opacity-100 focus:opacity-100 text-muted-foreground hover:text-foreground")} title="Description">
+            <button onClick={() => setShowDescription((v) => !v)} className={cn("transition-opacity", task.description ? "text-muted-foreground opacity-100" : "pointer-fine:opacity-0 group-hover:opacity-100 focus:opacity-100 text-muted-foreground hover:text-foreground")} title="Description">
               <AlignLeft className={cn("h-3.5 w-3.5", showDescription && "text-primary")} />
             </button>
           )}
@@ -363,8 +373,13 @@ export function TaskItem({
         </div>
 
         {/* Supprimer */}
-        <button aria-label="Supprimer la tâche" onClick={() => startTransition(() => deleteTask(task.id, projectId))} className="md:opacity-0 md:group-hover:opacity-100 focus:opacity-100 transition-opacity text-muted-foreground hover:text-destructive shrink-0">
-          <Trash2 className="h-3.5 w-3.5" />
+        <button
+          aria-label={isArmed() ? "Confirmer la suppression de la tâche" : "Supprimer la tâche"}
+          title={isArmed() ? "Confirmer la suppression" : "Supprimer"}
+          onClick={() => { if (confirmFirst()) run(() => deleteTask(task.id, projectId)) }}
+          className={cn("focus:opacity-100 transition-opacity shrink-0", isArmed() ? "text-destructive" : "pointer-fine:opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive")}
+        >
+          {isArmed() ? <Check className="h-3.5 w-3.5" /> : <Trash2 className="h-3.5 w-3.5" />}
         </button>
       </div>
 

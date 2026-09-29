@@ -9,6 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { sendProspectionEmails } from "@/actions/prospection"
 import { renderTemplate, type TemplateProspect } from "@/lib/email-template"
 import { toast } from "sonner"
+import { errorMessage } from "@/lib/error-message"
 
 export type EmailTemplateOption = { id: string; name: string; subject: string; body: string }
 export type SendTarget = TemplateProspect & { id: string; email: string | null }
@@ -72,7 +73,7 @@ export function SendEmailDialog({
         onSent()
         router.refresh()
       } catch (e) {
-        toast.error(e instanceof Error ? e.message : "Erreur lors de l'envoi")
+        toast.error(errorMessage(e, "Erreur lors de l'envoi"))
       }
     })
   }

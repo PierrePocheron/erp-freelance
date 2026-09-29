@@ -1,7 +1,9 @@
 "use client"
 
+import { zonedDateKey } from "@/lib/dates"
 import { useState, useTransition } from "react"
 import { Mail, Phone, Users, MessageSquare, Coffee, MoreHorizontal, Trash2, Pencil, X, Check, ExternalLink } from "lucide-react"
+import { useArmedDelete } from "@/hooks/use-armed-delete"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -41,10 +43,11 @@ export function InteractionsList({
   const [editResponse, setEditResponse] = useState("")
   const [editEmailUrl, setEditEmailUrl] = useState("")
   const [isPending, startTransition] = useTransition()
+  const { isArmed, confirmFirst } = useArmedDelete()
 
   function startEdit(i: Interaction) {
     setEditingId(i.id)
-    setEditDate(new Date(i.date).toISOString().split("T")[0])
+    setEditDate(zonedDateKey(new Date(i.date)))
     setEditChannel(i.channel)
     setEditSummary(i.summary)
     setEditResponse(i.response ?? "")
@@ -71,6 +74,7 @@ export function InteractionsList({
   }
 
   function handleDelete(interactionId: string) {
+    if (!confirmFirst(interactionId)) return
     startTransition(async () => {
       await deleteInteraction(interactionId, clientId)
       toast.success("Interaction supprimée")
@@ -165,12 +169,11 @@ export function InteractionsList({
                 </span>
                 <span className="text-sm font-medium">{ch.label}</span>
                 <span className="text-xs text-muted-foreground">
-                  {new Date(interaction.date).toLocaleDateString("fr-FR", {
-                    weekday: "short", day: "numeric", month: "long", year: "numeric",
+                  {new Date(interaction.date).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris", weekday: "short", day: "numeric", month: "long", year: "numeric",
                   })}
                 </span>
               </div>
-              <div className="flex items-center gap-1 md:opacity-0 md:group-hover:opacity-100 focus:opacity-100 transition-opacity">
+              <div className={`flex items-center gap-1 group-hover:opacity-100 focus-within:opacity-100 transition-opacity ${isArmed(interaction.id) ? "" : "pointer-fine:opacity-0"}`}>
                 <button
                   type="button"
                   onClick={() => startEdit(interaction)}
@@ -183,10 +186,10 @@ export function InteractionsList({
                   type="button"
                   onClick={() => handleDelete(interaction.id)}
                   disabled={isPending}
-                  className="p-1.5 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
-                  title="Supprimer"
+                  className={`p-1.5 rounded hover:text-destructive hover:bg-destructive/10 transition-colors ${isArmed(interaction.id) ? "text-destructive" : "text-muted-foreground"}`}
+                  title={isArmed(interaction.id) ? "Confirmer la suppression" : "Supprimer"}
                 >
-                  <Trash2 className="h-3.5 w-3.5" />
+                  {isArmed(interaction.id) ? <Check className="h-3.5 w-3.5" /> : <Trash2 className="h-3.5 w-3.5" />}
                 </button>
               </div>
             </div>

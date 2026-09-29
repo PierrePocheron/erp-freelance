@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache"
 import { prisma } from "@/lib/prisma"
 import { requireAuth } from "@/lib/require-auth"
+import { parseCivilDate, zonedDateKey, zonedParts, zonedInstant } from "@/lib/dates"
 
 
 function revalidate(platformId?: string) {
@@ -10,15 +11,15 @@ function revalidate(platformId?: string) {
   if (platformId) revalidatePath(`/investissements/${platformId}`)
 }
 
-// Période "YYYY-MM" d'une date (heure locale) — clé des rappels de relevé mensuels.
+// Période "YYYY-MM" d'une date (heure de Paris) — clé des rappels de relevé mensuels.
 function periodOf(date: Date): string {
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`
+  return zonedDateKey(date).slice(0, 7)
 }
 
 // Libellé lisible d'une période "YYYY-MM" → « août 2026 ».
 function monthLabel(period: string): string {
   const [y, m] = period.split("-").map(Number)
-  return new Date(y, m - 1, 1).toLocaleDateString("fr-FR", { month: "long", year: "numeric" })
+  return new Date(y, m - 1, 1).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris", month: "long", year: "numeric" })
 }
 
 // ── Plateformes ───────────────────────────────────────────────────────────────
@@ -79,7 +80,7 @@ export async function addEntry(platformId: string, input: EntryInput): Promise<v
   const capital = Number(input.capital)
   if (!Number.isFinite(capital)) throw new Error("Capital invalide")
   const contribution = Number.isFinite(Number(input.contribution)) ? Number(input.contribution) : 0
-  const date = input.date ? new Date(input.date) : new Date()
+  const date = input.date ? parseCivilDate(input.date) : new Date()
   if (Number.isNaN(date.getTime())) throw new Error("Date invalide")
 
   await prisma.investmentEntry.create({
@@ -102,7 +103,7 @@ export async function addDeposit(platformId: string, input: { amount: number; da
 
   const amount = Number(input.amount)
   if (!Number.isFinite(amount) || amount === 0) throw new Error("Montant invalide")
-  const date = input.date ? new Date(input.date) : new Date()
+  const date = input.date ? parseCivilDate(input.date) : new Date()
   if (Number.isNaN(date.getTime())) throw new Error("Date invalide")
 
   await prisma.investmentEntry.create({
@@ -119,7 +120,7 @@ export async function updateEntry(id: string, input: EntryInput): Promise<void> 
   const capital = Number(input.capital)
   if (!Number.isFinite(capital)) throw new Error("Capital invalide")
   const contribution = Number.isFinite(Number(input.contribution)) ? Number(input.contribution) : 0
-  const date = input.date ? new Date(input.date) : undefined
+  const date = input.date ? parseCivilDate(input.date) : undefined
   if (date && Number.isNaN(date.getTime())) throw new Error("Date invalide")
 
   await prisma.investmentEntry.update({
@@ -176,50 +177,66 @@ export async function ensureInvestmentReviewTasks(_userId: string, enabled: bool
   })
   if (platforms.length === 0) return
 
-  const parent = await prisma.task.findFirst({
-    where: { userId, investmentPeriod: period, parentTaskId: null },
-    select: { id: true, status: true, dueDate: true, subTasks: { select: { investmentPlatformId: true } } },
-  })
+  const parentWhere = { userId, investmentPeriod: period, parentTaskId: null }
+  const parentSelect = { id: true, status: true, dueDate: true, subTasks: { select: { investmentPlatformId: true } } } as const
+  const parent = await prisma.task.findFirst({ where: parentWhere, select: parentSelect })
 
   const dueDay = Math.min(Math.max(Math.trunc(day) || 1, 1), 28)
-  const dueDate = new Date(now.getFullYear(), now.getMonth(), dueDay, 9, 0, 0)
+  // 9 h heure de Paris (new Date(y, m, d, 9) = 9 h UTC en prod → 11 h à Paris)
+  const { year, month } = zonedParts(now)
+  const dueDate = zonedInstant(year, month, dueDay, 9, 0)
 
-  // Aucune tâche pour le mois → parent daté + une sous-tâche par plateforme.
-  if (!parent) {
-    const created = await prisma.task.create({
-      data: {
-        userId,
-        title: `Relevés d'investissement — ${monthLabel(period)}`,
-        description:
-          "Rappel mensuel : relever le capital de chaque plateforme. Chaque sous-tâche se coche automatiquement quand tu enregistres le relevé de la plateforme dans le module Investissements.",
-        dueDate,
-        priority: "MEDIUM",
-        isGroup: true,
-        investmentPeriod: period,
-      },
-      select: { id: true },
+  // Cas courant (à chaque navigation) : tout est en place → aucune écriture, aucune transaction.
+  if (
+    parent &&
+    parent.dueDate?.getTime() === dueDate.getTime() &&
+    platforms.every((p) => parent.subTasks.some((st) => st.investmentPlatformId === p.id))
+  ) return
+
+  // Deux rendus du layout en parallèle (préchargement Next) lisaient « rien » et créaient deux
+  // parents de relevés, dont un jamais soldé (#32) : verrou transactionnel par utilisateur et
+  // par mois, puis RELECTURE sous verrou avant d'écrire.
+  await prisma.$transaction(async (tx) => {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`invest-review:${userId}:${period}`}))`
+    const current = await tx.task.findFirst({ where: parentWhere, select: parentSelect })
+
+    // Aucune tâche pour le mois → parent daté + une sous-tâche par plateforme.
+    if (!current) {
+      const created = await tx.task.create({
+        data: {
+          userId,
+          title: `Relevés d'investissement — ${monthLabel(period)}`,
+          description:
+            "Rappel mensuel : relever le capital de chaque plateforme. Chaque sous-tâche se coche automatiquement quand tu enregistres le relevé de la plateforme dans le module Investissements.",
+          dueDate,
+          priority: "MEDIUM",
+          isGroup: true,
+          investmentPeriod: period,
+        },
+        select: { id: true },
+      })
+      await tx.task.createMany({ data: platforms.map((p, i) => subtaskData(userId, created.id, period, p, i)) })
+      return
+    }
+
+    // La tâche du mois existe → backfill des plateformes créées depuis (contrat
+    // « une sous-tâche par plateforme »), et réouverture de la parent si elle avait
+    // été soldée alors qu'une nouvelle plateforme reste à relever.
+    const covered = new Set(current.subTasks.map((st) => st.investmentPlatformId).filter(Boolean))
+    const missing = platforms.filter((p) => !covered.has(p.id))
+    // Le jour d'échéance a pu changer en cours de mois (setInvestmentReviewReminder).
+    if (current.dueDate && dueDate.getTime() !== current.dueDate.getTime()) {
+      await tx.task.update({ where: { id: current.id }, data: { dueDate } })
+    }
+    if (missing.length === 0) return
+
+    await tx.task.createMany({
+      data: missing.map((p, i) => subtaskData(userId, current.id, period, p, current.subTasks.length + i)),
     })
-    await prisma.task.createMany({ data: platforms.map((p, i) => subtaskData(userId, created.id, period, p, i)) })
-    return
-  }
-
-  // La tâche du mois existe → backfill des plateformes créées depuis (contrat
-  // « une sous-tâche par plateforme »), et réouverture de la parent si elle avait
-  // été soldée alors qu'une nouvelle plateforme reste à relever.
-  const covered = new Set(parent.subTasks.map((s) => s.investmentPlatformId).filter(Boolean))
-  const missing = platforms.filter((p) => !covered.has(p.id))
-  // Le jour d'échéance a pu changer en cours de mois (setInvestmentReviewReminder).
-  if (parent.dueDate && dueDate.getTime() !== parent.dueDate.getTime()) {
-    await prisma.task.update({ where: { id: parent.id }, data: { dueDate } })
-  }
-  if (missing.length === 0) return
-
-  await prisma.task.createMany({
-    data: missing.map((p, i) => subtaskData(userId, parent.id, period, p, parent.subTasks.length + i)),
+    if (current.status === "DONE") {
+      await tx.task.update({ where: { id: current.id }, data: { status: "TODO", completedAt: null } })
+    }
   })
-  if (parent.status === "DONE") {
-    await prisma.task.update({ where: { id: parent.id }, data: { status: "TODO", completedAt: null } })
-  }
 }
 
 /**

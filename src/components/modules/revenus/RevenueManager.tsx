@@ -1,5 +1,6 @@
 "use client"
 
+import { zonedDateKey } from "@/lib/dates"
 import { useState, useTransition, useMemo, useEffect, useId } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import Link from "next/link"
@@ -17,6 +18,7 @@ import {
   generatePendingRecurringRevenues, bulkMarkReceived,
 } from "@/actions/revenue"
 import { PAYMENT_METHODS, REVENUE_TYPES } from "@/lib/revenue-constants"
+import { amount0 as fmt } from "@/lib/format"
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -67,6 +69,7 @@ type RecurringRevenue = {
   companyId: string | null
   clientId: string | null
   projectId: string | null
+  fiscalSourceId?: string | null
   createdAt: string
   updatedAt: string
   _count: { revenues: number }
@@ -79,19 +82,15 @@ type RecurringRevenue = {
 
 function periodLabel(period: string): string {
   const [year, month] = period.split("-")
-  return new Date(Number(year), Number(month) - 1).toLocaleDateString("fr-FR", {
-    month: "long", year: "numeric",
+  return new Date(Number(year), Number(month) - 1).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris", month: "long", year: "numeric",
   })
 }
 
 function fmtDate(d: string | null): string {
   if (!d) return "—"
-  return new Date(d).toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" })
+  return new Date(d).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris", day: "numeric", month: "short", year: "numeric" })
 }
 
-function fmt(n: number): string {
-  return n.toLocaleString("fr-FR", { minimumFractionDigits: 0, maximumFractionDigits: 0 })
-}
 
 // ── Formulaire revenu ─────────────────────────────────────────────────────────
 
@@ -396,6 +395,7 @@ function RecurringForm({
   companies = [],
   clients = [],
   projects = [],
+  fiscalSources = [],
   initial,
   onClose,
   onSave,
@@ -405,6 +405,7 @@ function RecurringForm({
   companies?: Company[]
   clients?: Client[]
   projects?: Project[]
+  fiscalSources?: FiscalSource[]
   initial?: Partial<RecurringRevenue>
   onClose: () => void
   onSave: () => void
@@ -418,6 +419,7 @@ function RecurringForm({
   const [companyId,     setCompanyId]     = useState(initial?.companyId ?? "")
   const [clientId,      setClientId]      = useState(initial?.clientId ?? "")
   const [projectId,     setProjectId]     = useState(initial?.projectId ?? "")
+  const [fiscalSourceId, setFiscalSourceId] = useState(initial?.fiscalSourceId ?? "")
   const [error,         setError]         = useState("")
   const [isPending,     start]            = useTransition()
 
@@ -444,6 +446,7 @@ function RecurringForm({
         companyId: companyId || null,
         clientId: clientId || null,
         projectId: projectId || null,
+        fiscalSourceId: fiscalSourceId || null,
       }
       let res: { error?: string }
       if (initial?.id) {
@@ -478,6 +481,20 @@ function RecurringForm({
             ))}
           </select>
         </div>
+        {/* Sans source fiscale, un récurrent comptait 0 € au récapitulatif et n'était jamais proposé à l'URSSAF (#37) */}
+        {fiscalSources.length > 0 && (
+          <div className="space-y-1 sm:col-span-2">
+            <label className="text-xs font-medium text-muted-foreground">Source fiscale</label>
+            <select
+              value={fiscalSourceId}
+              onChange={e => setFiscalSourceId(e.target.value)}
+              className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+            >
+              <option value="">— Aucune —</option>
+              {fiscalSources.map(fs => <option key={fs.id} value={fs.id}>{fs.name}</option>)}
+            </select>
+          </div>
+        )}
         <div className="space-y-1">
           <label className="text-xs font-medium text-muted-foreground">Jour du mois</label>
           <Input
@@ -606,7 +623,7 @@ export function RevenueManager({
   const [editRecurring,     setEditRecurring]      = useState<RecurringRevenue | null>(null)
   const [confirmDelete,     setConfirmDelete]      = useState<string | null>(null)
   const [selectedIds,       setSelectedIds]        = useState<Set<string>>(new Set())
-  const [bulkDate,          setBulkDate]           = useState(() => new Date().toISOString().slice(0, 10))
+  const [bulkDate,          setBulkDate]           = useState(() => zonedDateKey(new Date()))
   const [isBulking,         startBulk]             = useTransition()
   const [quickMarkingId,    setQuickMarkingId]     = useState<string | null>(null)
   const [expandedPeriods,   setExpandedPeriods]    = useState<Set<string>>(new Set([getCurrentPeriod()]))
@@ -823,7 +840,7 @@ export function RevenueManager({
             key={t}
             type="button"
             onClick={() => setTab(t)}
-            className={`pb-2.5 px-1 mr-5 text-sm font-medium border-b-2 transition-colors ${
+            className={`px-4 py-2.5 -mb-px text-sm font-medium border-b-2 transition-colors ${
               tab === t ? "border-primary text-foreground" : "border-transparent text-muted-foreground hover:text-foreground"
             }`}
           >
@@ -1033,7 +1050,7 @@ export function RevenueManager({
                                   </td>
                                 </tr>
                               ) : (
-                              <tr key={r.id} className={`border-b border-border/50 last:border-0 hover:bg-muted/30 transition-colors ${selectedIds.has(r.id) ? "bg-emerald-500/5" : ""}`}>
+                              <tr key={r.id} className={`border-b border-border/50 last:border-0 hover:bg-muted/30 transition-colors ${selectedIds.has(r.id) ? "bg-muted/50" : ""}`}>
                                 {/* Checkbox (en attente) ou badge Payé (reçu) */}
                                 <td className="pl-4 pr-1 py-3 whitespace-nowrap w-px">
                                   {r.status === "RECEIVED" ? (
@@ -1042,7 +1059,7 @@ export function RevenueManager({
                                       className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 text-emerald-600 border border-emerald-500/25 px-2 py-0.5 text-[10px] font-semibold"
                                     >
                                       <CheckCircle2 className="h-3 w-3" />
-                                      Payé
+                                      Reçu
                                     </span>
                                   ) : !r.isFromInvoice && r.status === "PENDING" ? (
                                     <input
@@ -1056,7 +1073,7 @@ export function RevenueManager({
                                 </td>
 
                                 {/* Libellé + infos */}
-                                <td className="px-5 py-3 pl-2">
+                                <td className="py-3 pl-2 pr-2 sm:pr-5">
                                   <div className="flex items-center gap-2 flex-wrap">
                                     <span className={`text-xs px-2 py-0.5 rounded-full font-medium shrink-0 ${typeColor[r.type] ?? "text-muted-foreground bg-muted"}`}>
                                       {revenueTypeLabels[r.type] ?? r.type}
@@ -1120,10 +1137,14 @@ export function RevenueManager({
                                   {r.notes && !r.isFromInvoice && (r.company || r.client || r.project) && (
                                     <p className="text-xs text-muted-foreground mt-0.5 truncate max-w-xs">{r.notes}</p>
                                   )}
+                                  {/* Colonne « statut / date » masquée sous sm : la date prévue n'avait aucun repli */}
+                                  {r.status !== "RECEIVED" && r.expectedAt && (
+                                    <p className="sm:hidden text-xs text-muted-foreground mt-0.5">prévu {fmtDate(r.expectedAt)}</p>
+                                  )}
                                 </td>
 
                                 {/* Montant */}
-                                <td className="px-5 py-3 text-right font-semibold tabular-nums amount-sensitive">
+                                <td className="px-2 sm:px-5 py-3 text-right font-semibold tabular-nums whitespace-nowrap amount-sensitive">
                                   {fmt(r.amount)} €
                                 </td>
 
@@ -1155,7 +1176,7 @@ export function RevenueManager({
                                 </td>
 
                                 {/* Actions */}
-                                <td className="px-5 py-3 text-right">
+                                <td className="px-2 sm:px-5 py-3 text-right">
                                   {r.isFromInvoice ? (
                                     /* Entrée issue d'une facture — lien uniquement */
                                     r.invoiceHref ? (
@@ -1202,7 +1223,7 @@ export function RevenueManager({
                                         type="button"
                                         onClick={() => { setEditRevenue(r); setShowForm(false) }}
                                         aria-label="Modifier le revenu"
-                                        className="text-muted-foreground hover:text-foreground p-1 rounded"
+                                        className="text-muted-foreground hover:text-foreground p-2 -m-1 rounded"
                                       >
                                         <Pencil className="h-3.5 w-3.5" />
                                       </button>
@@ -1288,6 +1309,7 @@ export function RevenueManager({
               companies={companies}
               clients={clients}
               projects={projects}
+              fiscalSources={fiscalSources}
               onClose={() => setShowRecurringForm(false)}
               onSave={() => { setShowRecurringForm(false); refresh() }}
             />
@@ -1300,6 +1322,7 @@ export function RevenueManager({
               companies={companies}
               clients={clients}
               projects={projects}
+              fiscalSources={fiscalSources}
               initial={editRecurring}
               onClose={() => setEditRecurring(null)}
               onSave={() => { setEditRecurring(null); refresh() }}
@@ -1349,7 +1372,7 @@ export function RevenueManager({
                           <button
                             type="button"
                             onClick={() => { setEditRecurring(rec); setShowRecurringForm(false) }}
-                            className="text-muted-foreground hover:text-foreground p-1 rounded"
+                            className="text-muted-foreground hover:text-foreground p-2 -m-1 rounded"
                           >
                             <Pencil className="h-3.5 w-3.5" />
                           </button>
@@ -1388,7 +1411,7 @@ export function RevenueManager({
       {/* Floating bulk-mark bar — en mobile : au-dessus de la MobileBottomNav
           (bottom-20) et bornée à la largeur de l'écran avec retour à la ligne */}
       {selectedIds.size > 0 && (
-        <div className="fixed bottom-20 sm:bottom-6 left-3 right-3 sm:left-1/2 sm:right-auto sm:-translate-x-1/2 z-50 flex flex-wrap items-center justify-center gap-3 bg-card border border-border shadow-2xl rounded-2xl px-4 py-3">
+        <div className="fixed bottom-[calc(max(1.25rem,env(safe-area-inset-bottom))+4rem)] sm:bottom-6 left-3 right-3 sm:left-1/2 sm:right-auto sm:-translate-x-1/2 z-50 flex flex-wrap items-center justify-center gap-3 bg-card border border-border shadow-2xl rounded-2xl px-4 py-3">
           <span className="text-sm font-semibold text-foreground whitespace-nowrap">
             {selectedIds.size} sélectionné{selectedIds.size > 1 ? "s" : ""}
           </span>

@@ -10,7 +10,7 @@ export function ModulesPanel() {
   const activeCount = MODULE_DEFS.filter(m => isActive(m.id)).length
 
   return (
-    <div className="rounded-xl border border-border/50 bg-card p-6 space-y-5">
+    <div className="rounded-xl border border-border/50 bg-card p-5 space-y-4">
       <div className="flex items-start justify-between gap-4">
         <div>
           <h2 className="font-semibold text-sm">Modules actifs</h2>

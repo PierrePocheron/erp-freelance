@@ -2,19 +2,20 @@
 
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
+import { periodLabel } from "@/lib/urssaf"
+import { eurAuto as eur, amountAuto } from "@/lib/format"
 
 export type SearchResult = {
   id: string
   type: "client" | "project" | "quote" | "invoice" | "company" | "fiscal_source"
       | "task" | "job_application" | "health_event" | "health_consultation"
       | "expense" | "recurring_expense" | "prospect" | "revenue" | "skill"
-      | "investment_platform"
+      | "investment_platform" | "calendar_event" | "urssaf_declaration"
   label: string
   sublabel?: string
   href: string
 }
 
-const eur = (n: number) => `${n.toLocaleString("fr-FR", { maximumFractionDigits: 2 })} €`
 
 /**
  * Si la requête est un nombre (« 60 », « 60,5 », « 1 200.50 »), retourne la
@@ -46,6 +47,7 @@ export async function searchGlobal(query: string, activeModuleIds?: string[]): P
     companies, clients, projects, quotes, invoices, fiscalSources,
     tasks, jobApplications, healthEvents, healthConsultations,
     expenses, recurringExpenses, revenues, prospects, skills, investmentPlatforms,
+    calendarEvents, urssafDeclarations,
   ] = await Promise.all([
     has("societes") ? prisma.company.findMany({
       where: { userId, OR: [
@@ -67,6 +69,7 @@ export async function searchGlobal(query: string, activeModuleIds?: string[]): P
         OR: [
           { name: { contains: query, mode: "insensitive" } },
           { company: { contains: query, mode: "insensitive" } },
+          { email: { contains: query, mode: "insensitive" } },
         ],
       },
       take: 4,
@@ -83,6 +86,7 @@ export async function searchGlobal(query: string, activeModuleIds?: string[]): P
       where: { userId, OR: [
         { number: { contains: query, mode: "insensitive" } },
         { client: { name: { contains: query, mode: "insensitive" } } },
+        { client: { company: { contains: query, mode: "insensitive" } } },
         ...(amountFilter !== null ? [{ totalHT: amountFilter }] : []),
       ]},
       take: 3,
@@ -93,6 +97,7 @@ export async function searchGlobal(query: string, activeModuleIds?: string[]): P
       where: { userId, OR: [
         { number: { contains: query, mode: "insensitive" } },
         { client: { name: { contains: query, mode: "insensitive" } } },
+        { client: { company: { contains: query, mode: "insensitive" } } },
         ...(amountFilter !== null ? [{ totalHT: amountFilter }] : []),
       ]},
       take: 3,
@@ -198,6 +203,28 @@ export async function searchGlobal(query: string, activeModuleIds?: string[]): P
       take: 4,
       select: { id: true, name: true, type: true },
     }) : empty<{ id: string; name: string; type: string }>(),
+
+    // #22 : calendrier et déclarations URSSAF, jusque-là absents de la recherche
+    has("calendrier") ? prisma.calendarEvent.findMany({
+      where: { userId, OR: [
+        { title: { contains: query, mode: "insensitive" } },
+        { description: { contains: query, mode: "insensitive" } },
+      ]},
+      take: 3,
+      orderBy: { startDate: "desc" },
+      select: { id: true, title: true, startDate: true },
+    }) : empty<{ id: string; title: string; startDate: Date }>(),
+
+    has("impots") ? prisma.urssafDeclaration.findMany({
+      where: { userId, OR: [
+        { period: { contains: query, mode: "insensitive" } },
+        { notes: { contains: query, mode: "insensitive" } },
+        ...(/urssaf|d[ée]claration/i.test(query) ? [{ userId }] : []),
+      ]},
+      take: 3,
+      orderBy: { period: "desc" },
+      select: { id: true, period: true, status: true },
+    }) : empty<{ id: string; period: string; status: string }>()
   ])
 
   const INVEST_TYPE_LABELS: Record<string, string> = {
@@ -263,13 +290,13 @@ export async function searchGlobal(query: string, activeModuleIds?: string[]): P
     ...expenses.map((e) => ({
       id: e.id, type: "expense" as const,
       label: e.label,
-      sublabel: `${e.amount.toLocaleString("fr-FR")} €${e.category ? ` · ${e.category.name}` : ""}`,
+      sublabel: `${amountAuto(e.amount)} €${e.category ? ` · ${e.category.name}` : ""}`,
       href: `/depenses`,
     })),
     ...recurringExpenses.map((r) => ({
       id: r.id, type: "recurring_expense" as const,
       label: r.label,
-      sublabel: `${r.amount.toLocaleString("fr-FR")} €${r.category ? ` · ${r.category.name}` : ""}`,
+      sublabel: `${amountAuto(r.amount)} €${r.category ? ` · ${r.category.name}` : ""}`,
       href: `/depenses`,
     })),
     ...revenues.map((r) => ({
@@ -293,6 +320,18 @@ export async function searchGlobal(query: string, activeModuleIds?: string[]): P
       id: p.id, type: "investment_platform" as const,
       label: p.name, sublabel: INVEST_TYPE_LABELS[p.type] ?? p.type,
       href: `/investissements/${p.id}`,
+    })),
+    ...calendarEvents.map((e) => ({
+      id: e.id, type: "calendar_event" as const,
+      label: e.title,
+      sublabel: e.startDate.toLocaleDateString("fr-FR", { timeZone: "Europe/Paris", day: "numeric", month: "short", year: "numeric" }),
+      href: "/calendrier",
+    })),
+    ...urssafDeclarations.map((d) => ({
+      id: d.id, type: "urssaf_declaration" as const,
+      label: `Déclaration URSSAF — ${periodLabel(d.period)}`,
+      sublabel: d.status === "PAID" ? "Payée" : d.status === "DECLARED" ? "Déclarée" : "Brouillon",
+      href: "/impots",
     })),
   ]
 }

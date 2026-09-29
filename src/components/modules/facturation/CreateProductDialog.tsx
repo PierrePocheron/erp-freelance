@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { createProduct } from "@/actions/facturation"
+import { toast } from "sonner"
 
 const UNIT_OPTIONS = [
   { value: "UNIT", label: "Unité" },
@@ -41,16 +42,20 @@ export function CreateProductDialog({
     e.preventDefault()
     const fd = new FormData(e.currentTarget)
     startTransition(async () => {
-      await createProduct(userId, {
-        name: fd.get("name") as string,
-        description: (fd.get("description") as string) || undefined,
-        unitPrice: parseFloat(fd.get("unitPrice") as string) || 0,
-        unit: (fd.get("unit") as string) || "UNIT",
-        billingType: (fd.get("billingType") as string) || "ONE_SHOT",
-        defaultTaxRate: parseFloat(fd.get("defaultTaxRate") as string) || 0,
-      })
-      handleOpenChange(false)
-      router.push("/facturation/produits")
+      try {
+        await createProduct(userId, {
+          name: fd.get("name") as string,
+          description: (fd.get("description") as string) || undefined,
+          unitPrice: parseFloat(fd.get("unitPrice") as string) || 0,
+          unit: (fd.get("unit") as string) || "UNIT",
+          billingType: (fd.get("billingType") as string) || "ONE_SHOT",
+          defaultTaxRate: parseFloat(fd.get("defaultTaxRate") as string) || 0,
+        })
+        handleOpenChange(false)
+        router.push("/facturation/produits")
+      } catch {
+        toast.error("Échec de l'enregistrement")
+      }
     })
   }
 

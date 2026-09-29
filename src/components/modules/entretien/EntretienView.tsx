@@ -385,7 +385,7 @@ function Timeline({
                   <div className="flex items-baseline justify-between gap-2">
                     <p className="text-sm font-semibold leading-tight truncate group-hover:text-primary transition-colors">{it.company}</p>
                     <span className={cn("shrink-0 text-[11px] tabular-nums", it.future ? "text-amber-600 font-medium" : overdue ? "text-red-600 dark:text-red-400 font-medium" : "text-muted-foreground")}>
-                      {fmtShort(dt)}{hasTime ? ` · ${dt.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}` : ""}
+                      {fmtShort(dt)}{hasTime ? ` · ${dt.toLocaleTimeString("fr-FR", { timeZone: "Europe/Paris", hour: "2-digit", minute: "2-digit" })}` : ""}
                     </span>
                   </div>
                   <p className={cn("mt-0.5 text-xs leading-snug line-clamp-2", overdue ? "text-red-600 dark:text-red-400" : "text-muted-foreground")}>
@@ -466,10 +466,10 @@ function ApplicationCard({ app, onOpen }: { app: JobApp; onOpen: () => void }) {
             onClick={togglePriority}
             title={isPriority ? "Retirer la priorité" : "Marquer prioritaire"}
             className={cn(
-              "rounded-md p-0.5 transition-all",
+              "rounded-md p-1.5 -m-1 transition-all",
               isPriority
                 ? "text-amber-500 hover:text-amber-600"
-                : "text-muted-foreground/30 md:opacity-0 md:group-hover:opacity-100 focus:opacity-100 hover:text-amber-400"
+                : "text-muted-foreground/30 pointer-fine:opacity-0 group-hover:opacity-100 focus:opacity-100 hover:text-amber-400"
             )}
           >
             <Star className={cn("h-3 w-3", isPriority && "fill-current")} />
@@ -503,7 +503,7 @@ function ApplicationCard({ app, onOpen }: { app: JobApp; onOpen: () => void }) {
           </button>
         )}
         {app.events.length > 0 && !confirmDelete && (
-          <span className="ml-auto text-muted-foreground/60 md:opacity-0 md:group-hover:opacity-100 focus:opacity-100 transition-opacity">
+          <span className="ml-auto text-muted-foreground/60 pointer-fine:opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity">
             {app.events.length} évt
           </span>
         )}
@@ -520,7 +520,7 @@ function ApplicationCard({ app, onOpen }: { app: JobApp; onOpen: () => void }) {
         ) : (
           <button
             onClick={e => { e.stopPropagation(); setConfirmDelete(true) }}
-            className="text-muted-foreground/40 hover:text-destructive md:opacity-0 md:group-hover:opacity-100 focus:opacity-100 transition-opacity"
+            className="text-muted-foreground/40 hover:text-destructive pointer-fine:opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity"
             title="Supprimer"
           >
             <X className="h-3.5 w-3.5" />

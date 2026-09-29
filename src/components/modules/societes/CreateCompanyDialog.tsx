@@ -16,6 +16,7 @@ import { Label } from "@/components/ui/label"
 import { createCompany } from "@/actions/crm"
 import { CompanyCategoryCombobox, type CompanyCategory } from "./CompanyCategoryCombobox"
 import { toast } from "sonner"
+import { errorMessage } from "@/lib/error-message"
 
 type FiscalSourceOption = {
   id: string
@@ -79,7 +80,7 @@ export function CreateCompanyDialog({
         handleOpenChange(false)
         router.push(`/societes/${company.id}`)
       } catch (err) {
-        toast.error(err instanceof Error ? err.message : "Impossible de créer la société.")
+        toast.error(errorMessage(err, "Impossible de créer la société."))
       }
     })
   }
@@ -92,7 +93,7 @@ export function CreateCompanyDialog({
           Nouvelle société
         </DialogTrigger>
       )}
-      <DialogContent className="sm:max-w-md flex flex-col p-0 gap-0 max-h-[90vh]">
+      <DialogContent className="sm:max-w-md flex flex-col p-0 gap-0 max-h-[85dvh]">
         <div className="px-4 pt-4 pb-2 shrink-0">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">

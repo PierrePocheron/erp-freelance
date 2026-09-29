@@ -372,7 +372,7 @@ export function SettingsForm({ userId, profile, userName, userEmail, conditionsT
 
       {/* Barre flottante : modifications non enregistrées */}
       {dirty && (
-        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 rounded-xl border border-amber-500/40 bg-background/95 backdrop-blur px-4 py-2.5 shadow-lg">
+        <div className="fixed inset-x-3 bottom-[calc(max(1.25rem,env(safe-area-inset-bottom))+4rem)] sm:inset-x-auto sm:bottom-4 sm:left-1/2 sm:-translate-x-1/2 sm:w-max sm:max-w-2xl z-50 flex items-center gap-3 rounded-xl border border-amber-500/40 bg-background/95 backdrop-blur px-4 py-2.5 shadow-lg">
           <TriangleAlert className="h-4 w-4 text-amber-500 shrink-0" />
           <span className="text-sm">
             Modifications non enregistrées — elles seront perdues si vous quittez la page.
@@ -453,8 +453,9 @@ function ColorSwatches({
               <button
                 type="button"
                 title="Retirer cette couleur de la palette"
+                aria-label="Retirer cette couleur de la palette"
                 onClick={() => onRemove(c)}
-                className="absolute -top-1.5 -right-1.5 hidden group-hover:flex h-4 w-4 items-center justify-center rounded-full bg-foreground text-background"
+                className="absolute -top-1.5 -right-1.5 flex pointer-fine:opacity-0 group-hover:opacity-100 focus:opacity-100 h-4 w-4 items-center justify-center rounded-full bg-foreground text-background"
               >
                 <X className="h-2.5 w-2.5" />
               </button>

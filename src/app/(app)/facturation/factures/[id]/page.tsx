@@ -1,20 +1,22 @@
+import { zonedDateKey } from "@/lib/dates"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { notFound } from "next/navigation"
 import Link from "next/link"
 import { SetBreadcrumbLabel } from "@/components/layout/BreadcrumbContext"
 import { ChevronLeft, Download, Send, CheckCircle2, FileCheck2, Ban, Copy, Landmark } from "lucide-react"
-import { Button } from "@/components/ui/button"
 import { LineItemsEditor } from "@/components/modules/facturation/LineItemsEditor"
 import { DeleteConfirmButton } from "@/components/modules/facturation/DeleteConfirmButton"
 import { InvoicePaymentSection } from "@/components/modules/facturation/InvoicePaymentSection"
 import { InvoiceConditionsForm } from "@/components/modules/facturation/InvoiceConditionsForm"
 import { EmitterSelect } from "@/components/modules/facturation/EmitterSelect"
-import { updateInvoiceStatus, deleteInvoice, updateInvoiceDueDate, updateInvoiceNotes, updateInvoiceEmitter, sendInvoiceEmail, sendInvoiceReminder, issueInvoice, cancelInvoice, duplicateInvoiceAsDraft } from "@/actions/facturation"
+import { updateInvoiceStatus, markInvoicePaid, deleteInvoice, updateInvoiceDueDate, updateInvoiceNotes, updateInvoiceEmitter, sendInvoiceEmail, sendInvoiceReminder, issueInvoice, cancelInvoice, duplicateInvoiceAsDraft } from "@/actions/facturation"
 import { setInvoiceUrssafExcluded } from "@/actions/urssaf"
 import { periodLabel } from "@/lib/urssaf"
 import { redirect } from "next/navigation"
 import { Input } from "@/components/ui/input"
+import { SubmitButton } from "@/components/ui/submit-button"
+import { runWithFlash } from "@/lib/flash"
 
 const statusConfig = {
   DRAFT: { label: "Brouillon", cls: "bg-muted text-muted-foreground border-border" },
@@ -104,9 +106,9 @@ export default async function FactureDetailPage({
             {invoice.quote && <> · Devis <Link href={`/facturation/devis/${invoice.quote.id}`} className="hover:text-primary font-mono">{invoice.quote.number}</Link></>}
           </p>
           <p className="text-xs text-muted-foreground">
-            Créée le {new Date(invoice.createdAt).toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" })} à {new Date(invoice.createdAt).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}
-            {invoice.sentAt && ` · Envoyée le ${new Date(invoice.sentAt).toLocaleDateString("fr-FR")}`}
-            {invoice.paidAt && ` · Payée le ${new Date(invoice.paidAt).toLocaleDateString("fr-FR")}`}
+            Créée le {new Date(invoice.createdAt).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris", day: "numeric", month: "long", year: "numeric" })} à {new Date(invoice.createdAt).toLocaleTimeString("fr-FR", { timeZone: "Europe/Paris", hour: "2-digit", minute: "2-digit" })}
+            {invoice.sentAt && ` · Envoyée le ${new Date(invoice.sentAt).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris" })}`}
+            {invoice.paidAt && ` · Payée le ${new Date(invoice.paidAt).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris" })}`}
           </p>
         </div>
 
@@ -122,65 +124,82 @@ export default async function FactureDetailPage({
           </a>
 
           {invoice.status === "DRAFT" && (
-            <form action={async () => { "use server"; await issueInvoice(id, userId) }}>
-              <Button type="submit" size="sm">
+            <form action={async () => { "use server"; await runWithFlash(async () => { await issueInvoice(id, userId) }, "Facture émise") }}>
+              <SubmitButton pendingLabel="Émission…" size="sm">
                 <FileCheck2 className="h-3.5 w-3.5" />
                 Émettre la facture
-              </Button>
+              </SubmitButton>
             </form>
           )}
 
           {invoice.status === "ISSUED" && (
-            <form action={async () => { "use server"; await updateInvoiceStatus(id, userId, "SENT") }}>
-              <Button type="submit" size="sm" variant="outline">
+            <form action={async () => { "use server"; await runWithFlash(async () => { await updateInvoiceStatus(id, userId, "SENT") }, "Statut de la facture mis à jour") }}>
+              <SubmitButton size="sm" variant="outline">
                 <Send className="h-3.5 w-3.5" />
                 Marquer envoyée
-              </Button>
+              </SubmitButton>
             </form>
           )}
 
           {invoice.status === "ISSUED" && invoice.client.email && (
-            <form action={async () => { "use server"; await sendInvoiceEmail(id, userId) }}>
-              <Button type="submit" size="sm">
+            <form action={async () => { "use server"; await runWithFlash(async () => { await sendInvoiceEmail(id, userId) }, "Facture envoyée au client") }}>
+              <SubmitButton pendingLabel="Envoi…" size="sm">
                 <Send className="h-3.5 w-3.5" />
                 Envoyer par email
-              </Button>
+              </SubmitButton>
             </form>
           )}
 
           {(invoice.status === "SENT" || invoice.status === "LATE") && invoice.client.email && (
-            <form action={async () => { "use server"; await sendInvoiceReminder(id, userId) }}>
-              <Button type="submit" size="sm" variant="outline">
+            <form action={async () => { "use server"; await runWithFlash(async () => { await sendInvoiceReminder(id, userId) }, "Relance envoyée") }}>
+              <SubmitButton pendingLabel="Envoi…" size="sm" variant="outline">
                 <Send className="h-3.5 w-3.5" />
                 {invoice.status === "LATE" ? "Relancer" : "Rappel email"}
-              </Button>
+              </SubmitButton>
             </form>
           )}
 
-          {(invoice.status === "SENT" || invoice.status === "LATE") && (
-            <form action={async () => { "use server"; await updateInvoiceStatus(id, userId, "PAID") }}>
-              <Button type="submit" size="sm" className="bg-emerald-500 hover:bg-emerald-600 text-white border-none">
+          {/* ISSUED aussi : Pierre envoie souvent les PDF lui-même, la facture reste « émise ».
+              La date = date d'encaissement réelle (elle fixe la période URSSAF). */}
+          {(invoice.status === "ISSUED" || invoice.status === "SENT" || invoice.status === "LATE") && (
+            <form
+              action={async (fd: FormData) => { "use server"; await runWithFlash(async () => { await markInvoicePaid(id, userId, (fd.get("paidAt") as string) || undefined) }, "Paiement enregistré") }}
+              className="flex items-center gap-1.5"
+            >
+              <input
+                type="date"
+                name="paidAt"
+                defaultValue={zonedDateKey(new Date())}
+                aria-label="Date d'encaissement"
+                className="h-8 rounded-md border border-input bg-background px-2 text-xs"
+              />
+              <SubmitButton size="sm" pendingLabel="Enregistrement…" className="bg-emerald-500 hover:bg-emerald-600 text-white border-none">
                 <CheckCircle2 className="h-3.5 w-3.5" />
                 Marquer payée
-              </Button>
+              </SubmitButton>
             </form>
           )}
 
           {(invoice.status === "ISSUED" || invoice.status === "SENT" || invoice.status === "LATE") && (
-            <form action={async () => { "use server"; await cancelInvoice(id, userId) }}>
-              <Button type="submit" size="sm" variant="outline" className="text-destructive hover:text-destructive">
-                <Ban className="h-3.5 w-3.5" />
-                Annuler
-              </Button>
-            </form>
+            <DeleteConfirmButton
+              label="Annuler la facture"
+              variant="outline"
+              className="text-destructive hover:text-destructive"
+              icon={<Ban className="h-3.5 w-3.5" />}
+              confirmTitle={`Annuler la facture ${invoice.number} ?`}
+              confirmMessage="Une facture émise ne se supprime pas : elle reste dans la séquence, marquée annulée. Pour la corriger, tu pourras ensuite la dupliquer en un nouveau brouillon."
+              confirmLabel="Annuler la facture"
+              pendingLabel="Annulation…"
+              action={async () => { "use server"; await runWithFlash(async () => { await cancelInvoice(id, userId) }) }}
+            />
           )}
 
           {invoice.status === "CANCELLED" && (
-            <form action={async () => { "use server"; const d = await duplicateInvoiceAsDraft(id, userId); redirect(`/facturation/factures/${d.id}`) }}>
-              <Button type="submit" size="sm" variant="outline">
+            <form action={async () => { "use server"; await runWithFlash(async () => { const d = await duplicateInvoiceAsDraft(id, userId); redirect(`/facturation/factures/${d.id}`) }) }}>
+              <SubmitButton pendingLabel="Duplication…" size="sm" variant="outline">
                 <Copy className="h-3.5 w-3.5" />
                 Dupliquer en brouillon
-              </Button>
+              </SubmitButton>
             </form>
           )}
         </div>
@@ -191,15 +210,15 @@ export default async function FactureDetailPage({
         <div className="rounded-xl border border-border/50 bg-muted/30 p-4 space-y-1 text-sm">
           <div className="flex justify-between">
             <span className="text-muted-foreground">Total HT</span>
-            <span className="amount-sensitive">{invoice.totalHT.toLocaleString("fr-FR")} €</span>
+            <span className="amount-sensitive">{invoice.totalHT.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €</span>
           </div>
           <div className="flex justify-between text-muted-foreground">
             <span>Acompte déduit</span>
-            <span className="amount-sensitive">- {invoice.depositDeducted.toLocaleString("fr-FR")} €</span>
+            <span className="amount-sensitive">- {invoice.depositDeducted.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €</span>
           </div>
           <div className="flex justify-between font-bold border-t border-border pt-1">
             <span>Net à payer</span>
-            <span className="amount-sensitive">{netAmount.toLocaleString("fr-FR")} €</span>
+            <span className="amount-sensitive">{netAmount.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €</span>
           </div>
         </div>
       )}
@@ -228,21 +247,21 @@ export default async function FactureDetailPage({
             <div className="space-y-1.5 text-sm max-w-xs ml-auto">
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Total HT</span>
-                <span className="amount-sensitive">{invoice.totalHT.toLocaleString("fr-FR", { minimumFractionDigits: 2 })} €</span>
+                <span className="amount-sensitive">{invoice.totalHT.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Total TVA</span>
-                <span className="amount-sensitive">{totalTVA.toLocaleString("fr-FR", { minimumFractionDigits: 2 })} €</span>
+                <span className="amount-sensitive">{totalTVA.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €</span>
               </div>
               {invoice.depositDeducted > 0 && (
                 <div className="flex justify-between text-muted-foreground">
                   <span>Acompte déduit</span>
-                  <span className="amount-sensitive">- {invoice.depositDeducted.toLocaleString("fr-FR", { minimumFractionDigits: 2 })} €</span>
+                  <span className="amount-sensitive">- {invoice.depositDeducted.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €</span>
                 </div>
               )}
               <div className="flex justify-between font-bold border-t border-border pt-1.5">
                 <span>Total TTC</span>
-                <span className="text-primary text-base amount-sensitive">{(totalTTC - invoice.depositDeducted).toLocaleString("fr-FR", { minimumFractionDigits: 2 })} €</span>
+                <span className="text-primary text-base amount-sensitive">{(totalTTC - invoice.depositDeducted).toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €</span>
               </div>
             </div>
           </div>
@@ -261,10 +280,9 @@ export default async function FactureDetailPage({
           emitters={emitters}
           currentId={invoice.emitterProfileId}
           editable={isEditable}
-          action={async (emitterProfileId: string | null) => {
-            "use server"
+          action={async (emitterProfileId: string | null) => { "use server"; await runWithFlash(async () => {
             await updateInvoiceEmitter(id, emitterProfileId)
-          }}
+          }) }}
         />
       </div>
 
@@ -273,11 +291,10 @@ export default async function FactureDetailPage({
         <h2 className="font-semibold text-sm">Paramètres</h2>
         {isEditable ? (
           <form
-            action={async (fd: FormData) => {
-              "use server"
+            action={async (fd: FormData) => { "use server"; await runWithFlash(async () => {
               await updateInvoiceDueDate(id, userId, (fd.get("dueDate") as string) || null)
               await updateInvoiceNotes(id, userId, (fd.get("notes") as string) || null)
-            }}
+            }, "Enregistré") }}
             className="space-y-3"
           >
             <div className="space-y-1">
@@ -285,7 +302,7 @@ export default async function FactureDetailPage({
               <Input
                 name="dueDate"
                 type="date"
-                defaultValue={invoice.dueDate ? new Date(invoice.dueDate).toISOString().split("T")[0] : ""}
+                defaultValue={invoice.dueDate ? zonedDateKey(new Date(invoice.dueDate)) : ""}
                 className="h-8 w-48"
               />
             </div>
@@ -299,13 +316,13 @@ export default async function FactureDetailPage({
                 className="flex w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring resize-none"
               />
             </div>
-            <Button type="submit" size="sm" variant="outline">Enregistrer</Button>
+            <SubmitButton size="sm" variant="outline">Enregistrer</SubmitButton>
           </form>
         ) : (
           <div className="space-y-2 text-sm">
             <div className="flex gap-2">
               <span className="text-muted-foreground">Échéance :</span>
-              <span>{invoice.dueDate ? new Date(invoice.dueDate).toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" }) : "—"}</span>
+              <span>{invoice.dueDate ? new Date(invoice.dueDate).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris", day: "numeric", month: "long", year: "numeric" }) : "—"}</span>
             </div>
             {invoice.notes && <p className="text-muted-foreground whitespace-pre-wrap">{invoice.notes}</p>}
             <p className="text-xs text-muted-foreground italic">Facture figée — annulez-la pour la corriger.</p>
@@ -353,8 +370,8 @@ export default async function FactureDetailPage({
               <p className="text-sm text-muted-foreground">
                 Exclue des déclarations URSSAF (hors auto-entreprise) — terminée dès le paiement reçu.
               </p>
-              <form action={async () => { "use server"; await setInvoiceUrssafExcluded(id, false) }}>
-                <Button type="submit" size="sm" variant="outline">Réintégrer à l&apos;URSSAF</Button>
+              <form action={async () => { "use server"; await runWithFlash(async () => { await setInvoiceUrssafExcluded(id, false) }, "Préférence URSSAF enregistrée") }}>
+                <SubmitButton size="sm" variant="outline">Réintégrer à l&apos;URSSAF</SubmitButton>
               </form>
             </div>
           ) : (
@@ -364,22 +381,24 @@ export default async function FactureDetailPage({
                   ? "Payée — sera proposée dans la prochaine déclaration URSSAF."
                   : "Sera à déclarer à l'URSSAF une fois payée, selon la date d'encaissement."}
               </p>
-              <form action={async () => { "use server"; await setInvoiceUrssafExcluded(id, true) }}>
-                <Button type="submit" size="sm" variant="outline">Exclure de l&apos;URSSAF</Button>
+              <form action={async () => { "use server"; await runWithFlash(async () => { await setInvoiceUrssafExcluded(id, true) }, "Préférence URSSAF enregistrée") }}>
+                <SubmitButton size="sm" variant="outline">Exclure de l&apos;URSSAF</SubmitButton>
               </form>
             </div>
           )}
         </div>
       )}
 
-      {/* Paiements */}
-      <InvoicePaymentSection
-        invoiceId={id}
-        userId={userId}
-        netAmount={netAmount}
-        payments={invoice.payments}
-        isPaid={invoice.status === "PAID"}
-      />
+      {/* Paiements — seulement sur une facture émise (le serveur refuse brouillon et annulée) */}
+      {invoice.status !== "DRAFT" && invoice.status !== "CANCELLED" && (
+        <InvoicePaymentSection
+          invoiceId={id}
+          userId={userId}
+          netAmount={netAmount}
+          payments={invoice.payments}
+          isPaid={invoice.status === "PAID"}
+        />
+      )}
 
       {/* Logs email */}
       {invoice.emailLogs.length > 0 && (
@@ -388,7 +407,7 @@ export default async function FactureDetailPage({
           <div className="space-y-1.5">
             {invoice.emailLogs.map((log) => (
               <div key={log.id} className="flex items-center gap-3 text-sm text-muted-foreground">
-                <span className="text-xs">{new Date(log.sentAt).toLocaleDateString("fr-FR", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</span>
+                <span className="text-xs">{new Date(log.sentAt).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</span>
                 <span>→ {log.to}</span>
                 <span className="text-xs">{log.subject}</span>
               </div>
@@ -404,11 +423,10 @@ export default async function FactureDetailPage({
             label="Supprimer cette facture"
             confirmTitle="Supprimer la facture ?"
             confirmMessage={`La facture ${invoice.number} sera supprimée définitivement. Cette action est irréversible.`}
-            action={async () => {
-              "use server"
+            action={async () => { "use server"; await runWithFlash(async () => {
               await deleteInvoice(id, userId)
               redirect("/facturation/factures")
-            }}
+            }) }}
           />
         </div>
       )}

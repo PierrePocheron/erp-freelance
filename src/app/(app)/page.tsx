@@ -1,5 +1,5 @@
 import { auth } from "@/lib/auth"
-import { zonedDayStart, zonedDayStartOffset, zonedWeekday, zonedParts, zonedMidnight } from "@/lib/dates"
+import { zonedDayStart, zonedDayStartOffset, zonedWeekday, zonedParts, zonedMidnight, zonedDateKey } from "@/lib/dates"
 import { prisma } from "@/lib/prisma"
 import Link from "next/link"
 import {
@@ -100,7 +100,6 @@ export default async function DashboardPage() {
         client:  { select: { id: true, name: true, company: true } },
       },
       orderBy: { dueDate: "asc" },
-      take: 5,
     }),
     prisma.task.findMany({
       where: {
@@ -113,7 +112,6 @@ export default async function DashboardPage() {
         client:  { select: { id: true, name: true, company: true } },
       },
       orderBy: { updatedAt: "desc" },
-      take: 5,
     }),
     prisma.reminder.findMany({
       where: {
@@ -208,7 +206,6 @@ export default async function DashboardPage() {
         client:  { select: { id: true, name: true, company: true } },
       },
       orderBy: { dueDate: "asc" },
-      take: 10,
     }),
     prisma.renewal.findMany({
       where: { postDev: { project: { userId } }, expiresAt: { lte: in30Days } },
@@ -300,7 +297,6 @@ export default async function DashboardPage() {
         client:  { select: { id: true, name: true, company: true } },
       },
       orderBy: [{ dueDate: "asc" }, { updatedAt: "desc" }],
-      take: 15,
     }),
     // Événements calendrier (manuels + synchronisés) prévus demain
     prisma.calendarEvent.findMany({
@@ -365,7 +361,7 @@ export default async function DashboardPage() {
     clientName: inv.client.company ?? inv.client.name,
     amount: inv.totalHT - inv.depositDeducted,
     dueDate: inv.dueDate ? inv.dueDate.toISOString() : null,
-    isLate: !!inv.dueDate && new Date(inv.dueDate) < new Date(),
+    isLate: !!inv.dueDate && new Date(inv.dueDate) < todayStart,
   }))
   const pendingRevenueItems = pendingRevenues.map((r) => ({
     id: r.id,
@@ -393,7 +389,9 @@ export default async function DashboardPage() {
     const j = Math.floor(h / 24)
     return j === 1 ? "depuis hier" : `depuis ${j} j`
   }
-  const inProgressItems = tasksInProgress.map((t) => ({
+  // Une tâche en cours datée jusqu'à dimanche est déjà dans « À confirmer », « Aujourd'hui & demain »
+  // ou « Tâches » : la carte « En cours » ne garde que les autres (le KPI, lui, les compte toutes).
+  const inProgressItems = tasksInProgress.filter((t) => !t.dueDate || t.dueDate > weekEnd).map((t) => ({
     id: t.id,
     title: t.title,
     href: t.project ? `/projets/${t.project.id}/dev` : "/taches",
@@ -455,12 +453,14 @@ export default async function DashboardPage() {
     .sort((a, b) => a.lastTouch.getTime() - b.lastTouch.getTime())
     .slice(0, 5)
 
-  // Groupes agenda semaine
-  const agendaOverdue      = agendaTasks.filter((t) => t.dueDate && new Date(t.dueDate) < todayStart)
-  const agendaWeek         = agendaTasks.filter((t) => t.dueDate && new Date(t.dueDate) >= todayStart && new Date(t.dueDate) <= weekEnd)
-  const agendaStartedOnly  = agendaTasks.filter((t) => t.status === "IN_PROGRESS" && (!t.dueDate || new Date(t.dueDate) > weekEnd))
-  // Tâches du jour, dérivées d'agendaTasks (évite le doublon avec "Cette semaine") — carte "Aujourd'hui & demain"
-  const agendaToday = agendaTasks.filter((t) => t.dueDate && new Date(t.dueDate).toDateString() === todayStart.toDateString())
+  // Groupes agenda — chaque tâche n'apparaît que dans UNE carte :
+  //   7 derniers jours → « À confirmer » ; aujourd'hui/demain → « Aujourd'hui & demain » ;
+  //   démarrées sans échéance proche → « En cours ». La carte « Tâches » garde le reste.
+  const afterTomorrowStart = zonedDayStartOffset(today, 2)
+  const todayKey = zonedDateKey(today)
+  const agendaOverdue = agendaTasks.filter((t) => t.dueDate && t.dueDate < confirmWindowStart)
+  const agendaWeek    = agendaTasks.filter((t) => t.dueDate && t.dueDate >= afterTomorrowStart && t.dueDate <= weekEnd)
+  const agendaToday   = agendaTasks.filter((t) => t.dueDate && zonedDateKey(t.dueDate) === todayKey)
 
   // ── Carte "À confirmer" — items du passé récent sans confirmation ────────────
   const confirmTaskItems = unconfirmedTasks.map((t) => ({
@@ -506,7 +506,7 @@ export default async function DashboardPage() {
     depenses: has("depenses") ? incompleteExpensesCount : 0,
   }
 
-  const hour = new Date().getHours()
+  const hour = zonedParts(new Date()).hour
   const greeting = hour < 18 ? "Bonjour" : "Bonsoir"
 
   // Module Investissements — résumé (fetch séparé, seulement si le module est actif)
@@ -541,7 +541,7 @@ export default async function DashboardPage() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight">{greeting}, {firstName} 👋</h1>
           <p className="text-muted-foreground text-sm">
-            {new Date().toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
+            {new Date().toLocaleDateString("fr-FR", { timeZone: "Europe/Paris", weekday: "long", day: "numeric", month: "long", year: "numeric" })}
           </p>
         </div>
       </div>
@@ -552,10 +552,10 @@ export default async function DashboardPage() {
       {/* KPI row */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
         {has("projets")     && <KPICard href="/projets"              icon={<Code2 className="h-4 w-4" />}     label="Projets actifs"  value={activeProjects}                                        color="indigo" />}
-        {has("facturation") && <KPICard href="/facturation/factures" icon={<TrendingUp className="h-4 w-4" />} label="En attente"       value={<span className="amount-sensitive">{totalPending.toLocaleString("fr-FR")} €</span>} color="blue"  />}
+        {has("facturation") && <KPICard href="/facturation/factures" icon={<TrendingUp className="h-4 w-4" />} label="Factures en attente" value={<span className="amount-sensitive">{totalPending.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €</span>} color="blue"  />}
         {has("facturation") && <KPICard href="/facturation/factures" icon={<AlertCircle className="h-4 w-4" />} label="En retard"       value={lateInvoices}                                          color={lateInvoices > 0 ? "red" : "muted"} />}
         {has("facturation") && <KPICard href="/facturation/devis"    icon={<Clock className="h-4 w-4" />}      label="Devis envoyés"   value={pendingQuotes}                                         color="amber" />}
-        {has("contacts")    && <KPICard href="/contacts"             icon={<Bell className="h-4 w-4" />}       label="Rappels"         value={upcomingReminders.length}                              color={upcomingReminders.some(r => new Date(r.dueDate) < new Date()) ? "red" : "muted"} />}
+        {has("contacts")    && <KPICard href="/contacts"             icon={<Bell className="h-4 w-4" />}       label="Rappels"         value={upcomingReminders.length}                              color={upcomingReminders.some(r => new Date(r.dueDate) < todayStart) ? "red" : "muted"} />}
         {(has("taches") || has("projets")) && <KPICard href="/taches" icon={<CheckSquare className="h-4 w-4" />} label="En cours"    value={tasksInProgress.length}                                color="emerald" />}
       </div>
 
@@ -568,22 +568,22 @@ export default async function DashboardPage() {
             </p>
             {has("facturation") && (
               <Link href="/facturation/factures" className="group flex items-center gap-1.5 text-xs">
-                <Receipt className="h-3.5 w-3.5 text-violet-500 shrink-0" />
+                <Receipt className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                 <span className="text-muted-foreground group-hover:text-foreground transition-colors">AE</span>
-                <span className="font-semibold tabular-nums text-violet-600 amount-sensitive">{encaisseAE.toLocaleString("fr-FR")} €</span>
+                <span className="font-semibold tabular-nums amount-sensitive">{encaisseAE.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €</span>
               </Link>
             )}
             {has("revenus") && (
               <Link href="/revenus" className="group flex items-center gap-1.5 text-xs">
-                <Wallet className="h-3.5 w-3.5 text-teal-500 shrink-0" />
+                <Wallet className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                 <span className="text-muted-foreground group-hover:text-foreground transition-colors">Autres</span>
-                <span className="font-semibold tabular-nums text-teal-600 amount-sensitive">{encaisseAutres.toLocaleString("fr-FR")} €</span>
+                <span className="font-semibold tabular-nums amount-sensitive">{encaisseAutres.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €</span>
               </Link>
             )}
             <span className="ml-auto flex items-center gap-1.5 text-xs shrink-0">
-              <TrendingUp className="h-3.5 w-3.5 text-emerald-500" />
+              <TrendingUp className="h-3.5 w-3.5 text-muted-foreground" />
               <span className="text-muted-foreground">Total</span>
-              <span className="font-bold tabular-nums text-emerald-600 amount-sensitive">{encaisseTotal.toLocaleString("fr-FR")} €</span>
+              <span className="font-bold tabular-nums amount-sensitive">{encaisseTotal.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €</span>
             </span>
           </div>
         )}
@@ -680,7 +680,7 @@ export default async function DashboardPage() {
                             {ev.category?.name && <p className="text-xs text-muted-foreground">{ev.category.name}</p>}
                           </div>
                           <span className="text-xs text-muted-foreground shrink-0">
-                            {ev.allDay ? "Toute la journée" : new Date(ev.startDate).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}
+                            {ev.allDay ? "Toute la journée" : new Date(ev.startDate).toLocaleTimeString("fr-FR", { timeZone: "Europe/Paris", hour: "2-digit", minute: "2-digit" })}
                           </span>
                         </Link>
                       ))}
@@ -702,7 +702,7 @@ export default async function DashboardPage() {
           )}
 
           {/* Agenda semaine — en retard + cette semaine + en cours */}
-          {(has("taches") || has("projets")) && agendaTasks.length > 0 && (
+          {(has("taches") || has("projets")) && agendaOverdue.length + agendaWeek.length > 0 && (
             <Section title="Tâches" icon={<CheckSquare className="h-4 w-4" />} href="/taches">
               <div>
                 {/* En retard */}
@@ -734,7 +734,7 @@ export default async function DashboardPage() {
                                 {sub && <p className="text-xs text-muted-foreground">{sub}</p>}
                               </div>
                               <span className="text-xs text-red-500 font-medium shrink-0">
-                                {new Date(task.dueDate!).toLocaleDateString("fr-FR", { day: "numeric", month: "short" })}
+                                {new Date(task.dueDate!).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris", day: "numeric", month: "short" })}
                               </span>
                             </Link>
                           </div>
@@ -753,7 +753,6 @@ export default async function DashboardPage() {
                       {agendaWeek.map((task) => {
                         const href = task.project ? `/projets/${task.project.id}/dev` : "/taches"
                         const sub  = task.project?.name ?? task.client?.company ?? task.client?.name ?? null
-                        const isToday = task.dueDate && new Date(task.dueDate).toDateString() === new Date(todayStart).toDateString()
                         return (
                           <div key={task.id} className="flex items-center gap-2 rounded-lg px-3 py-2 hover:bg-muted/50 transition-colors">
                             <form action={async () => {
@@ -773,46 +772,8 @@ export default async function DashboardPage() {
                                 {sub && <p className="text-xs text-muted-foreground">{sub}</p>}
                               </div>
                               {task.dueDate && (
-                                <span className={`text-xs shrink-0 ${isToday ? "text-primary font-medium" : "text-muted-foreground"}`}>
-                                  {isToday ? "Aujourd'hui" : new Date(task.dueDate).toLocaleDateString("fr-FR", { weekday: "short", day: "numeric", month: "short" })}
-                                </span>
-                              )}
-                            </Link>
-                          </div>
-                        )
-                      })}
-                    </div>
-                  </div>
-                )}
-                {/* En cours sans date dans la semaine */}
-                {agendaStartedOnly.length > 0 && (
-                  <div>
-                    <p className="text-[10px] font-semibold uppercase tracking-wider text-amber-600 px-3 pt-2 pb-1">
-                      En cours · {agendaStartedOnly.length}
-                    </p>
-                    <div className="space-y-0.5">
-                      {agendaStartedOnly.map((task) => {
-                        const href = task.project ? `/projets/${task.project.id}/dev` : "/taches"
-                        const sub  = task.project?.name ?? task.client?.company ?? task.client?.name ?? null
-                        return (
-                          <div key={task.id} className="flex items-center gap-2 rounded-lg px-3 py-2 hover:bg-muted/50 transition-colors">
-                            <form action={async () => {
-                              "use server"
-                              const { completeTaskGlobal } = await import("@/actions/projet")
-                              await completeTaskGlobal(task.id)
-                            }}>
-                              <button type="submit" title="Marquer terminée" className="shrink-0 transition-colors">
-                                <PlayCircle className="h-3.5 w-3.5 text-amber-500 hover:text-emerald-500" />
-                              </button>
-                            </form>
-                            <Link href={href} className="flex-1 min-w-0 flex items-center gap-3">
-                              <div className="flex-1 min-w-0">
-                                <p className="text-sm font-medium truncate">{task.title}</p>
-                                {sub && <p className="text-xs text-muted-foreground">{sub}</p>}
-                              </div>
-                              {task.dueDate && (
-                                <span className="text-xs text-muted-foreground shrink-0">
-                                  {new Date(task.dueDate).toLocaleDateString("fr-FR", { day: "numeric", month: "short" })}
+                                <span className="text-xs shrink-0 text-muted-foreground">
+                                  {new Date(task.dueDate).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris", weekday: "short", day: "numeric", month: "short" })}
                                 </span>
                               )}
                             </Link>
@@ -847,7 +808,7 @@ export default async function DashboardPage() {
                       <p className="text-xs text-muted-foreground">{m.project.name}</p>
                     </div>
                     <span className="text-xs text-muted-foreground shrink-0">
-                      {new Date(m.date).toLocaleDateString("fr-FR", { day: "numeric", month: "short" })}
+                      {new Date(m.date).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris", day: "numeric", month: "short" })}
                     </span>
                   </Link>
                 ))}
@@ -870,7 +831,7 @@ export default async function DashboardPage() {
                       </div>
                       <span className={`text-xs shrink-0 ${isExpired ? "text-red-500 font-medium" : "text-amber-600"}`}>
                         {isExpired ? "Expiré · " : ""}
-                        {new Date(r.expiresAt).toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" })}
+                        {new Date(r.expiresAt).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris", day: "numeric", month: "short", year: "numeric" })}
                       </span>
                     </Link>
                   )
@@ -880,7 +841,7 @@ export default async function DashboardPage() {
           )}
 
           {/* Monitoring des prods */}
-          {has("projets") && <ProdMonitorCard prods={prods} />}
+          {has("projets") && prods.length > 0 && <ProdMonitorCard prods={prods} />}
 
           {/* Entretiens — candidatures actives */}
           {has("entretien") && <JobHuntCard applications={jobAppItems} />}
@@ -905,12 +866,12 @@ export default async function DashboardPage() {
                     <p className="text-lg font-bold">{prospectsActive.length}</p>
                     <p className="text-[10px] text-muted-foreground leading-tight">En pipeline</p>
                   </Link>
-                  <Link href="/prospection?statut=TO_CONTACT" className={cn("rounded-lg px-2 py-2 text-center transition-colors", prospectsToContact.length > 0 ? "bg-blue-500/10 hover:bg-blue-500/15" : "bg-muted/40 hover:bg-muted/70")}>
-                    <p className={cn("text-lg font-bold", prospectsToContact.length > 0 ? "text-blue-600" : "")}>{prospectsToContact.length}</p>
+                  <Link href="/prospection?statut=TO_CONTACT" className="rounded-lg bg-muted/40 px-2 py-2 text-center hover:bg-muted/70 transition-colors">
+                    <p className="text-lg font-bold">{prospectsToContact.length}</p>
                     <p className="text-[10px] text-muted-foreground leading-tight">À contacter</p>
                   </Link>
-                  <Link href="/prospection" className={cn("rounded-lg px-2 py-2 text-center transition-colors", prospectsStale.length > 0 ? "bg-amber-500/10 hover:bg-amber-500/15" : "bg-muted/40 hover:bg-muted/70")}>
-                    <p className={cn("text-lg font-bold", prospectsStale.length > 0 ? "text-amber-600" : "")}>{prospectsStale.length}</p>
+                  <Link href="/prospection" className="rounded-lg bg-muted/40 px-2 py-2 text-center hover:bg-muted/70 transition-colors">
+                    <p className="text-lg font-bold">{prospectsStale.length}</p>
                     <p className="text-[10px] text-muted-foreground leading-tight">Sans contact 30j</p>
                   </Link>
                 </div>
@@ -943,7 +904,7 @@ export default async function DashboardPage() {
                         <p className="text-xs font-medium truncate flex-1">{p.company ?? p.name}</p>
                         <span className="text-[10px] text-muted-foreground shrink-0">
                           {p.interactions[0]?.date
-                            ? new Date(p.interactions[0].date).toLocaleDateString("fr-FR", { day: "numeric", month: "short" })
+                            ? new Date(p.interactions[0].date).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris", day: "numeric", month: "short" })
                             : "Jamais contacté"}
                         </span>
                       </Link>
@@ -975,7 +936,7 @@ export default async function DashboardPage() {
                         <p className="text-sm font-medium">{r.client.name}</p>
                         {r.note && <p className="text-xs text-muted-foreground truncate">{r.note}</p>}
                         <p className={`text-xs ${isLate ? "text-red-500 font-medium" : "text-muted-foreground"}`}>
-                          {new Date(r.dueDate).toLocaleDateString("fr-FR", { day: "numeric", month: "short" })}
+                          {new Date(r.dueDate).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris", day: "numeric", month: "short" })}
                           {isLate && " · En retard"}
                         </p>
                       </Link>
@@ -997,7 +958,7 @@ export default async function DashboardPage() {
                       <p className="text-sm font-medium">{i.client.name}</p>
                       <p className="text-xs text-muted-foreground truncate">{i.summary}</p>
                       <p className="text-xs text-muted-foreground">
-                        {new Date(i.date).toLocaleDateString("fr-FR", { day: "numeric", month: "short" })}
+                        {new Date(i.date).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris", day: "numeric", month: "short" })}
                       </p>
                     </div>
                   </Link>
@@ -1028,8 +989,10 @@ export default async function DashboardPage() {
           )}
 
           {/* Tous ok — affiché si tous les widgets visibles sont vides */}
-          {(!(has("taches") || has("projets")) || agendaTasks.length === 0) &&
+          {(!(has("taches") || has("projets")) || agendaTasks.length + inProgressItems.length === 0) &&
            (!has("facturation") || unpaidInvoices.length === 0) &&
+           (!has("revenus") || pendingRevenues.length === 0) &&
+           (!has("sante") || pendingReimbursements.length === 0) &&
            (!has("contacts") || (upcomingReminders.length === 0 && recentInteractions.length === 0 && followUpClients.length === 0)) &&
            (!has("prospection") || dashboardProspects.length === 0) &&
            (!has("projets") || (prods.length === 0 && upcomingMilestones.length === 0 && upcomingRenewals.length === 0)) &&
@@ -1057,12 +1020,14 @@ function KPICard({
   value: React.ReactNode
   color: "indigo" | "blue" | "amber" | "red" | "emerald" | "muted"
 }) {
+  // Seul le rouge porte une information (retard, rappel dépassé) : les autres
+  // teintes faisaient un arc-en-ciel de libellés sans rien signifier de plus.
   const colorMap = {
-    indigo: "text-indigo-600",
-    blue: "text-blue-600",
-    amber: "text-amber-600",
+    indigo: "text-muted-foreground",
+    blue: "text-muted-foreground",
+    amber: "text-muted-foreground",
     red: "text-red-600",
-    emerald: "text-emerald-600",
+    emerald: "text-muted-foreground",
     muted: "text-muted-foreground",
   }
   return (

@@ -1,3 +1,4 @@
+import { eur0, eur2 } from "@/lib/format"
 // Calculs purs du module Investissements (importable serveur + client, testable).
 //
 // Modèle : chaque relevé (InvestmentEntry) porte le CAPITAL total sur la plateforme
@@ -340,7 +341,7 @@ export function computeMonthlySeries(platforms: { entries: EntryLite[] }[], from
     cumulGain += gain
     rows.push({
       ym: `${y}-${String(m + 1).padStart(2, "0")}`,
-      label: new Date(y, m, 1).toLocaleDateString("fr-FR", { month: "short", year: "numeric" }),
+      label: new Date(y, m, 1).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris", month: "short", year: "numeric" }),
       value: valEnd,
       deposits,
       withdrawals,
@@ -444,10 +445,9 @@ export function aggregateGlobal(stats: PlatformStats[]): GlobalStats {
 // ── Formatage ─────────────────────────────────────────────────────────────────
 // Espace INSÉCABLE ( ) avant € / % : correct en typographie française et évite que
 // « 6 260 » et « € » se retrouvent sur deux lignes (wrap dans l'infobulle du graphe).
-export const fmtEur = (n: number) =>
-  `${n.toLocaleString("fr-FR", { minimumFractionDigits: 0, maximumFractionDigits: 0 })} €`
-export const fmtEur2 = (n: number) =>
-  `${n.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`
+// Montants : délégués au module partagé (lib/format.ts, #44) — zéro normalisé, espace insécable.
+export const fmtEur = eur0
+export const fmtEur2 = eur2
 export const fmtPct = (r: number) =>
-  `${(r * 100).toLocaleString("fr-FR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })} %`
+  `${(Math.round(r * 1000) / 10 || 0).toLocaleString("fr-FR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })} %`
 export const fmtPctSigned = (r: number) => `${r >= 0 ? "+" : ""}${fmtPct(r)}`

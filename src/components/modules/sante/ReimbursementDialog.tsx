@@ -1,5 +1,6 @@
 "use client"
 
+import { zonedDateKey } from "@/lib/dates"
 import { useState, useTransition } from "react"
 import { X, Trash2 } from "lucide-react"
 import { toast } from "sonner"
@@ -9,10 +10,10 @@ import type { HReimbursement, HConsultation } from "./HealthView"
 import type { ReimbursementSource, ReimbursementStatus } from "@/generated/prisma/enums"
 
 const toISO = (d: Date | string | null | undefined) =>
-  d ? new Date(d).toISOString().split("T")[0] : ""
+  d ? zonedDateKey(new Date(d)) : ""
 
 const fmtShort = (d: Date | string) =>
-  new Date(d).toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" })
+  new Date(d).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris", day: "numeric", month: "short", year: "numeric" })
 
 export function ReimbursementDialog({
   item,
@@ -75,7 +76,7 @@ export function ReimbursementDialog({
 
   return (
     <Dialog open onOpenChange={(o) => { if (!o) onClose() }}>
-      <DialogContent showCloseButton={false} className="sm:max-w-md max-h-[90vh] overflow-y-auto p-0 gap-0">
+      <DialogContent showCloseButton={false} className="sm:max-w-md max-h-[85dvh] overflow-y-auto p-0 gap-0">
         <div className="flex items-center justify-between px-5 py-4 border-b border-border/50 sticky top-0 bg-background">
           <DialogTitle className="text-sm font-semibold">{item ? "Modifier" : "Ajouter"} un remboursement</DialogTitle>
           <button onClick={onClose} className="text-muted-foreground hover:text-foreground transition-colors">
@@ -219,7 +220,7 @@ export function ReimbursementDialog({
                 type="submit" disabled={isPending || !amount || parseFloat(amount) <= 0}
                 className="h-8 px-4 rounded-lg bg-primary text-primary-foreground text-sm font-medium disabled:opacity-40 hover:bg-primary/90 transition-colors"
               >
-                {isPending ? "…" : item ? "Mettre à jour" : "Enregistrer"}
+                {isPending ? "Enregistrement…" : item ? "Enregistrer" : "Ajouter"}
               </button>
             </div>
           </div>

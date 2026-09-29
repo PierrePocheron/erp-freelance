@@ -6,6 +6,7 @@ import { Search, Loader2 } from "lucide-react"
 import { searchGlobal, type SearchResult } from "@/actions/search"
 import { useModules, type ModuleId } from "@/hooks/use-modules"
 import { cn } from "@/lib/utils"
+import { toast } from "sonner"
 
 type NavItem = {
   label:     string
@@ -59,6 +60,8 @@ const TYPE_ICON: Record<string, string> = {
   revenue:              "💰",
   skill:                "🧠",
   investment_platform:  "📈",
+  calendar_event:       "📅",
+  urssaf_declaration:   "🏛️",
 }
 
 const TYPE_LABEL: Record<string, string> = {
@@ -78,6 +81,8 @@ const TYPE_LABEL: Record<string, string> = {
   revenue:              "Revenu",
   skill:                "Compétence",
   investment_platform:  "Investissement",
+  calendar_event:       "Événement",
+  urssaf_declaration:   "URSSAF",
 }
 
 /**
@@ -151,8 +156,15 @@ export function CommandPalette() {
     setSearching(true)
     const t = setTimeout(() => {
       startTransition(async () => {
-        const r = await searchGlobal(query, [...activeModules])
-        setResults(r)
+        try {
+          const r = await searchGlobal(query, [...activeModules])
+          setResults(r)
+        } catch {
+          // La palette vit dans le layout, hors de error.tsx : une erreur non
+          // interceptée donnait l'écran blanc de Next.
+          setResults([])
+          toast.error("Recherche indisponible")
+        }
         setSelected(0)
         setSearching(false)
       })
@@ -162,6 +174,11 @@ export function CommandPalette() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [query])
 
+  // L'élément choisi aux flèches reste visible dans la liste qui défile
+  useEffect(() => {
+    document.querySelector("[data-selected]")?.scrollIntoView({ block: "nearest" })
+  }, [selected])
+
   // Nav items filteredinstantly (client-side)
   const navMatches = query.length >= 2 ? NAV_ITEMS.filter((item) => matchNavItem(item, query)) : []
 
@@ -169,7 +186,8 @@ export function CommandPalette() {
   const listItems: Array<{ href: string }> =
     query.length < 2
       ? NAV_ITEMS
-      : [...navMatches, ...results]
+      // Pendant une recherche, les résultats précédents sont masqués : Entrée ne doit pas les ouvrir.
+      : [...navMatches, ...(searching || isPending ? [] : results)]
 
   const total = listItems.length
 
@@ -193,7 +211,7 @@ export function CommandPalette() {
   return (
     <div
       // Mobile : collée en haut pour laisser la place au clavier iOS
-      className="fixed inset-0 z-50 flex items-start justify-center pt-4 sm:pt-[18vh]"
+      className="fixed inset-0 z-50 flex items-start justify-center pt-[max(1rem,env(safe-area-inset-top))] sm:pt-[18vh]"
       onClick={() => setOpen(false)}
     >
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
@@ -239,6 +257,7 @@ export function CommandPalette() {
                     "w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-left transition-colors",
                     i === selected ? "bg-accent text-accent-foreground" : "hover:bg-accent/50"
                   )}
+                  data-selected={i === selected || undefined}
                 >
                   <span className="text-base leading-none w-5 text-center shrink-0">{item.icon}</span>
                   <span>{item.label}</span>
@@ -262,6 +281,7 @@ export function CommandPalette() {
                         "w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-left transition-colors",
                         i === selected ? "bg-accent text-accent-foreground" : "hover:bg-accent/50"
                       )}
+                      data-selected={i === selected || undefined}
                     >
                       <span className="text-base leading-none w-5 text-center shrink-0">{item.icon}</span>
                       <span className="flex-1 truncate">{item.label}</span>
@@ -289,13 +309,15 @@ export function CommandPalette() {
                         "w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-left transition-colors",
                         navMatches.length + i === selected ? "bg-accent text-accent-foreground" : "hover:bg-accent/50"
                       )}
+                      data-selected={navMatches.length + i === selected || undefined}
                     >
                       <span className="text-base leading-none w-5 text-center shrink-0">
                         {TYPE_ICON[r.type]}
                       </span>
                       <div className="min-w-0 flex-1">
                         <p className="truncate font-medium">{r.label}</p>
-                        {r.sublabel && <p className="text-xs text-muted-foreground truncate">{r.sublabel}</p>}
+                        {/* amount-sensitive : les sous-libellés de devis/factures/dépenses/revenus portent des montants */}
+                        {r.sublabel && <p className="text-xs text-muted-foreground truncate amount-sensitive">{r.sublabel}</p>}
                       </div>
                       <span className="text-[10px] text-muted-foreground bg-muted border border-border px-1.5 py-0.5 rounded font-mono shrink-0">
                         {TYPE_LABEL[r.type]}

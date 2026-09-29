@@ -79,7 +79,7 @@ export function DatePicker({
   while (cells.length % 7 !== 0) cells.push(null)
 
   const label = selected
-    ? selected.toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" })
+    ? selected.toLocaleDateString("fr-FR", { timeZone: "Europe/Paris", day: "numeric", month: "short", year: "numeric" })
     : placeholder
 
   return (
@@ -102,7 +102,7 @@ export function DatePicker({
                 <ChevronLeft className="h-4 w-4" />
               </button>
               <span className="text-sm font-medium capitalize">
-                {viewMonth.toLocaleDateString("fr-FR", { month: "long", year: "numeric" })}
+                {viewMonth.toLocaleDateString("fr-FR", { timeZone: "Europe/Paris", month: "long", year: "numeric" })}
               </span>
               <button type="button"
                 onClick={() => setViewMonth(new Date(year, month + 1, 1))}

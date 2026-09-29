@@ -32,9 +32,11 @@ const ALL_STATUSES = Object.keys(statusConfig) as ProjectStatusKey[]
 
 /** Menu déroulant de filtre compact, multi-sélection, avec pastille colorée par option. */
 function FilterDropdown<T extends string>({
-  label, icon, options, selected, onToggle, onClear,
+  label, icon, options, selected, onToggle, onClear, align = "right",
 }: {
   label: string
+  /** Côté d'ancrage du menu : « left » pour un bouton proche du bord gauche (sinon coupé à 375 px) */
+  align?: "left" | "right"
   icon: React.ReactNode
   options: { value: T; label: string; count: number; swatch: React.ReactNode }[]
   selected: Set<T>
@@ -79,7 +81,7 @@ function FilterDropdown<T extends string>({
         <ChevronDown className={cn("h-3.5 w-3.5 transition-transform", open && "rotate-180")} />
       </button>
       {open && (
-        <div className="absolute right-0 z-30 mt-1 min-w-[14rem] rounded-xl border border-border bg-card shadow-xl p-1">
+        <div className={cn("absolute z-30 mt-1 min-w-[14rem] rounded-xl border border-border bg-card shadow-xl p-1", align === "left" ? "left-0" : "right-0")}>
           {options.map((o) => {
             const on = selected.has(o.value)
             return (
@@ -261,6 +263,7 @@ export function ProjetsListView({
           {/* Filtre Type (catégorie) — sélecteur compact multi-choix, couleurs + motifs des bannières */}
           <FilterDropdown
             label="Type"
+            align="left"
             icon={<SlidersHorizontal className="h-3.5 w-3.5" />}
             options={ALL_CATEGORIES.map((c) => ({
               value: c,
@@ -363,7 +366,19 @@ export function ProjetsListView({
         <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border py-20 text-center">
           <Layers className="h-10 w-10 text-muted-foreground mb-3" />
           <p className="font-medium">Aucun projet pour le moment</p>
-          <p className="text-sm text-muted-foreground mt-1">Créez votre premier projet pour commencer</p>
+          <p className="text-sm text-muted-foreground mt-1 mb-4">Créez votre premier projet pour commencer</p>
+          <CreateProjectDialog userId={userId} companies={companies} contacts={contacts} jobApplications={jobApplications} />
+        </div>
+      ) : filtered.length === 0 ? (
+        <div className="rounded-xl border border-dashed border-border py-16 text-center text-sm text-muted-foreground">
+          Aucun projet ne correspond ·{" "}
+          <button
+            type="button"
+            onClick={() => { setSearch(""); setStatusFilter(new Set()); setCategoryFilter(new Set()) }}
+            className="text-primary hover:underline"
+          >
+            Effacer les filtres
+          </button>
         </div>
       ) : view === "cards" ? (
         <div className="space-y-6">
@@ -506,12 +521,12 @@ export function ProjetsListView({
                       {p.endDate ? (
                         <span className="flex items-center gap-1">
                           <Calendar className="h-3 w-3" />
-                          {new Date(p.endDate).toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" })}
+                          {new Date(p.endDate).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris", day: "numeric", month: "short", year: "numeric" })}
                         </span>
                       ) : "—"}
                     </td>
                     <td className="px-4 py-3 text-xs text-muted-foreground hidden lg:table-cell whitespace-nowrap">
-                      {new Date(p.lastActivityAt).toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" })}
+                      {new Date(p.lastActivityAt).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris", day: "numeric", month: "short", year: "numeric" })}
                     </td>
                   </tr>
                 )

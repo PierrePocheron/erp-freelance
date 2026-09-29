@@ -10,8 +10,8 @@ import { ExpenseDonutChart, type DonutSegment } from "./ExpenseDonutChart"
 import { ExpenseDialog } from "./ExpenseDialog"
 import { RecurringExpenseDialog } from "./RecurringExpenseDialog"
 import type { ExpenseCategory } from "./ExpenseCategoryCombobox"
+import { amountAuto as fmt } from "@/lib/format"
 
-const fmt = (n: number) => n.toLocaleString("fr-FR", { maximumFractionDigits: 0 })
 
 function monthlyEquivalent(amount: number, frequency: string): number {
   if (frequency === "WEEKLY") return (amount * 52) / 12
@@ -122,7 +122,7 @@ export function DepensesView({
   const monthStart = useMemo(() => new Date(viewYear, viewMonth1 - 1, 1), [viewYear, viewMonth1])
   const monthEnd = useMemo(() => new Date(viewYear, viewMonth1, 0, 23, 59, 59), [viewYear, viewMonth1])
   const isCurrentMonth = monthKey === currentKey
-  const monthLabel = monthStart.toLocaleDateString("fr-FR", { month: "long", year: "numeric" })
+  const monthLabel = monthStart.toLocaleDateString("fr-FR", { timeZone: "Europe/Paris", month: "long", year: "numeric" })
 
   const activeRecurring = recurringExpenses.filter((r) => r.isActive)
 
@@ -302,7 +302,7 @@ export function DepensesView({
           )}
         </div>
 
-        <div className="rounded-xl border border-border/50 bg-card p-5 space-y-4 lg:col-span-2">
+        <div className="rounded-xl border border-border/50 bg-card p-5 space-y-4 lg:col-span-2 order-first lg:order-none">
           {/* En-tête de carte : titre + navigation entre les mois */}
           <div className="flex items-center justify-between gap-3 flex-wrap">
             <h2 className="font-semibold text-sm capitalize">Dépenses — {monthLabel}</h2>
@@ -326,7 +326,7 @@ export function DepensesView({
           {monthRows.length === 0 ? (
             <p className="text-xs text-muted-foreground italic">Aucune dépense sur ce mois</p>
           ) : (
-            <div className="space-y-1.5 max-h-[520px] overflow-y-auto pr-1">
+            <div className="space-y-1.5 lg:max-h-[520px] lg:overflow-y-auto lg:pr-1">
               {monthRows.map((row) => row.kind === "REAL" ? (
                 <div key={`e-${row.e.id}`} className="flex items-center gap-3 py-1.5 group">
                   <span className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: row.e.category?.color ?? "#94a3b8" }} />
@@ -353,7 +353,7 @@ export function DepensesView({
                     </span>
                   )}
                   <span className="shrink-0 text-xs text-muted-foreground whitespace-nowrap">
-                    {new Date(row.e.date).toLocaleDateString("fr-FR", { day: "numeric", month: "short" })}
+                    {new Date(row.e.date).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris", day: "numeric", month: "short" })}
                   </span>
                   <span className="shrink-0 text-sm font-medium tabular-nums w-16 text-right amount-sensitive">{fmt(row.e.amount)} €</span>
                   {/* Colonne pause/reprise à largeur FIXE : présente sur toutes les
@@ -404,7 +404,7 @@ export function DepensesView({
                     {FREQUENCY_LABELS[row.r.frequency]}
                   </span>
                   <span className="shrink-0 text-xs text-muted-foreground whitespace-nowrap">
-                    {row.kind === "NODATE" ? "—" : row.date.toLocaleDateString("fr-FR", { day: "numeric", month: "short" })}
+                    {row.kind === "NODATE" ? "—" : row.date.toLocaleDateString("fr-FR", { timeZone: "Europe/Paris", day: "numeric", month: "short" })}
                   </span>
                   <span className="shrink-0 text-sm font-medium tabular-nums w-16 text-right amount-sensitive">{fmt(row.r.amount)} €</span>
                   <div className="w-4 shrink-0 flex justify-center">

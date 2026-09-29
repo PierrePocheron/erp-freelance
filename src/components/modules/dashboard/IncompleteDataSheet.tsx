@@ -1,4 +1,5 @@
 "use client"
+import { toast } from "sonner"
 
 import { useEffect, useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
@@ -9,6 +10,7 @@ import { ContactRow, type IncompleteContact } from "@/components/modules/crm/Inc
 import { updateCompany } from "@/actions/crm"
 import { updateRevenue } from "@/actions/revenue"
 import { confirmRecurringExpenseDate } from "@/actions/expense"
+import { amountAuto } from "@/lib/format"
 
 // Ouvre le volet depuis n'importe où (carte « À traiter » de l'accueil mobile).
 export const OPEN_INCOMPLETE_SHEET_EVENT = "erp:open-incomplete-sheet"
@@ -167,7 +169,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 const inputCls =
   "w-full h-8 rounded-md border border-input bg-background px-2 text-xs placeholder:text-muted-foreground/40 focus:outline-none focus:ring-1 focus:ring-ring"
 const saveCls =
-  "w-full flex items-center justify-center gap-1.5 rounded-md bg-amber-600 text-white text-xs font-medium py-1.5 hover:bg-amber-700 disabled:opacity-50 transition-colors"
+  "w-full flex items-center justify-center gap-1.5 rounded-md bg-primary text-primary-foreground text-xs font-medium py-1.5 hover:bg-primary/90 disabled:opacity-50 transition-colors"
 
 // ── Société : renseigner le site web ────────────────────────────────────────
 
@@ -235,11 +237,13 @@ function RevenueRow({
   function handleSave() {
     if (!hasChoice) return
     startTransition(async () => {
-      await updateRevenue(revenue.id, {
+      const res = await updateRevenue(revenue.id, {
         ...(companyId ? { companyId } : {}),
         ...(clientId ? { clientId } : {}),
         ...(projectId ? { projectId } : {}),
       })
+      // L'erreur était ignorée : le volet se fermait comme en cas de succès
+      if (res?.error) { toast.error(res.error); return }
       onDone()
       router.refresh()
     })
@@ -256,7 +260,7 @@ function RevenueRow({
           <span className="truncate">{revenue.label}</span>
         </p>
         <span className="shrink-0 text-xs font-semibold tabular-nums amount-sensitive">
-          {revenue.amount.toLocaleString("fr-FR")} €
+          {amountAuto(revenue.amount)} €
         </span>
       </div>
       <div className="grid grid-cols-1 gap-1.5">
@@ -313,7 +317,7 @@ function RecurringRow({ expense, onDone }: { expense: IncompleteRecurring; onDon
           <span className="truncate">{expense.label}</span>
         </p>
         <span className="shrink-0 text-xs font-semibold tabular-nums amount-sensitive">
-          {expense.amount.toLocaleString("fr-FR")} €
+          {amountAuto(expense.amount)} €
         </span>
       </div>
       <input

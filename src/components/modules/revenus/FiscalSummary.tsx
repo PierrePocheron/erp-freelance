@@ -6,6 +6,8 @@ import { ChevronLeft, ChevronRight, FileDown, Users, CalendarDays } from "lucide
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
+import { zonedParts } from "@/lib/dates"
+import { amount0 as fmt } from "@/lib/format"
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -62,12 +64,9 @@ const BUCKET_BADGE: Record<string, string> = {
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
-function fmt(n: number) {
-  return n.toLocaleString("fr-FR", { minimumFractionDigits: 0, maximumFractionDigits: 0 })
-}
 
 function fmtDate(iso: string) {
-  return new Date(iso).toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" })
+  return new Date(iso).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris", day: "numeric", month: "short", year: "numeric" })
 }
 
 function periodToMonthIndex(period: string): number {
@@ -76,8 +75,9 @@ function periodToMonthIndex(period: string): number {
   return parseInt(parts[1]) - 1
 }
 
+// Mois en heure de Paris : getMonth() suivait le fuseau du rendu (UTC côté serveur)
 function paidAtToMonthIndex(paidAt: string): number {
-  return new Date(paidAt).getMonth()
+  return zonedParts(new Date(paidAt)).month - 1
 }
 
 /** Nom d'affichage du client : "Prénom Nom · Société" ou juste l'un ou l'autre */
@@ -136,7 +136,8 @@ export function FiscalSummary({
 
     for (const r of revenues) {
       if (r.fiscalSourceId !== src.id) continue
-      const mi = r.period ? periodToMonthIndex(r.period) : (r.receivedAt ? paidAtToMonthIndex(r.receivedAt) : -1)
+      // Date d'encaissement d'abord (même clé que la requête de l'exercice), période à défaut
+      const mi = r.receivedAt ? paidAtToMonthIndex(r.receivedAt) : (r.period ? periodToMonthIndex(r.period) : -1)
       if (mi < 0 || mi > 11) continue
       months[mi].total += r.amount
       months[mi].details.push({ label: r.label, amount: r.amount })

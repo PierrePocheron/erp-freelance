@@ -2,34 +2,11 @@
 
 import { prisma } from "@/lib/prisma"
 import { requireAuth } from "@/lib/require-auth"
+import { zonedDateKey } from "@/lib/dates"
+import { assertOwnedRefs } from "@/lib/owned-refs"
 import { revalidatePath } from "next/cache"
 
 // ── Revenus ────────────────────────────────────────────────────────────────────
-
-export async function getRevenues(params?: {
-  year?: number
-  month?: number
-  type?: string
-}) {
-  const userId = await requireAuth()
-
-  const where: Record<string, unknown> = { userId }
-
-  if (params?.type) where.type = params.type
-
-  if (params?.year !== undefined && params?.month !== undefined) {
-    const m = String(params.month).padStart(2, "0")
-    where.period = `${params.year}-${m}`
-  } else if (params?.year !== undefined) {
-    where.period = { startsWith: `${params.year}-` }
-  }
-
-  return prisma.revenue.findMany({
-    where,
-    orderBy: [{ period: "desc" }, { createdAt: "desc" }],
-    include: { recurringRevenue: { select: { id: true, label: true } } },
-  })
-}
 
 export async function createRevenue(data: {
   type: string
@@ -216,16 +193,6 @@ export async function deleteRevenue(id: string): Promise<{ error?: string }> {
 
 // ── Revenus récurrents ─────────────────────────────────────────────────────────
 
-export async function getRecurringRevenues() {
-  const userId = await requireAuth()
-
-  return prisma.recurringRevenue.findMany({
-    where: { userId },
-    orderBy: { createdAt: "asc" },
-    include: { _count: { select: { revenues: true } } },
-  })
-}
-
 export async function createRecurringRevenue(data: {
   type: string
   label: string
@@ -237,11 +204,14 @@ export async function createRecurringRevenue(data: {
   companyId?: string | null
   clientId?: string | null
   projectId?: string | null
+  fiscalSourceId?: string | null
 }): Promise<{ error?: string; id?: string }> {
   const userId = await requireAuth()
 
   if (!data.label.trim()) return { error: "Le libellé est requis" }
   if (!data.amount || data.amount <= 0) return { error: "Le montant doit être positif" }
+  const refsError = await recurringRefsError(userId, data)
+  if (refsError) return { error: refsError }
 
   try {
     const rec = await prisma.recurringRevenue.create({
@@ -257,6 +227,7 @@ export async function createRecurringRevenue(data: {
         companyId:     data.companyId ?? null,
         clientId:      data.clientId ?? null,
         projectId:     data.projectId ?? null,
+        fiscalSourceId: data.fiscalSourceId ?? null,
       },
     })
     revalidatePath("/revenus")
@@ -279,12 +250,15 @@ export async function updateRecurringRevenue(
     companyId?: string | null
     clientId?: string | null
     projectId?: string | null
+    fiscalSourceId?: string | null
   }
 ): Promise<{ error?: string }> {
   const userId = await requireAuth()
 
   const existing = await prisma.recurringRevenue.findFirst({ where: { id, userId } })
   if (!existing) return { error: "Modèle récurrent introuvable" }
+  const refsError = await recurringRefsError(userId, data)
+  if (refsError) return { error: refsError }
 
   await prisma.recurringRevenue.update({
     where: { id },
@@ -299,10 +273,35 @@ export async function updateRecurringRevenue(
       ...(data.companyId !== undefined     ? { companyId: data.companyId }           : {}),
       ...(data.clientId !== undefined      ? { clientId: data.clientId }             : {}),
       ...(data.projectId !== undefined     ? { projectId: data.projectId }           : {}),
+      ...(data.fiscalSourceId !== undefined ? { fiscalSourceId: data.fiscalSourceId } : {}),
     },
   })
+  // Source ajoutée après coup : les revenus déjà générés sans source la reçoivent aussi
+  // (sinon les mois passés restaient à 0 € dans le récapitulatif fiscal).
+  if (data.fiscalSourceId) {
+    await prisma.revenue.updateMany({
+      where: { userId, recurringRevenueId: id, fiscalSourceId: null },
+      data: { fiscalSourceId: data.fiscalSourceId },
+    })
+  }
   revalidatePath("/revenus")
   return {}
+}
+
+// Anti-IDOR des références d'un modèle récurrent (société, contact, projet, source fiscale)
+async function recurringRefsError(
+  userId: string,
+  data: { companyId?: string | null; clientId?: string | null; projectId?: string | null; fiscalSourceId?: string | null },
+): Promise<string | null> {
+  try {
+    await assertOwnedRefs(userId, { companyId: data.companyId, clientId: data.clientId, projectId: data.projectId })
+  } catch (e) {
+    return e instanceof Error ? e.message : "Référence invalide"
+  }
+  if (data.fiscalSourceId && !(await prisma.fiscalSource.findFirst({ where: { id: data.fiscalSourceId, userId }, select: { id: true } }))) {
+    return "Source fiscale introuvable"
+  }
+  return null
 }
 
 export async function deleteRecurringRevenue(id: string): Promise<{ error?: string }> {
@@ -314,6 +313,11 @@ export async function deleteRecurringRevenue(id: string): Promise<{ error?: stri
   await prisma.recurringRevenue.delete({ where: { id } })
   revalidatePath("/revenus")
   return {}
+}
+
+/** Rattachements recopiés du modèle récurrent vers chaque revenu généré (#37). */
+function inheritedFrom(rec: { fiscalSourceId: string | null; companyId: string | null; clientId: string | null; projectId: string | null }) {
+  return { fiscalSourceId: rec.fiscalSourceId, companyId: rec.companyId, clientId: rec.clientId, projectId: rec.projectId }
 }
 
 /**
@@ -344,7 +348,7 @@ export async function generateRevenueFromRecurring(
     data: {
       userId,
       type:              rec.type,
-      label:             `${rec.label} — ${new Date(year, month - 1).toLocaleDateString("fr-FR", { month: "long", year: "numeric" })}`,
+      label:             `${rec.label} — ${new Date(year, month - 1).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris", month: "long", year: "numeric" })}`,
       amount:            rec.amount,
       currency:          rec.currency,
       status:            "PENDING",
@@ -352,6 +356,7 @@ export async function generateRevenueFromRecurring(
       notes:             rec.notes,
       period,
       recurringRevenueId: rec.id,
+      ...inheritedFrom(rec),
     },
   })
 
@@ -378,7 +383,7 @@ export async function generatePendingRecurringRevenues(): Promise<{ generated: n
   })
 
   const now = new Date()
-  const currentPeriod = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`
+  const currentPeriod = zonedDateKey(now).slice(0, 7) // mois de Paris (la prod est en UTC)
   let generated = 0
 
   for (const rec of recs) {
@@ -400,7 +405,7 @@ export async function generatePendingRecurringRevenues(): Promise<{ generated: n
           data: {
             userId,
             type:              rec.type,
-            label:             `${rec.label} — ${cursor.toLocaleDateString("fr-FR", { month: "long", year: "numeric" })}`,
+            label:             `${rec.label} — ${cursor.toLocaleDateString("fr-FR", { timeZone: "Europe/Paris", month: "long", year: "numeric" })}`,
             amount:            rec.amount,
             currency:          rec.currency,
             status:            "PENDING",
@@ -408,6 +413,7 @@ export async function generatePendingRecurringRevenues(): Promise<{ generated: n
             notes:             rec.notes,
             period,
             recurringRevenueId: rec.id,
+            ...inheritedFrom(rec),
           },
         })
         generated++

@@ -4,6 +4,7 @@ import { useTransition } from "react"
 import { useRouter } from "next/navigation"
 import { CheckCircle2, Circle, Loader2 } from "lucide-react"
 import { updateMilestoneStatus } from "@/actions/projet"
+import { toast } from "sonner"
 
 /**
  * Bouton d'avancement d'un jalon (À venir → En cours → Terminé → À venir),
@@ -24,8 +25,12 @@ export function MilestoneToggle({
   function toggle() {
     const next = status === "UPCOMING" ? "IN_PROGRESS" : status === "IN_PROGRESS" ? "DONE" : "UPCOMING"
     startTransition(async () => {
-      await updateMilestoneStatus(milestoneId, projectId, next)
-      router.refresh()
+      try {
+        await updateMilestoneStatus(milestoneId, projectId, next)
+        router.refresh()
+      } catch {
+        toast.error("Échec de l'enregistrement")
+      }
     })
   }
 

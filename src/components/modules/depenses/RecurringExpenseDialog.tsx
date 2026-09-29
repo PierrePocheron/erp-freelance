@@ -58,7 +58,8 @@ export function RecurringExpenseDialog({
     e.preventDefault()
     const amountNum = parseFloat(amount.replace(",", "."))
     // Une dépense ponctuelle exige une date ; une récurrente peut être « à compléter ».
-    if (!label.trim() || !amountNum || amountNum <= 0) return
+    if (!(amountNum > 0)) { toast.error("Montant invalide : saisis un nombre supérieur à 0"); return }
+    if (!label.trim()) return
     if (isOneTime && !nextDate) return
     if (!isOneTime && !dateToConfirm && !nextDate) return
 

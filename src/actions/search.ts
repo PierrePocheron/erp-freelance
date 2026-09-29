@@ -67,6 +67,7 @@ export async function searchGlobal(query: string, activeModuleIds?: string[]): P
         OR: [
           { name: { contains: query, mode: "insensitive" } },
           { company: { contains: query, mode: "insensitive" } },
+          { email: { contains: query, mode: "insensitive" } },
         ],
       },
       take: 4,
@@ -83,6 +84,7 @@ export async function searchGlobal(query: string, activeModuleIds?: string[]): P
       where: { userId, OR: [
         { number: { contains: query, mode: "insensitive" } },
         { client: { name: { contains: query, mode: "insensitive" } } },
+        { client: { company: { contains: query, mode: "insensitive" } } },
         ...(amountFilter !== null ? [{ totalHT: amountFilter }] : []),
       ]},
       take: 3,
@@ -93,6 +95,7 @@ export async function searchGlobal(query: string, activeModuleIds?: string[]): P
       where: { userId, OR: [
         { number: { contains: query, mode: "insensitive" } },
         { client: { name: { contains: query, mode: "insensitive" } } },
+        { client: { company: { contains: query, mode: "insensitive" } } },
         ...(amountFilter !== null ? [{ totalHT: amountFilter }] : []),
       ]},
       take: 3,

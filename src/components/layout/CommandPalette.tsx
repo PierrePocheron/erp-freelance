@@ -6,6 +6,7 @@ import { Search, Loader2 } from "lucide-react"
 import { searchGlobal, type SearchResult } from "@/actions/search"
 import { useModules, type ModuleId } from "@/hooks/use-modules"
 import { cn } from "@/lib/utils"
+import { toast } from "sonner"
 
 type NavItem = {
   label:     string
@@ -151,8 +152,15 @@ export function CommandPalette() {
     setSearching(true)
     const t = setTimeout(() => {
       startTransition(async () => {
-        const r = await searchGlobal(query, [...activeModules])
-        setResults(r)
+        try {
+          const r = await searchGlobal(query, [...activeModules])
+          setResults(r)
+        } catch {
+          // La palette vit dans le layout, hors de error.tsx : une erreur non
+          // interceptée donnait l'écran blanc de Next.
+          setResults([])
+          toast.error("Recherche indisponible")
+        }
         setSelected(0)
         setSearching(false)
       })
@@ -162,6 +170,11 @@ export function CommandPalette() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [query])
 
+  // L'élément choisi aux flèches reste visible dans la liste qui défile
+  useEffect(() => {
+    document.querySelector("[data-selected]")?.scrollIntoView({ block: "nearest" })
+  }, [selected])
+
   // Nav items filteredinstantly (client-side)
   const navMatches = query.length >= 2 ? NAV_ITEMS.filter((item) => matchNavItem(item, query)) : []
 
@@ -169,7 +182,8 @@ export function CommandPalette() {
   const listItems: Array<{ href: string }> =
     query.length < 2
       ? NAV_ITEMS
-      : [...navMatches, ...results]
+      // Pendant une recherche, les résultats précédents sont masqués : Entrée ne doit pas les ouvrir.
+      : [...navMatches, ...(searching || isPending ? [] : results)]
 
   const total = listItems.length
 
@@ -239,6 +253,7 @@ export function CommandPalette() {
                     "w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-left transition-colors",
                     i === selected ? "bg-accent text-accent-foreground" : "hover:bg-accent/50"
                   )}
+                  data-selected={i === selected || undefined}
                 >
                   <span className="text-base leading-none w-5 text-center shrink-0">{item.icon}</span>
                   <span>{item.label}</span>
@@ -262,6 +277,7 @@ export function CommandPalette() {
                         "w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-left transition-colors",
                         i === selected ? "bg-accent text-accent-foreground" : "hover:bg-accent/50"
                       )}
+                      data-selected={i === selected || undefined}
                     >
                       <span className="text-base leading-none w-5 text-center shrink-0">{item.icon}</span>
                       <span className="flex-1 truncate">{item.label}</span>
@@ -289,6 +305,7 @@ export function CommandPalette() {
                         "w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-left transition-colors",
                         navMatches.length + i === selected ? "bg-accent text-accent-foreground" : "hover:bg-accent/50"
                       )}
+                      data-selected={navMatches.length + i === selected || undefined}
                     >
                       <span className="text-base leading-none w-5 text-center shrink-0">
                         {TYPE_ICON[r.type]}

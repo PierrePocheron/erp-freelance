@@ -3,7 +3,7 @@ import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { notFound } from "next/navigation"
 import { addInteraction } from "@/actions/crm"
-import { Button } from "@/components/ui/button"
+import { SubmitButton } from "@/components/ui/submit-button"
 import { Input } from "@/components/ui/input"
 import { InteractionsList } from "@/components/modules/crm/InteractionsList"
 import { Mail, Phone, Users, MessageSquare, Coffee, MoreHorizontal } from "lucide-react"
@@ -105,7 +105,7 @@ export default async function ClientInteractionsPage({
                 Dans Gmail : ouvrir le mail puis copier l&apos;URL de la barre d&apos;adresse.
               </p>
             </div>
-            <Button type="submit" size="sm" className="w-full">Ajouter</Button>
+            <SubmitButton size="sm" className="w-full" pendingLabel="Ajout…">Ajouter</SubmitButton>
           </form>
         </div>
       </div>

@@ -16,6 +16,7 @@ import {
 import { AddTaskForm } from "./AddTaskForm"
 import { TimeTracker } from "./TimeTracker"
 import { cn } from "@/lib/utils"
+import { toast } from "sonner"
 
 // ── Priority / Importance badge config ──────────────────────────────────────
 
@@ -102,6 +103,12 @@ export function TaskItem({
   onStatusChange?: (taskId: string, status: "TODO" | "IN_PROGRESS" | "DONE") => void
 }) {
   const [isPending, startTransition] = useTransition()
+  // Toute mise à jour inline passe par ici : un échec serveur affiche un toast au lieu de
+  // remplacer la page par error.tsx.
+  const run = (fn: () => Promise<unknown>) =>
+    startTransition(async () => {
+      try { await fn() } catch { toast.error("Échec de l'enregistrement") }
+    })
   const { isArmed, confirmFirst } = useArmedDelete()
   const subs = task.subTasks ?? []
   const [showSubs, setShowSubs] = useState(subs.length > 0)
@@ -134,45 +141,45 @@ export function TaskItem({
 
   function saveTitle() {
     const val = titleRef.current?.value.trim()
-    if (val && val !== task.title) startTransition(() => updateTaskTitle(task.id, projectId, val))
+    if (val && val !== task.title) run(() => updateTaskTitle(task.id, projectId, val))
     setEditingTitle(false)
   }
 
   function saveDate() {
     const val = dateRef.current?.value || null
     const current = task.dueDate ? zonedDateKey(new Date(task.dueDate)) : null
-    if (val !== current) startTransition(() => updateTaskDueDate(task.id, projectId, val))
+    if (val !== current) run(() => updateTaskDueDate(task.id, projectId, val))
     setEditingDate(false)
   }
 
   function saveHours() {
     const raw = hoursRef.current?.value
     const val = raw ? parseFloat(raw) : null
-    if (val !== task.estimatedHours) startTransition(() => updateTaskEstimatedHours(task.id, projectId, val))
+    if (val !== task.estimatedHours) run(() => updateTaskEstimatedHours(task.id, projectId, val))
     setEditingHours(false)
   }
 
   function saveDescription() {
     const val = descRef.current?.value.trim() || null
-    if (val !== task.description) startTransition(() => updateTaskDescription(task.id, projectId, val))
+    if (val !== task.description) run(() => updateTaskDescription(task.id, projectId, val))
   }
 
   function saveCompletedAt() {
     const val = completedAtRef.current?.value || null
     const current = task.completedAt ? zonedDateKey(new Date(task.completedAt)) : null
-    if (val !== current) startTransition(() => updateTaskCompletedAt(task.id, projectId, val))
+    if (val !== current) run(() => updateTaskCompletedAt(task.id, projectId, val))
     setEditingCompletedAt(false)
   }
 
   function cyclePriority() {
     const idx = PRIORITY_CYCLE.indexOf(task.priority)
     const next = PRIORITY_FROM_NUM[((idx + 1) % 4) + 1]
-    startTransition(() => updateTaskPriority(task.id, projectId, next))
+    run(() => updateTaskPriority(task.id, projectId, next))
   }
 
   function cycleImportance() {
     const next = (task.importance % 4) + 1
-    startTransition(() => updateTaskImportance(task.id, projectId, next))
+    run(() => updateTaskImportance(task.id, projectId, next))
   }
 
   const fmt = (d: Date | null) =>
@@ -185,10 +192,10 @@ export function TaskItem({
 
         {/* Réordonner */}
         <div className="flex flex-col gap-0.5 pointer-fine:opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity shrink-0">
-          <button aria-label="Monter la tâche" disabled={isFirst || isPending} onClick={() => startTransition(() => reorderTask(task.id, projectId, "up"))} className="text-muted-foreground hover:text-foreground disabled:opacity-20">
+          <button aria-label="Monter la tâche" disabled={isFirst || isPending} onClick={() => run(() => reorderTask(task.id, projectId, "up"))} className="text-muted-foreground hover:text-foreground disabled:opacity-20">
             <ChevronUp className="h-3 w-3" />
           </button>
-          <button aria-label="Descendre la tâche" disabled={isLast || isPending} onClick={() => startTransition(() => reorderTask(task.id, projectId, "down"))} className="text-muted-foreground hover:text-foreground disabled:opacity-20">
+          <button aria-label="Descendre la tâche" disabled={isLast || isPending} onClick={() => run(() => reorderTask(task.id, projectId, "down"))} className="text-muted-foreground hover:text-foreground disabled:opacity-20">
             <ChevronDown className="h-3 w-3" />
           </button>
         </div>
@@ -197,15 +204,15 @@ export function TaskItem({
         {isPending ? (
           <Loader2 className="h-4 w-4 animate-spin shrink-0 text-muted-foreground" />
         ) : task.status === "DONE" ? (
-          <button onClick={() => { startTransition(() => reopenTask(task.id, projectId)); onStatusChange?.(task.id, "TODO") }} title="Rouvrir" className="shrink-0 text-emerald-500 hover:text-muted-foreground transition-colors">
+          <button onClick={() => { run(() => reopenTask(task.id, projectId)); onStatusChange?.(task.id, "TODO") }} title="Rouvrir" className="shrink-0 text-emerald-500 hover:text-muted-foreground transition-colors">
             <CheckCircle2 className="h-4 w-4" />
           </button>
         ) : task.status === "IN_PROGRESS" ? (
-          <button onClick={() => { startTransition(() => completeTask(task.id, projectId)); onStatusChange?.(task.id, "DONE") }} title="Terminer" className="shrink-0 text-amber-500 hover:text-emerald-500 transition-colors">
+          <button onClick={() => { run(() => completeTask(task.id, projectId)); onStatusChange?.(task.id, "DONE") }} title="Terminer" className="shrink-0 text-amber-500 hover:text-emerald-500 transition-colors">
             <PlayCircle className="h-4 w-4" />
           </button>
         ) : (
-          <button onClick={() => { startTransition(() => startTask(task.id, projectId)); onStatusChange?.(task.id, "IN_PROGRESS") }} title="Démarrer" className="shrink-0 text-muted-foreground hover:text-amber-500 transition-colors">
+          <button onClick={() => { run(() => startTask(task.id, projectId)); onStatusChange?.(task.id, "IN_PROGRESS") }} title="Démarrer" className="shrink-0 text-muted-foreground hover:text-amber-500 transition-colors">
             <Circle className="h-4 w-4" />
           </button>
         )}
@@ -243,7 +250,7 @@ export function TaskItem({
                   <button
                     type="button"
                     aria-label={`Retirer le tag ${tag.name}`}
-                    onClick={() => startTransition(() => removeTagFromTask(task.id, tag.id, projectId))}
+                    onClick={() => run(() => removeTagFromTask(task.id, tag.id, projectId))}
                     className="ml-0.5 opacity-60 hover:opacity-100"
                   >
                     <X className="h-2.5 w-2.5" />
@@ -369,7 +376,7 @@ export function TaskItem({
         <button
           aria-label={isArmed() ? "Confirmer la suppression de la tâche" : "Supprimer la tâche"}
           title={isArmed() ? "Confirmer la suppression" : "Supprimer"}
-          onClick={() => { if (confirmFirst()) startTransition(() => deleteTask(task.id, projectId)) }}
+          onClick={() => { if (confirmFirst()) run(() => deleteTask(task.id, projectId)) }}
           className={cn("focus:opacity-100 transition-opacity shrink-0", isArmed() ? "text-destructive" : "pointer-fine:opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive")}
         >
           {isArmed() ? <Check className="h-3.5 w-3.5" /> : <Trash2 className="h-3.5 w-3.5" />}

@@ -4,6 +4,7 @@ import { useState, useEffect, useTransition } from "react"
 import { Timer, Square, Clock } from "lucide-react"
 import { startTimer, stopTimer } from "@/actions/timetracking"
 import { cn } from "@/lib/utils"
+import { toast } from "sonner"
 
 type TimeEntry = {
   id: string
@@ -53,10 +54,14 @@ export function TimeTracker({ taskId, userId, projectId, timeEntries }: Props) {
 
   function handleToggle() {
     startTransition(async () => {
-      if (isRunning && runningEntry) {
-        await stopTimer(runningEntry.id, userId, projectId)
-      } else {
-        await startTimer(taskId, userId, projectId)
+      try {
+        if (isRunning && runningEntry) {
+          await stopTimer(runningEntry.id, userId, projectId)
+        } else {
+          await startTimer(taskId, userId, projectId)
+        }
+      } catch {
+        toast.error("Échec de l'enregistrement")
       }
     })
   }

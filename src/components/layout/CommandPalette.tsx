@@ -60,6 +60,8 @@ const TYPE_ICON: Record<string, string> = {
   revenue:              "💰",
   skill:                "🧠",
   investment_platform:  "📈",
+  calendar_event:       "📅",
+  urssaf_declaration:   "🏛️",
 }
 
 const TYPE_LABEL: Record<string, string> = {
@@ -79,6 +81,8 @@ const TYPE_LABEL: Record<string, string> = {
   revenue:              "Revenu",
   skill:                "Compétence",
   investment_platform:  "Investissement",
+  calendar_event:       "Événement",
+  urssaf_declaration:   "URSSAF",
 }
 
 /**

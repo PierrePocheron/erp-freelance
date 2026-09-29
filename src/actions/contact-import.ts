@@ -5,7 +5,7 @@ import { prisma } from "@/lib/prisma"
 import { requireAuth } from "@/lib/require-auth"
 import { computeContactName } from "@/lib/contact"
 import {
-  parseVcf, fromPicker, matchContacts, rematch, normalizeEmail, normalizePhone,
+  fromPicker, matchContacts, rematch, normalizeEmail, normalizePhone,
   type ErpContact, type Proposal, type ChangeField, type ImportedContact,
 } from "@/lib/contact-import"
 import { hasContactsScope, getGoogleContactsToken, fetchGoogleContacts } from "@/lib/google-contacts"
@@ -19,12 +19,27 @@ async function loadErpContacts(userId: string): Promise<ErpContact[]> {
 
 // ── Prévisualisation (rien n'est écrit) ──────────────────────────────────────
 
-/** Fichier .vcf (iPhone « Partager », export Google/Apple Contacts) → propositions. */
-export async function previewVcfImport(text: string): Promise<Proposal[]> {
+/**
+ * Fichier .vcf (iPhone « Partager », export Google/Apple Contacts) → propositions.
+ * Le fichier est ANALYSÉ CÔTÉ CLIENT (parseVcf est pure) : seul l'essentiel normalisé
+ * transite. Envoyer le texte brut butait sur la limite de 1 Mo des actions serveur — un
+ * export iPhone avec photos la dépasse vite (#21). Données non fiables → revalidées ici.
+ */
+export async function previewVcfImport(contacts: ImportedContact[]): Promise<Proposal[]> {
   const userId = await requireAuth()
-  if (text.length > 5_000_000) throw new Error("Fichier trop volumineux (5 Mo max)")
-  const imported = parseVcf(text)
-  if (imported.length === 0) throw new Error("Aucun contact lisible dans ce fichier .vcf")
+  if (!Array.isArray(contacts) || contacts.length === 0) throw new Error("Aucun contact lisible dans ce fichier .vcf")
+  if (contacts.length > 5000) throw new Error("Trop de contacts dans ce fichier (5 000 max)")
+  const str = (v: unknown, max: number) => (typeof v === "string" ? v.trim().slice(0, max) : "")
+  const imported: ImportedContact[] = contacts.map((c, i) => ({
+    key: `vcf:${i}`,
+    source: "vcf",
+    name: str(c?.name, 200) || "Sans nom",
+    firstName: str(c?.firstName, 100) || undefined,
+    lastName: str(c?.lastName, 100) || undefined,
+    company: str(c?.company, 200) || undefined,
+    emails: (Array.isArray(c?.emails) ? c.emails : []).slice(0, 20).map((e) => normalizeEmail(str(e, 320))).filter((e): e is string => !!e),
+    phones: (Array.isArray(c?.phones) ? c.phones : []).slice(0, 20).map((p) => normalizePhone(str(p, 40))).filter((p): p is string => !!p),
+  }))
   return matchContacts(imported, await loadErpContacts(userId), { proposeCreate: true })
 }
 

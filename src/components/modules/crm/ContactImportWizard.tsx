@@ -4,6 +4,7 @@ import { useMemo, useRef, useState, useSyncExternalStore } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
+import { parseVcf } from "@/lib/contact-import"
 import { Smartphone, FileUp, Loader2, Check, X, ChevronDown, Search, UserPlus, ArrowRight, Mail, Phone, Settings } from "lucide-react"
 import { cn } from "@/lib/utils"
 import {
@@ -84,8 +85,11 @@ export function ContactImportWizard({ hasGoogleScope, allContacts }: { hasGoogle
   async function onFile(e: React.ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0]; e.target.value = ""
     if (!f) return
-    const text = await f.text()
-    await run(() => previewVcfImport(text))
+    // Analyse locale (photos et champs inutiles écartés) : seul l'essentiel part au serveur (#21)
+    if (f.size > 25 * 1024 * 1024) { toast.error("Fichier trop volumineux (25 Mo max)"); return }
+    const imported = parseVcf(await f.text())
+    if (imported.length === 0) { toast.error("Aucun contact lisible dans ce fichier .vcf"); return }
+    await run(() => previewVcfImport(imported))
   }
 
   // ── Édition locale des propositions ──

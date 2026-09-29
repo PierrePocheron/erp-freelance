@@ -54,10 +54,15 @@ const revenueStatusCls: Record<string, string> = {
 
 export default async function ProjectOverviewPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>
+  searchParams: Promise<{ temps?: string }>
 }) {
   const { id } = await params
+  // Détail du temps chargé seulement quand la modale est ouverte (?temps=1) — sa requête
+  // (tâches, sous-tâches, toutes les entrées) partait à chaque affichage de la fiche (#18).
+  const showTime = (await searchParams).temps === "1"
   const session = await auth()
   const userId = session!.user.id
 
@@ -244,9 +249,10 @@ export default async function ProjectOverviewPage({
                   m.status === "IN_PROGRESS" ? "En cours" :
                   isPast ? "En retard" : "À venir"
                 return (
-                  <div key={m.id} className="flex items-center gap-2 py-1 group">
+                  // flex-wrap : à 375 px, type + date/heure + statut en shrink-0 réduisaient le nom à « … »
+                  <div key={m.id} className="flex flex-wrap items-center gap-x-2 gap-y-0.5 py-1 group">
                     <MilestoneToggle milestoneId={m.id} projectId={id} status={m.status} />
-                    <span className="flex-1 text-sm truncate min-w-0">{m.name}</span>
+                    <span className="flex-1 text-sm truncate min-w-[40%]" title={m.name}>{m.name}</span>
                     <span className={`shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-medium ${MILESTONE_TYPE_COLORS[m.type] ?? MILESTONE_TYPE_COLORS.OTHER}`}>
                       {MILESTONE_TYPE_LABELS[m.type] ?? m.type}
                     </span>
@@ -513,7 +519,7 @@ export default async function ProjectOverviewPage({
           <div className="flex items-center gap-2 font-semibold text-sm">
             <Clock className="h-4 w-4 text-muted-foreground" />
             Temps
-            <span className="ml-auto"><ProjectTimeDialog><ProjectTimePanel projectId={id} userId={userId} /></ProjectTimeDialog></span>
+            <span className="ml-auto"><ProjectTimeDialog open={showTime}>{showTime && <ProjectTimePanel projectId={id} userId={userId} />}</ProjectTimeDialog></span>
           </div>
           <div className="grid grid-cols-3 gap-3 text-center">
             <div className="rounded-lg bg-muted/40 py-2">

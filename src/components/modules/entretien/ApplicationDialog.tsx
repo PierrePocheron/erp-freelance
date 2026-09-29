@@ -437,7 +437,7 @@ export function ApplicationDialog({
               </button>
               <button type="submit" disabled={isPending || !companyName.trim() || !position.trim()}
                 className="h-8 px-4 rounded-lg bg-primary text-primary-foreground text-sm font-medium disabled:opacity-40 hover:bg-primary/90 transition-colors">
-                {isPending ? "…" : item ? "Mettre à jour" : "Créer"}
+                {isPending ? "Enregistrement…" : item ? "Enregistrer" : "Créer"}
               </button>
             </div>
           </div>

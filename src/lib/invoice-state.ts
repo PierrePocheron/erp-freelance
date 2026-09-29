@@ -56,3 +56,19 @@ export function isBillableInvoice(status: string): boolean {
 
 // Statuts d'une facture émise mais pas encore réglée (l'encours).
 export const UNPAID_INVOICE_STATUSES = ["ISSUED", "SENT", "LATE"] as const
+
+// Libellé et teinte d'un statut de facture — UNE seule table. Trois copies locales
+// ne connaissaient que DRAFT/SENT/PAID/LATE : une facture émise ou annulée
+// s'affichait « ISSUED » / « CANCELLED » en brut, sans couleur.
+export const INVOICE_STATUS_META: Record<InvoiceStatus, { label: string; cls: string }> = {
+  DRAFT:     { label: "Brouillon", cls: "bg-muted text-muted-foreground border-border" },
+  ISSUED:    { label: "Émise",     cls: "bg-violet-500/15 text-violet-600 border-violet-500/20" },
+  SENT:      { label: "Envoyée",   cls: "bg-blue-500/15 text-blue-600 border-blue-500/20" },
+  PAID:      { label: "Payée",     cls: "bg-emerald-500/15 text-emerald-600 border-emerald-500/20" },
+  LATE:      { label: "En retard", cls: "bg-red-500/15 text-red-600 border-red-500/20" },
+  CANCELLED: { label: "Annulée",   cls: "bg-muted text-muted-foreground border-border line-through" },
+}
+
+export function invoiceStatusMeta(status: string): { label: string; cls: string } {
+  return INVOICE_STATUS_META[status as InvoiceStatus] ?? { label: status, cls: "bg-muted text-muted-foreground border-border" }
+}

@@ -1,7 +1,7 @@
 import { isZonedAllDay } from "@/lib/dates"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
-import { isBillableInvoice } from "@/lib/invoice-state"
+import { invoiceStatusMeta, isBillableInvoice } from "@/lib/invoice-state"
 import { notFound } from "next/navigation"
 import Link from "next/link"
 import { Calendar, Clock, CheckSquare, BookOpen, FileText, Receipt, Flag, Wallet } from "lucide-react"
@@ -42,15 +42,6 @@ const quoteStatusCls: Record<string, string> = {
   IN_PROGRESS: "bg-indigo-500/15 text-indigo-600",
   SIGNED: "bg-teal-500/15 text-teal-600",
   REJECTED: "bg-red-500/15 text-red-600",
-}
-const invoiceStatusLabel: Record<string, string> = {
-  DRAFT: "Brouillon", SENT: "Envoyée", PAID: "Payée", LATE: "En retard",
-}
-const invoiceStatusCls: Record<string, string> = {
-  DRAFT: "bg-muted text-muted-foreground",
-  SENT: "bg-blue-500/15 text-blue-600",
-  PAID: "bg-emerald-500/15 text-emerald-600",
-  LATE: "bg-red-500/15 text-red-600",
 }
 const invoiceTypeLabel: Record<string, string> = {
   DEPOSIT: "Acompte", FINAL: "Solde", RECURRING: "Récurrent", STANDALONE: "Standard",
@@ -154,8 +145,10 @@ export default async function ProjectOverviewPage({
   const isOver = project.estimatedHours ? totalTrackedHours > project.estimatedHours : false
 
   function fmtH(h: number) {
-    const int = Math.floor(h)
-    const min = Math.round((h - int) * 60)
+    // Arrondi sur le total de minutes (sinon « 1h60 » pour 1,999 h).
+    const total = Math.round(h * 60)
+    const int = Math.floor(total / 60)
+    const min = total % 60
     if (int > 0 && min > 0) return `${int}h${String(min).padStart(2, "0")}`
     if (int > 0) return `${int}h`
     return `${min}m`
@@ -280,7 +273,7 @@ export default async function ProjectOverviewPage({
         </div>
 
         {/* Suivi — temps, budget, livrables, période */}
-        <div className={`rounded-xl border p-5 space-y-3 ${isOver ? "border-red-500/30 bg-red-500/5" : budgetPct && budgetPct > 80 ? "border-amber-500/30 bg-amber-500/5" : "border-border/50 bg-card"}`}>
+        <div className="rounded-xl border border-border/50 bg-card p-5 space-y-3">
           <div className="flex items-center gap-2 font-semibold text-sm">
             <Clock className="h-4 w-4 text-muted-foreground" />
             Suivi
@@ -444,8 +437,8 @@ export default async function ProjectOverviewPage({
                       >
                         <span className="font-mono text-xs text-muted-foreground">{faNumber(inv.number)}</span>
                         <span className="text-xs text-muted-foreground">{invoiceTypeLabel[inv.type] ?? inv.type}</span>
-                        <span className={`rounded-full px-1.5 py-0.5 text-xs font-medium ${invoiceStatusCls[inv.status] ?? ""}`}>
-                          {invoiceStatusLabel[inv.status] ?? inv.status}
+                        <span className={`rounded-full px-1.5 py-0.5 text-xs font-medium ${invoiceStatusMeta(inv.status).cls}`}>
+                          {invoiceStatusMeta(inv.status).label}
                         </span>
                         <span className={`ml-auto text-xs font-medium tabular-nums whitespace-nowrap amount-sensitive ${full ? "text-emerald-600" : paid > 0 ? "text-amber-600" : isLate ? "text-red-500" : "text-muted-foreground"}`}>
                           {fmtEur(paid)} / {fmtEur(amount)} €

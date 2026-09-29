@@ -10,7 +10,7 @@ import { DeleteConfirmButton } from "@/components/modules/facturation/DeleteConf
 import { InvoicePaymentSection } from "@/components/modules/facturation/InvoicePaymentSection"
 import { InvoiceConditionsForm } from "@/components/modules/facturation/InvoiceConditionsForm"
 import { EmitterSelect } from "@/components/modules/facturation/EmitterSelect"
-import { updateInvoiceStatus, deleteInvoice, updateInvoiceDueDate, updateInvoiceNotes, updateInvoiceEmitter, sendInvoiceEmail, sendInvoiceReminder, issueInvoice, cancelInvoice, duplicateInvoiceAsDraft } from "@/actions/facturation"
+import { updateInvoiceStatus, markInvoicePaid, deleteInvoice, updateInvoiceDueDate, updateInvoiceNotes, updateInvoiceEmitter, sendInvoiceEmail, sendInvoiceReminder, issueInvoice, cancelInvoice, duplicateInvoiceAsDraft } from "@/actions/facturation"
 import { setInvoiceUrssafExcluded } from "@/actions/urssaf"
 import { periodLabel } from "@/lib/urssaf"
 import { redirect } from "next/navigation"
@@ -158,9 +158,21 @@ export default async function FactureDetailPage({
             </form>
           )}
 
-          {(invoice.status === "SENT" || invoice.status === "LATE") && (
-            <form action={async () => { "use server"; await updateInvoiceStatus(id, userId, "PAID") }}>
-              <SubmitButton size="sm" className="bg-emerald-500 hover:bg-emerald-600 text-white border-none">
+          {/* ISSUED aussi : Pierre envoie souvent les PDF lui-même, la facture reste « émise ».
+              La date = date d'encaissement réelle (elle fixe la période URSSAF). */}
+          {(invoice.status === "ISSUED" || invoice.status === "SENT" || invoice.status === "LATE") && (
+            <form
+              action={async (fd: FormData) => { "use server"; await markInvoicePaid(id, userId, (fd.get("paidAt") as string) || undefined) }}
+              className="flex items-center gap-1.5"
+            >
+              <input
+                type="date"
+                name="paidAt"
+                defaultValue={zonedDateKey(new Date())}
+                aria-label="Date d'encaissement"
+                className="h-8 rounded-md border border-input bg-background px-2 text-xs"
+              />
+              <SubmitButton size="sm" pendingLabel="Enregistrement…" className="bg-emerald-500 hover:bg-emerald-600 text-white border-none">
                 <CheckCircle2 className="h-3.5 w-3.5" />
                 Marquer payée
               </SubmitButton>
@@ -378,8 +390,8 @@ export default async function FactureDetailPage({
         </div>
       )}
 
-      {/* Paiements — pas sur une facture annulée (le serveur les refuse aussi) */}
-      {invoice.status !== "CANCELLED" && (
+      {/* Paiements — seulement sur une facture émise (le serveur refuse brouillon et annulée) */}
+      {invoice.status !== "DRAFT" && invoice.status !== "CANCELLED" && (
         <InvoicePaymentSection
           invoiceId={id}
           userId={userId}

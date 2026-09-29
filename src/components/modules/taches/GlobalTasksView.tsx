@@ -751,14 +751,18 @@ export function GlobalTasksView({
         )}
       </div>
 
-      {/* Résultat */}
-      <p className="text-xs text-muted-foreground">{filtered.length} tâche{filtered.length !== 1 ? "s" : ""}</p>
+      {/* Résultat + création d'une tâche perso (sans ça, on ne pouvait créer
+          qu'à l'intérieur d'un groupe existant — impossible avec 0 tâche) */}
+      <div className="flex flex-wrap items-center justify-between gap-x-3 [&>form]:flex-1">
+        <p className="text-xs text-muted-foreground">{filtered.length} tâche{filtered.length !== 1 ? "s" : ""}</p>
+        <QuickAddClientTask clientId={null} />
+      </div>
 
       {/* Groupes — 2 colonnes en desktop (multicol équilibré, un groupe n'est
           jamais coupé entre deux colonnes) pour afficher plus de sociétés d'un coup */}
       {clientGroups.length === 0 ? (
         <div className="rounded-xl border border-dashed border-border py-16 text-center text-sm text-muted-foreground">
-          Aucune tâche pour ces filtres
+          {tasks.length === 0 ? "Aucune tâche pour l'instant" : "Aucune tâche pour ces filtres"}
         </div>
       ) : (
         <div className="gap-3 lg:columns-2 [&>*]:mb-3 [&>*]:break-inside-avoid">

@@ -70,7 +70,7 @@ export function CrmList({ groups }: { groups: Group[] }) {
       {!hasClients ? (
         <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border py-20 text-center">
           <p className="font-medium">Aucun contact</p>
-          <p className="text-sm text-muted-foreground mt-1">Ajoutez votre premier prospect ou client</p>
+          <p className="text-sm text-muted-foreground mt-1">Ajoutez votre premier contact — les prospects ont leur propre module</p>
         </div>
       ) : (
         <div className="space-y-6">

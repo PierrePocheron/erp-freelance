@@ -363,7 +363,19 @@ export function ProjetsListView({
         <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border py-20 text-center">
           <Layers className="h-10 w-10 text-muted-foreground mb-3" />
           <p className="font-medium">Aucun projet pour le moment</p>
-          <p className="text-sm text-muted-foreground mt-1">Créez votre premier projet pour commencer</p>
+          <p className="text-sm text-muted-foreground mt-1 mb-4">Créez votre premier projet pour commencer</p>
+          <CreateProjectDialog userId={userId} companies={companies} contacts={contacts} jobApplications={jobApplications} />
+        </div>
+      ) : filtered.length === 0 ? (
+        <div className="rounded-xl border border-dashed border-border py-16 text-center text-sm text-muted-foreground">
+          Aucun projet ne correspond ·{" "}
+          <button
+            type="button"
+            onClick={() => { setSearch(""); setStatusFilter(new Set()); setCategoryFilter(new Set()) }}
+            className="text-primary hover:underline"
+          >
+            Effacer les filtres
+          </button>
         </div>
       ) : view === "cards" ? (
         <div className="space-y-6">

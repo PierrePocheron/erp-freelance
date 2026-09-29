@@ -290,7 +290,7 @@ export function ProspectionTable({
     return (
       <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border py-10 text-center">
         <p className="text-sm text-muted-foreground">Aucun prospect pour le moment</p>
-        <p className="text-xs text-muted-foreground/60 mt-1">Ajout rapide ci-dessus, ou import CSV à venir</p>
+        <p className="text-xs text-muted-foreground/60 mt-1">Ajout rapide ci-dessus, ou « Importer » en haut de page</p>
       </div>
     )
   }

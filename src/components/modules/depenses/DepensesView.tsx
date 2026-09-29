@@ -302,7 +302,7 @@ export function DepensesView({
           )}
         </div>
 
-        <div className="rounded-xl border border-border/50 bg-card p-5 space-y-4 lg:col-span-2">
+        <div className="rounded-xl border border-border/50 bg-card p-5 space-y-4 lg:col-span-2 order-first lg:order-none">
           {/* En-tête de carte : titre + navigation entre les mois */}
           <div className="flex items-center justify-between gap-3 flex-wrap">
             <h2 className="font-semibold text-sm capitalize">Dépenses — {monthLabel}</h2>
@@ -326,7 +326,7 @@ export function DepensesView({
           {monthRows.length === 0 ? (
             <p className="text-xs text-muted-foreground italic">Aucune dépense sur ce mois</p>
           ) : (
-            <div className="space-y-1.5 max-h-[520px] overflow-y-auto pr-1">
+            <div className="space-y-1.5 lg:max-h-[520px] lg:overflow-y-auto lg:pr-1">
               {monthRows.map((row) => row.kind === "REAL" ? (
                 <div key={`e-${row.e.id}`} className="flex items-center gap-3 py-1.5 group">
                   <span className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: row.e.category?.color ?? "#94a3b8" }} />

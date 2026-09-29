@@ -624,7 +624,7 @@ export default async function GraphPage() {
   }
 
   return (
-    <div className="h-screen -m-6 overflow-hidden">
+    <div className="h-screen -m-3 sm:-m-6 overflow-hidden">
       <GraphView rawNodes={nodes} rawLinks={links} />
     </div>
   )

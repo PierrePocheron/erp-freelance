@@ -62,8 +62,8 @@ export function InvestmentsView({ platforms, reminder }: { platforms: PlatformDa
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between gap-2">
-        <div className="flex items-baseline gap-2">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div>
           <h1 className="text-2xl font-bold tracking-tight sm:hidden">Investissements</h1>
           <p className="text-sm text-muted-foreground">
             {platforms.length} plateforme{platforms.length !== 1 ? "s" : ""}

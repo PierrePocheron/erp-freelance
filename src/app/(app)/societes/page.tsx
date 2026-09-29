@@ -131,7 +131,8 @@ export default async function SocietesPage({ searchParams }: { searchParams: Pro
         <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border py-20 text-center">
           <Building2 className="h-10 w-10 text-muted-foreground mb-3 opacity-40" />
           <p className="font-medium">Aucune société</p>
-          <p className="text-sm text-muted-foreground mt-1">Créez votre première société cliente</p>
+          <p className="text-sm text-muted-foreground mt-1 mb-4">Créez votre première société cliente</p>
+          <CreateCompanyDialog fiscalSources={fiscalSources} categories={companyCategories} />
         </div>
       ) : (
         <div className="rounded-xl border border-border/50 bg-card overflow-x-auto">

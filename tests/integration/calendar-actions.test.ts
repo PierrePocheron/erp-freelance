@@ -738,13 +738,13 @@ describe("syncGooglePull — Google → ERP", () => {
     expect(clampedLow).toBeLessThan(1.1)
   })
 
-  // BUG — src/actions/calendar.ts:954-1016 (syncGooglePull) : un événement supprimé
+  // Régression corrigée le 29/09/2026 — src/actions/calendar.ts:954-1016 (syncGooglePull) : un événement supprimé
   // côté Google n'est JAMAIS supprimé dans l'ERP. La boucle ne fait que des
   // INSERT/UPDATE ; un statut "cancelled" est simplement sauté (l.956) et un
   // événement absent de la réponse n'est pas détecté. Or le commentaire l.348
   // annonce « suppression des deux côtés ». Scénario : RDV importé puis supprimé
   // dans Google Agenda → il reste affiché dans /calendrier indéfiniment.
-  it.skip("BUG : un événement supprimé dans Google disparaît de l'ERP à la synchro suivante", async () => {
+  it("un événement supprimé dans Google disparaît de l'ERP à la synchro suivante", async () => {
     const user = await signIn()
     await connectGoogle(user.id)
     const start = inDays(5)
@@ -757,13 +757,13 @@ describe("syncGooglePull — Google → ERP", () => {
     expect(await prisma.calendarEvent.count({ where: { userId: user.id } })).toBe(0)
   })
 
-  // BUG — src/actions/calendar.ts:928-931 + 945-952 : le pull relit l'agenda dédié
+  // Régression corrigée le 29/09/2026 — src/actions/calendar.ts:928-931 + 945-952 : le pull relit l'agenda dédié
   // « ERP Freelance », où google-task-sync pousse AUSSI les tâches (✅), jalons (🚩)
   // et entretiens (💼). Le dédoublonnage ne regarde que les CalendarEvent MANUAL
   // (`pushedByGoogleId`) — pas Task/Milestone/JobApplication.googleEventId — donc
   // chaque miroir est ré-importé comme CalendarEvent GOOGLE : la tâche apparaît
   // deux fois dans /calendrier (projection Task + copie « Google Calendar »).
-  it.skip("BUG : les miroirs de tâches / jalons poussés dans l'agenda ERP ne sont pas ré-importés", async () => {
+  it("les miroirs de tâches / jalons poussés dans l'agenda ERP ne sont pas ré-importés", async () => {
     const user = await signIn()
     await connectGoogle(user.id)
     await prisma.user.update({ where: { id: user.id }, data: { googleErpCalendarId: "erp-cal@group" } })
@@ -777,12 +777,12 @@ describe("syncGooglePull — Google → ERP", () => {
     expect(await prisma.calendarEvent.count({ where: { userId: user.id } })).toBe(0)
   })
 
-  // BUG — src/actions/calendar.ts:925-931 : l'id de l'agenda ERP mémorisé
+  // Régression corrigée le 29/09/2026 — src/actions/calendar.ts:925-931 : l'id de l'agenda ERP mémorisé
   // (User.googleErpCalendarId) n'est jamais invalidé. Si Pierre supprime l'agenda
   // « ERP Freelance » dans Google, fetchGoogleEvents(erpCalendarId) répond 404 et
   // TOUT le pull échoue (primaire compris), à chaque synchro, pour toujours ;
   // en parallèle chaque push (POST sur l'agenda disparu → 404) échoue en silence.
-  it.skip("BUG : un agenda ERP supprimé côté Google ne bloque pas l'import de l'agenda principal", async () => {
+  it("un agenda ERP supprimé côté Google ne bloque pas l'import de l'agenda principal", async () => {
     const user = await signIn()
     await connectGoogle(user.id)
     await prisma.user.update({ where: { id: user.id }, data: { googleErpCalendarId: "deleted@group" } })
@@ -831,12 +831,12 @@ describe("syncGooglePush / cycle complet / réglages", () => {
     expect(await getLastGoogleSyncAt()).toBeNull()
   })
 
-  // BUG — src/actions/calendar.ts:1053-1060 : pushEventToGoogle avale toute erreur
+  // Régression corrigée le 29/09/2026 — src/actions/calendar.ts:1053-1060 : pushEventToGoogle avale toute erreur
   // (best-effort) mais syncGooglePush incrémente `synced` quoi qu'il arrive, puis
   // horodate lastGoogleSyncAt (« dernière synchro RÉUSSIE », l.1058). Google en
   // panne → « 2 synchronisés » et un horodatage frais, alors que rien n'est parti :
   // le seuil de fraîcheur empêche ensuite la nouvelle tentative automatique.
-  it.skip("BUG : une panne Google n'est ni comptée comme synchro, ni horodatée", async () => {
+  it("une panne Google n'est ni comptée comme synchro, ni horodatée", async () => {
     const user = await signIn()
     await connectGoogle(user.id)
     await prisma.user.update({ where: { id: user.id }, data: { googleErpCalendarId: "erp-cal@group" } })
@@ -875,5 +875,52 @@ describe("syncGooglePush / cycle complet / réglages", () => {
     expect(await read()).toBe(0)
     await setCalendarSyncThreshold(99_999)
     expect(await read()).toBe(1440)
+  })
+})
+
+describe("synchro Google — doublons et suppressions (#42, #11)", () => {
+  it("un événement à cheval sur le début de la fenêtre n'est pas ré-importé à chaque synchro", async () => {
+    const user = await signIn()
+    await connectGoogle(user.id)
+    // Commence 40 jours avant (hors fenêtre d'un mois), finit dans 2 jours : Google le renvoie
+    const long = gTimed("g-long", "Mission longue", inDays(-40), { end: { dateTime: inDays(2).toISOString() } })
+    google.events.primary = [[long]]
+    await syncGooglePull()
+    await syncGooglePull()
+    await syncGooglePull()
+    expect(await prisma.calendarEvent.count({ where: { userId: user.id, sourceId: "g-long" } })).toBe(1)
+  })
+
+  it("un événement créé dans l'agenda « ERP Freelance » côté Google est adopté comme événement ERP", async () => {
+    const user = await signIn()
+    await connectGoogle(user.id)
+    await prisma.user.update({ where: { id: user.id }, data: { googleErpCalendarId: "erp-cal@group" } })
+    google.events["erp-cal@group"] = [[gTimed("g-erp", "Créé dans Google", inDays(3), { updated: "2026-09-01T10:00:00.000Z" })]]
+
+    await syncGooglePull()
+
+    const ev = await prisma.calendarEvent.findFirstOrThrow({ where: { userId: user.id } })
+    // MANUAL + googleEventId : ses modifications repartiront sur l'agenda ERP, pas sur primary
+    expect(ev).toMatchObject({ sourceType: "MANUAL", googleEventId: "g-erp", title: "Créé dans Google" })
+  })
+
+  it("supprimer dans l'ERP un événement importé le supprime aussi dans l'agenda principal", async () => {
+    const user = await signIn()
+    await connectGoogle(user.id)
+    const ev = await makeEvent(user.id, { sourceType: "GOOGLE", sourceId: "g-imp", startDate: inDays(4) })
+
+    expect(await deleteCalendarItem("manual", ev.id)).toEqual({})
+
+    const del = eventCalls("DELETE")
+    expect(del).toHaveLength(1)
+    expect(del[0].url.pathname).toBe("/calendar/v3/calendars/primary/events/g-imp")
+    expect(await prisma.calendarEvent.count({ where: { id: ev.id } })).toBe(0)
+  })
+
+  it("la lecture demande les suppressions récentes (showDeleted)", async () => {
+    const user = await signIn()
+    await connectGoogle(user.id)
+    await syncGooglePull()
+    expect(eventCalls("GET")[0].url.searchParams.get("showDeleted")).toBe("true")
   })
 })

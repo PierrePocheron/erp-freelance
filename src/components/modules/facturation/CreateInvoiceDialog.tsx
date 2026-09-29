@@ -27,7 +27,7 @@ type Quote = {
 }
 
 function fmtEur(n: number) {
-  return n.toLocaleString("fr-FR", { minimumFractionDigits: 2 }) + " €"
+  return n.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " €"
 }
 
 function clientLabel(c: Client) {

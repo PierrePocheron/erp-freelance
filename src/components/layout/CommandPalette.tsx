@@ -295,7 +295,8 @@ export function CommandPalette() {
                       </span>
                       <div className="min-w-0 flex-1">
                         <p className="truncate font-medium">{r.label}</p>
-                        {r.sublabel && <p className="text-xs text-muted-foreground truncate">{r.sublabel}</p>}
+                        {/* amount-sensitive : les sous-libellés de devis/factures/dépenses/revenus portent des montants */}
+                        {r.sublabel && <p className="text-xs text-muted-foreground truncate amount-sensitive">{r.sublabel}</p>}
                       </div>
                       <span className="text-[10px] text-muted-foreground bg-muted border border-border px-1.5 py-0.5 rounded font-mono shrink-0">
                         {TYPE_LABEL[r.type]}

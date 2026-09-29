@@ -444,10 +444,11 @@ export function aggregateGlobal(stats: PlatformStats[]): GlobalStats {
 // ── Formatage ─────────────────────────────────────────────────────────────────
 // Espace INSÉCABLE ( ) avant € / % : correct en typographie française et évite que
 // « 6 260 » et « € » se retrouvent sur deux lignes (wrap dans l'infobulle du graphe).
+// `|| 0` après arrondi : un résidu flottant (-0,004) s'affichait « -0,00 € » / « -0,0 % ».
 export const fmtEur = (n: number) =>
-  `${n.toLocaleString("fr-FR", { minimumFractionDigits: 0, maximumFractionDigits: 0 })} €`
+  `${(Math.round(n) || 0).toLocaleString("fr-FR", { minimumFractionDigits: 0, maximumFractionDigits: 0 })} €`
 export const fmtEur2 = (n: number) =>
-  `${n.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`
+  `${(Math.round(n * 100) / 100 || 0).toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`
 export const fmtPct = (r: number) =>
-  `${(r * 100).toLocaleString("fr-FR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })} %`
+  `${(Math.round(r * 1000) / 10 || 0).toLocaleString("fr-FR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })} %`
 export const fmtPctSigned = (r: number) => `${r >= 0 ? "+" : ""}${fmtPct(r)}`

@@ -327,7 +327,7 @@ export default async function GraphPage() {
         href:     `/revenus`,
         subtitle: `${rev.amount.toLocaleString("fr-FR")} €`,
         details: [
-          { label: "Montant", value: `${rev.amount.toLocaleString("fr-FR", { minimumFractionDigits: 2 })} €` },
+          { label: "Montant", value: `${rev.amount.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €` },
           { label: "Statut",  value: rev.status === "RECEIVED" ? "Reçu" : "En attente" },
           { label: "Date",    value: dateStr },
         ],
@@ -521,7 +521,7 @@ export default async function GraphPage() {
           href:     "/revenus",
           subtitle: `${rev.amount.toLocaleString("fr-FR")} €`,
           details: [
-            { label: "Montant", value: `${rev.amount.toLocaleString("fr-FR", { minimumFractionDigits: 2 })} €` },
+            { label: "Montant", value: `${rev.amount.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €` },
             { label: "Statut",  value: rev.status === "RECEIVED" ? "Reçu" : "En attente" },
             { label: "Date",    value: dateStr },
           ],

@@ -219,7 +219,7 @@ export function ImportInvoiceModal({
             <p className="text-xs text-muted-foreground -mt-1">
               Total TTC :{" "}
               <span className="font-medium text-foreground amount-sensitive">
-                {amountTTC.toLocaleString("fr-FR", { minimumFractionDigits: 2 })} €
+                {amountTTC.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €
               </span>
             </p>
           )}

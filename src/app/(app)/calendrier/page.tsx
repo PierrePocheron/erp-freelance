@@ -280,7 +280,7 @@ export default async function CalendrierPage() {
         id: inv.id,
         date: inv.dueDate!,
         title: inv.number,
-        subtitle: `Échéance · ${net.toLocaleString("fr-FR", { minimumFractionDigits: 2 })} €`,
+        subtitle: `Échéance · ${net.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`,
         type: "invoice" as const,
         href: `/facturation/factures/${inv.id}`,
         isLate: inv.status === "LATE",

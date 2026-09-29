@@ -5,6 +5,7 @@ import { Plus, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { addRenewal } from "@/actions/postdev"
+import { toast } from "sonner"
 
 const renewalTypes = [
   { value: "DOMAIN", label: "Domaine" },
@@ -60,16 +61,20 @@ export function RenewalForm({ postDevId, projectId }: { postDevId: string; proje
     e.preventDefault()
     if (!name.trim() || !expiresAt) return
     startTransition(async () => {
-      await addRenewal(postDevId, projectId, {
-        type,
-        name: name.trim(),
-        amount: amount ? Number(amount) : null,
-        purchasedAt: purchasedAt || null,
-        periodMonths,
-        expiresAt,
-      })
-      setName("")
-      setAmount("")
+      try {
+        await addRenewal(postDevId, projectId, {
+          type,
+          name: name.trim(),
+          amount: amount ? Number(amount) : null,
+          purchasedAt: purchasedAt || null,
+          periodMonths,
+          expiresAt,
+        })
+        setName("")
+        setAmount("")
+      } catch {
+        toast.error("Échec de l'enregistrement")
+      }
     })
   }
 

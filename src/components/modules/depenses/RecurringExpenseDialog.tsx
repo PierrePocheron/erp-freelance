@@ -14,6 +14,7 @@ import { ExpenseCategoryCombobox, type ExpenseCategory } from "./ExpenseCategory
 import { toDateInput } from "@/lib/dates"
 
 import { FREQUENCY_LABELS } from "@/lib/expense-constants"
+import { toast } from "sonner"
 
 export type RecurringExpenseForEdit = {
   id: string
@@ -69,26 +70,34 @@ export function RecurringExpenseDialog({
     const dateObj = new Date(`${nextDate || toDateInput(new Date())}T00:00:00`)
 
     startTransition(async () => {
-      if (frequency === "ONETIME") {
-        // Conversion / création d'une dépense ponctuelle
-        if (isEdit) await convertRecurringToExpense(recurringExpense.id, { ...shared, date: dateObj })
-        else await createExpense({ ...shared, date: dateObj })
-      } else {
-        const payload = { ...shared, frequency, nextGenerationDate: dateObj, dateToConfirm }
-        if (isEdit) await updateRecurringExpense(recurringExpense.id, payload)
-        else await createRecurringExpense(payload)
+      try {
+        if (frequency === "ONETIME") {
+          // Conversion / création d'une dépense ponctuelle
+          if (isEdit) await convertRecurringToExpense(recurringExpense.id, { ...shared, date: dateObj })
+          else await createExpense({ ...shared, date: dateObj })
+        } else {
+          const payload = { ...shared, frequency, nextGenerationDate: dateObj, dateToConfirm }
+          if (isEdit) await updateRecurringExpense(recurringExpense.id, payload)
+          else await createRecurringExpense(payload)
+        }
+        setOpen(false)
+        router.refresh()
+      } catch {
+        toast.error("Échec de l'enregistrement")
       }
-      setOpen(false)
-      router.refresh()
     })
   }
 
   function handleDelete() {
     if (!recurringExpense) return
     startDelete(async () => {
-      await deleteRecurringExpense(recurringExpense.id)
-      setOpen(false)
-      router.refresh()
+      try {
+        await deleteRecurringExpense(recurringExpense.id)
+        setOpen(false)
+        router.refresh()
+      } catch {
+        toast.error("Échec de la suppression")
+      }
     })
   }
 

@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/dialog"
 import { createUsefulLink, updateUsefulLink, deleteUsefulLink } from "@/actions/projet"
 import { LINK_CATEGORY_CONFIG } from "@/lib/link-categories"
+import { toast } from "sonner"
 
 export type UsefulLinkForEdit = { id: string; label: string; url: string; category: string }
 
@@ -28,22 +29,30 @@ export function UsefulLinkDialog({ projectId, link }: { projectId: string; link?
     e.preventDefault()
     if (!label.trim() || !url.trim()) return
     startTransition(async () => {
-      if (isEdit) {
-        await updateUsefulLink(link.id, projectId, { label: label.trim(), url: url.trim(), category })
-      } else {
-        await createUsefulLink(projectId, { label: label.trim(), url: url.trim(), category })
+      try {
+        if (isEdit) {
+          await updateUsefulLink(link.id, projectId, { label: label.trim(), url: url.trim(), category })
+        } else {
+          await createUsefulLink(projectId, { label: label.trim(), url: url.trim(), category })
+        }
+        setOpen(false)
+        router.refresh()
+      } catch {
+        toast.error("Échec de l'enregistrement")
       }
-      setOpen(false)
-      router.refresh()
     })
   }
 
   function handleDelete() {
     if (!link) return
     startDelete(async () => {
-      await deleteUsefulLink(link.id, projectId)
-      setOpen(false)
-      router.refresh()
+      try {
+        await deleteUsefulLink(link.id, projectId)
+        setOpen(false)
+        router.refresh()
+      } catch {
+        toast.error("Échec de la suppression")
+      }
     })
   }
 

@@ -100,6 +100,13 @@ jobs:
       - name: Generate Prisma Client
         run: npx prisma generate
 
+      # Garde-fou de dérive (#9) : une base reconstruite depuis prisma/migrations doit être
+      # identique au schéma (sinon quelque chose a été poussé en prod sans migration).
+      - name: Migrations ↔ schéma
+        run: bash scripts/check-migrations.sh
+        env:
+          MIGCHECK_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/erp_migcheck
+
       # Lance unit + intégration avec couverture (lcov pour SonarCloud).
       - name: Tests (unit + integration) + coverage
         run: npm run test:coverage

@@ -15,6 +15,67 @@ function toDate(val: string | null | undefined): Date | null {
   return new Date(val)
 }
 
+// Référentiels : importés en premier (sociétés, émetteurs, dépenses, tâches… y font référence).
+const EARLY_SECTIONS = [
+  { key: "fiscalSources", label: "Sources fiscales", model: "fiscalSource", userOwned: true },
+  { key: "companyCategories", label: "Catégories de société", model: "companyCategory", userOwned: true },
+  { key: "calendarCategories", label: "Catégories d'agenda", model: "calendarCategory", userOwned: true },
+  { key: "expenseCategories", label: "Catégories de dépense", model: "expenseCategory", userOwned: true },
+  { key: "emailTemplates", label: "Modèles de mails", model: "emailTemplate", userOwned: true },
+  { key: "callTemplates", label: "Modèles d'appel", model: "callTemplate", userOwned: true },
+  { key: "investmentPlatforms", label: "Plateformes d'investissement", model: "investmentPlatform", userOwned: true },
+  { key: "skills", label: "Compétences", model: "skill", userOwned: true },
+] as const
+
+// Après les sections historiques (contacts, projets, factures… déjà en base), dans l'ordre des FK.
+const LATE_SECTIONS = [
+  { key: "recurringInvoiceLines", label: "Lignes de factures récurrentes", model: "recurringInvoiceLine", userOwned: false,
+    refs: { recurringInvoiceId: "recurringInvoice", productId: "product" }, required: ["recurringInvoiceId"] },
+  { key: "projectContacts", label: "Contacts de projet", model: "projectContact", userOwned: false,
+    refs: { projectId: "project", clientId: "client" }, required: ["projectId", "clientId"] },
+  { key: "projectEvents", label: "Frise des projets", model: "projectEvent", userOwned: false,
+    refs: { projectId: "project" }, required: ["projectId"] },
+  { key: "prospectEvents", label: "Historique de prospection", model: "prospectEvent", userOwned: false,
+    refs: { clientId: "client" }, required: ["clientId"] },
+  { key: "prospectNotes", label: "Notes de prospection", model: "prospectNote", userOwned: false,
+    refs: { clientId: "client" }, required: ["clientId"] },
+  { key: "emailLogs", label: "Journal des mails", model: "emailLog", userOwned: true,
+    refs: { invoiceId: "invoice", clientId: "client" } },
+  { key: "emailDrafts", label: "Brouillons de mails", model: "emailDraft", userOwned: true,
+    refs: { clientId: "client", templateId: "emailTemplate" }, required: ["clientId"] },
+  { key: "interviewAnswers", label: "Réponses d'entretien", model: "interviewAnswer", userOwned: true },
+  { key: "recurringRevenues", label: "Revenus récurrents", model: "recurringRevenue", userOwned: true,
+    refs: { fiscalSourceId: "fiscalSource", companyId: "company", clientId: "client", projectId: "project" } },
+  { key: "revenues", label: "Revenus", model: "revenue", userOwned: true,
+    refs: { recurringRevenueId: "recurringRevenue", fiscalSourceId: "fiscalSource", companyId: "company", clientId: "client", projectId: "project" } },
+  { key: "recurringExpenses", label: "Dépenses récurrentes", model: "recurringExpense", userOwned: true,
+    refs: { categoryId: "expenseCategory" } },
+  { key: "expenses", label: "Dépenses", model: "expense", userOwned: true,
+    refs: { categoryId: "expenseCategory", recurringExpenseId: "recurringExpense" } },
+  { key: "healthEvents", label: "Santé — problèmes", model: "healthEvent", userOwned: true },
+  { key: "healthConsultations", label: "Santé — consultations", model: "healthConsultation", userOwned: true,
+    refs: { healthEventId: "healthEvent" } },
+  { key: "healthReimbursements", label: "Santé — remboursements", model: "healthReimbursement", userOwned: true,
+    refs: { consultationId: "healthConsultation" } },
+  { key: "jobApplications", label: "Entretiens", model: "jobApplication", userOwned: true,
+    refs: { companyId: "company", contactId: "client" } },
+  { key: "jobApplicationEvents", label: "Entretiens — étapes", model: "jobApplicationEvent", userOwned: true,
+    refs: { applicationId: "jobApplication", contactId: "client" }, required: ["applicationId"] },
+  { key: "urssafDeclarations", label: "Déclarations URSSAF", model: "urssafDeclaration", userOwned: true },
+  { key: "urssafDeclarationLines", label: "Lignes de déclaration", model: "urssafDeclarationLine", userOwned: false,
+    refs: { declarationId: "urssafDeclaration", invoiceId: "invoice", revenueId: "revenue" }, required: ["declarationId"] },
+  { key: "projectSkills", label: "Technos des projets", model: "projectSkill", userOwned: false,
+    refs: { projectId: "project", skillId: "skill" }, required: ["projectId", "skillId"] },
+  { key: "jobApplicationSkills", label: "Stack des entretiens", model: "jobApplicationSkill", userOwned: false,
+    refs: { applicationId: "jobApplication", skillId: "skill" }, required: ["applicationId", "skillId"] },
+  { key: "interviewQuestions", label: "Questions techniques", model: "interviewQuestion", userOwned: true,
+    refs: { applicationId: "jobApplication" } },
+  { key: "questionSkills", label: "Questions ↔ compétences", model: "questionSkill", userOwned: false,
+    refs: { questionId: "interviewQuestion", skillId: "skill" }, required: ["questionId", "skillId"] },
+  { key: "investmentEntries", label: "Relevés d'investissement", model: "investmentEntry", userOwned: false,
+    refs: { platformId: "investmentPlatform" }, required: ["platformId"] },
+] as const
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export async function importData(jsonString: string): Promise<ImportResult> {
   const session = await auth()
@@ -50,6 +111,9 @@ export async function importData(jsonString: string): Promise<ImportResult> {
   // invoiceId, projectId…) appartenant à un AUTRE utilisateur. On ne rattache
   // donc chaque enregistrement enfant qu'aux parents réellement possédés par
   // userId (pré-existants ou importés à l'instant sous ce userId). Sets mémoïsés.
+  // Tout l'import tourne dans UNE transaction (#35) : `db` est le client transactionnel.
+  // Client de la transaction (client Prisma étendu, sans les méthodes de connexion/transaction)
+  let db: Omit<typeof prisma, "$connect" | "$disconnect" | "$on" | "$transaction" | "$extends"> = prisma
   const ownedCache: Record<string, Set<string>> = {}
   async function ownedIds(
     key: string,
@@ -65,9 +129,9 @@ export async function importData(jsonString: string): Promise<ImportResult> {
   // émetteur d'autrui affichait sa raison sociale et son IBAN dans le PDF.
   async function documentRefs() {
     const [clients, projects, emitters] = await Promise.all([
-      ownedIds("client", () => prisma.client.findMany({ where: { userId }, select: { id: true } })),
-      ownedIds("project", () => prisma.project.findMany({ where: { userId }, select: { id: true } })),
-      ownedIds("emitterProfile", () => prisma.emitterProfile.findMany({ where: { userId }, select: { id: true } })),
+      ownedIds("client", () => db.client.findMany({ where: { userId }, select: { id: true } })),
+      ownedIds("project", () => db.project.findMany({ where: { userId }, select: { id: true } })),
+      ownedIds("emitterProfile", () => db.emitterProfile.findMany({ where: { userId }, select: { id: true } })),
     ])
     return {
       clients,
@@ -76,11 +140,79 @@ export async function importData(jsonString: string): Promise<ImportResult> {
     }
   }
 
+  // ── Moteur générique des sections ajoutées en 0.2.0 (#7) ──────────────────────
+  // Chaque ligne est rattachée à userId (si le modèle en porte un) ; chaque référence n'est
+  // conservée que si la cible appartient à l'utilisateur (pré-existante ou importée à
+  // l'instant) — sinon mise à null, ou ligne écartée si la référence est obligatoire.
+  // Les colonnes viennent telles quelles de l'export (mêmes champs scalaires que le modèle).
+  type Delegate =
+    | "fiscalSource" | "companyCategory" | "calendarCategory" | "expenseCategory" | "emailTemplate"
+    | "callTemplate" | "investmentPlatform" | "skill" | "recurringInvoiceLine" | "projectContact"
+    | "projectEvent" | "prospectEvent" | "prospectNote" | "emailLog" | "emailDraft" | "interviewAnswer"
+    | "recurringRevenue" | "revenue" | "recurringExpense" | "expense" | "healthEvent"
+    | "healthConsultation" | "healthReimbursement" | "jobApplication" | "jobApplicationEvent"
+    | "urssafDeclaration" | "urssafDeclarationLine" | "projectSkill" | "jobApplicationSkill"
+    | "interviewQuestion" | "questionSkill" | "investmentEntry"
+    | "client" | "company" | "project" | "invoice" | "product" | "recurringInvoice"
+  type Section = {
+    key: string
+    label: string
+    model: Delegate
+    userOwned: boolean
+    refs?: Readonly<Record<string, Delegate>>
+    required?: readonly string[]
+  }
+  // Toutes les cibles de référence portent un userId : un seul motif de chargement.
+  async function ownedSet(model: Delegate): Promise<Set<string>> {
+    const delegate = (db as unknown as Record<string, { findMany: (a: unknown) => Promise<{ id: string }[]> }>)[model]
+    return ownedIds(model, () => delegate.findMany({ where: { userId }, select: { id: true } }))
+  }
+  async function importSection(spec: Section) {
+    const rows: Record<string, unknown>[] = Array.isArray(data[spec.key]) ? data[spec.key] : []
+    if (!rows.length) return
+    const sets = Object.fromEntries(
+      await Promise.all(Object.entries(spec.refs ?? {}).map(async ([field, target]) => [field, await ownedSet(target)] as const)),
+    )
+    const clean = rows.flatMap((raw) => {
+      const row: Record<string, unknown> = { ...raw }
+      if (spec.userOwned) row.userId = userId
+      for (const [field, set] of Object.entries(sets)) {
+        const v = row[field]
+        if (typeof v === "string" && !set.has(v)) {
+          if (spec.required?.includes(field)) return []
+          row[field] = null
+        }
+      }
+      if (spec.model === "skill") row.parentId = null // relié ensuite (auto-référence)
+      return [row]
+    })
+    if (!clean.length) return
+    const delegate = (db as unknown as Record<string, { createMany: (a: unknown) => Promise<{ count: number }> }>)[spec.model]
+    const { count } = await delegate.createMany({ data: clean, skipDuplicates: true })
+    delete ownedCache[spec.model]
+    track(spec.label, count)
+  }
+  // Compétences : l'arborescence (parentId) est reposée une fois toutes les compétences créées
+  async function relinkSkillParents() {
+    const rows: { id: string; parentId?: string | null }[] = Array.isArray(data.skills) ? data.skills : []
+    const owned = await ownedSet("skill")
+    for (const r of rows) {
+      if (r.parentId && r.parentId !== r.id && owned.has(r.id) && owned.has(r.parentId)) {
+        await db.skill.update({ where: { id: r.id }, data: { parentId: r.parentId } })
+      }
+    }
+  }
+
   try {
+   // Une seule transaction (#35) : un échec à l'étape 24 laissait 23 étapes committées pendant
+   // que l'écran annonçait « 0 élément importé ». Désormais : tout ou rien.
+   await prisma.$transaction(async (tx) => {
+    db = tx
+
     // ── 1. UserProfile ────────────────────────────────────────────────────────
     if (data.userProfile) {
       const p = data.userProfile
-      await prisma.userProfile.upsert({
+      await db.userProfile.upsert({
         where: { userId },
         create: {
           id: p.id, userId,
@@ -113,11 +245,17 @@ export async function importData(jsonString: string): Promise<ImportResult> {
       track("Profil professionnel", 1)
     }
 
+    // ── 1a. Référentiels (sources fiscales, catégories, modèles, plateformes, compétences) ──
+    for (const spec of EARLY_SECTIONS) await importSection(spec)
+    await relinkSkillParents()
+
     // ── 1b. Profils émetteurs (sociétés) — avant devis/factures (FK) ──────────
     if (data.emitterProfiles?.length) {
-      await prisma.emitterProfile.createMany({
+      const ownedSources = await ownedSet("fiscalSource")
+      await db.emitterProfile.createMany({
         data: data.emitterProfiles.map((e: any) => ({ // eslint-disable-line @typescript-eslint/no-explicit-any
           id: e.id, userId, name: e.name,
+          fiscalSourceId: e.fiscalSourceId && ownedSources.has(e.fiscalSourceId) ? e.fiscalSourceId : null,
           companyName: e.companyName ?? null, legalForm: e.legalForm ?? null,
           siret: e.siret ?? null, vatNumber: e.vatNumber ?? null,
           address: e.address ?? null, postalCode: e.postalCode ?? null,
@@ -138,7 +276,7 @@ export async function importData(jsonString: string): Promise<ImportResult> {
 
     // ── 2. Tags utilisateur ───────────────────────────────────────────────────
     if (data.tags?.length) {
-      await prisma.tag.createMany({
+      await db.tag.createMany({
         data: data.tags.map((t: any) => ({ // eslint-disable-line @typescript-eslint/no-explicit-any
           id: t.id, userId, name: t.name, color: t.color ?? "#6366f1",
           createdAt: toDate(t.createdAt) ?? new Date(),
@@ -150,7 +288,7 @@ export async function importData(jsonString: string): Promise<ImportResult> {
 
     // ── 3. Conditions générales ───────────────────────────────────────────────
     if (data.conditionsTemplates?.length) {
-      await prisma.conditionsTemplate.createMany({
+      await db.conditionsTemplate.createMany({
         data: data.conditionsTemplates.map((c: any) => ({ // eslint-disable-line @typescript-eslint/no-explicit-any
           id: c.id, userId, name: c.name, content: c.content,
           isDefault: c.isDefault ?? false,
@@ -164,9 +302,13 @@ export async function importData(jsonString: string): Promise<ImportResult> {
 
     // ── 3b. Sociétés (avant les contacts : FK companyId) ──────────────────────
     if (data.companies?.length) {
-      await prisma.company.createMany({
+      const [ownedSources, ownedCats] = await Promise.all([ownedSet("fiscalSource"), ownedSet("companyCategory")])
+      await db.company.createMany({
         data: data.companies.map((c: any) => ({ // eslint-disable-line @typescript-eslint/no-explicit-any
           id: c.id, userId, name: c.name,
+          companyType: c.companyType ?? null,
+          fiscalSourceId: c.fiscalSourceId && ownedSources.has(c.fiscalSourceId) ? c.fiscalSourceId : null,
+          categoryId: c.categoryId && ownedCats.has(c.categoryId) ? c.categoryId : null,
           siret: c.siret ?? null, vatNumber: c.vatNumber ?? null,
           email: c.email ?? null, phone: c.phone ?? null, website: c.website ?? null,
           address: c.address ?? null, postalCode: c.postalCode ?? null,
@@ -181,10 +323,10 @@ export async function importData(jsonString: string): Promise<ImportResult> {
 
     // Zones d'organigramme (avant les contacts : FK teamId)
     if (data.companyTeams?.length) {
-      const ownedCompanies = await ownedIds("company", () => prisma.company.findMany({ where: { userId }, select: { id: true } }))
+      const ownedCompanies = await ownedIds("company", () => db.company.findMany({ where: { userId }, select: { id: true } }))
       const rows = data.companyTeams.filter((t: any) => ownedCompanies.has(t.companyId)) // eslint-disable-line @typescript-eslint/no-explicit-any
       if (rows.length) {
-        await prisma.companyTeam.createMany({
+        await db.companyTeam.createMany({
           data: rows.map((t: any) => ({ // eslint-disable-line @typescript-eslint/no-explicit-any
             id: t.id, companyId: t.companyId, name: t.name,
             color: t.color ?? "#6366f1", sortOrder: t.sortOrder ?? 0,
@@ -199,9 +341,9 @@ export async function importData(jsonString: string): Promise<ImportResult> {
     // ── 4. Clients (contacts) ─────────────────────────────────────────────────
     if (data.clients?.length) {
       // Une zone non importée (société d'un autre compte) ne doit pas casser la FK.
-      const ownedTeams = await ownedIds("companyTeam", () => prisma.companyTeam.findMany({ where: { company: { userId } }, select: { id: true } }))
-      const ownedCompanies = await ownedIds("company", () => prisma.company.findMany({ where: { userId }, select: { id: true } }))
-      await prisma.client.createMany({
+      const ownedTeams = await ownedIds("companyTeam", () => db.companyTeam.findMany({ where: { company: { userId } }, select: { id: true } }))
+      const ownedCompanies = await ownedIds("company", () => db.company.findMany({ where: { userId }, select: { id: true } }))
+      await db.client.createMany({
         data: data.clients.map((c: any) => ({ // eslint-disable-line @typescript-eslint/no-explicit-any
           id: c.id, userId, type: c.type, name: c.name,
           firstName: c.firstName ?? null, lastName: c.lastName ?? null, label: c.label ?? null,
@@ -228,10 +370,10 @@ export async function importData(jsonString: string): Promise<ImportResult> {
 
     // ── 5. Interactions ───────────────────────────────────────────────────────
     if (data.interactions?.length) {
-      const owned = await ownedIds("client", () => prisma.client.findMany({ where: { userId }, select: { id: true } }))
+      const owned = await ownedIds("client", () => db.client.findMany({ where: { userId }, select: { id: true } }))
       const rows = data.interactions.filter((i: any) => owned.has(i.clientId)) // eslint-disable-line @typescript-eslint/no-explicit-any
       if (rows.length) {
-        await prisma.interaction.createMany({
+        await db.interaction.createMany({
           data: rows.map((i: any) => ({ // eslint-disable-line @typescript-eslint/no-explicit-any
             id: i.id, clientId: i.clientId, date: new Date(i.date),
             channel: i.channel, summary: i.summary, response: i.response ?? null,
@@ -245,10 +387,10 @@ export async function importData(jsonString: string): Promise<ImportResult> {
 
     // ── 6. Rappels ────────────────────────────────────────────────────────────
     if (data.reminders?.length) {
-      const owned = await ownedIds("client", () => prisma.client.findMany({ where: { userId }, select: { id: true } }))
+      const owned = await ownedIds("client", () => db.client.findMany({ where: { userId }, select: { id: true } }))
       const rows = data.reminders.filter((r: any) => owned.has(r.clientId)) // eslint-disable-line @typescript-eslint/no-explicit-any
       if (rows.length) {
-        await prisma.reminder.createMany({
+        await db.reminder.createMany({
           data: rows.map((r: any) => ({ // eslint-disable-line @typescript-eslint/no-explicit-any
             id: r.id, clientId: r.clientId, dueDate: new Date(r.dueDate),
             note: r.note ?? null, isDone: r.isDone ?? false, doneAt: toDate(r.doneAt),
@@ -263,10 +405,10 @@ export async function importData(jsonString: string): Promise<ImportResult> {
 
     // ── 7. Fichiers clients ───────────────────────────────────────────────────
     if (data.clientFiles?.length) {
-      const owned = await ownedIds("client", () => prisma.client.findMany({ where: { userId }, select: { id: true } }))
+      const owned = await ownedIds("client", () => db.client.findMany({ where: { userId }, select: { id: true } }))
       const rows = data.clientFiles.filter((f: any) => owned.has(f.clientId)) // eslint-disable-line @typescript-eslint/no-explicit-any
       if (rows.length) {
-        await prisma.clientFile.createMany({
+        await db.clientFile.createMany({
           data: rows.map((f: any) => ({ // eslint-disable-line @typescript-eslint/no-explicit-any
             id: f.id, clientId: f.clientId, name: f.name,
             fileUrl: f.fileUrl, type: f.type,
@@ -280,7 +422,7 @@ export async function importData(jsonString: string): Promise<ImportResult> {
 
     // ── 8. Produits ───────────────────────────────────────────────────────────
     if (data.products?.length) {
-      await prisma.product.createMany({
+      await db.product.createMany({
         data: data.products.map((p: any) => ({ // eslint-disable-line @typescript-eslint/no-explicit-any
           id: p.id, userId, name: p.name, description: p.description ?? null,
           unitPrice: p.unitPrice, unit: p.unit, billingType: p.billingType,
@@ -295,8 +437,8 @@ export async function importData(jsonString: string): Promise<ImportResult> {
 
     // ── 9. Projets (sans M2M tags) ────────────────────────────────────────────
     if (data.projects?.length) {
-      const ownedClients = await ownedIds("client", () => prisma.client.findMany({ where: { userId }, select: { id: true } }))
-      await prisma.project.createMany({
+      const ownedClients = await ownedIds("client", () => db.client.findMany({ where: { userId }, select: { id: true } }))
+      await db.project.createMany({
         data: data.projects.map((p: any) => ({ // eslint-disable-line @typescript-eslint/no-explicit-any
           id: p.id, userId, clientId: p.clientId && ownedClients.has(p.clientId) ? p.clientId : null, name: p.name,
           description: p.description ?? null, status: p.status,
@@ -313,12 +455,12 @@ export async function importData(jsonString: string): Promise<ImportResult> {
     // ── 10. Tags → Projets (M2M) ──────────────────────────────────────────────
     const projectsWithTags = (data.projects ?? []).filter((p: any) => p.tagIds?.length > 0) // eslint-disable-line @typescript-eslint/no-explicit-any
     const ownedTags = projectsWithTags.length
-      ? new Set((await prisma.tag.findMany({ where: { userId }, select: { id: true } })).map((t) => t.id))
+      ? new Set((await db.tag.findMany({ where: { userId }, select: { id: true } })).map((t) => t.id))
       : new Set<string>()
     for (const project of projectsWithTags) {
       const tagIds = (project.tagIds as string[]).filter((id) => ownedTags.has(id))
       if (!tagIds.length) continue
-      await prisma.project.update({
+      await db.project.update({
         where: { id: project.id, userId },
         data: { tags: { connect: tagIds.map((id) => ({ id })) } },
       }).catch(() => { /* projet d'un autre compte ou tag manquant : ignoré */ })
@@ -326,10 +468,10 @@ export async function importData(jsonString: string): Promise<ImportResult> {
 
     // ── 11. Jalons ────────────────────────────────────────────────────────────
     if (data.milestones?.length) {
-      const owned = await ownedIds("project", () => prisma.project.findMany({ where: { userId }, select: { id: true } }))
+      const owned = await ownedIds("project", () => db.project.findMany({ where: { userId }, select: { id: true } }))
       const rows = data.milestones.filter((m: any) => owned.has(m.projectId)) // eslint-disable-line @typescript-eslint/no-explicit-any
       if (rows.length) {
-        await prisma.milestone.createMany({
+        await db.milestone.createMany({
           data: rows.map((m: any) => ({ // eslint-disable-line @typescript-eslint/no-explicit-any
             id: m.id, projectId: m.projectId, name: m.name,
             date: new Date(m.date), status: m.status,
@@ -343,10 +485,10 @@ export async function importData(jsonString: string): Promise<ImportResult> {
 
     // ── 12. Tags de tâches ────────────────────────────────────────────────────
     if (data.taskTags?.length) {
-      const owned = await ownedIds("project", () => prisma.project.findMany({ where: { userId }, select: { id: true } }))
+      const owned = await ownedIds("project", () => db.project.findMany({ where: { userId }, select: { id: true } }))
       const rows = data.taskTags.filter((tt: any) => owned.has(tt.projectId)) // eslint-disable-line @typescript-eslint/no-explicit-any
       if (rows.length) {
-        await prisma.taskTag.createMany({
+        await db.taskTag.createMany({
           data: rows.map((tt: any) => ({ // eslint-disable-line @typescript-eslint/no-explicit-any
             id: tt.id, projectId: tt.projectId, name: tt.name,
             color: tt.color ?? "#6366f1",
@@ -364,11 +506,11 @@ export async function importData(jsonString: string): Promise<ImportResult> {
       // appartient à l'utilisateur ; sinon le détacher (null) plutôt que greffer
       // la tâche sur les données d'un autre tenant.
       const [ownedProjects, ownedClients, ownedMilestones] = await Promise.all([
-        ownedIds("project", () => prisma.project.findMany({ where: { userId }, select: { id: true } })),
-        ownedIds("client", () => prisma.client.findMany({ where: { userId }, select: { id: true } })),
-        ownedIds("milestone", () => prisma.milestone.findMany({ where: { project: { userId } }, select: { id: true } })),
+        ownedIds("project", () => db.project.findMany({ where: { userId }, select: { id: true } })),
+        ownedIds("client", () => db.client.findMany({ where: { userId }, select: { id: true } })),
+        ownedIds("milestone", () => db.milestone.findMany({ where: { project: { userId } }, select: { id: true } })),
       ])
-      await prisma.task.createMany({
+      await db.task.createMany({
         data: data.tasks.map((t: any) => ({ // eslint-disable-line @typescript-eslint/no-explicit-any
           id: t.id,
           userId: t.userId ? userId : null,
@@ -395,12 +537,12 @@ export async function importData(jsonString: string): Promise<ImportResult> {
     const tasksWithParent = (data.tasks ?? []).filter((t: any) => t.parentTaskId) // eslint-disable-line @typescript-eslint/no-explicit-any
     const taskOwner = { OR: [{ userId }, { project: { userId } }] }
     const ownedTasks = tasksWithParent.length
-      ? new Set((await prisma.task.findMany({ where: taskOwner, select: { id: true } })).map((t) => t.id))
+      ? new Set((await db.task.findMany({ where: taskOwner, select: { id: true } })).map((t) => t.id))
       : new Set<string>()
     for (const task of tasksWithParent) {
       // Une sauvegarde forgée pouvait rattacher la tâche d'un autre compte sous l'une des siennes
       if (!ownedTasks.has(task.id) || !ownedTasks.has(task.parentTaskId)) continue
-      await prisma.task.update({
+      await db.task.update({
         where: { id: task.id },
         data: { parentTaskId: task.parentTaskId },
       }).catch(() => { /* sous-tâche orpheline, on ignore */ })
@@ -411,15 +553,15 @@ export async function importData(jsonString: string): Promise<ImportResult> {
     const tasksWithTags = (data.tasks ?? []).filter((t: any) => t.taskTagIds?.length > 0) // eslint-disable-line @typescript-eslint/no-explicit-any
     const [ownedTaskIds, ownedTaskTags] = tasksWithTags.length
       ? await Promise.all([
-          prisma.task.findMany({ where: { OR: [{ userId }, { project: { userId } }] }, select: { id: true } }),
-          prisma.taskTag.findMany({ where: { project: { userId } }, select: { id: true } }),
+          db.task.findMany({ where: { OR: [{ userId }, { project: { userId } }] }, select: { id: true } }),
+          db.taskTag.findMany({ where: { project: { userId } }, select: { id: true } }),
         ]).then(([t, g]) => [new Set(t.map((x) => x.id)), new Set(g.map((x) => x.id))])
       : [new Set<string>(), new Set<string>()]
     for (const task of tasksWithTags) {
       if (!ownedTaskIds.has(task.id)) continue
       const tagIds = (task.taskTagIds as string[]).filter((id) => ownedTaskTags.has(id))
       if (!tagIds.length) continue
-      await prisma.task.update({
+      await db.task.update({
         where: { id: task.id },
         data: { taskTags: { connect: tagIds.map((id) => ({ id })) } },
       }).catch(() => { /* tag manquant, on ignore */ })
@@ -427,13 +569,13 @@ export async function importData(jsonString: string): Promise<ImportResult> {
 
     // ── 16. Entrées de temps ──────────────────────────────────────────────────
     if (data.timeEntries?.length) {
-      const owned = await ownedIds("task", () => prisma.task.findMany({
+      const owned = await ownedIds("task", () => db.task.findMany({
         where: { OR: [{ userId }, { project: { userId } }, { client: { userId } }] },
         select: { id: true },
       }))
       const rows = data.timeEntries.filter((e: any) => owned.has(e.taskId)) // eslint-disable-line @typescript-eslint/no-explicit-any
       if (rows.length) {
-        await prisma.timeEntry.createMany({
+        await db.timeEntry.createMany({
           data: rows.map((e: any) => ({ // eslint-disable-line @typescript-eslint/no-explicit-any
             id: e.id, taskId: e.taskId, userId,
             startedAt: new Date(e.startedAt), endedAt: toDate(e.endedAt),
@@ -448,10 +590,10 @@ export async function importData(jsonString: string): Promise<ImportResult> {
 
     // ── 17. Journal de bord ───────────────────────────────────────────────────
     if (data.journalEntries?.length) {
-      const owned = await ownedIds("project", () => prisma.project.findMany({ where: { userId }, select: { id: true } }))
+      const owned = await ownedIds("project", () => db.project.findMany({ where: { userId }, select: { id: true } }))
       const rows = data.journalEntries.filter((j: any) => owned.has(j.projectId)) // eslint-disable-line @typescript-eslint/no-explicit-any
       if (rows.length) {
-        await prisma.journalEntry.createMany({
+        await db.journalEntry.createMany({
           data: rows.map((j: any) => ({ // eslint-disable-line @typescript-eslint/no-explicit-any
             id: j.id, projectId: j.projectId, content: j.content,
             createdAt: toDate(j.createdAt) ?? new Date(),
@@ -465,10 +607,10 @@ export async function importData(jsonString: string): Promise<ImportResult> {
 
     // ── 18. Livrables ─────────────────────────────────────────────────────────
     if (data.deliverables?.length) {
-      const owned = await ownedIds("project", () => prisma.project.findMany({ where: { userId }, select: { id: true } }))
+      const owned = await ownedIds("project", () => db.project.findMany({ where: { userId }, select: { id: true } }))
       const rows = data.deliverables.filter((d: any) => owned.has(d.projectId)) // eslint-disable-line @typescript-eslint/no-explicit-any
       if (rows.length) {
-        await prisma.deliverable.createMany({
+        await db.deliverable.createMany({
           data: rows.map((d: any) => ({ // eslint-disable-line @typescript-eslint/no-explicit-any
             id: d.id, projectId: d.projectId, name: d.name,
             status: d.status, dueDate: toDate(d.dueDate),
@@ -482,10 +624,10 @@ export async function importData(jsonString: string): Promise<ImportResult> {
 
     // ── 19. Liens utiles ──────────────────────────────────────────────────────
     if (data.usefulLinks?.length) {
-      const owned = await ownedIds("project", () => prisma.project.findMany({ where: { userId }, select: { id: true } }))
+      const owned = await ownedIds("project", () => db.project.findMany({ where: { userId }, select: { id: true } }))
       const rows = data.usefulLinks.filter((l: any) => owned.has(l.projectId)) // eslint-disable-line @typescript-eslint/no-explicit-any
       if (rows.length) {
-        await prisma.usefulLink.createMany({
+        await db.usefulLink.createMany({
           data: rows.map((l: any) => ({ // eslint-disable-line @typescript-eslint/no-explicit-any
             id: l.id, projectId: l.projectId, label: l.label,
             url: l.url, category: l.category,
@@ -499,10 +641,10 @@ export async function importData(jsonString: string): Promise<ImportResult> {
 
     // ── 20. Post-Dev ──────────────────────────────────────────────────────────
     if (data.postDevs?.length) {
-      const owned = await ownedIds("project", () => prisma.project.findMany({ where: { userId }, select: { id: true } }))
+      const owned = await ownedIds("project", () => db.project.findMany({ where: { userId }, select: { id: true } }))
       const rows = data.postDevs.filter((p: any) => owned.has(p.projectId)) // eslint-disable-line @typescript-eslint/no-explicit-any
       if (rows.length) {
-        await prisma.postDev.createMany({
+        await db.postDev.createMany({
           data: rows.map((p: any) => ({ // eslint-disable-line @typescript-eslint/no-explicit-any
             id: p.id, projectId: p.projectId,
             prodUrl: p.prodUrl ?? null, adminUrl: p.adminUrl ?? null,
@@ -518,10 +660,10 @@ export async function importData(jsonString: string): Promise<ImportResult> {
 
     // ── 21. Renouvellements ───────────────────────────────────────────────────
     if (data.renewals?.length) {
-      const owned = await ownedIds("postDev", () => prisma.postDev.findMany({ where: { project: { userId } }, select: { id: true } }))
+      const owned = await ownedIds("postDev", () => db.postDev.findMany({ where: { project: { userId } }, select: { id: true } }))
       const rows = data.renewals.filter((r: any) => owned.has(r.postDevId)) // eslint-disable-line @typescript-eslint/no-explicit-any
       if (rows.length) {
-        await prisma.renewal.createMany({
+        await db.renewal.createMany({
           data: rows.map((r: any) => ({ // eslint-disable-line @typescript-eslint/no-explicit-any
             id: r.id, postDevId: r.postDevId, type: r.type, name: r.name,
             expiresAt: new Date(r.expiresAt),
@@ -537,7 +679,7 @@ export async function importData(jsonString: string): Promise<ImportResult> {
     // ── 22. Devis ─────────────────────────────────────────────────────────────
     if (data.quotes?.length) {
       const refs = await documentRefs()
-      await prisma.quote.createMany({
+      await db.quote.createMany({
         data: data.quotes.filter((q: any) => refs.clients.has(q.clientId)).map((q: any) => ({ // eslint-disable-line @typescript-eslint/no-explicit-any
           id: q.id, userId, clientId: q.clientId, projectId: refs.project(q.projectId),
           emitterProfileId: refs.emitter(q.emitterProfileId),
@@ -557,10 +699,10 @@ export async function importData(jsonString: string): Promise<ImportResult> {
 
     // ── 23. Lignes de devis ───────────────────────────────────────────────────
     if (data.quoteLines?.length) {
-      const owned = await ownedIds("quote", () => prisma.quote.findMany({ where: { userId }, select: { id: true } }))
+      const owned = await ownedIds("quote", () => db.quote.findMany({ where: { userId }, select: { id: true } }))
       const rows = data.quoteLines.filter((l: any) => owned.has(l.quoteId)) // eslint-disable-line @typescript-eslint/no-explicit-any
       if (rows.length) {
-        await prisma.quoteLine.createMany({
+        await db.quoteLine.createMany({
           data: rows.map((l: any) => ({ // eslint-disable-line @typescript-eslint/no-explicit-any
             id: l.id, quoteId: l.quoteId, productId: l.productId ?? null,
             description: l.description, detail: l.detail ?? null,
@@ -576,8 +718,8 @@ export async function importData(jsonString: string): Promise<ImportResult> {
     // ── 24. Factures ──────────────────────────────────────────────────────────
     if (data.invoices?.length) {
       const refs = await documentRefs()
-      const ownedQuotes = new Set((await prisma.quote.findMany({ where: { userId }, select: { id: true } })).map((q) => q.id))
-      await prisma.invoice.createMany({
+      const ownedQuotes = new Set((await db.quote.findMany({ where: { userId }, select: { id: true } })).map((q) => q.id))
+      await db.invoice.createMany({
         data: data.invoices.filter((i: any) => refs.clients.has(i.clientId)).map((i: any) => ({ // eslint-disable-line @typescript-eslint/no-explicit-any
           id: i.id, userId, clientId: i.clientId,
           projectId: refs.project(i.projectId), quoteId: i.quoteId && ownedQuotes.has(i.quoteId) ? i.quoteId : null,
@@ -596,10 +738,10 @@ export async function importData(jsonString: string): Promise<ImportResult> {
 
     // ── 25. Lignes de factures ────────────────────────────────────────────────
     if (data.invoiceLines?.length) {
-      const owned = await ownedIds("invoice", () => prisma.invoice.findMany({ where: { userId }, select: { id: true } }))
+      const owned = await ownedIds("invoice", () => db.invoice.findMany({ where: { userId }, select: { id: true } }))
       const rows = data.invoiceLines.filter((l: any) => owned.has(l.invoiceId)) // eslint-disable-line @typescript-eslint/no-explicit-any
       if (rows.length) {
-        await prisma.invoiceLine.createMany({
+        await db.invoiceLine.createMany({
           data: rows.map((l: any) => ({ // eslint-disable-line @typescript-eslint/no-explicit-any
             id: l.id, invoiceId: l.invoiceId, productId: l.productId ?? null,
             description: l.description, detail: l.detail ?? null,
@@ -614,10 +756,10 @@ export async function importData(jsonString: string): Promise<ImportResult> {
 
     // ── 26. Paiements ─────────────────────────────────────────────────────────
     if (data.payments?.length) {
-      const owned = await ownedIds("invoice", () => prisma.invoice.findMany({ where: { userId }, select: { id: true } }))
+      const owned = await ownedIds("invoice", () => db.invoice.findMany({ where: { userId }, select: { id: true } }))
       const rows = data.payments.filter((p: any) => owned.has(p.invoiceId)) // eslint-disable-line @typescript-eslint/no-explicit-any
       if (rows.length) {
-        await prisma.payment.createMany({
+        await db.payment.createMany({
           data: rows.map((p: any) => ({ // eslint-disable-line @typescript-eslint/no-explicit-any
             id: p.id, invoiceId: p.invoiceId, amount: p.amount,
             paidAt: toDate(p.paidAt) ?? new Date(), note: p.note ?? null,
@@ -632,7 +774,7 @@ export async function importData(jsonString: string): Promise<ImportResult> {
     // ── 27. Factures récurrentes ──────────────────────────────────────────────
     if (data.recurringInvoices?.length) {
       const refs = await documentRefs()
-      await prisma.recurringInvoice.createMany({
+      await db.recurringInvoice.createMany({
         data: data.recurringInvoices.filter((r: any) => refs.clients.has(r.clientId)).map((r: any) => ({ // eslint-disable-line @typescript-eslint/no-explicit-any
           id: r.id, userId, clientId: r.clientId, projectId: refs.project(r.projectId),
           name: r.name, frequency: r.frequency,
@@ -648,9 +790,13 @@ export async function importData(jsonString: string): Promise<ImportResult> {
 
     // ── 28. Événements calendrier ─────────────────────────────────────────────
     if (data.calendarEvents?.length) {
-      await prisma.calendarEvent.createMany({
+      const [cats, refs] = await Promise.all([ownedSet("calendarCategory"), documentRefs()])
+      await db.calendarEvent.createMany({
         data: data.calendarEvents.map((e: any) => ({ // eslint-disable-line @typescript-eslint/no-explicit-any
           id: e.id, userId, title: e.title, description: e.description ?? null,
+          categoryId: e.categoryId && cats.has(e.categoryId) ? e.categoryId : null,
+          projectId: refs.project(e.projectId),
+          clientId: e.clientId && refs.clients.has(e.clientId) ? e.clientId : null,
           startDate: new Date(e.startDate), endDate: toDate(e.endDate),
           allDay: e.allDay ?? false, sourceType: e.sourceType, sourceId: e.sourceId ?? null,
           createdAt: toDate(e.createdAt) ?? new Date(),
@@ -663,7 +809,7 @@ export async function importData(jsonString: string): Promise<ImportResult> {
 
     // ── 29. Idées projets ─────────────────────────────────────────────────────
     if (data.projectIdeas?.length) {
-      await prisma.projectIdea.createMany({
+      await db.projectIdea.createMany({
         data: data.projectIdeas.map((i: any) => ({ // eslint-disable-line @typescript-eslint/no-explicit-any
           id: i.id, userId, title: i.title, content: i.content ?? "",
           createdAt: toDate(i.createdAt) ?? new Date(),
@@ -674,10 +820,15 @@ export async function importData(jsonString: string): Promise<ImportResult> {
       track("Idées projets", data.projectIdeas.length)
     }
 
+    // ── 30+. Modèles ajoutés en 0.2.0 (#7) — moteur générique ─────────────────
+    for (const spec of LATE_SECTIONS) await importSection(spec)
+   }, { timeout: 120_000, maxWait: 15_000 })
+
     const total = Object.values(counts).reduce((a, b) => a + b, 0)
     return { success: true, counts, total }
   } catch (e) {
+    // Transaction annulée : rien n'a été écrit
     const message = e instanceof Error ? e.message : "Erreur inconnue"
-    return { success: false, error: message, counts, total: 0 }
+    return { success: false, error: message, counts: {}, total: 0 }
   }
 }

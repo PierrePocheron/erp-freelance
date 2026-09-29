@@ -10,16 +10,31 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 
+/**
+ * Action irréversible derrière une confirmation. Nommé pour la suppression, mais
+ * sert aussi aux autres gestes définitifs (annuler une facture émise, marquer un
+ * devis refusé) : `confirmLabel`, `pendingLabel` et `icon` s'adaptent au geste.
+ */
 export function DeleteConfirmButton({
   label,
   confirmTitle,
   confirmMessage,
   action,
+  confirmLabel = "Supprimer définitivement",
+  pendingLabel = "Suppression…",
+  icon = <Trash2 className="h-4 w-4" />,
+  variant = "destructive",
+  className,
 }: {
   label: string
   confirmTitle: string
   confirmMessage: string
   action: () => Promise<void>
+  confirmLabel?: string
+  pendingLabel?: string
+  icon?: React.ReactNode
+  variant?: "destructive" | "outline"
+  className?: string
 }) {
   const [open, setOpen] = useState(false)
   const [isPending, startTransition] = useTransition()
@@ -35,11 +50,12 @@ export function DeleteConfirmButton({
     <>
       <Button
         type="button"
-        variant="destructive"
+        variant={variant}
         size="sm"
+        className={className}
         onClick={() => setOpen(true)}
       >
-        <Trash2 className="h-4 w-4 mr-1.5" />
+        {icon}
         {label}
       </Button>
 
@@ -64,7 +80,7 @@ export function DeleteConfirmButton({
               onClick={handleConfirm}
               disabled={isPending}
             >
-              {isPending ? "Suppression..." : "Supprimer définitivement"}
+              {isPending ? pendingLabel : confirmLabel}
             </Button>
           </div>
         </DialogContent>

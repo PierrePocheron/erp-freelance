@@ -167,12 +167,17 @@ export default async function FactureDetailPage({
           )}
 
           {(invoice.status === "ISSUED" || invoice.status === "SENT" || invoice.status === "LATE") && (
-            <form action={async () => { "use server"; await cancelInvoice(id, userId) }}>
-              <Button type="submit" size="sm" variant="outline" className="text-destructive hover:text-destructive">
-                <Ban className="h-3.5 w-3.5" />
-                Annuler
-              </Button>
-            </form>
+            <DeleteConfirmButton
+              label="Annuler la facture"
+              variant="outline"
+              className="text-destructive hover:text-destructive"
+              icon={<Ban className="h-3.5 w-3.5" />}
+              confirmTitle={`Annuler la facture ${invoice.number} ?`}
+              confirmMessage="Une facture émise ne se supprime pas : elle reste dans la séquence, marquée annulée. Pour la corriger, tu pourras ensuite la dupliquer en un nouveau brouillon."
+              confirmLabel="Annuler la facture"
+              pendingLabel="Annulation…"
+              action={async () => { "use server"; await cancelInvoice(id, userId) }}
+            />
           )}
 
           {invoice.status === "CANCELLED" && (

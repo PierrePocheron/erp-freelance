@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 import { CalendarCheck, ChevronDown, Check, Ban } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { isZonedAllDay } from "@/lib/dates"
 import { completeTaskGlobal, cancelTask, updateMilestoneStatus } from "@/actions/projet"
 import { setCalendarEventOutcome, cancelCalendarEvent } from "@/actions/calendar"
 
@@ -17,7 +18,9 @@ export type ConfirmEventItem = { id: string; title: string; startDate: string; a
 function fmtDateTime(d: string, allDay = false): string {
   const dt = new Date(d)
   const date = dt.toLocaleDateString("fr-FR", { timeZone: "Europe/Paris", day: "numeric", month: "short" })
-  if (allDay || (dt.getHours() === 0 && dt.getMinutes() === 0)) return date
+  // Heure lue en heure de Paris : getHours() rendu côté serveur (UTC) donnait « 00:00 » puis
+  // l'heure disparaissait au rendu navigateur → erreur d'hydratation.
+  if (allDay || isZonedAllDay(dt)) return date
   return `${date} · ${dt.toLocaleTimeString("fr-FR", { timeZone: "Europe/Paris", hour: "2-digit", minute: "2-digit" })}`
 }
 

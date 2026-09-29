@@ -162,7 +162,7 @@ export function ConditionsManager({
                   <p className="text-xs text-muted-foreground/50 mt-0.5 italic">Aucun contenu</p>
                 )}
               </div>
-              <div className="flex items-center gap-0.5 shrink-0 md:opacity-0 md:group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
+              <div className={`flex items-center gap-0.5 shrink-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity ${isArmed(t.id) ? "" : "pointer-fine:opacity-0"}`}>
                 <button
                   type="button"
                   title={t.isDefault ? "Modèle par défaut" : "Définir par défaut"}

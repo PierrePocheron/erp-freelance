@@ -138,7 +138,7 @@ export function SkillDialog({
   }
 
   function handleDelete() {
-    if (!confirmFirst()) return
+    if (!confirmFirst(skillForEdit?.id)) return
     if (!skillForEdit) return
     startDelete(async () => {
       try {
@@ -225,7 +225,7 @@ export function SkillDialog({
             {isEdit ? (
               <Button type="button" variant="ghost" onClick={handleDelete} disabled={isDeleting || isPending}
                 className="gap-1.5 text-muted-foreground hover:text-destructive">
-                <Trash2 className="h-3.5 w-3.5" /> {isArmed() ? "Confirmer la suppression" : "Supprimer"}
+                <Trash2 className="h-3.5 w-3.5" /> {isArmed(skillForEdit?.id) ? "Confirmer la suppression" : "Supprimer"}
               </Button>
             ) : <span />}
             <div className="flex items-center gap-2">

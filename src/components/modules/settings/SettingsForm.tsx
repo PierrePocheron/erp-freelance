@@ -455,7 +455,7 @@ function ColorSwatches({
                 title="Retirer cette couleur de la palette"
                 aria-label="Retirer cette couleur de la palette"
                 onClick={() => onRemove(c)}
-                className="absolute -top-1.5 -right-1.5 flex md:opacity-0 md:group-hover:opacity-100 focus:opacity-100 h-4 w-4 items-center justify-center rounded-full bg-foreground text-background"
+                className="absolute -top-1.5 -right-1.5 flex pointer-fine:opacity-0 group-hover:opacity-100 focus:opacity-100 h-4 w-4 items-center justify-center rounded-full bg-foreground text-background"
               >
                 <X className="h-2.5 w-2.5" />
               </button>

@@ -81,7 +81,7 @@ export function TagManager({
           <button
             type="button"
             onClick={() => handleDelete(tag)}
-            className={`md:group-hover/tag:opacity-100 focus:opacity-100 hover:text-destructive transition-opacity ${isArmed(tag.id) ? "text-destructive" : "md:opacity-0 text-muted-foreground"}`}
+            className={`group-hover/tag:opacity-100 focus:opacity-100 hover:text-destructive transition-opacity ${isArmed(tag.id) ? "text-destructive" : "pointer-fine:opacity-0 text-muted-foreground"}`}
             title={isArmed(tag.id) ? "Confirmer la suppression du tag" : "Supprimer le tag"}
           >
             {isArmed(tag.id) ? <Check className="h-3 w-3" /> : <X className="h-3 w-3" />}

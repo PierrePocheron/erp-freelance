@@ -365,7 +365,7 @@ function TaskRow({ task }: { task: Task }) {
         onClick={() => setEditOpen(true)}
         title="Modifier la tâche"
         aria-label="Modifier la tâche"
-        className="flex h-9 w-9 shrink-0 items-center justify-center text-muted-foreground transition-opacity hover:text-foreground focus:opacity-100 md:opacity-0 md:group-hover:opacity-100"
+        className="flex h-9 w-9 shrink-0 items-center justify-center text-muted-foreground transition-opacity hover:text-foreground focus:opacity-100 pointer-fine:opacity-0 group-hover:opacity-100"
       >
         <Pencil className="h-3.5 w-3.5" />
       </button>
@@ -376,7 +376,7 @@ function TaskRow({ task }: { task: Task }) {
         disabled={isDeleting}
         title={confirmDelete ? "Confirmer la suppression" : "Supprimer la tâche"}
         aria-label={confirmDelete ? "Confirmer la suppression de la tâche" : "Supprimer la tâche"}
-        className={`flex h-9 w-9 shrink-0 items-center justify-center transition-opacity disabled:opacity-30 focus:opacity-100 md:opacity-0 md:group-hover:opacity-100 ${
+        className={`flex h-9 w-9 shrink-0 items-center justify-center transition-opacity disabled:opacity-30 focus:opacity-100 pointer-fine:opacity-0 group-hover:opacity-100 ${
           confirmDelete ? "text-red-500 md:opacity-100" : "text-muted-foreground hover:text-red-500"
         }`}
       >

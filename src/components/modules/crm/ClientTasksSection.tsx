@@ -9,6 +9,7 @@ import { useArmedDelete } from "@/hooks/use-armed-delete"
 import { startTask, completeTask, reopenTask, deleteTask, updateTaskFields, createClientTask } from "@/actions/projet"
 import { TaskEditSheet, type TaskForEdit } from "@/components/modules/taches/TaskEditSheet"
 import { cn } from "@/lib/utils"
+import { zonedDayStart } from "@/lib/dates"
 
 type Tag = { id: string; name: string; color: string }
 type ProjectRef = { id: string; name: string }
@@ -30,7 +31,8 @@ type ClientTask = {
 }
 
 function isOverdue(task: ClientTask) {
-  return task.dueDate && task.status !== "DONE" && new Date(task.dueDate) < new Date()
+  // Dû aujourd'hui ≠ en retard (dates jour stockées à minuit)
+  return task.dueDate && task.status !== "DONE" && new Date(task.dueDate) < zonedDayStart(new Date())
 }
 
 // ── Task Row ──────────────────────────────────────────────────────────────────
@@ -154,7 +156,7 @@ function TaskRow({ task }: { task: ClientTask }) {
         <button
           onClick={() => setEditOpen(true)}
           title="Modifier"
-          className="shrink-0 md:opacity-0 md:group-hover:opacity-100 focus:opacity-100 transition-opacity text-muted-foreground hover:text-foreground"
+          className="shrink-0 pointer-fine:opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity text-muted-foreground hover:text-foreground"
         >
           <Pencil className="h-3.5 w-3.5" />
         </button>
@@ -163,7 +165,7 @@ function TaskRow({ task }: { task: ClientTask }) {
           disabled={isDeleting}
           title={isArmed() ? "Confirmer la suppression" : "Supprimer"}
           aria-label={isArmed() ? "Confirmer la suppression de la tâche" : "Supprimer la tâche"}
-          className={cn("shrink-0 focus:opacity-100 transition-opacity disabled:opacity-30", isArmed() ? "text-red-500" : "md:opacity-0 md:group-hover:opacity-100 text-muted-foreground hover:text-red-500")}
+          className={cn("shrink-0 focus:opacity-100 transition-opacity disabled:opacity-30", isArmed() ? "text-red-500" : "pointer-fine:opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-red-500")}
         >
           {isDeleting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : isArmed() ? <Check className="h-3.5 w-3.5" /> : <Trash2 className="h-3.5 w-3.5" />}
         </button>

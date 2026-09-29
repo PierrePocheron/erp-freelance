@@ -128,6 +128,7 @@ function LineForm({
   submitLabel?: string
 }) {
   const [form, setForm] = useState(initial)
+  const [lineError, setLineError] = useState<string | null>(null)
   const subtotal = (parseFloat(form.quantity) || 0) * (parseFloat(form.unitPrice) || 0)
   const activeProducts = products.filter((p) => p.isActive)
 
@@ -155,6 +156,11 @@ function LineForm({
 
   function handleConfirm() {
     if (!form.description.trim()) return
+    // Vide = valeur par défaut (quantité 1, prix 0) ; sinon une quantité ≤ 0 ou un prix
+    // négatif passaient tels quels (0 devenait 1 sans prévenir).
+    if (form.quantity !== "" && !(parseFloat(form.quantity) > 0)) return setLineError("La quantité doit être supérieure à 0")
+    if (form.unitPrice !== "" && !(parseFloat(form.unitPrice) >= 0)) return setLineError("Le prix HT ne peut pas être négatif")
+    setLineError(null)
     onSubmit(form)
   }
 
@@ -273,6 +279,8 @@ function LineForm({
           <span className="amount-sensitive">{fmtEur(subtotal)}</span>
         </div>
       </div>
+
+      {lineError && <p role="alert" className="text-xs text-destructive">{lineError}</p>}
 
       <div className="flex justify-end gap-2">
         <button
@@ -436,7 +444,7 @@ export function CreateQuoteDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
+    <Dialog open={open} onOpenChange={handleOpenChange} disablePointerDismissal>
       {!isControlled && (
         <DialogTrigger className="inline-flex items-center gap-2 rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground shadow hover:bg-primary/90 transition-colors">
           <Plus className="h-4 w-4" />
@@ -595,7 +603,7 @@ export function CreateQuoteDialog({
                         <div className="col-span-2 text-right font-semibold amount-sensitive">
                           {fmtEur(line.quantity * line.unitPrice)}
                         </div>
-                        <div className="col-span-1 flex items-center justify-end gap-1 md:opacity-0 md:group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
+                        <div className="col-span-1 flex items-center justify-end gap-1 pointer-fine:opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
                           <button
                             type="button"
                             onClick={() => startEdit(line.localId)}
@@ -733,7 +741,12 @@ export function CreateQuoteDialog({
               <Button type="button" variant="outline" onClick={() => handleOpenChange(false)}>
                 Annuler
               </Button>
-              <Button type="submit" disabled={isPending || !selectedClientId}>
+              {/* Ligne ouverte = pas encore dans draftLines : créer maintenant la perdrait sans prévenir */}
+              <Button
+                type="submit"
+                disabled={isPending || !selectedClientId || showAddForm || editingLocalId !== null}
+                title={showAddForm || editingLocalId !== null ? "Validez ou annulez la ligne en cours" : undefined}
+              >
                 {isPending ? "Création..." : "Créer le devis"}
               </Button>
             </div>

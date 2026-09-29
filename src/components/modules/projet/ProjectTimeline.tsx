@@ -184,7 +184,7 @@ export function ProjectTimeline({
                       <span className="rounded-full bg-muted px-1.5 py-px text-[9px] font-medium uppercase tracking-wide text-muted-foreground">{cfg.label}</span>
                     </p>
                     <span className="flex items-center gap-1.5">
-                      <span className={cn("flex items-center gap-1 transition-opacity focus-within:opacity-100", !isArmed(item.ev.id) && "md:opacity-0 md:group-hover:opacity-100")}>
+                      <span className={cn("flex items-center gap-1 transition-opacity focus-within:opacity-100", !isArmed(item.ev.id) && "pointer-fine:opacity-0 group-hover:opacity-100")}>
                         <button onClick={() => openEdit(item.ev)} className="text-muted-foreground hover:text-foreground transition-colors" title="Modifier" aria-label="Modifier l'événement"><Pencil className="h-3.5 w-3.5" /></button>
                         <button
                           onClick={() => remove(item.ev.id)}

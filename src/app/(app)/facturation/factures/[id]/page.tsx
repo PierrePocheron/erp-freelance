@@ -197,15 +197,15 @@ export default async function FactureDetailPage({
         <div className="rounded-xl border border-border/50 bg-muted/30 p-4 space-y-1 text-sm">
           <div className="flex justify-between">
             <span className="text-muted-foreground">Total HT</span>
-            <span className="amount-sensitive">{invoice.totalHT.toLocaleString("fr-FR")} €</span>
+            <span className="amount-sensitive">{invoice.totalHT.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €</span>
           </div>
           <div className="flex justify-between text-muted-foreground">
             <span>Acompte déduit</span>
-            <span className="amount-sensitive">- {invoice.depositDeducted.toLocaleString("fr-FR")} €</span>
+            <span className="amount-sensitive">- {invoice.depositDeducted.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €</span>
           </div>
           <div className="flex justify-between font-bold border-t border-border pt-1">
             <span>Net à payer</span>
-            <span className="amount-sensitive">{netAmount.toLocaleString("fr-FR")} €</span>
+            <span className="amount-sensitive">{netAmount.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €</span>
           </div>
         </div>
       )}

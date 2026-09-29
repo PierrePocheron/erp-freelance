@@ -610,7 +610,7 @@ export function ProspectionTable({
                         onClick={() => generateMailForRow(p)}
                         title={mailTemplateId ? "Générer le mail personnalisé (Gmail)" : "Choisir un modèle en haut pour générer le mail"}
                         className={cn(
-                          "p-1.5 rounded transition-colors md:opacity-0 md:group-hover:opacity-100 focus:opacity-100",
+                          "p-1.5 rounded transition-colors pointer-fine:opacity-0 group-hover:opacity-100 focus:opacity-100",
                           p.email?.trim()
                             ? "text-muted-foreground hover:text-primary hover:bg-primary/10"
                             : "text-muted-foreground/30 hover:text-muted-foreground/50"

@@ -199,7 +199,7 @@ export async function ProjectTimePanel({ projectId, userId }: { projectId: strin
                     "use server"
                     await deleteTimeEntry(entry.id, userId, projectId)
                   }}>
-                    <button type="submit" aria-label="Supprimer cette entrée" className="text-muted-foreground hover:text-destructive md:opacity-0 md:group-hover:opacity-100 focus:opacity-100 transition-opacity">
+                    <button type="submit" aria-label="Supprimer cette entrée" className="text-muted-foreground hover:text-destructive pointer-fine:opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity">
                       <Trash2 className="h-3.5 w-3.5" />
                     </button>
                   </form>

@@ -265,13 +265,13 @@ export default async function ClientOverviewPage({
             {totalBilled > 0 && (
               <div className="flex items-center justify-between text-xs">
                 <span className="text-muted-foreground">Facturé (payé)</span>
-                <span className="font-medium text-emerald-600 amount-sensitive">{totalBilled.toLocaleString("fr-FR")} €</span>
+                <span className="font-medium text-emerald-600 amount-sensitive">{totalBilled.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €</span>
               </div>
             )}
             {pendingAmount > 0 && (
               <div className="flex items-center justify-between text-xs">
                 <span className="text-muted-foreground">En attente</span>
-                <span className="font-medium text-amber-600 amount-sensitive">{pendingAmount.toLocaleString("fr-FR")} €</span>
+                <span className="font-medium text-amber-600 amount-sensitive">{pendingAmount.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €</span>
               </div>
             )}
           </div>

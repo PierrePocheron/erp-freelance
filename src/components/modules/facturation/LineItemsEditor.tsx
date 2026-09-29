@@ -278,7 +278,7 @@ export function LineItemsEditor({ entityId, entityType, lines, editable = true }
                   <button
                     onClick={() => setEditingId(line.id)}
                     aria-label="Modifier la ligne"
-                    className="md:opacity-0 md:group-hover:opacity-100 focus:opacity-100 text-muted-foreground hover:text-foreground transition-opacity"
+                    className="pointer-fine:opacity-0 group-hover:opacity-100 focus:opacity-100 text-muted-foreground hover:text-foreground transition-opacity"
                   >
                     <Pencil className="h-3.5 w-3.5" />
                   </button>
@@ -286,7 +286,7 @@ export function LineItemsEditor({ entityId, entityType, lines, editable = true }
                     onClick={() => { if (confirmFirst(line.id)) startTransition(() => deleteLine(line.id)) }}
                     disabled={isPending}
                     aria-label={isArmed(line.id) ? "Confirmer la suppression de la ligne" : "Supprimer la ligne"}
-                    className={`md:group-hover:opacity-100 focus:opacity-100 hover:text-destructive transition-opacity ${isArmed(line.id) ? "text-destructive" : "md:opacity-0 text-muted-foreground"}`}
+                    className={`group-hover:opacity-100 focus:opacity-100 hover:text-destructive transition-opacity ${isArmed(line.id) ? "text-destructive" : "pointer-fine:opacity-0 text-muted-foreground"}`}
                   >
                     {isArmed(line.id) ? <Check className="h-3.5 w-3.5" /> : <Trash2 className="h-3.5 w-3.5" />}
                   </button>

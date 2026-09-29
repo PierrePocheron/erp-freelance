@@ -14,6 +14,7 @@ import { patchSkill, moveSkill, deleteSkill } from "@/actions/competences"
 import type { SkillStatus } from "@/generated/prisma/enums"
 import { SKILL_LEVELS, SKILL_STATUS_META } from "./skill-config"
 import type { SkillItem } from "./SkillsView"
+import { errorMessage } from "@/lib/error-message"
 
 const STATUS_ORDER: SkillStatus[] = ["MASTERED", "LEARNING", "TO_ACQUIRE"]
 
@@ -42,7 +43,7 @@ export function SkillRowActions({
         toast.success(ok)
         router.refresh()
       } catch (e) {
-        toast.error(e instanceof Error ? e.message : "Action impossible")
+        toast.error(errorMessage(e, "Action impossible"))
       }
     })
 

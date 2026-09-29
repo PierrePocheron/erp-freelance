@@ -525,6 +525,22 @@ export async function updateClientAll(
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 export async function deleteClient(clientId: string, _userId: string) {
   const userId = await requireAuth()
+  // Devis, factures et factures récurrentes sont en Restrict : la suppression échouait
+  // sur une violation de clé étrangère brute (#36). On refuse avec un message clair — un
+  // document comptable ne doit de toute façon pas perdre son destinataire.
+  const [quotes, invoices, recurring] = await Promise.all([
+    prisma.quote.count({ where: { clientId, userId } }),
+    prisma.invoice.count({ where: { clientId, userId } }),
+    prisma.recurringInvoice.count({ where: { clientId, userId } }),
+  ])
+  if (quotes + invoices + recurring > 0) {
+    const parts = [
+      invoices && `${invoices} facture${invoices > 1 ? "s" : ""}`,
+      quotes && `${quotes} devis`,
+      recurring && `${recurring} facture${recurring > 1 ? "s" : ""} récurrente${recurring > 1 ? "s" : ""}`,
+    ].filter(Boolean)
+    throw new Error(`Impossible de supprimer ce contact : il est lié à ${parts.join(", ")}.`)
+  }
   await prisma.client.delete({ where: { id: clientId, userId } })
   revalidatePath("/contacts")
 }

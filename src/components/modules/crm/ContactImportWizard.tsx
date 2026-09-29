@@ -12,6 +12,7 @@ import {
 } from "@/actions/contact-import"
 import type { Proposal, Confidence, Change, ImportSource } from "@/lib/contact-import"
 import { avatarColor, initials } from "@/lib/initials"
+import { errorMessage } from "@/lib/error-message"
 
 type Stage = "source" | "loading" | "review" | "done"
 type ContactLite = { id: string; name: string; company: string | null }
@@ -61,7 +62,7 @@ export function ContactImportWizard({ hasGoogleScope, allContacts }: { hasGoogle
       setProposals(list); setStage("review")
       if (list.length === 0) toast.info("Rien à rapprocher : tout est déjà à jour.")
     } catch (e) {
-      const msg = e instanceof Error ? e.message : "Erreur"
+      const msg = errorMessage(e, "Erreur")
       if (msg === "NO_SCOPE") toast.error("Accès Google Contacts non autorisé — active-le dans Réglages › Intégrations.")
       else toast.error(msg)
       setStage("source")
@@ -125,7 +126,7 @@ export function ContactImportWizard({ hasGoogleScope, allContacts }: { hasGoogle
       setResult(r); setStage("done")
       toast.success(`${r.updated} contact${r.updated > 1 ? "s" : ""} enrichi${r.updated > 1 ? "s" : ""}${r.created ? ` · ${r.created} créé${r.created > 1 ? "s" : ""}` : ""}`)
       router.refresh()
-    } catch (e) { toast.error(e instanceof Error ? e.message : "Erreur à l'application") }
+    } catch (e) { toast.error(errorMessage(e, "Erreur à l'application")) }
     finally { setBusy(false) }
   }
 

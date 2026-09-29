@@ -10,6 +10,7 @@ import { ContactTimeline } from "./ContactTimeline"
 import { DatePartsField } from "@/components/ui/date-parts-field"
 import { STATUS_CONFIG, ALL_STATUSES } from "@/components/modules/prospection/status-config"
 import type { ProspectStatus, ProspectEventKind } from "@/generated/prisma/enums"
+import { errorMessage } from "@/lib/error-message"
 
 const toDateInput = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`
 
@@ -69,7 +70,7 @@ export function ContactActivity({
         toast.success(successMsg)
         router.refresh()
       } catch (e) {
-        toast.error(e instanceof Error ? e.message : "Erreur")
+        toast.error(errorMessage(e, "Erreur"))
       }
     })
   }

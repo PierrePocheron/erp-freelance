@@ -15,6 +15,7 @@ import { CompanyCombobox } from "./CompanyCombobox"
 import { STATUS_CONFIG, PIPELINE_STATUSES, OUTCOME_STATUSES, WEBSITE_TYPE_CONFIG } from "@/components/modules/prospection/status-config"
 import type { ProspectStatus, WebsiteType } from "@/generated/prisma/enums"
 import { CLIENT_SOURCE_LABELS as SOURCE_LABELS } from "@/lib/client-source"
+import { errorMessage } from "@/lib/error-message"
 
 const TYPE_OPTIONS = [
   { value: "PROSPECT",  label: "Prospect" },
@@ -157,7 +158,7 @@ export function ClientInfoCard({ client, isOwner = true }: { client: ClientData;
         await Promise.all(saves)
         setEditing(false)
       } catch (e) {
-        toast.error(e instanceof Error ? e.message : "Échec de l'enregistrement")
+        toast.error(errorMessage(e, "Échec de l'enregistrement"))
       }
     })
   }

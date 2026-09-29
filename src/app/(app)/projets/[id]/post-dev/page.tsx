@@ -13,6 +13,7 @@ import {
   Trash2, CheckCircle2, XCircle, Clock, RefreshCw, Receipt,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { SubmitButton } from "@/components/ui/submit-button"
 
 const renewalTypes = [
   { value: "DOMAIN", label: "Domaine" },
@@ -207,10 +208,10 @@ export default async function ProjectPostDevPage({
                       </div>
                       {r.amount && r.amount > 0 && (
                         <form action={async () => { "use server"; const inv = await createInvoiceFromRenewal(r.id, ""); redirect(`/facturation/factures/${inv.id}`) }}>
-                          <Button type="submit" size="sm" variant="outline" className="h-7 gap-1 text-xs">
+                          <SubmitButton pendingLabel="Création…" size="sm" variant="outline" className="h-7 gap-1 text-xs">
                             <Receipt className="h-3.5 w-3.5" />
                             Facturer
-                          </Button>
+                          </SubmitButton>
                         </form>
                       )}
                       <form action={async () => { "use server"; await deleteRenewal(r.id, id) }}>

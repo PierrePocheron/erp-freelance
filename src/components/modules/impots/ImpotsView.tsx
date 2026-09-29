@@ -206,7 +206,7 @@ function StatCard({ label, value, icon: Icon, accent, sensitive }: {
     accent === "amber"   ? "text-amber-600 dark:text-amber-400" :
     accent === "red"     ? "text-red-600 dark:text-red-400" : ""
   return (
-    <div className="rounded-xl border border-border bg-card p-4">
+    <div className="rounded-xl border border-border/50 bg-card p-4">
       <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1.5">
         <Icon className="h-3.5 w-3.5" />
         {label}
@@ -270,7 +270,7 @@ function DeclarationCard({ declaration: d, expanded, onToggle, onPay, rates, vlE
   }
 
   return (
-    <div className="rounded-xl border border-border bg-card overflow-hidden">
+    <div className="rounded-xl border border-border/50 bg-card overflow-hidden">
       {/* Ligne résumé */}
       <button onClick={onToggle} className="flex items-center gap-4 w-full p-4 text-left hover:bg-accent/50 transition-colors">
         <div className="flex-1 min-w-0">
@@ -313,7 +313,7 @@ function DeclarationCard({ declaration: d, expanded, onToggle, onPay, rates, vlE
               const catTotal = lines.reduce((s, l) => s + l.amount, 0)
               const est = estimate.byCategory[cat]
               return (
-                <div key={cat} className="rounded-lg border border-border bg-card p-3">
+                <div key={cat} className="rounded-lg border border-border/50 bg-card p-3">
                   <p className="text-xs font-semibold mb-2">{FISCAL_CATEGORY_LABELS[cat]}</p>
                   <div className="space-y-1">
                     {lines.map(l => (

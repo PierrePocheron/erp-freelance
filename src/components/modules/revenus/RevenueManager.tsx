@@ -823,7 +823,7 @@ export function RevenueManager({
             key={t}
             type="button"
             onClick={() => setTab(t)}
-            className={`pb-2.5 px-1 mr-5 text-sm font-medium border-b-2 transition-colors ${
+            className={`px-4 py-2.5 -mb-px text-sm font-medium border-b-2 transition-colors ${
               tab === t ? "border-primary text-foreground" : "border-transparent text-muted-foreground hover:text-foreground"
             }`}
           >
@@ -1033,7 +1033,7 @@ export function RevenueManager({
                                   </td>
                                 </tr>
                               ) : (
-                              <tr key={r.id} className={`border-b border-border/50 last:border-0 hover:bg-muted/30 transition-colors ${selectedIds.has(r.id) ? "bg-emerald-500/5" : ""}`}>
+                              <tr key={r.id} className={`border-b border-border/50 last:border-0 hover:bg-muted/30 transition-colors ${selectedIds.has(r.id) ? "bg-muted/50" : ""}`}>
                                 {/* Checkbox (en attente) ou badge Payé (reçu) */}
                                 <td className="pl-4 pr-1 py-3 whitespace-nowrap w-px">
                                   {r.status === "RECEIVED" ? (

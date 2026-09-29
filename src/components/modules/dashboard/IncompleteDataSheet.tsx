@@ -167,7 +167,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 const inputCls =
   "w-full h-8 rounded-md border border-input bg-background px-2 text-xs placeholder:text-muted-foreground/40 focus:outline-none focus:ring-1 focus:ring-ring"
 const saveCls =
-  "w-full flex items-center justify-center gap-1.5 rounded-md bg-amber-600 text-white text-xs font-medium py-1.5 hover:bg-amber-700 disabled:opacity-50 transition-colors"
+  "w-full flex items-center justify-center gap-1.5 rounded-md bg-primary text-primary-foreground text-xs font-medium py-1.5 hover:bg-primary/90 disabled:opacity-50 transition-colors"
 
 // ── Société : renseigner le site web ────────────────────────────────────────
 

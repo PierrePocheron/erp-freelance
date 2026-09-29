@@ -84,16 +84,16 @@ const SCROLL_TO_HOUR = 7
 const TIME_COL_W  = 44
 
 const typeConfig = {
-  task:      { dot: "bg-amber-500",   badge: "bg-amber-500/15 text-amber-700 border-amber-500/20",    color: "#f59e0b", label: "Tâche" },
-  milestone: { dot: "bg-indigo-500",  badge: "bg-indigo-500/15 text-indigo-700 border-indigo-500/20", color: "#6366f1", label: "Jalon" },
-  reminder:  { dot: "bg-orange-500",  badge: "bg-orange-500/15 text-orange-700 border-orange-500/20", color: "#f97316", label: "Rappel" },
-  interaction: { dot: "bg-teal-500",  badge: "bg-teal-500/15 text-teal-700 border-teal-500/20",       color: "#14b8a6", label: "Interaction" },
-  invoice:   { dot: "bg-blue-500",    badge: "bg-blue-500/15 text-blue-700 border-blue-500/20",       color: "#3b82f6", label: "Facture" },
-  renewal:   { dot: "bg-red-500",     badge: "bg-red-500/15 text-red-700 border-red-500/20",          color: "#ef4444", label: "Renouvellement" },
-  manual:    { dot: "bg-purple-500",  badge: "bg-purple-500/15 text-purple-700 border-purple-500/20", color: "#8b5cf6", label: "Événement" },
-  health:    { dot: "bg-rose-500",    badge: "bg-rose-500/15 text-rose-700 border-rose-500/20",       color: "#f43f5e", label: "Santé" },
-  interview: { dot: "bg-sky-500",     badge: "bg-sky-500/15 text-sky-700 border-sky-500/20",          color: "#0ea5e9", label: "Entretien" },
-  expense:   { dot: "bg-fuchsia-500", badge: "bg-fuchsia-500/15 text-fuchsia-700 border-fuchsia-500/20", color: "#d946ef", label: "Dépense" },
+  task:      { dot: "bg-amber-500",   badge: "bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-500/20",    color: "#f59e0b", label: "Tâche" },
+  milestone: { dot: "bg-indigo-500",  badge: "bg-indigo-500/15 text-indigo-700 dark:text-indigo-400 border-indigo-500/20", color: "#6366f1", label: "Jalon" },
+  reminder:  { dot: "bg-orange-500",  badge: "bg-orange-500/15 text-orange-700 dark:text-orange-400 border-orange-500/20", color: "#f97316", label: "Rappel" },
+  interaction: { dot: "bg-teal-500",  badge: "bg-teal-500/15 text-teal-700 dark:text-teal-400 border-teal-500/20",       color: "#14b8a6", label: "Interaction" },
+  invoice:   { dot: "bg-blue-500",    badge: "bg-blue-500/15 text-blue-700 dark:text-blue-400 border-blue-500/20",       color: "#3b82f6", label: "Facture" },
+  renewal:   { dot: "bg-red-500",     badge: "bg-red-500/15 text-red-700 dark:text-red-400 border-red-500/20",          color: "#ef4444", label: "Renouvellement" },
+  manual:    { dot: "bg-purple-500",  badge: "bg-purple-500/15 text-purple-700 dark:text-purple-400 border-purple-500/20", color: "#8b5cf6", label: "Événement" },
+  health:    { dot: "bg-rose-500",    badge: "bg-rose-500/15 text-rose-700 dark:text-rose-400 border-rose-500/20",       color: "#f43f5e", label: "Santé" },
+  interview: { dot: "bg-sky-500",     badge: "bg-sky-500/15 text-sky-700 dark:text-sky-400 border-sky-500/20",          color: "#0ea5e9", label: "Entretien" },
+  expense:   { dot: "bg-fuchsia-500", badge: "bg-fuchsia-500/15 text-fuchsia-700 dark:text-fuchsia-400 border-fuchsia-500/20", color: "#d946ef", label: "Dépense" },
 } as const
 
 const VIEW_LABELS: Record<ViewMode, string> = {
@@ -1360,10 +1360,8 @@ export function CalendarView({
                   : "Synchroniser avec Google Calendar"
               }
               className={cn("relative inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium transition-colors border-r border-border/50",
-                syncStatus === "success"      ? "text-emerald-600 bg-emerald-500/5"
-                  : syncStatus === "error"        ? "text-red-600 bg-red-500/5"
+                syncStatus === "error"        ? "text-red-600 bg-red-500/5"
                   : syncStatus === "noPermission" ? "text-amber-600 bg-amber-500/5"
-                  : connectionStatus === "connected" ? "text-emerald-600 bg-emerald-500/5"
                   : connectionStatus === "error"     ? "text-red-600 bg-red-500/5"
                   : "text-muted-foreground hover:bg-muted")}
             >
@@ -1716,7 +1714,7 @@ function MonthView({
                 isWeekend && "bg-muted/10",
                 i % 7 === 6 && "border-r-0",
                 isSelected && "ring-1 ring-inset ring-primary/40 bg-primary/5",
-                isDragOver && "ring-2 ring-inset ring-blue-400/70 bg-blue-50/10",
+                isDragOver && "ring-2 ring-inset ring-primary/40 bg-primary/5",
               )}
             >
               <span className={cn("flex h-5 w-5 items-center justify-center rounded-full text-[11px] font-medium mb-0.5",
@@ -2062,7 +2060,7 @@ function TimeGridView({
                   className="absolute inset-x-0 z-30 flex items-center pointer-events-none">
                   <span className="h-2.5 w-2.5 rounded-full bg-blue-500 shrink-0 -ml-1.5 shadow-sm" />
                   <div className="flex-1 h-0.5 bg-blue-500" />
-                  <span className="text-[10px] font-semibold text-blue-600 bg-background border border-blue-200 rounded px-1 py-px ml-1 mr-1 shadow-sm tabular-nums">
+                  <span className="text-[10px] font-semibold text-blue-600 dark:text-blue-400 bg-background border border-border rounded px-1 py-px ml-1 mr-1 shadow-sm tabular-nums">
                     {preview.timeLabel}
                   </span>
                 </div>

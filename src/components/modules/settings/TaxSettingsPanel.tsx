@@ -50,9 +50,9 @@ export function TaxSettingsPanel({ initial }: { initial: TaxSettingsData }) {
   }
 
   return (
-    <div className="rounded-xl border border-border bg-card p-5 space-y-5">
+    <div className="rounded-xl border border-border/50 bg-card p-5 space-y-5">
       <div className="flex items-center gap-2">
-        <Landmark className="h-4 w-4 text-primary" />
+        <Landmark className="h-4 w-4 text-muted-foreground" />
         <h2 className="font-semibold text-sm">Imposition &amp; URSSAF</h2>
       </div>
 

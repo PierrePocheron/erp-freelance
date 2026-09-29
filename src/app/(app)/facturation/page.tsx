@@ -167,21 +167,21 @@ export default async function FacturationOverviewPage({
       {/* KPIs */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <KPI
-          icon={<CheckCircle2 className="h-4 w-4 text-emerald-500" />}
+          icon={<CheckCircle2 className="h-4 w-4 text-muted-foreground" />}
           label="Encaissé"
           value={`${fmtEur(paidThisYear)} €`}
           sub={selectedYear ? `en ${selectedYear}` : "toutes années"}
           sensitive
         />
         <KPI
-          icon={<Clock className="h-4 w-4 text-blue-500" />}
+          icon={<Clock className="h-4 w-4 text-muted-foreground" />}
           label="En attente"
           value={`${totalPending.toLocaleString("fr-FR")} €`}
           sub={`${allPending.filter((i) => i.status === "SENT").length} facture(s) envoyée(s)`}
           sensitive
         />
         <KPI
-          icon={<AlertCircle className="h-4 w-4 text-red-500" />}
+          icon={<AlertCircle className="h-4 w-4 text-muted-foreground" />}
           label="En retard"
           value={`${totalLate.toLocaleString("fr-FR")} €`}
           sub={`${allPending.filter((i) => i.status === "LATE").length} facture(s)`}
@@ -189,34 +189,27 @@ export default async function FacturationOverviewPage({
           sensitive
         />
         <KPI
-          icon={<TrendingUp className="h-4 w-4 text-amber-500" />}
+          icon={<TrendingUp className="h-4 w-4 text-muted-foreground" />}
           label="Devis envoyés"
           value={String(quotesWaiting)}
           sub="en attente de réponse"
         />
       </div>
 
-      {/* Graphique mensuel */}
-      <MonthlyRevenueChart
-        initialData={monthlyRevenue}
-        currentYear={now.getFullYear()}
-        currentMonth={currentMonth}
-      />
-
       {/* Factures en retard — priorité */}
       {allPending.some((i) => i.status === "LATE") && (
         <div className="space-y-3">
           <div className="flex items-center justify-between">
-            <h2 className="text-sm font-medium text-red-500 flex items-center gap-1.5">
+            <h2 className="text-sm font-medium uppercase tracking-wider text-red-500 flex items-center gap-1.5">
               <AlertCircle className="h-3.5 w-3.5" /> Factures en retard
             </h2>
           </div>
-          <div className="rounded-xl border border-red-500/20 bg-red-500/5 overflow-hidden">
+          <div className="rounded-xl border border-border/50 bg-card overflow-hidden">
             {allPending.filter((i) => i.status === "LATE").map((inv) => (
               <Link
                 key={inv.id}
                 href={`/facturation/factures/${inv.id}`}
-                className="flex items-center gap-3 px-4 py-2.5 border-b border-red-500/10 last:border-0 hover:bg-red-500/10 transition-colors text-sm"
+                className="flex items-center gap-3 px-4 py-2.5 border-b border-border/50 last:border-0 hover:bg-muted/30 transition-colors text-sm"
               >
                 <span className="font-mono text-xs text-muted-foreground w-24 shrink-0">{faNumber(inv.number)}</span>
                 <span className="flex-1 text-muted-foreground">{inv.client.company ?? inv.client.name}</span>
@@ -234,6 +227,13 @@ export default async function FacturationOverviewPage({
           </div>
         </div>
       )}
+
+      {/* Graphique mensuel */}
+      <MonthlyRevenueChart
+        initialData={monthlyRevenue}
+        currentYear={now.getFullYear()}
+        currentMonth={currentMonth}
+      />
 
       {/* Dernières factures */}
       <div className="space-y-3">
@@ -366,7 +366,7 @@ function YearTab({ label, href, active }: { label: string; href: string; active:
 
 function KPI({ icon, label, value, sub, alert, sensitive }: { icon: React.ReactNode; label: string; value: string; sub: string; alert?: boolean; sensitive?: boolean }) {
   return (
-    <div className={`rounded-xl border p-4 space-y-1 ${alert ? "border-red-500/20 bg-red-500/5" : "border-border/50 bg-card"}`}>
+    <div className="rounded-xl border border-border/50 bg-card p-4 space-y-1">
       <div className="flex items-center gap-2 text-muted-foreground text-xs">{icon}{label}</div>
       <p className={`text-xl font-bold ${alert ? "text-red-500" : ""} ${sensitive ? "amount-sensitive" : ""}`}>{value}</p>
       <p className="text-xs text-muted-foreground">{sub}</p>

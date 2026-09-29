@@ -110,7 +110,7 @@ export function SettingsShell({ nodes }: { nodes: Record<SectionId, React.ReactN
         </div>
 
         {/* Liste des catégories */}
-        <nav className="rounded-xl border border-border bg-card p-1.5 space-y-0.5">
+        <nav className="rounded-xl border border-border/50 bg-card p-1.5 space-y-0.5">
           {matching.length === 0 && (
             <p className="text-xs text-muted-foreground text-center py-4">
               Aucun paramètre ne correspond à « {query} »

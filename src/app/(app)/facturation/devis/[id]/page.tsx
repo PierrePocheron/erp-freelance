@@ -270,7 +270,7 @@ export default async function DevisDetailPage({
                   }}>
                     <SubmitButton size="sm" className="bg-amber-500 hover:bg-amber-600 text-white border-none">
                       <Banknote className="h-3.5 w-3.5" />
-                      En attente d&apos;acompte
+                      Accepté — attente d&apos;acompte
                     </SubmitButton>
                   </form>
                 ) : (
@@ -498,7 +498,7 @@ export default async function DevisDetailPage({
             {quote.invoices.map((inv) => (
               <Link key={inv.id} href={`/facturation/factures/${inv.id}`} className="flex items-center gap-3 text-sm hover:text-primary transition-colors">
                 <span className="font-mono text-xs text-muted-foreground">{inv.number}</span>
-                <span>{inv.type === "DEPOSIT" ? "Acompte" : inv.type === "FINAL" ? "Solde" : inv.type}</span>
+                <span>{inv.type === "DEPOSIT" ? "Acompte" : inv.type === "FINAL" ? "Solde" : inv.type === "RECURRING" ? "Intermédiaire" : inv.type}</span>
                 <span className={`rounded-full px-2 py-0.5 text-xs font-medium whitespace-nowrap ml-auto ${
                   inv.status === "PAID" ? "bg-emerald-500/15 text-emerald-600" :
                   inv.status === "SENT" ? "bg-blue-500/15 text-blue-600" :

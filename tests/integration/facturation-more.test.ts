@@ -535,8 +535,16 @@ describe("devis → factures", () => {
     expect(dep.lines[0]).toMatchObject({ description: "Acompte sur devis DEV-TEST-002", total: 0, taxRate: 20 })
 
     const rec = await inv((await createInvoiceFromQuote(q.id, "ignored", "RECURRING")).id)
-    expect(rec).toMatchObject({ type: "RECURRING", totalHT: 90, depositDeducted: 0, generalConditions: "CGV devis" })
+    // Intermédiaire = brouillon à compléter, pas le total du devis (#14)
+    expect(rec).toMatchObject({ type: "RECURRING", totalHT: 0, depositDeducted: 0, generalConditions: "CGV devis" })
     expect(rec.lines).toHaveLength(1)
+    expect(rec.lines[0].description).toMatch(/à compléter/)
+
+    // Le solde déduit l'intermédiaire complété
+    await prisma.invoice.update({ where: { id: rec.id }, data: { totalHT: 30 } })
+    const fin = await inv((await createInvoiceFromQuote(q.id, "ignored", "FINAL")).id)
+    expect(fin.depositDeducted).toBe(30)
+    await prisma.invoice.delete({ where: { id: fin.id } })
 
     await intruder()
     await expect(createInvoiceFromQuote(q.id, "ignored", "FINAL")).rejects.toThrow(/Devis introuvable/)

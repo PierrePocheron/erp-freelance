@@ -24,7 +24,7 @@ import {
   canCancelInvoice,
   canRevertQuoteToDraft,
 } from "@/lib/invoice-state"
-import { zonedDayStart, zonedMidnight, zonedParts, parseCivilDate, advanceByFrequency, daysLate } from "@/lib/dates"
+import { zonedDayStart, zonedMidnight, zonedParts, zonedDateKey, parseCivilDate, advanceByFrequency, daysLate } from "@/lib/dates"
 import { assertOwnedRefs } from "@/lib/owned-refs"
 import { createRenewalDraftInvoice } from "@/lib/renewal-invoice"
 
@@ -415,21 +415,24 @@ export async function createInvoiceFromQuote(quoteId: string, _userId: string, t
   const isDeposit = type === "DEPOSIT"
   const depositTotal = isDeposit ? depositAmount(quote.totalHT, quote.depositPercent) : quote.totalHT
 
-  // Sur la facture de solde, on déduit le montant des acomptes réellement facturés
-  // (factures DEPOSIT non annulées) plutôt qu'un pourcentage théorique. Faute
-  // d'acompte émis, on retombe sur le % du devis s'il est renseigné.
+  // Sur la facture de solde, on déduit ce qui a déjà été facturé sur le devis : les acomptes
+  // réellement émis (faute d'acompte, le % théorique du devis) ET les factures intermédiaires
+  // (type RECURRING) — sans elles, intermédiaire + solde facturaient le devis deux fois (#14).
   let depositDeducted = 0
   if (type === "FINAL") {
-    const deposits = await prisma.invoice.findMany({
-      where: { quoteId: quote.id, type: "DEPOSIT", status: { not: "CANCELLED" } },
-      select: { totalHT: true },
+    const previous = await prisma.invoice.findMany({
+      where: { quoteId: quote.id, type: { in: ["DEPOSIT", "RECURRING"] }, status: { not: "CANCELLED" } },
+      select: { type: true, totalHT: true, depositDeducted: true },
     })
     depositDeducted = computeDepositDeducted(
-      deposits.map((d) => d.totalHT),
+      previous.filter((d) => d.type === "DEPOSIT").map((d) => d.totalHT),
       quote.totalHT,
       quote.depositPercent
-    )
+    ) + previous
+      .filter((d) => d.type === "RECURRING")
+      .reduce((sum, d) => sum + netAmount(d.totalHT, d.depositDeducted), 0)
   }
+  const isIntermediate = type === "RECURRING"
 
   const invoice = await prisma.invoice.create({
     data: {
@@ -441,7 +444,8 @@ export async function createInvoiceFromQuote(quoteId: string, _userId: string, t
       emitterProfileId: quote.emitterProfileId ?? (await defaultEmitterId(userId)),
       number,
       type: isDeposit ? "DEPOSIT" : type === "RECURRING" ? "RECURRING" : "FINAL",
-      totalHT: isDeposit ? depositTotal : quote.totalHT,
+      // Intermédiaire : brouillon à compléter (montant de la situation), pas le total du devis
+      totalHT: isDeposit ? depositTotal : isIntermediate ? 0 : quote.totalHT,
       depositDeducted,
       generalConditions: quote.generalConditions ?? null,
       lines: {
@@ -451,7 +455,17 @@ export async function createInvoiceFromQuote(quoteId: string, _userId: string, t
         // « TOTAL HT : 1 800 € », et la moindre retouche du brouillon faisait
         // passer `totalHT` à 5 400 € (recalcInvoiceTotal somme les lignes), donc
         // une déduction d'acompte fausse sur la facture de solde.
-        create: isDeposit
+        create: isIntermediate
+          ? [{
+              description: `Facture intermédiaire sur devis ${quote.number} — montant à compléter`,
+              detail: null,
+              quantity: 1,
+              unitPrice: 0,
+              taxRate: quote.lines[0]?.taxRate ?? 0,
+              total: 0,
+              productId: null,
+            }]
+          : isDeposit
           ? [{
               description: quote.depositPercent > 0
                 ? `Acompte ${quote.depositPercent} % sur devis ${quote.number}`
@@ -526,14 +540,18 @@ export async function recordPayment(
     include: { payments: true },
   })
   if (!invoice) return
-  // Une facture annulée passait en PAYÉE au premier paiement saisi
+  // Une facture annulée passait en PAYÉE au premier paiement saisi ; un brouillon aussi, sans
+  // avoir jamais été émis (ni numéro figé ni PDF gelé).
   if (invoice.status === "CANCELLED") throw new Error("Paiement impossible sur une facture annulée")
+  if (invoice.status === "DRAFT") throw new Error("Émets la facture avant d'enregistrer un paiement")
+  if (!(data.amount > 0)) throw new Error("Montant de paiement invalide")
 
+  const paidAt = parseCivilDate(data.paidAt)
   await prisma.payment.create({
     data: {
       invoiceId,
       amount: data.amount,
-      paidAt: new Date(data.paidAt),
+      paidAt,
       note: data.note || null,
     },
   })
@@ -543,10 +561,47 @@ export async function recordPayment(
   if (isInvoiceSettled(net, totalPaid) && invoice.status !== "PAID") {
     await prisma.invoice.update({
       where: { id: invoiceId },
-      data: { status: "PAID", paidAt: new Date(data.paidAt) },
+      data: { status: "PAID", paidAt },
     })
+    // Acompte encaissé → le devis passe de lui-même en « acompte reçu » (avant : deux clics,
+    // à deux endroits, pour la même information).
+    if (invoice.type === "DEPOSIT" && invoice.quoteId) {
+      await prisma.quote.updateMany({
+        where: { id: invoice.quoteId, userId, status: "WAITING_DEPOSIT" },
+        data: { status: "DEPOSIT_RECEIVED" },
+      })
+      revalidatePath(`/facturation/devis/${invoice.quoteId}`)
+    }
   }
 
+  revalidatePath(`/facturation/factures/${invoiceId}`)
+  revalidatePath("/facturation/factures")
+  revalidatePath("/facturation")
+}
+
+/**
+ * « Marquer payée » : enregistre un paiement du montant restant dû à la date donnée
+ * (aujourd'hui par défaut). Avant, le statut passait à PAYÉE sans aucun paiement : la section
+ * affichait « 0 € payé » à côté de « intégralement payée », et la date d'encaissement — qui
+ * fixe la période URSSAF — était forcément celle du clic (#20).
+ */
+export async function markInvoicePaid(invoiceId: string, _userId: string, paidAt?: string) {
+  const userId = await requireAuth()
+  const invoice = await prisma.invoice.findFirst({
+    where: { id: invoiceId, userId },
+    select: { status: true, totalHT: true, depositDeducted: true, payments: { select: { amount: true } } },
+  })
+  if (!invoice) throw new Error("Facture introuvable")
+  if (invoice.status === "PAID") return
+  const remaining = Math.round((netAmount(invoice.totalHT, invoice.depositDeducted) - invoice.payments.reduce((s, p) => s + p.amount, 0)) * 100) / 100
+  const date = paidAt || zonedDateKey(new Date())
+  if (remaining > 0) {
+    await recordPayment(invoiceId, userId, { amount: remaining, paidAt: date, note: "Solde (facture marquée payée)" })
+    return
+  }
+  // Déjà intégralement réglée par des paiements : seul le statut manquait
+  if (invoice.status === "DRAFT" || invoice.status === "CANCELLED") throw new Error("Seule une facture émise peut être marquée payée")
+  await prisma.invoice.update({ where: { id: invoiceId }, data: { status: "PAID", paidAt: parseCivilDate(date) } })
   revalidatePath(`/facturation/factures/${invoiceId}`)
   revalidatePath("/facturation/factures")
   revalidatePath("/facturation")
@@ -612,6 +667,8 @@ export async function updateInvoiceStatus(invoiceId: string, _userId: string, st
   if (current.status === "DRAFT" || current.status === "CANCELLED") {
     throw new Error("Seule une facture émise peut changer de statut")
   }
+  // Payée = un paiement du reste dû (tous les appelants : fiche, tableau de bord, graphe)
+  if (status === "PAID") return markInvoicePaid(invoiceId, userId)
   const data: Record<string, unknown> = { status }
   if (status === "ISSUED") data.issuedAt = new Date()
   if (status === "SENT") data.sentAt = new Date()

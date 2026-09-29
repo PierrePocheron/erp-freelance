@@ -151,6 +151,7 @@ describe("facturation depuis un devis (acompte → solde)", () => {
     await createInvoiceFromQuote(quote.id, "ignored", "DEPOSIT")
     const final = await createInvoiceFromQuote(quote.id, "ignored", "FINAL") // net = 700
 
+    await prisma.invoice.update({ where: { id: final.id }, data: { status: "ISSUED" } }) // paiement = facture émise
     await recordPayment(final.id, "ignored", { amount: 700, paidAt: "2026-06-01T00:00:00Z" })
     const after = await prisma.invoice.findUnique({ where: { id: final.id } })
     expect(after?.status).toBe("PAID")
@@ -166,6 +167,7 @@ describe("facturation depuis un devis (acompte → solde)", () => {
     setTestUser(user.id)
     const final = await createInvoiceFromQuote(quote.id, "ignored", "FINAL") // net = 1000
 
+    await prisma.invoice.update({ where: { id: final.id }, data: { status: "ISSUED" } }) // paiement = facture émise
     await recordPayment(final.id, "ignored", { amount: 400, paidAt: "2026-06-01T00:00:00Z" })
     const after = await prisma.invoice.findUnique({ where: { id: final.id } })
     expect(after?.status).not.toBe("PAID")

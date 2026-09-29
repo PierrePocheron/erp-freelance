@@ -15,51 +15,51 @@ model User {
   email               String    @unique
   emailVerified       DateTime?
   image               String?
-  googleErpCalendarId String?   // id de l'agenda "ERP Freelance" dans Google Calendar
+  googleErpCalendarId String? // id de l'agenda "ERP Freelance" dans Google Calendar
   createdAt           DateTime  @default(now())
   updatedAt           DateTime  @updatedAt
 
-  accounts          Account[]
-  sessions          Session[]
-  clients           Client[]
-  projects          Project[]
-  products          Product[]
-  quotes            Quote[]
-  invoices          Invoice[]
-  recurringInvoices RecurringInvoice[]
-  emailLogs         EmailLog[]
-  emailTemplates    EmailTemplate[]
-  callTemplates     CallTemplate[]
-  interviewAnswers  InterviewAnswer[]
-  pushSubscriptions PushSubscription[]
-  calendarEvents      CalendarEvent[]
-  calendarCategories  CalendarCategory[]
-  timeEntries         TimeEntry[]
-  tags              Tag[]
-  profile           UserProfile?
-  projectMemberships ProjectMember[]
-  notifications     Notification[]
-  conditionsTemplates ConditionsTemplate[]
-  projectIdeas      ProjectIdea[]
-  tasks             Task[]               @relation("UserTasks")
-  companies          Company[]
-  emitterProfiles    EmitterProfile[]
-  revenues           Revenue[]
-  recurringRevenues  RecurringRevenue[]
-  fiscalSources      FiscalSource[]
-  expenses           Expense[]
-  recurringExpenses  RecurringExpense[]
-  expenseCategories  ExpenseCategory[]
-  companyCategories  CompanyCategory[]
-  healthEvents        HealthEvent[]
-  healthConsultations HealthConsultation[]
+  accounts             Account[]
+  sessions             Session[]
+  clients              Client[]
+  projects             Project[]
+  products             Product[]
+  quotes               Quote[]
+  invoices             Invoice[]
+  recurringInvoices    RecurringInvoice[]
+  emailLogs            EmailLog[]
+  emailTemplates       EmailTemplate[]
+  callTemplates        CallTemplate[]
+  interviewAnswers     InterviewAnswer[]
+  pushSubscriptions    PushSubscription[]
+  calendarEvents       CalendarEvent[]
+  calendarCategories   CalendarCategory[]
+  timeEntries          TimeEntry[]
+  tags                 Tag[]
+  profile              UserProfile?
+  projectMemberships   ProjectMember[]
+  notifications        Notification[]
+  conditionsTemplates  ConditionsTemplate[]
+  projectIdeas         ProjectIdea[]
+  tasks                Task[]                @relation("UserTasks")
+  companies            Company[]
+  emitterProfiles      EmitterProfile[]
+  revenues             Revenue[]
+  recurringRevenues    RecurringRevenue[]
+  fiscalSources        FiscalSource[]
+  expenses             Expense[]
+  recurringExpenses    RecurringExpense[]
+  expenseCategories    ExpenseCategory[]
+  companyCategories    CompanyCategory[]
+  healthEvents         HealthEvent[]
+  healthConsultations  HealthConsultation[]
   healthReimbursements HealthReimbursement[]
-  jobApplications     JobApplication[]
-  urssafDeclarations  UrssafDeclaration[]
-  emailDrafts         EmailDraft[]
-  skills              Skill[]
-  interviewQuestions  InterviewQuestion[]
-  investmentPlatforms InvestmentPlatform[]
+  jobApplications      JobApplication[]
+  urssafDeclarations   UrssafDeclaration[]
+  emailDrafts          EmailDraft[]
+  skills               Skill[]
+  interviewQuestions   InterviewQuestion[]
+  investmentPlatforms  InvestmentPlatform[]
 }
 
 model ProjectIdea {
@@ -71,61 +71,64 @@ model ProjectIdea {
   updatedAt DateTime @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // #33/#32 (29/09/2026) : index des requêtes par propriétaire / clé étrangère
+  @@index([userId])
 }
 
 model UserProfile {
-  id           String   @id @default(cuid())
-  userId       String   @unique
-  companyName  String?
-  siret        String?
-  address      String?
-  postalCode   String?
-  city         String?
-  country      String   @default("France")
-  phone        String?
-  website      String?
-  iban         String?
-  bic          String?
-  quotePrefix         String   @default("DEV")
-  invoicePrefix       String   @default("FAC")
-  quoteNumberFormat   String   @default("PREFIX-YYYY-NNN")
-  invoiceNumberFormat String   @default("PREFIX-YYYY-NNN")
-  defaultConditions String?
-  pdfAccentColor      String   @default("#6366f1")
+  id                  String  @id @default(cuid())
+  userId              String  @unique
+  companyName         String?
+  siret               String?
+  address             String?
+  postalCode          String?
+  city                String?
+  country             String  @default("France")
+  phone               String?
+  website             String?
+  iban                String?
+  bic                 String?
+  quotePrefix         String  @default("DEV")
+  invoicePrefix       String  @default("FAC")
+  quoteNumberFormat   String  @default("PREFIX-YYYY-NNN")
+  invoiceNumberFormat String  @default("PREFIX-YYYY-NNN")
+  defaultConditions   String?
+  pdfAccentColor      String  @default("#6366f1")
   customAccentColors  String?
   logoUrl             String?
   // ── Branding PDF (template « Pedro ») ───────────────────────────────────
   // null → défauts dynamiques : initiales de l'utilisateur (logo) et raison
   // sociale/nom (sous-titre) — résolus dans emitter-resolve.ts
-  pdfLogoText         String?  // logo texte en haut à gauche, le point final prend la couleur d'accent
-  pdfLogoSubtext      String?  // petites capitales espacées sous le logo
-  pdfBackgroundColor  String   @default("#FAF6EE") // fond de page crème
-  pdfBankName         String?  // banque du bloc RÈGLEMENT (fallback si le document n'a pas de société émettrice)
+  pdfLogoText         String? // logo texte en haut à gauche, le point final prend la couleur d'accent
+  pdfLogoSubtext      String? // petites capitales espacées sous le logo
+  pdfBackgroundColor  String  @default("#FAF6EE") // fond de page crème
+  pdfBankName         String? // banque du bloc RÈGLEMENT (fallback si le document n'a pas de société émettrice)
 
   // Dernière synchro Google Agenda réussie (cycle pull+push) — affichée sur l'agenda
-  lastGoogleSyncAt    DateTime?
+  lastGoogleSyncAt         DateTime?
   // Seuil de fraîcheur de la synchro auto à l'ouverture (minutes) : pas de
   // nouvelle synchro si la dernière remonte à moins que ça. 0 = toujours synchroniser.
-  calendarSyncThresholdMin Int @default(30)
+  calendarSyncThresholdMin Int       @default(30)
 
   // ── Prospection ─────────────────────────────────────────────────────────
   followUpDelayDays  Int     @default(7) // délai (jours) avant de proposer une relance
-  followUpTemplateId String?             // modèle d'email pré-sélectionné pour les relances
+  followUpTemplateId String? // modèle d'email pré-sélectionné pour les relances
 
   // ── Fiscalité / imposition ──────────────────────────────────────────────
-  legalStatus          String               @default("AUTO_ENTREPRENEUR") // AUTO_ENTREPRENEUR | EI | EURL | SASU | OTHER
-  urssafFrequency      DeclarationFrequency @default(QUARTERLY)
-  versementLiberatoire Boolean              @default(true)
+  legalStatus                String               @default("AUTO_ENTREPRENEUR") // AUTO_ENTREPRENEUR | EI | EURL | SASU | OTHER
+  urssafFrequency            DeclarationFrequency @default(QUARTERLY)
+  versementLiberatoire       Boolean              @default(true)
   // Taux (%) par catégorie — modifiables si l'URSSAF les révise ou selon ACRE
-  rateBNCCotisations         Float @default(25.60)
-  rateBNCVL                  Float @default(2.20)
-  rateBNCCFP                 Float @default(0.20)
-  rateBICServicesCotisations Float @default(21.20)
-  rateBICServicesVL          Float @default(1.70)
-  rateBICServicesCFP         Float @default(0.10)
-  rateBICSalesCotisations    Float @default(12.30)
-  rateBICSalesVL             Float @default(1.00)
-  rateBICSalesCFP            Float @default(0.10)
+  rateBNCCotisations         Float                @default(25.60)
+  rateBNCVL                  Float                @default(2.20)
+  rateBNCCFP                 Float                @default(0.20)
+  rateBICServicesCotisations Float                @default(21.20)
+  rateBICServicesVL          Float                @default(1.70)
+  rateBICServicesCFP         Float                @default(0.10)
+  rateBICSalesCotisations    Float                @default(12.30)
+  rateBICSalesVL             Float                @default(1.00)
+  rateBICSalesCFP            Float                @default(0.10)
 
   // ── Investissements ───────────────────────────────────────────────────────
   // Rappel mensuel « faire les relevés » : une tâche parent + une sous-tâche par
@@ -133,8 +136,8 @@ model UserProfile {
   investmentReviewReminder Boolean @default(false)
   investmentReviewDay      Int     @default(1) // jour du mois de l'échéance (1–28)
 
-  createdAt           DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
@@ -146,7 +149,7 @@ model UserProfile {
 model EmitterProfile {
   id                 String   @id @default(cuid())
   userId             String
-  name               String   // Libellé interne pour distinguer les profils
+  name               String // Libellé interne pour distinguer les profils
   companyName        String? // Raison sociale
   legalForm          String? // Forme juridique (SASU, EI, micro…)
   siret              String?
@@ -158,7 +161,7 @@ model EmitterProfile {
   phone              String?
   email              String?
   website            String?
-  bankName           String?  // nom de la banque (ex: Revolut) pour le bloc RÈGLEMENT
+  bankName           String? // nom de la banque (ex: Revolut) pour le bloc RÈGLEMENT
   iban               String?
   bic                String?
   defaultConditions  String?
@@ -167,7 +170,7 @@ model EmitterProfile {
   customAccentColors String?
   logoUrl            String?
   isDefault          Boolean  @default(false)
-  fiscalSourceId     String?  // lien optionnel vers une source fiscale (ex: AE Pedro Dev)
+  fiscalSourceId     String? // lien optionnel vers une source fiscale (ex: AE Pedro Dev)
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
 
@@ -236,17 +239,17 @@ enum ClientType {
   PROSPECT
   CLIENT
   PERSONAL
-  COLLEAGUE  // Collègue (société où l'on travaille) — cf. organigramme CompanyTeam
-  RECRUITER  // Recruteur / chasseur de tête
+  COLLEAGUE // Collègue (société où l'on travaille) — cf. organigramme CompanyTeam
+  RECRUITER // Recruteur / chasseur de tête
   SELF
   INACTIVE
 }
 
 enum CompanyType {
-  CLIENT      // Client direct (facturation)
-  ESN         // ESN / SSII — missions de service
+  CLIENT // Client direct (facturation)
+  ESN // ESN / SSII — missions de service
   RECRUTEMENT // Cabinet de recrutement / headhunter
-  PARTENAIRE  // Partenaire / sous-traitant
+  PARTENAIRE // Partenaire / sous-traitant
   FOURNISSEUR // Fournisseur de services
   AUTRE
 }
@@ -297,10 +300,10 @@ enum ProspectStatus {
 
 // Type de site web d'un prospect (rempli via scraping ou à la main).
 enum WebsiteType {
-  SHOWCASE     // Site vitrine
-  ECOMMERCE    // Boutique en ligne
+  SHOWCASE // Site vitrine
+  ECOMMERCE // Boutique en ligne
   BLOG_CONTENT // Site éditorial / contenu
-  OUTDATED     // Site obsolète ou cassé — cible principale
+  OUTDATED // Site obsolète ou cassé — cible principale
   OTHER
 }
 
@@ -323,7 +326,7 @@ enum ClientFileType {
 // Une société cliente. Peut regrouper plusieurs contacts (Client). Porte les
 // informations légales/de facturation (SIRET, TVA, adresse société).
 model Company {
-  id             String   @id @default(cuid())
+  id             String       @id @default(cuid())
   userId         String
   name           String
   siret          String?
@@ -334,13 +337,13 @@ model Company {
   address        String?
   postalCode     String?
   city           String?
-  country        String?  @default("France")
+  country        String?      @default("France")
   companyType    CompanyType? // catégorie de la société
   notes          String?
-  fiscalSourceId String?  // source fiscale par défaut pour la facturation/les revenus
-  categoryId     String?  // catégorie libre de regroupement (créable à la volée), indépendante de la source fiscale
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  fiscalSourceId String? // source fiscale par défaut pour la facturation/les revenus
+  categoryId     String? // catégorie libre de regroupement (créable à la volée), indépendante de la source fiscale
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
 
   user              User               @relation(fields: [userId], references: [id], onDelete: Cascade)
   fiscalSource      FiscalSource?      @relation(fields: [fiscalSourceId], references: [id], onDelete: SetNull)
@@ -407,122 +410,130 @@ model CompanyTeam {
 // toucher les ~40 lectures existantes (listes, dashboards…). Ne jamais écrire
 // `name`/`company` directement ailleurs que via les actions CRM.
 model Client {
-  id            String       @id @default(cuid())
-  userId        String
-  type          ClientType   @default(PROSPECT)
+  id                    String          @id @default(cuid())
+  userId                String
+  type                  ClientType      @default(PROSPECT)
   // Identité (source de vérité)
-  firstName     String?
-  lastName      String?
-  label         String?
+  firstName             String?
+  lastName              String?
+  label                 String?
   // Cache d'affichage = label || "Prénom Nom" || société || "Sans nom"
-  name          String
+  name                  String
   // Société (relation) + cache nom dénormalisé pour l'affichage
-  companyId     String?
-  companyRef    Company?     @relation(fields: [companyId], references: [id], onDelete: SetNull)
-  company       String?
-  jobTitle      String? // poste / fonction dans la société
+  companyId             String?
+  companyRef            Company?        @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  company               String?
+  jobTitle              String? // poste / fonction dans la société
   // Organigramme de la société : zone d'appartenance + niveau (cf. CompanyTeam)
-  teamId        String?
-  team          CompanyTeam? @relation(fields: [teamId], references: [id], onDelete: SetNull)
-  orgLevel      OrgLevel?
-  email         String?
-  personalEmail String?      // email perso/direct, en plus de l'email générique de contact
-  phone         String?
-  phoneType     String?      // "PRO" | "PERSO" — nature du numéro (null = non précisé)
-  interestLevel Int?         // priorité/intérêt prospection : 1 = site éclaté, 2 = moyen, 3 = ok (null = non évalué)
-  source         ClientSource  @default(OTHER)
-  temperature    Temperature   @default(COLD) // legacy — plus utilisé par le code (cf. ProspectStage)
-  prospectStage  ProspectStage @default(IDENTIFIED) // legacy — remplacé par prospectStatus
-  prospectStatus ProspectStatus @default(TO_CONTACT)
-  priorityScore  Int           @default(1)
-  notes         String?
+  teamId                String?
+  team                  CompanyTeam?    @relation(fields: [teamId], references: [id], onDelete: SetNull)
+  orgLevel              OrgLevel?
+  email                 String?
+  personalEmail         String? // email perso/direct, en plus de l'email générique de contact
+  phone                 String?
+  phoneType             String? // "PRO" | "PERSO" — nature du numéro (null = non précisé)
+  interestLevel         Int? // priorité/intérêt prospection : 1 = site éclaté, 2 = moyen, 3 = ok (null = non évalué)
+  source                ClientSource    @default(OTHER)
+  temperature           Temperature     @default(COLD) // legacy — plus utilisé par le code (cf. ProspectStage)
+  prospectStage         ProspectStage   @default(IDENTIFIED) // legacy — remplacé par prospectStatus
+  prospectStatus        ProspectStatus  @default(TO_CONTACT)
+  priorityScore         Int             @default(1)
+  notes                 String?
   // Fiche site web du prospect (alimentée par scraping ou saisie manuelle)
-  websiteUrl          String?
-  websiteType         WebsiteType?
-  websitePagesApprox  Int?
-  businessDescription String?      // ce que fait le business / à quoi sert le site
-  region              String?
+  websiteUrl            String?
+  websiteType           WebsiteType?
+  websitePagesApprox    Int?
+  businessDescription   String? // ce que fait le business / à quoi sert le site
+  region                String?
   // Enrichissement prospect-finder (audit technique du site — matière des mails)
-  cms                 String?      // ex. "local.fr / Solocal" — le signal de prospection
-  seoScore            Int?         // score SEO on-page (0-100)
-  performanceScore    Int?         // score performance (0-100)
-  seoIssues           String?      // problèmes détectés, un par ligne
-  publicationManager  String?      // responsable de publication (mentions légales) — souvent le gérant
-  domainCreatedAt     DateTime?    // âge du site (RDAP)
-  enrichmentJson      String?      // reste de l'enrichissement brut (multi emails/tél, sitemap, https…)
+  cms                   String? // ex. "local.fr / Solocal" — le signal de prospection
+  seoScore              Int? // score SEO on-page (0-100)
+  performanceScore      Int? // score performance (0-100)
+  seoIssues             String? // problèmes détectés, un par ligne
+  publicationManager    String? // responsable de publication (mentions légales) — souvent le gérant
+  domainCreatedAt       DateTime? // âge du site (RDAP)
+  enrichmentJson        String? // reste de l'enrichissement brut (multi emails/tél, sitemap, https…)
   // Adresse du CONTACT (optionnelle — distincte de l'adresse société)
-  address       String?
-  postalCode    String?
-  city          String?
-  country       String?
-  siret         String?
-  linkedinUrl   String?
+  address               String?
+  postalCode            String?
+  city                  String?
+  country               String?
+  siret                 String?
+  linkedinUrl           String?
   // Catégorie fiscale par défaut des factures de ce client (pré-remplissage déclaration URSSAF)
   defaultFiscalCategory FiscalCategory?
-  createdAt     DateTime     @default(now())
-  updatedAt     DateTime     @updatedAt
+  createdAt             DateTime        @default(now())
+  updatedAt             DateTime        @updatedAt
 
-  user              User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user              User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
   interactions      Interaction[]
   prospectEvents    ProspectEvent[]
   prospectNotes     ProspectNote[]
   reminders         Reminder[]
   files             ClientFile[]
-  projects          Project[]          @relation("ProjectClient")
+  projects          Project[]             @relation("ProjectClient")
   projectLinks      ProjectContact[]
   quotes            Quote[]
   invoices          Invoice[]
   recurringInvoices RecurringInvoice[]
   tasks             Task[]
-  revenues          Revenue[]          @relation("RevenueClient")
-  recurringRevenues RecurringRevenue[] @relation("RecurringRevenueClient")
-  jobApplications   JobApplication[]   @relation("RecruiterApplications")
+  revenues          Revenue[]             @relation("RevenueClient")
+  recurringRevenues RecurringRevenue[]    @relation("RecurringRevenueClient")
+  jobApplications   JobApplication[]      @relation("RecruiterApplications")
   jobEventLinks     JobApplicationEvent[] @relation("EventContact")
   emailLogs         EmailLog[]
   emailDrafts       EmailDraft[]
 
   @@index([companyId])
   @@index([teamId])
+  // #33/#32 (29/09/2026) : index des requêtes par propriétaire / clé étrangère
+  @@index([userId])
 }
 
 model Interaction {
-  id        String             @id @default(cuid())
-  clientId  String
-  date      DateTime
-  channel   InteractionChannel
-  summary   String
-  response  String?
-  emailUrl  String?            // lien profond vers le mail (Gmail...) pour y accéder en 1 clic
-  emailTemplateId   String?    // modèle d'email utilisé (traçabilité envois/relances)
-  emailTemplateName String?    // snapshot du nom du modèle (survit à archivage/suppression)
-  createdAt DateTime           @default(now())
+  id                String             @id @default(cuid())
+  clientId          String
+  date              DateTime
+  channel           InteractionChannel
+  summary           String
+  response          String?
+  emailUrl          String? // lien profond vers le mail (Gmail...) pour y accéder en 1 clic
+  emailTemplateId   String? // modèle d'email utilisé (traçabilité envois/relances)
+  emailTemplateName String? // snapshot du nom du modèle (survit à archivage/suppression)
+  createdAt         DateTime           @default(now())
 
   client        Client         @relation(fields: [clientId], references: [id], onDelete: Cascade)
   emailTemplate EmailTemplate? @relation(fields: [emailTemplateId], references: [id], onDelete: SetNull)
+
+  // #33/#32 (29/09/2026) : index des requêtes par propriétaire / clé étrangère
+  @@index([clientId])
 }
 
 model Reminder {
-  id          String   @id @default(cuid())
-  clientId    String
-  dueDate     DateTime
-  note        String?
-  isDone      Boolean  @default(false)
-  doneAt      DateTime?
-  emailSent   Boolean  @default(false)
-  createdAt   DateTime @default(now())
+  id        String    @id @default(cuid())
+  clientId  String
+  dueDate   DateTime
+  note      String?
+  isDone    Boolean   @default(false)
+  doneAt    DateTime?
+  emailSent Boolean   @default(false)
+  createdAt DateTime  @default(now())
 
   client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  // #33/#32 (29/09/2026) : index des requêtes par propriétaire / clé étrangère
+  @@index([clientId])
 }
 
 // ── Mode prospection : frise chronologique des événements d'un prospect ─────
 enum ProspectEventKind {
-  CALL_ANSWERED  // appel — a répondu
+  CALL_ANSWERED // appel — a répondu
   CALL_NO_ANSWER // appel — pas de réponse
-  EMAIL_SENT     // email envoyé
+  EMAIL_SENT // email envoyé
   REPLY_POSITIVE // réponse positive
   REPLY_NEGATIVE // réponse négative
   MEETING_BOOKED // rendez-vous fixé
-  STATUS_CHANGE  // changement de statut manuel (select, bulk…)
+  STATUS_CHANGE // changement de statut manuel (select, bulk…)
 }
 
 model ProspectEvent {
@@ -562,6 +573,9 @@ model ClientFile {
   createdAt DateTime       @default(now())
 
   client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  // #33/#32 (29/09/2026) : index des requêtes par propriétaire / clé étrangère
+  @@index([clientId])
 }
 
 // ─── Projects ────────────────────────────────────────────────────────────────
@@ -594,12 +608,12 @@ enum MilestoneStatus {
 }
 
 enum MilestoneType {
-  DEADLINE    // Échéance
-  MEETING     // Réunion
-  CALL        // Appel
+  DEADLINE // Échéance
+  MEETING // Réunion
+  CALL // Appel
   APPOINTMENT // Rendez-vous
-  ON_SITE     // Sur place
-  OTHER       // Autre
+  ON_SITE // Sur place
+  OTHER // Autre
 }
 
 enum TaskStatus {
@@ -633,22 +647,22 @@ enum LinkCategory {
 }
 
 model Project {
-  id             String        @id @default(cuid())
-  userId         String
+  id               String          @id @default(cuid())
+  userId           String
   // clientId reste nullable pour compatibilité facturation (Phase 2 le supprimera)
-  clientId       String?
-  companyId      String?
-  jobApplicationId String?     // entretien d'où provient le projet (ex. challenge technique)
-  name           String
-  description    String?
-  status         ProjectStatus @default(ACTIVE)
-  category       ProjectCategory @default(AUTRE)
-  priority       TaskPriority  @default(MEDIUM)
-  startDate      DateTime?
-  endDate        DateTime?
-  estimatedHours Float?
-  createdAt      DateTime      @default(now())
-  updatedAt      DateTime      @updatedAt
+  clientId         String?
+  companyId        String?
+  jobApplicationId String? // entretien d'où provient le projet (ex. challenge technique)
+  name             String
+  description      String?
+  status           ProjectStatus   @default(ACTIVE)
+  category         ProjectCategory @default(AUTRE)
+  priority         TaskPriority    @default(MEDIUM)
+  startDate        DateTime?
+  endDate          DateTime?
+  estimatedHours   Float?
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
 
   user              User               @relation(fields: [userId], references: [id], onDelete: Cascade)
   client            Client?            @relation("ProjectClient", fields: [clientId], references: [id], onDelete: SetNull)
@@ -674,6 +688,8 @@ model Project {
 
   @@index([companyId])
   @@index([jobApplicationId])
+  // #33/#32 (29/09/2026) : index des requêtes par propriétaire / clé étrangère
+  @@index([userId])
 }
 
 enum ProjectMemberRole {
@@ -697,12 +713,12 @@ model ProjectMember {
 
 // Rôle d'un contact CRM sur un projet (M2M)
 enum ProjectContactRole {
-  CLIENT     // Donneur d'ordre / client
-  COLLEAGUE  // Collègue
-  PARTNER    // Partenaire / sous-traitant
-  SUPPLIER   // Fournisseur
-  PERSONAL   // Perso (ami, famille, projet perso / auto-formation)
-  OTHER      // Autre
+  CLIENT // Donneur d'ordre / client
+  COLLEAGUE // Collègue
+  PARTNER // Partenaire / sous-traitant
+  SUPPLIER // Fournisseur
+  PERSONAL // Perso (ami, famille, projet perso / auto-formation)
+  OTHER // Autre
 }
 
 model ProjectContact {
@@ -710,7 +726,7 @@ model ProjectContact {
   projectId String
   clientId  String
   role      ProjectContactRole @default(OTHER)
-  label     String?            // précision libre, ex : "Lead dev", "Chef de projet"
+  label     String? // précision libre, ex : "Lead dev", "Chef de projet"
   createdAt DateTime           @default(now())
 
   project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
@@ -724,64 +740,69 @@ model Milestone {
   id             String          @id @default(cuid())
   projectId      String
   name           String
-  date           DateTime        // date + heure de début (heure optionnelle côté UI, minuit par défaut)
-  endDate        DateTime?       // heure de fin optionnelle
+  date           DateTime // date + heure de début (heure optionnelle côté UI, minuit par défaut)
+  endDate        DateTime? // heure de fin optionnelle
   type           MilestoneType   @default(OTHER)
   status         MilestoneStatus @default(UPCOMING)
-  outcome        String?         // note libre (compte-rendu ou raison d'annulation)
-  googleEventId  String?         // id de l'événement poussé dans l'agenda Google "ERP Freelance"
-  googleSyncedAt DateTime?       // dernière synchro confirmée vers Google
+  outcome        String? // note libre (compte-rendu ou raison d'annulation)
+  googleEventId  String? // id de l'événement poussé dans l'agenda Google "ERP Freelance"
+  googleSyncedAt DateTime? // dernière synchro confirmée vers Google
   createdAt      DateTime        @default(now())
 
   project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
   tasks   Task[]
+
+  // #33/#32 (29/09/2026) : index des requêtes par propriétaire / clé étrangère
+  @@index([projectId])
 }
 
 model Task {
-  id             String       @id @default(cuid())
-  userId         String?      // propriétaire direct (null pour les tâches projet existantes)
-  projectId      String?      // optionnel — tâche projet
-  clientId       String?      // optionnel — tâche client directe
-  milestoneId    String?
-  parentTaskId   String?
-  title          String
-  description    String?
-  status         TaskStatus   @default(TODO)
-  priority       TaskPriority @default(LOW)
-  importance     Int          @default(1)
-  isGroup        Boolean      @default(false)
-  color          String?
-  order          Int          @default(0)
-  estimatedHours Float?
-  startedAt      DateTime?
-  dueDate        DateTime?
-  completedAt    DateTime?
-  outcome        String?      // note libre (compte-rendu ou raison d'annulation)
-  googleEventId  String?      // id de l'événement poussé dans l'agenda Google "ERP Freelance"
-  googleSyncedAt DateTime?    // dernière synchro confirmée vers Google
+  id                   String       @id @default(cuid())
+  userId               String? // propriétaire direct (null pour les tâches projet existantes)
+  projectId            String? // optionnel — tâche projet
+  clientId             String? // optionnel — tâche client directe
+  milestoneId          String?
+  parentTaskId         String?
+  title                String
+  description          String?
+  status               TaskStatus   @default(TODO)
+  priority             TaskPriority @default(LOW)
+  importance           Int          @default(1)
+  isGroup              Boolean      @default(false)
+  color                String?
+  order                Int          @default(0)
+  estimatedHours       Float?
+  startedAt            DateTime?
+  dueDate              DateTime?
+  completedAt          DateTime?
+  outcome              String? // note libre (compte-rendu ou raison d'annulation)
+  googleEventId        String? // id de l'événement poussé dans l'agenda Google "ERP Freelance"
+  googleSyncedAt       DateTime? // dernière synchro confirmée vers Google
   // Rappel de déclaration URSSAF auto-généré : "2026-T2". Marquée DONE
   // automatiquement quand la déclaration correspondante est déclarée/payée.
-  urssafPeriod   String?
-  skillId        String?      // bloc « Travailler cette compétence » (module Compétences)
+  urssafPeriod         String?
+  skillId              String? // bloc « Travailler cette compétence » (module Compétences)
   // Rappel mensuel de relevé d'investissement (module Investissements) : la tâche
   // parent porte la période "YYYY-MM" (parentTaskId null) ; chaque sous-tâche porte
   // la même période + sa plateforme. Sert à l'idempotence et à l'auto-complétion.
   investmentPeriod     String?
   investmentPlatformId String?
-  createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @updatedAt
+  createdAt            DateTime     @default(now())
+  updatedAt            DateTime     @updatedAt
 
-  user        User?        @relation("UserTasks", fields: [userId], references: [id], onDelete: SetNull)
-  project     Project?     @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  client      Client?      @relation(fields: [clientId], references: [id], onDelete: SetNull)
-  milestone   Milestone?   @relation(fields: [milestoneId], references: [id])
-  parentTask  Task?        @relation("SubTasks", fields: [parentTaskId], references: [id])
-  subTasks    Task[]       @relation("SubTasks")
-  timeEntries TimeEntry[]
-  taskTags    TaskTag[]    @relation("TaskToTaskTag")
-  skill       Skill?       @relation(fields: [skillId], references: [id], onDelete: SetNull)
+  user               User?               @relation("UserTasks", fields: [userId], references: [id], onDelete: SetNull)
+  project            Project?            @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  client             Client?             @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  milestone          Milestone?          @relation(fields: [milestoneId], references: [id])
+  parentTask         Task?               @relation("SubTasks", fields: [parentTaskId], references: [id])
+  subTasks           Task[]              @relation("SubTasks")
+  timeEntries        TimeEntry[]
+  taskTags           TaskTag[]           @relation("TaskToTaskTag")
+  skill              Skill?              @relation(fields: [skillId], references: [id], onDelete: SetNull)
   investmentPlatform InvestmentPlatform? @relation("InvestmentReviewTasks", fields: [investmentPlatformId], references: [id], onDelete: Cascade)
 
+  // #33/#32 (29/09/2026) : index des requêtes par propriétaire / clé étrangère
+  @@unique([userId, urssafPeriod])
   @@index([userId, urssafPeriod])
   @@index([userId, investmentPeriod])
 }
@@ -800,17 +821,21 @@ model TaskTag {
 }
 
 model TimeEntry {
-  id        String   @id @default(cuid())
+  id        String    @id @default(cuid())
   taskId    String
   userId    String
   startedAt DateTime
   endedAt   DateTime?
   duration  Int?
   note      String?
-  createdAt DateTime @default(now())
+  createdAt DateTime  @default(now())
 
   task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // #33/#32 (29/09/2026) : index des requêtes par propriétaire / clé étrangère
+  @@index([userId])
+  @@index([taskId])
 }
 
 model JournalEntry {
@@ -827,13 +852,13 @@ model JournalEntry {
 // paiement, acte juridique, note…). Distinct des jalons (Milestone) qui sont
 // des étapes planifiées ; ici c'est un journal d'événements réels horodatés.
 enum ProjectEventKind {
-  NOTE      // note / observation
-  MEETING   // rencontre / visite / audience
-  EMAIL     // mail envoyé ou reçu
-  CALL      // appel
-  PAYMENT   // paiement / virement / facture
-  DELIVERY  // livraison / étape franchie
-  LEGAL     // acte juridique (mise en demeure, ordonnance, conclusions…)
+  NOTE // note / observation
+  MEETING // rencontre / visite / audience
+  EMAIL // mail envoyé ou reçu
+  CALL // appel
+  PAYMENT // paiement / virement / facture
+  DELIVERY // livraison / étape franchie
+  LEGAL // acte juridique (mise en demeure, ordonnance, conclusions…)
   OTHER
 }
 
@@ -843,8 +868,8 @@ model ProjectEvent {
   kind        ProjectEventKind @default(NOTE)
   title       String
   description String?
-  date        DateTime         // date de l'événement (ordre chronologique)
-  href        String?          // lien interne optionnel (facture, revenu…) — item cliquable
+  date        DateTime // date de l'événement (ordre chronologique)
+  href        String? // lien interne optionnel (facture, revenu…) — item cliquable
   createdAt   DateTime         @default(now())
 
   project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
@@ -892,25 +917,28 @@ model PostDev {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  project         Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  renewals        Renewal[]
+  project          Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  renewals         Renewal[]
   monitoringChecks MonitoringCheck[]
 }
 
 model Renewal {
-  id              String      @id @default(cuid())
-  postDevId       String
-  type            RenewalType @default(OTHER)
-  name            String
-  amount          Float?
-  purchasedAt     DateTime?
-  periodMonths    Int?
-  expiresAt       DateTime
-  reminderSent30  Boolean     @default(false)
-  reminderSent7   Boolean     @default(false)
-  createdAt       DateTime    @default(now())
+  id             String      @id @default(cuid())
+  postDevId      String
+  type           RenewalType @default(OTHER)
+  name           String
+  amount         Float?
+  purchasedAt    DateTime?
+  periodMonths   Int?
+  expiresAt      DateTime
+  reminderSent30 Boolean     @default(false)
+  reminderSent7  Boolean     @default(false)
+  createdAt      DateTime    @default(now())
 
   postDev PostDev @relation(fields: [postDevId], references: [id], onDelete: Cascade)
+
+  // #33/#32 (29/09/2026) : index des requêtes par propriétaire / clé étrangère
+  @@index([postDevId])
 }
 
 model MonitoringCheck {
@@ -922,6 +950,9 @@ model MonitoringCheck {
   responseTimeMs Int?
 
   postDev PostDev @relation(fields: [postDevId], references: [id], onDelete: Cascade)
+
+  // #33/#32 (29/09/2026) : index des requêtes par propriétaire / clé étrangère
+  @@index([postDevId])
 }
 
 // ─── Facturation ─────────────────────────────────────────────────────────────
@@ -998,10 +1029,13 @@ model Product {
   createdAt      DateTime    @default(now())
   updatedAt      DateTime    @updatedAt
 
-  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  quoteLines  QuoteLine[]
-  invoiceLines InvoiceLine[]
+  user                  User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  quoteLines            QuoteLine[]
+  invoiceLines          InvoiceLine[]
   recurringInvoiceLines RecurringInvoiceLine[]
+
+  // #33/#32 (29/09/2026) : index des requêtes par propriétaire / clé étrangère
+  @@index([userId])
 }
 
 model Quote {
@@ -1030,6 +1064,7 @@ model Quote {
   emitter  EmitterProfile? @relation(fields: [emitterProfileId], references: [id], onDelete: SetNull)
   lines    QuoteLine[]
   invoices Invoice[]
+
   @@unique([userId, number])
 }
 
@@ -1047,31 +1082,34 @@ model QuoteLine {
 
   quote   Quote    @relation(fields: [quoteId], references: [id], onDelete: Cascade)
   product Product? @relation(fields: [productId], references: [id])
+
+  // #33/#32 (29/09/2026) : index des requêtes par propriétaire / clé étrangère
+  @@index([quoteId])
 }
 
 model Invoice {
-  id               String        @id @default(cuid())
-  userId           String
-  clientId         String
-  projectId        String?
-  quoteId          String?
-  emitterProfileId String?
-  number           String
-  type             InvoiceType   @default(STANDALONE)
-  status           InvoiceStatus @default(DRAFT)
-  totalHT          Float         @default(0)
-  depositDeducted  Float         @default(0)
-  dueDate          DateTime?
-  paidAt           DateTime?
-  sentAt           DateTime?
-  issuedAt         DateTime?
+  id                String        @id @default(cuid())
+  userId            String
+  clientId          String
+  projectId         String?
+  quoteId           String?
+  emitterProfileId  String?
+  number            String
+  type              InvoiceType   @default(STANDALONE)
+  status            InvoiceStatus @default(DRAFT)
+  totalHT           Float         @default(0)
+  depositDeducted   Float         @default(0)
+  dueDate           DateTime?
+  paidAt            DateTime?
+  sentAt            DateTime?
+  issuedAt          DateTime?
   cancelledAt       DateTime?
   pdfUrl            String?
   notes             String?
   generalConditions String?
   urssafExcluded    Boolean       @default(false) // hors auto-entreprise : terminée dès paiement, jamais à déclarer
   createdAt         DateTime      @default(now())
-  updatedAt        DateTime      @updatedAt
+  updatedAt         DateTime      @updatedAt
 
   user       User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
   client     Client                 @relation(fields: [clientId], references: [id])
@@ -1082,6 +1120,7 @@ model Invoice {
   emailLogs  EmailLog[]
   payments   Payment[]
   urssafLine UrssafDeclarationLine?
+
   @@unique([userId, number])
 }
 
@@ -1094,40 +1133,49 @@ model Payment {
   createdAt DateTime @default(now())
 
   invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  // #33/#32 (29/09/2026) : index des requêtes par propriétaire / clé étrangère
+  @@index([invoiceId])
 }
 
 model InvoiceLine {
-  id          String   @id @default(cuid())
+  id          String  @id @default(cuid())
   invoiceId   String
   productId   String?
   description String
   detail      String?
-  quantity    Float    @default(1)
+  quantity    Float   @default(1)
   unitPrice   Float
-  taxRate     Float    @default(0)
+  taxRate     Float   @default(0)
   total       Float
 
   invoice Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
   product Product? @relation(fields: [productId], references: [id])
+
+  // #33/#32 (29/09/2026) : index des requêtes par propriétaire / clé étrangère
+  @@index([invoiceId])
 }
 
 model RecurringInvoice {
-  id                   String             @id @default(cuid())
-  userId               String
-  clientId             String
-  projectId            String?
-  name                 String
-  frequency            RecurringFrequency @default(MONTHLY)
-  nextGenerationDate   DateTime
-  isActive             Boolean            @default(true)
-  totalHT              Float              @default(0)
-  createdAt            DateTime           @default(now())
-  updatedAt            DateTime           @updatedAt
+  id                 String             @id @default(cuid())
+  userId             String
+  clientId           String
+  projectId          String?
+  name               String
+  frequency          RecurringFrequency @default(MONTHLY)
+  nextGenerationDate DateTime
+  isActive           Boolean            @default(true)
+  totalHT            Float              @default(0)
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
 
-  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  client  Client   @relation(fields: [clientId], references: [id])
-  project Project? @relation(fields: [projectId], references: [id])
+  user    User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  client  Client                 @relation(fields: [clientId], references: [id])
+  project Project?               @relation(fields: [projectId], references: [id])
   lines   RecurringInvoiceLine[]
+
+  // #33/#32 (29/09/2026) : index des requêtes par propriétaire / clé étrangère
+  @@index([userId])
 }
 
 // Lignes d'une facture récurrente. La table existe en base depuis la migration
@@ -1154,7 +1202,7 @@ model EmailLog {
   id              String         @id @default(cuid())
   userId          String
   invoiceId       String?
-  clientId        String?        // mail de prospection : contact destinataire
+  clientId        String? // mail de prospection : contact destinataire
   to              String
   subject         String
   resendMessageId String?
@@ -1166,6 +1214,9 @@ model EmailLog {
   client  Client?  @relation(fields: [clientId], references: [id], onDelete: SetNull)
 
   @@index([clientId])
+  // #33/#32 (29/09/2026) : index des requêtes par propriétaire / clé étrangère
+  @@index([userId])
+  @@index([invoiceId])
 }
 
 // Modèle de mail de démarchage — texte brut avec variables {{prenom}},
@@ -1186,15 +1237,15 @@ model PushSubscription {
 }
 
 model EmailTemplate {
-  id        String   @id @default(cuid())
-  userId    String
-  name      String
-  subject   String
-  body      String
-  sortOrder Int      @default(0) // ordre d'affichage personnalisé (drag & drop)
-  archivedAt DateTime?          // archivé = masqué des sélecteurs, conservé pour l'historique
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id         String    @id @default(cuid())
+  userId     String
+  name       String
+  subject    String
+  body       String
+  sortOrder  Int       @default(0) // ordre d'affichage personnalisé (drag & drop)
+  archivedAt DateTime? // archivé = masqué des sélecteurs, conservé pour l'historique
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
 
   user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   drafts       EmailDraft[]
@@ -1228,8 +1279,8 @@ model InterviewAnswer {
   userId    String
   question  String
   answer    String
-  category  String?                  // ex: Présentation, Motivation, Technique, Salaire
-  pinned    Boolean  @default(false)  // épinglée en tête
+  category  String? // ex: Présentation, Motivation, Technique, Salaire
+  pinned    Boolean  @default(false) // épinglée en tête
   sortOrder Int      @default(0)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1244,28 +1295,28 @@ model InterviewAnswer {
 // relu/édité individuellement, marqué READY explicitement, puis envoyé après
 // confirmation récapitulative. Jamais d'envoi automatique.
 enum EmailDraftStatus {
-  DRAFT     // généré ou ré-édité — relecture requise
-  READY     // relu et validé — seul statut envoyable
-  SENT      // parti via Resend (sentAt renseigné)
+  DRAFT // généré ou ré-édité — relecture requise
+  READY // relu et validé — seul statut envoyable
+  SENT // parti via Resend (sentAt renseigné)
   CANCELLED // écarté sans envoi
 }
 
 model EmailDraft {
-  id          String           @id @default(cuid())
-  userId      String
-  clientId    String
-  templateId  String?          // modèle d'origine (trace) — survit à sa suppression
-  emailTo     String?          // destinataire figé à la génération, éditable à la relecture
-  subject     String
-  body        String
-  missingVars String?          // clés {{var}} restées vides à la génération, séparées par des virgules
-  status      EmailDraftStatus @default(DRAFT)
-  sentAt      DateTime?
+  id            String           @id @default(cuid())
+  userId        String
+  clientId      String
+  templateId    String? // modèle d'origine (trace) — survit à sa suppression
+  emailTo       String? // destinataire figé à la génération, éditable à la relecture
+  subject       String
+  body          String
+  missingVars   String? // clés {{var}} restées vides à la génération, séparées par des virgules
+  status        EmailDraftStatus @default(DRAFT)
+  sentAt        DateTime?
   // Erreur de distribution notée manuellement après envoi (email rejeté / non
   // distribué). Non-null = le mail a bouncé ; le texte est le détail affiché.
   deliveryError String?
-  createdAt   DateTime         @default(now())
-  updatedAt   DateTime         @updatedAt
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
 
   user     User           @relation(fields: [userId], references: [id], onDelete: Cascade)
   client   Client         @relation(fields: [clientId], references: [id], onDelete: Cascade)
@@ -1296,26 +1347,29 @@ model CalendarEvent {
   endDate        DateTime?
   allDay         Boolean            @default(false)
   sourceType     CalendarSourceType @default(MANUAL)
-  sourceId       String?            // id Google pour sourceType=GOOGLE ; id JournalEntry pour sourceType=MANUAL+note
+  sourceId       String? // id Google pour sourceType=GOOGLE ; id JournalEntry pour sourceType=MANUAL+note
   categoryId     String?
-  projectId      String?            // lien optionnel vers un projet
-  clientId       String?            // lien optionnel vers un contact
-  googleEventId  String?            // id de l'événement côté Google (pour les MANUAL poussés)
-  googleSyncedAt DateTime?          // dernière synchro confirmée vers Google
-  outcome        String?            // compte-rendu post-événement
-  cancelledAt    DateTime?          // annulation de l'événement
+  projectId      String? // lien optionnel vers un projet
+  clientId       String? // lien optionnel vers un contact
+  googleEventId  String? // id de l'événement côté Google (pour les MANUAL poussés)
+  googleSyncedAt DateTime? // dernière synchro confirmée vers Google
+  outcome        String? // compte-rendu post-événement
+  cancelledAt    DateTime? // annulation de l'événement
   createdAt      DateTime           @default(now())
   updatedAt      DateTime           @updatedAt
 
   user     User              @relation(fields: [userId], references: [id], onDelete: Cascade)
   category CalendarCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+
+  // #33/#32 (29/09/2026) : index des requêtes par propriétaire / clé étrangère
+  @@index([userId, startDate])
 }
 
 model CalendarCategory {
   id        String   @id @default(cuid())
   userId    String
   name      String
-  color     String   // hex couleur, ex: "#6366f1"
+  color     String // hex couleur, ex: "#6366f1"
   isDefault Boolean  @default(false)
   createdAt DateTime @default(now())
 
@@ -1336,6 +1390,9 @@ model Notification {
   createdAt DateTime @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // #33/#32 (29/09/2026) : index des requêtes par propriétaire / clé étrangère
+  @@index([userId, createdAt])
 }
 
 model ConditionsTemplate {
@@ -1348,15 +1405,18 @@ model ConditionsTemplate {
   updatedAt DateTime @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // #33/#32 (29/09/2026) : index des requêtes par propriétaire / clé étrangère
+  @@index([userId])
 }
 
 // ─── Sources fiscales ────────────────────────────────────────────────────────
 
 // Catégorie fiscale d'une source de revenus.
 enum FiscalBucket {
-  AE_URSSAF     // CA auto-entrepreneur déclaré à l'URSSAF
+  AE_URSSAF // CA auto-entrepreneur déclaré à l'URSSAF
   NON_IMPOSABLE // Revenus non imposables (études, baby-sitting, chèques cadeaux…)
-  OTHER         // Autres (salaires CDD/CDI, investissements…)
+  OTHER // Autres (salaires CDD/CDI, investissements…)
 }
 
 // Regroupe des revenus sous un même libellé fiscal personnalisé.
@@ -1365,7 +1425,7 @@ enum FiscalBucket {
 model FiscalSource {
   id        String       @id @default(cuid())
   userId    String
-  name      String       // "Pedro Dev AE", "Baby-sitting", "Bourse INSA"
+  name      String // "Pedro Dev AE", "Baby-sitting", "Bourse INSA"
   bucket    FiscalBucket
   color     String       @default("#6366f1")
   isActive  Boolean      @default(true)
@@ -1373,7 +1433,7 @@ model FiscalSource {
   createdAt DateTime     @default(now())
   updatedAt DateTime     @updatedAt
 
-  user              User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user              User               @relation(fields: [userId], references: [id], onDelete: Cascade)
   emitterProfiles   EmitterProfile[]
   revenues          Revenue[]
   recurringRevenues RecurringRevenue[]
@@ -1385,36 +1445,36 @@ model FiscalSource {
 // ─── Revenus hors auto-entreprise ────────────────────────────────────────────
 
 enum RevenueType {
-  SALARY        // Salaire (CDI, CDD, intérim)
-  FREELANCE     // Mission AE (Auto-Entrepreneur)
-  STUDY         // Étude / mission rémunérée hors AE
-  INVESTMENT    // Investissements (dividendes, intérêts, PEA)
-  RENTAL        // Revenus locatifs
-  PLATFORM      // Plateformes (YouTube, Twitch, Patreon…)
+  SALARY // Salaire (CDI, CDD, intérim)
+  FREELANCE // Mission AE (Auto-Entrepreneur)
+  STUDY // Étude / mission rémunérée hors AE
+  INVESTMENT // Investissements (dividendes, intérêts, PEA)
+  RENTAL // Revenus locatifs
+  PLATFORM // Plateformes (YouTube, Twitch, Patreon…)
   REIMBURSEMENT // Remboursement d'un proche (avance de frais partagés, prêt ponctuel…) — pas un revenu imposable
-  OTHER         // Autre
+  OTHER // Autre
 }
 
 enum RevenueStatus {
-  PENDING   // En attente de réception
-  RECEIVED  // Reçu
+  PENDING // En attente de réception
+  RECEIVED // Reçu
 }
 
 model Revenue {
   id                 String        @id @default(cuid())
   userId             String
   type               RevenueType
-  label              String        // ex: "Salaire mai 2026", "Loyer T2 Paris"
+  label              String // ex: "Salaire mai 2026", "Loyer T2 Paris"
   amount             Float
   currency           String        @default("EUR")
   status             RevenueStatus @default(PENDING)
-  receivedAt         DateTime?     // date de réception effective
-  expectedAt         DateTime?     // date prévisionnelle de réception (revenus en attente)
-  paymentMethod      String?       // VIREMENT, ESPECES, CHEQUE, CARTE, PAYPAL, OTHER
+  receivedAt         DateTime? // date de réception effective
+  expectedAt         DateTime? // date prévisionnelle de réception (revenus en attente)
+  paymentMethod      String? // VIREMENT, ESPECES, CHEQUE, CARTE, PAYPAL, OTHER
   notes              String?
-  period             String?       // "2026-06" — pour regroupement mensuel
-  recurringRevenueId String?       // lien vers le modèle récurrent parent
-  fiscalSourceId     String?       // lien vers la source fiscale (baby-sitting, études…)
+  period             String? // "2026-06" — pour regroupement mensuel
+  recurringRevenueId String? // lien vers le modèle récurrent parent
+  fiscalSourceId     String? // lien vers la source fiscale (baby-sitting, études…)
   companyId          String?
   clientId           String?
   projectId          String?
@@ -1422,12 +1482,12 @@ model Revenue {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  user             User              @relation(fields: [userId], references: [id], onDelete: Cascade)
-  recurringRevenue RecurringRevenue? @relation(fields: [recurringRevenueId], references: [id], onDelete: SetNull)
-  fiscalSource     FiscalSource?     @relation(fields: [fiscalSourceId], references: [id], onDelete: SetNull)
-  company          Company?          @relation("RevenueCompany", fields: [companyId], references: [id], onDelete: SetNull)
-  client           Client?           @relation("RevenueClient", fields: [clientId], references: [id], onDelete: SetNull)
-  project          Project?          @relation("RevenueProject", fields: [projectId], references: [id], onDelete: SetNull)
+  user             User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  recurringRevenue RecurringRevenue?      @relation(fields: [recurringRevenueId], references: [id], onDelete: SetNull)
+  fiscalSource     FiscalSource?          @relation(fields: [fiscalSourceId], references: [id], onDelete: SetNull)
+  company          Company?               @relation("RevenueCompany", fields: [companyId], references: [id], onDelete: SetNull)
+  client           Client?                @relation("RevenueClient", fields: [clientId], references: [id], onDelete: SetNull)
+  project          Project?               @relation("RevenueProject", fields: [projectId], references: [id], onDelete: SetNull)
   urssafLine       UrssafDeclarationLine?
 
   @@index([userId])
@@ -1439,20 +1499,20 @@ model Revenue {
 }
 
 model RecurringRevenue {
-  id            String      @id @default(cuid())
-  userId        String
-  type          RevenueType
-  label         String
-  amount        Float
-  currency      String      @default("EUR")
-  dayOfMonth    Int         @default(1)   // jour du mois attendu (1–28)
-  paymentMethod String?
-  notes         String?
-  isActive      Boolean     @default(true)
-  fiscalSourceId String?    // lien vers la source fiscale
-  companyId     String?
-  clientId      String?
-  projectId     String?
+  id             String      @id @default(cuid())
+  userId         String
+  type           RevenueType
+  label          String
+  amount         Float
+  currency       String      @default("EUR")
+  dayOfMonth     Int         @default(1) // jour du mois attendu (1–28)
+  paymentMethod  String?
+  notes          String?
+  isActive       Boolean     @default(true)
+  fiscalSourceId String? // lien vers la source fiscale
+  companyId      String?
+  clientId       String?
+  projectId      String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1502,10 +1562,10 @@ model Expense {
   categoryId         String?
   scope              ExpenseScope @default(PERSO)
   label              String
-  merchant           String?      // société / enseigne concernée (Décathlon…) — affichée en préfixe du libellé
+  merchant           String? // société / enseigne concernée (Décathlon…) — affichée en préfixe du libellé
   amount             Float
   currency           String       @default("EUR")
-  date               DateTime     // date de la dépense / du prélèvement
+  date               DateTime // date de la dépense / du prélèvement
   notes              String?
   recurringExpenseId String?
 
@@ -1516,6 +1576,8 @@ model Expense {
   category         ExpenseCategory?  @relation(fields: [categoryId], references: [id], onDelete: SetNull)
   recurringExpense RecurringExpense? @relation(fields: [recurringExpenseId], references: [id], onDelete: SetNull)
 
+  // #33/#32 (29/09/2026) : index des requêtes par propriétaire / clé étrangère
+  @@unique([recurringExpenseId, date])
   @@index([userId])
   @@index([categoryId])
   @@index([recurringExpenseId])
@@ -1549,19 +1611,19 @@ model RecurringExpense {
 // ─── Santé ────────────────────────────────────────────────────────────────────
 
 enum HealthEventType {
-  INJURY   // Blessure 🩸
-  ILLNESS  // Maladie 🩸
+  INJURY // Blessure 🩸
+  ILLNESS // Maladie 🩸
   OTHER
 }
 
 enum PractitionerType {
-  GENERAL       // Médecin généraliste
-  OSTEOPATH     // Ostéopathe
-  SPECIALIST    // Spécialiste
-  SOS_MEDECIN   // SOS Médecin / Urgences
-  NURSE         // Infirmier(ère)
-  PHYSIO        // Kinésithérapeute
-  DENTIST       // Dentiste
+  GENERAL // Médecin généraliste
+  OSTEOPATH // Ostéopathe
+  SPECIALIST // Spécialiste
+  SOS_MEDECIN // SOS Médecin / Urgences
+  NURSE // Infirmier(ère)
+  PHYSIO // Kinésithérapeute
+  DENTIST // Dentiste
   OTHER
 }
 
@@ -1571,8 +1633,8 @@ enum ReimbursementSource {
 }
 
 enum ReimbursementStatus {
-  PENDING   // En attente de réception
-  RECEIVED  // Reçu
+  PENDING // En attente de réception
+  RECEIVED // Reçu
 }
 
 // Blessure ou maladie 🩸
@@ -1583,8 +1645,8 @@ model HealthEvent {
   type        HealthEventType
   title       String
   description String?
-  bodyPart    String?         // localisation libre (dos, genou, coude…)
-  resolvedAt  DateTime?       // date de guérison / résolution
+  bodyPart    String? // localisation libre (dos, genou, coude…)
+  resolvedAt  DateTime? // date de guérison / résolution
 
   consultations HealthConsultation[]
 
@@ -1603,11 +1665,11 @@ model HealthConsultation {
   date             DateTime
   practitionerName String
   practitionerType PractitionerType @default(OTHER)
-  title            String           // motif / résumé
+  title            String // motif / résumé
   notes            String?
-  cost             Float?           // montant payé (ex. 63)
+  cost             Float? // montant payé (ex. 63)
   hasDocument      Boolean          @default(false)
-  documentRef      String?          // URL ou chemin Drive
+  documentRef      String? // URL ou chemin Drive
 
   healthEventId String?
   healthEvent   HealthEvent? @relation(fields: [healthEventId], references: [id], onDelete: SetNull)
@@ -1631,8 +1693,8 @@ model HealthReimbursement {
   amount       Float
   source       ReimbursementSource
   status       ReimbursementStatus @default(PENDING)
-  expectedDate DateTime?           // date prévisionnelle de réception
-  receivedAt   DateTime?           // date de réception effective (si RECEIVED)
+  expectedDate DateTime? // date prévisionnelle de réception
+  receivedAt   DateTime? // date de réception effective (si RECEIVED)
   notes        String?
 
   consultationId String?
@@ -1651,58 +1713,58 @@ model HealthReimbursement {
 
 // Étapes du processus de candidature/recrutement.
 enum JobApplicationStatus {
-  WISHLIST    // Repéré, à postuler
-  APPLIED     // Candidature envoyée
-  SCREENING   // Pré-qualification (call RH)
-  INTERVIEW   // Entretien
-  TECHNICAL   // Test / entretien technique
-  FINAL       // Entretien final / décisionnel
-  OFFER       // Offre reçue
-  ACCEPTED    // Offre acceptée 🎉
-  REJECTED    // Refusé
-  WITHDRAWN   // Désistement de ma part
-  GHOSTED     // Sans réponse / ghosté
+  WISHLIST // Repéré, à postuler
+  APPLIED // Candidature envoyée
+  SCREENING // Pré-qualification (call RH)
+  INTERVIEW // Entretien
+  TECHNICAL // Test / entretien technique
+  FINAL // Entretien final / décisionnel
+  OFFER // Offre reçue
+  ACCEPTED // Offre acceptée 🎉
+  REJECTED // Refusé
+  WITHDRAWN // Désistement de ma part
+  GHOSTED // Sans réponse / ghosté
 }
 
 enum JobEventType {
-  APPLICATION    // Candidature envoyée
-  CALL           // Appel téléphonique
-  VIDEO          // Visio
-  ONSITE         // Entretien sur site
-  EMAIL          // Email
-  MESSAGE        // Message (LinkedIn, SMS…)
+  APPLICATION // Candidature envoyée
+  CALL // Appel téléphonique
+  VIDEO // Visio
+  ONSITE // Entretien sur site
+  EMAIL // Email
+  MESSAGE // Message (LinkedIn, SMS…)
   TECHNICAL_TEST // Test technique
-  OFFER          // Offre / proposition
+  OFFER // Offre / proposition
   OTHER
 }
 
 // Une candidature / un processus de recrutement suivi.
 model JobApplication {
-  id          String               @id @default(cuid())
-  userId      String
-  companyName String                              // nom société (cache d'affichage / saisie rapide)
-  companyId   String?                             // lien optionnel vers une Company existante
-  position    String                              // poste visé
-  location    String?                             // ville / adresse
-  workMode    String?                             // remote / hybride / présentiel (libre)
-  status      JobApplicationStatus @default(WISHLIST)
-  source      String?                             // LinkedIn, cooptation, spontanée…
-  url         String?                             // lien de l'offre
-  salaryMin   Float?
-  salaryMax   Float?
-  salaryNote  String?                             // précisions (variable, package…)
-  notes       String?
-  priority    Int                  @default(1)    // tri / mise en avant
-  contactId   String?                             // recruteur (contact CRM)
-  appliedAt   DateTime?                           // date de candidature
-  nextActionAt    DateTime?                        // prochain point / RDV
-  nextActionLabel String?                          // libellé du prochain point
-  nextActionFormat String?                         // format du RDV (présentiel, téléphonique, visio Teams/Zoom/Meet, distanciel…)
-  closedAt    DateTime?                           // date de clôture (accepté/refusé/désisté)
+  id               String               @id @default(cuid())
+  userId           String
+  companyName      String // nom société (cache d'affichage / saisie rapide)
+  companyId        String? // lien optionnel vers une Company existante
+  position         String // poste visé
+  location         String? // ville / adresse
+  workMode         String? // remote / hybride / présentiel (libre)
+  status           JobApplicationStatus @default(WISHLIST)
+  source           String? // LinkedIn, cooptation, spontanée…
+  url              String? // lien de l'offre
+  salaryMin        Float?
+  salaryMax        Float?
+  salaryNote       String? // précisions (variable, package…)
+  notes            String?
+  priority         Int                  @default(1) // tri / mise en avant
+  contactId        String? // recruteur (contact CRM)
+  appliedAt        DateTime? // date de candidature
+  nextActionAt     DateTime? // prochain point / RDV
+  nextActionLabel  String? // libellé du prochain point
+  nextActionFormat String? // format du RDV (présentiel, téléphonique, visio Teams/Zoom/Meet, distanciel…)
+  closedAt         DateTime? // date de clôture (accepté/refusé/désisté)
 
   // Dossier de compétences — parfois demandé après le premier entretien
   competencyDossierValidated Boolean @default(false) // rempli/validé par le candidat
-  competencyDossierUrl       String?                 // lien pour le consulter
+  competencyDossierUrl       String? // lien pour le consulter
 
   // Synchro vers l'agenda Google (push unidirectionnel du prochain point planifié)
   googleEventId  String?
@@ -1711,14 +1773,14 @@ model JobApplication {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  user    User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
-  company Company?              @relation(fields: [companyId], references: [id], onDelete: SetNull)
-  contact Client?               @relation("RecruiterApplications", fields: [contactId], references: [id], onDelete: SetNull)
-  events  JobApplicationEvent[]
-  usedAnswers InterviewAnswer[] @relation("AnswerApplications") // modèles/réponses utilisés sur ce process
-  requiredSkills JobApplicationSkill[]  // stack demandée par le poste
-  questions      InterviewQuestion[]    // questions posées lors de ce process
-  projects       Project[]              // projets rattachés (ex. challenge technique)
+  user           User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  company        Company?              @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  contact        Client?               @relation("RecruiterApplications", fields: [contactId], references: [id], onDelete: SetNull)
+  events         JobApplicationEvent[]
+  usedAnswers    InterviewAnswer[]     @relation("AnswerApplications") // modèles/réponses utilisés sur ce process
+  requiredSkills JobApplicationSkill[] // stack demandée par le poste
+  questions      InterviewQuestion[] // questions posées lors de ce process
+  projects       Project[] // projets rattachés (ex. challenge technique)
 
   @@index([userId])
   @@index([companyId])
@@ -1730,13 +1792,13 @@ model JobApplicationEvent {
   id            String       @id @default(cuid())
   userId        String
   applicationId String
-  contactId     String?                    // interlocuteur de ce point (un recrutement a souvent plusieurs contacts)
+  contactId     String? // interlocuteur de ce point (un recrutement a souvent plusieurs contacts)
   date          DateTime
   type          JobEventType @default(OTHER)
   title         String
   notes         String?
-  outcome       String?       // compte rendu post-entretien
-  cancelledAt   DateTime?     // annulation de l'événement
+  outcome       String? // compte rendu post-entretien
+  cancelledAt   DateTime? // annulation de l'événement
 
   createdAt DateTime @default(now())
 
@@ -1754,15 +1816,15 @@ model JobApplicationEvent {
 // appliqués au CA déclaré. Portée aussi par Client.defaultFiscalCategory
 // pour pré-catégoriser les factures lors de la préparation d'une déclaration.
 enum FiscalCategory {
-  BNC           // Recettes des activités libérales
-  BIC_SERVICES  // Prestations de services commerciales ou artisanales
-  BIC_SALES     // Ventes de marchandises et assimilées
+  BNC // Recettes des activités libérales
+  BIC_SERVICES // Prestations de services commerciales ou artisanales
+  BIC_SALES // Ventes de marchandises et assimilées
 }
 
 enum UrssafDeclarationStatus {
-  DRAFT     // en préparation — lignes modifiables
-  DECLARED  // déclarée sur autoentrepreneur.urssaf.fr
-  PAID      // cotisations prélevées / payées
+  DRAFT // en préparation — lignes modifiables
+  DECLARED // déclarée sur autoentrepreneur.urssaf.fr
+  PAID // cotisations prélevées / payées
 }
 
 enum DeclarationFrequency {
@@ -1773,10 +1835,10 @@ enum DeclarationFrequency {
 model UrssafDeclaration {
   id          String                  @id @default(cuid())
   userId      String
-  period      String                  // "2026-T2" (trimestriel) ou "2026-07" (mensuel)
+  period      String // "2026-T2" (trimestriel) ou "2026-07" (mensuel)
   periodStart DateTime
   periodEnd   DateTime
-  dueDate     DateTime?               // échéance de déclaration URSSAF
+  dueDate     DateTime? // échéance de déclaration URSSAF
   status      UrssafDeclarationStatus @default(DRAFT)
   declaredAt  DateTime?
   paidAt      DateTime?
@@ -1831,12 +1893,12 @@ enum SkillType {
 
 enum SkillStatus {
   TO_ACQUIRE // à acquérir
-  LEARNING   // en cours d'acquisition
-  MASTERED   // maîtrisée
+  LEARNING // en cours d'acquisition
+  MASTERED // maîtrisée
 }
 
 enum ProjectSkillRole {
-  USED       // techno réellement utilisée sur le projet
+  USED // techno réellement utilisée sur le projet
   TO_ACQUIRE // compétence à acquérir via ce projet
 }
 
@@ -1859,20 +1921,20 @@ enum SkillFamily {
 }
 
 model Skill {
-  id              String      @id @default(cuid())
+  id              String       @id @default(cuid())
   userId          String
-  parentId        String?     // arbre (null = racine / catégorie de plus haut niveau)
+  parentId        String? // arbre (null = racine / catégorie de plus haut niveau)
   name            String
-  type            SkillType   @default(HARD)
+  type            SkillType    @default(HARD)
   family          SkillFamily? // famille pour le regroupement/tri des pastilles (front/back/devops…), indépendante de l'arbre
-  level           Int         @default(0)  // 0 Aucune · 1 Notions · 2 Junior · 3 Confirmé · 4 Avancé · 5 Expert
-  targetVersion   String?     // version visée sur le nœud (ex. "Spring 4")
-  status          SkillStatus @default(TO_ACQUIRE)
-  yearsExperience Float?      // années d'expérience
-  notes           String?     // notes / ressources (base de connaissances)
-  sortOrder       Int         @default(0)
-  createdAt       DateTime    @default(now())
-  updatedAt       DateTime    @updatedAt
+  level           Int          @default(0) // 0 Aucune · 1 Notions · 2 Junior · 3 Confirmé · 4 Avancé · 5 Expert
+  targetVersion   String? // version visée sur le nœud (ex. "Spring 4")
+  status          SkillStatus  @default(TO_ACQUIRE)
+  yearsExperience Float? // années d'expérience
+  notes           String? // notes / ressources (base de connaissances)
+  sortOrder       Int          @default(0)
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
 
   user     User    @relation(fields: [userId], references: [id], onDelete: Cascade)
   parent   Skill?  @relation("SkillTree", fields: [parentId], references: [id], onDelete: SetNull)
@@ -1892,7 +1954,7 @@ model ProjectSkill {
   id        String           @id @default(cuid())
   projectId String
   skillId   String
-  version   String?          // version utilisée dans CE projet (ex. "4 + FRN")
+  version   String? // version utilisée dans CE projet (ex. "4 + FRN")
   role      ProjectSkillRole @default(USED)
   core      Boolean          @default(false) // stack principale (framework & archi) vs outil/lib secondaire
   note      String?
@@ -1921,10 +1983,10 @@ model JobApplicationSkill {
 model InterviewQuestion {
   id            String         @id @default(cuid())
   userId        String
-  applicationId String?        // entretien d'où provient la question
+  applicationId String? // entretien d'où provient la question
   question      String
-  answer        String?        // réponse / notes à revoir
-  difficulty    Int?           // 1 facile · 2 moyen · 3 difficile
+  answer        String? // réponse / notes à revoir
+  difficulty    Int? // 1 facile · 2 moyen · 3 difficile
   status        QuestionStatus @default(TO_REVIEW)
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
@@ -1956,28 +2018,28 @@ model QuestionSkill {
 // n'est plus référencé par un champ, il documente les codes presets connus (mappés à une
 // icône/couleur dans INVESTMENT_TYPE_META). Conservé pour ne pas DROP le type Postgres.
 enum InvestmentType {
-  CROWDLENDING   // Prêts entre particuliers (P2P lending)
-  CROWDFUNDING   // Financement participatif
-  IMMOBILIER     // Immobilier participatif (ex. Bricks)
-  PEA            // Plan d'Épargne en Actions / Bourse
+  CROWDLENDING // Prêts entre particuliers (P2P lending)
+  CROWDFUNDING // Financement participatif
+  IMMOBILIER // Immobilier participatif (ex. Bricks)
+  PEA // Plan d'Épargne en Actions / Bourse
   AUTRE
 }
 
 model InvestmentPlatform {
-  id        String         @id @default(cuid())
+  id        String   @id @default(cuid())
   userId    String
   name      String
-  type      String         @default("CROWDLENDING")  // preset (cf. enum InvestmentType) ou type personnalisé libre
-  url       String?                            // lien d'accès rapide à la plateforme
-  currency  String         @default("EUR")
+  type      String   @default("CROWDLENDING") // preset (cf. enum InvestmentType) ou type personnalisé libre
+  url       String? // lien d'accès rapide à la plateforme
+  currency  String   @default("EUR")
   notes     String?
-  sortOrder Int            @default(0)
-  createdAt DateTime       @default(now())
-  updatedAt DateTime       @updatedAt
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  user    User              @relation(fields: [userId], references: [id], onDelete: Cascade)
-  entries InvestmentEntry[]
-  reviewTasks Task[]        @relation("InvestmentReviewTasks")
+  user        User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  entries     InvestmentEntry[]
+  reviewTasks Task[]            @relation("InvestmentReviewTasks")
 
   @@index([userId])
 }
@@ -1985,9 +2047,9 @@ model InvestmentPlatform {
 model InvestmentEntry {
   id           String   @id @default(cuid())
   platformId   String
-  date         DateTime                        // date de l'entrée (relevé ou dépôt)
-  capital      Float?                          // valorisation totale (relevé) ; null pour un dépôt/retrait pur
-  contribution Float    @default(0)            // apport net de la poche (+ dépôt / − retrait) ; 0 pour un relevé pur
+  date         DateTime // date de l'entrée (relevé ou dépôt)
+  capital      Float? // valorisation totale (relevé) ; null pour un dépôt/retrait pur
+  contribution Float    @default(0) // apport net de la poche (+ dépôt / − retrait) ; 0 pour un relevé pur
   note         String?
   createdAt    DateTime @default(now())
 

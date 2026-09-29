@@ -9,7 +9,6 @@ import {
   Send, ChevronRight, Clock, Check, PenLine, ExternalLink,
   Banknote, Play, Undo2,
 } from "lucide-react"
-import { Button } from "@/components/ui/button"
 import { LineItemsEditor } from "@/components/modules/facturation/LineItemsEditor"
 import { DeleteConfirmButton } from "@/components/modules/facturation/DeleteConfirmButton"
 import { SignedUploadButton } from "@/components/modules/facturation/SignedUploadButton"
@@ -232,10 +231,10 @@ export default async function DevisDetailPage({
                 "use server"
                 await updateQuoteStatus(id, userId, "VALIDATED")
               }}>
-                <Button type="submit" size="sm">
+                <SubmitButton size="sm">
                   <CheckCircle2 className="h-3.5 w-3.5" />
                   Valider le devis
-                </Button>
+                </SubmitButton>
               </form>
             )}
 
@@ -245,19 +244,19 @@ export default async function DevisDetailPage({
                   "use server"
                   await updateQuoteStatus(id, userId, "SENT")
                 }}>
-                  <Button type="submit" size="sm">
+                  <SubmitButton size="sm">
                     <Send className="h-3.5 w-3.5" />
                     Marquer comme envoyé
-                  </Button>
+                  </SubmitButton>
                 </form>
                 <form action={async () => {
                   "use server"
                   await revertQuoteToDraft(id, userId)
                 }}>
-                  <Button type="submit" size="sm" variant="outline">
+                  <SubmitButton size="sm" variant="outline">
                     <Undo2 className="h-3.5 w-3.5" />
                     Repasser en brouillon
-                  </Button>
+                  </SubmitButton>
                 </form>
               </>
             )}
@@ -269,20 +268,20 @@ export default async function DevisDetailPage({
                     "use server"
                     await updateQuoteStatus(id, userId, "WAITING_DEPOSIT")
                   }}>
-                    <Button type="submit" size="sm" className="bg-amber-500 hover:bg-amber-600 text-white border-none">
+                    <SubmitButton size="sm" className="bg-amber-500 hover:bg-amber-600 text-white border-none">
                       <Banknote className="h-3.5 w-3.5" />
                       En attente d&apos;acompte
-                    </Button>
+                    </SubmitButton>
                   </form>
                 ) : (
                   <form action={async () => {
                     "use server"
                     await updateQuoteStatus(id, userId, "ACCEPTED")
                   }}>
-                    <Button type="submit" size="sm" className="bg-emerald-500 hover:bg-emerald-600 text-white border-none">
+                    <SubmitButton size="sm" className="bg-emerald-500 hover:bg-emerald-600 text-white border-none">
                       <CheckCircle2 className="h-3.5 w-3.5" />
                       Accepté par le client
-                    </Button>
+                    </SubmitButton>
                   </form>
                 )}
                 <DeleteConfirmButton
@@ -318,10 +317,10 @@ export default async function DevisDetailPage({
                   "use server"
                   await updateQuoteStatus(id, userId, "DEPOSIT_RECEIVED")
                 }}>
-                  <Button type="submit" size="sm" className="bg-emerald-500 hover:bg-emerald-600 text-white border-none">
+                  <SubmitButton size="sm" className="bg-emerald-500 hover:bg-emerald-600 text-white border-none">
                     <CheckCircle2 className="h-3.5 w-3.5" />
                     Acompte reçu
-                  </Button>
+                  </SubmitButton>
                 </form>
               </>
             )}
@@ -344,10 +343,10 @@ export default async function DevisDetailPage({
                   "use server"
                   await updateQuoteStatus(id, userId, "IN_PROGRESS")
                 }}>
-                  <Button type="submit" size="sm" className="bg-indigo-500 hover:bg-indigo-600 text-white border-none">
+                  <SubmitButton size="sm" className="bg-indigo-500 hover:bg-indigo-600 text-white border-none">
                     <Play className="h-3.5 w-3.5" />
                     Démarrer le développement
-                  </Button>
+                  </SubmitButton>
                 </form>
               </>
             )}
@@ -357,10 +356,10 @@ export default async function DevisDetailPage({
                 "use server"
                 await updateQuoteStatus(id, userId, "IN_PROGRESS")
               }}>
-                <Button type="submit" size="sm" className="bg-indigo-500 hover:bg-indigo-600 text-white border-none">
+                <SubmitButton size="sm" className="bg-indigo-500 hover:bg-indigo-600 text-white border-none">
                   <Play className="h-3.5 w-3.5" />
                   Démarrer le développement
-                </Button>
+                </SubmitButton>
               </form>
             )}
 
@@ -574,7 +573,7 @@ export default async function DevisDetailPage({
                 className="flex w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring resize-none"
               />
             </div>
-            <Button type="submit" size="sm" variant="outline">Enregistrer</Button>
+            <SubmitButton size="sm" variant="outline">Enregistrer</SubmitButton>
           </form>
         ) : (
           <div className="space-y-1.5 text-sm">
@@ -609,7 +608,7 @@ export default async function DevisDetailPage({
               placeholder="Ex : Paiement à 30 jours. En cas de retard, une pénalité de 1,5% par mois sera appliquée..."
               className="flex w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring resize-none"
             />
-            <Button type="submit" size="sm" variant="outline">Enregistrer les conditions</Button>
+            <SubmitButton size="sm" variant="outline">Enregistrer les conditions</SubmitButton>
           </form>
         ) : quote.generalConditions ? (
           <p className="text-sm text-muted-foreground whitespace-pre-wrap">{quote.generalConditions}</p>

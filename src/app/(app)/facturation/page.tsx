@@ -254,7 +254,7 @@ export default async function FacturationOverviewPage({
                   <th className="px-4 py-2.5 text-left font-medium">Client</th>
                   <th className="px-4 py-2.5 text-left font-medium">Statut</th>
                   <th className="px-4 py-2.5 text-right font-medium">Montant HT</th>
-                  <th className="px-4 py-2.5 text-left font-medium">Payé</th>
+                  <th className="px-4 py-2.5 text-right font-medium">Payé</th>
                   <th className="px-4 py-2.5 text-left font-medium hidden sm:table-cell">Émise le</th>
                   <th className="px-4 py-2.5 text-left font-medium hidden md:table-cell">Échéance</th>
                 </tr>
@@ -271,10 +271,10 @@ export default async function FacturationOverviewPage({
                     <td className="px-4 py-2.5">
                       <InvoiceStatusBadge status={inv.status} />
                     </td>
-                    <td className="px-4 py-2.5 text-right font-medium amount-sensitive">
+                    <td className="px-4 py-2.5 text-right font-medium tabular-nums amount-sensitive">
                       {fmtEur(inv.totalHT - inv.depositDeducted)} €
                     </td>
-                    <td className="px-4 py-2.5 text-xs whitespace-nowrap">
+                    <td className="px-4 py-2.5 text-xs text-right whitespace-nowrap">
                       {(() => {
                         const net = inv.totalHT - inv.depositDeducted
                         const paid = invoicePaid(inv)

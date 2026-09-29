@@ -1,9 +1,9 @@
-import { zonedDateKey } from "@/lib/dates"
+import { zonedDateKey, zonedDayStart } from "@/lib/dates"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { notFound } from "next/navigation"
 import { addReminder, toggleReminder, deleteReminder } from "@/actions/crm"
-import { Button } from "@/components/ui/button"
+import { SubmitButton } from "@/components/ui/submit-button"
 import { Input } from "@/components/ui/input"
 import { Bell, CheckCircle2, Circle, Trash2 } from "lucide-react"
 import { cn } from "@/lib/utils"
@@ -56,7 +56,7 @@ export default async function ClientRappelsPage({
               <label className="text-xs text-muted-foreground">Note</label>
               <Input name="note" placeholder="Relancer pour le devis..." className="h-8" />
             </div>
-            <Button type="submit" size="sm" className="w-full">Ajouter</Button>
+            <SubmitButton size="sm" className="w-full">Ajouter</SubmitButton>
           </form>
         </div>
       </div>
@@ -74,11 +74,12 @@ export default async function ClientRappelsPage({
               <section className="space-y-2">
                 <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">À faire</p>
                 {pending.map((r) => {
-                  const isLate = new Date(r.dueDate) < new Date()
+                  // Dû aujourd'hui ≠ en retard (les dates jour sont stockées à minuit)
+                  const isLate = new Date(r.dueDate) < zonedDayStart(new Date())
                   return (
                     <div key={r.id} className={cn("group flex items-center gap-3 rounded-xl border p-4 transition-all", isLate ? "border-red-500/30 bg-red-500/5" : "border-border/50 bg-card")}>
                       <form action={async () => { "use server"; await toggleReminder(r.id, id, true) }}>
-                        <button type="submit" className="text-muted-foreground hover:text-emerald-500 transition-colors shrink-0">
+                        <button type="submit" aria-label="Marquer le rappel comme effectué" title="Marquer effectué" className="text-muted-foreground hover:text-emerald-500 transition-colors shrink-0">
                           <Circle className="h-4 w-4" />
                         </button>
                       </form>
@@ -90,7 +91,7 @@ export default async function ClientRappelsPage({
                         {r.note && <p className="text-xs text-muted-foreground">{r.note}</p>}
                       </div>
                       <form action={async () => { "use server"; await deleteReminder(r.id, id) }}>
-                        <button type="submit" className="md:opacity-0 md:group-hover:opacity-100 focus:opacity-100 text-muted-foreground hover:text-destructive transition-opacity">
+                        <button type="submit" aria-label="Supprimer le rappel" title="Supprimer" className="md:opacity-0 md:group-hover:opacity-100 focus:opacity-100 text-muted-foreground hover:text-destructive transition-opacity">
                           <Trash2 className="h-3.5 w-3.5" />
                         </button>
                       </form>
@@ -106,7 +107,7 @@ export default async function ClientRappelsPage({
                 {done.map((r) => (
                   <div key={r.id} className="group flex items-center gap-3 rounded-xl border border-border/50 bg-card p-4">
                     <form action={async () => { "use server"; await toggleReminder(r.id, id, false) }}>
-                      <button type="submit" className="text-emerald-500 hover:text-muted-foreground transition-colors shrink-0">
+                      <button type="submit" aria-label="Remettre le rappel à faire" title="Remettre à faire" className="text-emerald-500 hover:text-muted-foreground transition-colors shrink-0">
                         <CheckCircle2 className="h-4 w-4" />
                       </button>
                     </form>
@@ -117,7 +118,7 @@ export default async function ClientRappelsPage({
                       {r.note && <p className="text-xs text-muted-foreground">{r.note}</p>}
                     </div>
                     <form action={async () => { "use server"; await deleteReminder(r.id, id) }}>
-                      <button type="submit" className="md:opacity-0 md:group-hover:opacity-100 focus:opacity-100 text-muted-foreground hover:text-destructive transition-opacity">
+                      <button type="submit" aria-label="Supprimer le rappel" title="Supprimer" className="md:opacity-0 md:group-hover:opacity-100 focus:opacity-100 text-muted-foreground hover:text-destructive transition-opacity">
                         <Trash2 className="h-3.5 w-3.5" />
                       </button>
                     </form>

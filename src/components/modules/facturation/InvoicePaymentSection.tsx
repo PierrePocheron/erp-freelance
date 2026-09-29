@@ -161,7 +161,10 @@ export function InvoicePaymentSection({
 
       {/* Formulaire */}
       {showForm && (
-        <div className="rounded-lg border border-border/60 bg-muted/20 p-3 space-y-3">
+        <form
+          onSubmit={(e) => { e.preventDefault(); handleRecord() }}
+          className="rounded-lg border border-border/60 bg-muted/20 p-3 space-y-3"
+        >
           <p className="text-xs font-medium">Nouveau paiement</p>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
@@ -200,15 +203,14 @@ export function InvoicePaymentSection({
               Annuler
             </Button>
             <Button
-              type="button"
+              type="submit"
               size="sm"
               disabled={isPending || !amount || !paidAt}
-              onClick={handleRecord}
             >
               {isPending ? "Enregistrement…" : "Enregistrer"}
             </Button>
           </div>
-        </div>
+        </form>
       )}
     </div>
   )

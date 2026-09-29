@@ -75,6 +75,14 @@ export function DevTaskBoard({
   projectTags: TaskTag[]
 }) {
   const [tasks, setTasks] = useState(initialTasks)
+  // useState ignore une nouvelle valeur initiale : après un ajout (revalidatePath), la tâche
+  // n'apparaissait qu'au rechargement (#12). On se resynchronise quand le serveur renvoie
+  // une nouvelle liste (motif React « ajuster l'état quand une prop change »).
+  const [syncedFrom, setSyncedFrom] = useState(initialTasks)
+  if (initialTasks !== syncedFrom) {
+    setSyncedFrom(initialTasks)
+    setTasks(initialTasks)
+  }
   const [activeTask, setActiveTask] = useState<TaskShape | null>(null)
   const [activeTagIds, setActiveTagIds] = useState<Set<string>>(new Set())
   const [showDone, setShowDone] = useState(false)

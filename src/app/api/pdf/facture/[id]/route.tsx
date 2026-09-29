@@ -21,8 +21,9 @@ export async function GET(
 
   // Facture émise → on sert le PDF figé stocké sur Blob (immuable).
   if (invoice.pdfUrl) {
-    const upstream = await fetch(invoice.pdfUrl)
-    if (upstream.ok) {
+    // Rejet réseau (stockage injoignable) = même repli qu'une réponse en erreur (#30)
+    const upstream = await fetch(invoice.pdfUrl).catch(() => null)
+    if (upstream?.ok) {
       return new Response(upstream.body, {
         headers: {
           "Content-Type": "application/pdf",

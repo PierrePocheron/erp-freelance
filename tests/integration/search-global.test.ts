@@ -53,3 +53,23 @@ describe("recherche globale", () => {
     expect((await searchGlobal("ZORGLUB")).length).toBeGreaterThan(0)
   })
 })
+
+describe("recherche globale — calendrier et URSSAF (#22)", () => {
+  it("trouve un événement par son titre et une déclaration URSSAF, jamais ceux d'un autre compte", async () => {
+    const victim = await makeUser()
+    await prisma.calendarEvent.create({ data: { userId: victim.id, title: "Réunion Quetzal secrète", startDate: new Date() } })
+    const user = await makeUser()
+    setTestUser(user.id)
+    await prisma.calendarEvent.create({ data: { userId: user.id, title: "Réunion Quetzal", startDate: new Date() } })
+    await prisma.urssafDeclaration.create({
+      data: { userId: user.id, period: "2026-T3", periodStart: new Date(2026, 6, 1), periodEnd: new Date(2026, 8, 30), dueDate: new Date(2026, 9, 31) },
+    })
+
+    const events = await searchGlobal("Quetzal")
+    expect(events.filter((r) => r.type === "calendar_event").map((r) => r.label)).toEqual(["Réunion Quetzal"])
+
+    const decl = await searchGlobal("urssaf")
+    expect(decl.find((r) => r.type === "urssaf_declaration")?.href).toBe("/impots")
+    expect(await searchGlobal("Quetzal", ["contacts"])).toEqual([]) // module calendrier inactif
+  })
+})

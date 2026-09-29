@@ -5,23 +5,6 @@ import { getOrCreateDefaultCategories } from "@/actions/calendar"
 import { hasCalendarScope } from "@/lib/google-calendar"
 import { isZonedAllDay, getOccurrencesInRange } from "@/lib/dates"
 
-// Shape des événements bruts retournés par $queryRaw
-type RawCalEvent = {
-  id: string
-  title: string
-  description: string | null
-  startDate: Date
-  endDate: Date | null
-  allDay: boolean
-  sourceType: string
-  categoryId: string | null
-  category: CalendarCategory | null
-  projectId: string | null
-  clientId: string | null
-  projectName: string | null
-  clientName: string | null
-}
-
 export default async function CalendrierPage() {
   const session = await auth()
   const userId = session!.user.id
@@ -112,31 +95,18 @@ export default async function CalendrierPage() {
       },
       include: { postDev: { include: { project: { select: { id: true } } } } },
     }),
-    // $queryRaw car CalendarCategory n'est pas encore dans le client généré
-    prisma.$queryRaw<RawCalEvent[]>`
-      SELECT
-        e.id, e.title, e.description,
-        e."startDate", e."endDate", e."allDay",
-        e."sourceType", e."categoryId",
-        e."projectId", e."clientId",
-        p.name AS "projectName",
-        COALESCE(cl.company, cl.name) AS "clientName",
-        CASE WHEN c.id IS NOT NULL THEN
-          jsonb_build_object(
-            'id', c.id, 'userId', c."userId",
-            'name', c.name, 'color', c.color,
-            'isDefault', c."isDefault"
-          )
-        ELSE NULL END AS category
-      FROM "CalendarEvent" e
-      LEFT JOIN "CalendarCategory" c ON c.id = e."categoryId"
-      LEFT JOIN "Project" p ON p.id = e."projectId"
-      LEFT JOIN "Client" cl ON cl.id = COALESCE(e."clientId", p."clientId")
-      WHERE e."userId" = ${userId}
-        AND e."startDate" >= ${from}
-        AND e."startDate" <= ${to}
-      ORDER BY e."startDate" ASC
-    `.catch(() => [] as RawCalEvent[]),
+    // Événements manuels + importés (client typé, #25). Les noms de projet / contact sont
+    // résolus plus bas depuis les listes DE L'UTILISATEUR (l'ancien JOIN SQL ne filtrait pas
+    // le propriétaire du projet ou du contact joint).
+    prisma.calendarEvent.findMany({
+      where: { userId, startDate: { gte: from, lte: to } },
+      orderBy: { startDate: "asc" },
+      select: {
+        id: true, title: true, description: true, startDate: true, endDate: true, allDay: true,
+        sourceType: true, categoryId: true, projectId: true, clientId: true,
+        category: { select: { id: true, userId: true, name: true, color: true, isDefault: true } },
+      },
+    }),
     // Santé : consultations dans la fenêtre
     prisma.healthConsultation.findMany({
       where: { userId, date: { gte: from, lte: to } },
@@ -180,6 +150,8 @@ export default async function CalendrierPage() {
 
   // Index catégories par id pour lookup O(1)
   const catById = Object.fromEntries(categories.map(c => [c.id, c]))
+  const projectById = new Map(projects.map((p) => [p.id, p]))
+  const clientById = new Map(clients.map((c) => [c.id, c]))
 
   // Prépare la liste de projets pour CalendarView (projets sans contact sont exclus)
   const projectOptions: ProjectOption[] = projects
@@ -308,6 +280,8 @@ export default async function CalendrierPage() {
     })),
     // Événements CalendarEvent (manuels + Google synchro)
     ...calEvents.map((e) => {
+      const project = e.projectId ? projectById.get(e.projectId) : undefined
+      const contact = e.clientId ? clientById.get(e.clientId) : project?.client ?? undefined
       const cat = e.categoryId
         ? (catById[e.categoryId] ?? e.category ?? null)
         : null
@@ -325,8 +299,8 @@ export default async function CalendrierPage() {
         categoryColor: (cat as { color?: string } | null)?.color ?? null,
         projectId: e.projectId ?? null,
         clientId: e.clientId ?? null,
-        projectName: e.projectName ?? null,
-        clientName: e.clientName ?? null,
+        projectName: project?.name ?? null,
+        clientName: contact ? (contact.company ?? contact.name) : null,
       }
     }),
     // Santé : consultations

@@ -217,10 +217,10 @@ export function CreateInvoiceDialog({
                   {selectedQuote && selectedQuote.depositPercent > 0 && (
                     <>
                       <option value="DEPOSIT">Acompte ({selectedQuote.depositPercent}% · {fmtEur(selectedQuote.totalHT * selectedQuote.depositPercent / 100)})</option>
-                      <option value="FINAL">Solde (montant total)</option>
+                      <option value="FINAL">Solde (acomptes et intermédiaires déduits)</option>
                     </>
                   )}
-                  <option value="RECURRING">Intermédiaire (montant total)</option>
+                  <option value="RECURRING">Intermédiaire (montant à compléter)</option>
                 </select>
               </div>
             </>

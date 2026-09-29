@@ -340,7 +340,7 @@ export function computeMonthlySeries(platforms: { entries: EntryLite[] }[], from
     cumulGain += gain
     rows.push({
       ym: `${y}-${String(m + 1).padStart(2, "0")}`,
-      label: new Date(y, m, 1).toLocaleDateString("fr-FR", { month: "short", year: "numeric" }),
+      label: new Date(y, m, 1).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris", month: "short", year: "numeric" }),
       value: valEnd,
       deposits,
       withdrawals,

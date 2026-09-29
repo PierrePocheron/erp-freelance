@@ -1,3 +1,4 @@
+import { zonedDateKey } from "@/lib/dates"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { notFound } from "next/navigation"
@@ -33,7 +34,7 @@ export default async function ClientInteractionsPage({
 
   if (!client) notFound()
 
-  const today = new Date().toISOString().split("T")[0]
+  const today = zonedDateKey(new Date())
 
   return (
     <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">

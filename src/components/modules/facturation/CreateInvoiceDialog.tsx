@@ -1,5 +1,6 @@
 "use client"
 
+import { zonedDateKey } from "@/lib/dates"
 import { useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
 import { Plus, FileText, FilePlus } from "lucide-react"
@@ -85,7 +86,7 @@ export function CreateInvoiceDialog({
 
   const defaultDue = new Date()
   defaultDue.setDate(defaultDue.getDate() + 30)
-  const defaultDueStr = defaultDue.toISOString().split("T")[0]
+  const defaultDueStr = zonedDateKey(defaultDue)
 
   function handleQuoteSelect(quoteId: string) {
     setSelectedQuoteId(quoteId)

@@ -17,7 +17,7 @@ export type PendingReimbursement = { id: string; label: string; amount: number; 
 
 const eur = (n: number) => `${n.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`
 const fmtDate = (d: string | null) =>
-  d ? new Date(d).toLocaleDateString("fr-FR", { day: "numeric", month: "short" }) : null
+  d ? new Date(d).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris", day: "numeric", month: "short" }) : null
 
 type Kind = "invoice" | "revenue" | "health"
 

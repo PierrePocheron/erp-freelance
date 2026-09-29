@@ -40,7 +40,7 @@ export type DraftItem = {
 }
 
 const fmtDateTime = (d: Date | string) =>
-  new Date(d).toLocaleDateString("fr-FR", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })
+  new Date(d).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })
 
 /**
  * File de brouillons : cartes éditables une par une, marquage « relu »

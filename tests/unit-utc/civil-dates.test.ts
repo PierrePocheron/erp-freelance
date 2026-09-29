@@ -39,3 +39,21 @@ describe("dates de formulaire", () => {
     expect(echeance < le1erNovembre).toBe(true)            // en retard le lendemain
   })
 })
+
+describe("affichage d'une date « jour » depuis un serveur en UTC", () => {
+  const fmt = (d: Date) => d.toLocaleDateString("fr-FR", { timeZone: "Europe/Paris" })
+
+  it("minuit Paris s'affiche le bon jour (et non la veille)", () => {
+    const echeance = parseCivilDate("2026-10-31") // stockée 2026-10-30T23:00Z
+    expect(fmt(echeance)).toBe("31/10/2026")
+    // Sans fuseau, c'est la veille — le bug des PDF et des mails clients :
+    expect(echeance.toLocaleDateString("fr-FR")).toBe("30/10/2026")
+  })
+
+  it("l'ancienne convention (minuit UTC) s'affiche aussi le bon jour", () => {
+    // Les données écrites avant le passage à minuit Paris restent justes : minuit
+    // UTC tombe à 1 h ou 2 h du matin à Paris, le même jour.
+    expect(fmt(new Date("2026-10-31T00:00:00Z"))).toBe("31/10/2026")
+    expect(zonedDateKey(new Date("2026-10-31T00:00:00Z"))).toBe("2026-10-31")
+  })
+})

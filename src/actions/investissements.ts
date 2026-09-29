@@ -18,7 +18,7 @@ function periodOf(date: Date): string {
 // Libellé lisible d'une période "YYYY-MM" → « août 2026 ».
 function monthLabel(period: string): string {
   const [y, m] = period.split("-").map(Number)
-  return new Date(y, m - 1, 1).toLocaleDateString("fr-FR", { month: "long", year: "numeric" })
+  return new Date(y, m - 1, 1).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris", month: "long", year: "numeric" })
 }
 
 // ── Plateformes ───────────────────────────────────────────────────────────────

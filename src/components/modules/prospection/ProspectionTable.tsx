@@ -70,7 +70,7 @@ const PAGE_SIZES = [25, 50, 100, 0] // 0 = tous
 const PAGE_SIZE_KEY = "erp-prospection-pagesize"
 
 const fmtShort = (d: Date | string) =>
-  new Date(d).toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "2-digit" })
+  new Date(d).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris", day: "numeric", month: "short", year: "2-digit" })
 
 export function ProspectionTable({
   prospects,

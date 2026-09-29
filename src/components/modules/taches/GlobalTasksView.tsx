@@ -341,12 +341,12 @@ function TaskRow({ task }: { task: Task }) {
       {/* Échéance ou date de complétion */}
       {task.status === "DONE" && task.completedAt ? (
         <span className="text-xs text-emerald-600 shrink-0">
-          ✓ {new Date(task.completedAt).toLocaleDateString("fr-FR", { day: "numeric", month: "short" })}
+          ✓ {new Date(task.completedAt).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris", day: "numeric", month: "short" })}
         </span>
       ) : task.dueDate && task.status !== "DONE" ? (
         <span className={cn("text-xs shrink-0", overdue ? "text-red-500 font-medium" : "text-muted-foreground")}>
           {overdue && <AlertTriangle className="h-3 w-3 inline mr-0.5" />}
-          {new Date(task.dueDate).toLocaleDateString("fr-FR", { day: "numeric", month: "short" })}
+          {new Date(task.dueDate).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris", day: "numeric", month: "short" })}
         </span>
       ) : null}
 

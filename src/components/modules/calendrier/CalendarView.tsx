@@ -1020,8 +1020,8 @@ function GoogleIcon({ className }: { className?: string }) {
 
 // « le 20 juil. à 14:30 » — date + heure absolue de la dernière synchro
 function formatLastSync(d: Date): string {
-  const date = d.toLocaleDateString("fr-FR", { day: "numeric", month: "short" })
-  const time = d.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })
+  const date = d.toLocaleDateString("fr-FR", { timeZone: "Europe/Paris", day: "numeric", month: "short" })
+  const time = d.toLocaleTimeString("fr-FR", { timeZone: "Europe/Paris", hour: "2-digit", minute: "2-digit" })
   return `le ${date} à ${time}`
 }
 
@@ -1149,14 +1149,14 @@ export function CalendarView({
 
   function headerLabel(): string {
     if (viewMode === "month")
-      return currentDate.toLocaleDateString("fr-FR", { month: "long", year: "numeric" })
+      return currentDate.toLocaleDateString("fr-FR", { timeZone: "Europe/Paris", month: "long", year: "numeric" })
     const days = getViewDays()
     if (days.length === 1)
-      return days[0].toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long", year: "numeric" })
+      return days[0].toLocaleDateString("fr-FR", { timeZone: "Europe/Paris", weekday: "long", day: "numeric", month: "long", year: "numeric" })
     const first = days[0], last = days[days.length - 1]
     if (first.getMonth() === last.getMonth())
-      return `${first.getDate()} – ${last.getDate()} ${last.toLocaleDateString("fr-FR", { month: "long", year: "numeric" })}`
-    return `${first.toLocaleDateString("fr-FR", { day: "numeric", month: "short" })} – ${last.toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" })}`
+      return `${first.getDate()} – ${last.getDate()} ${last.toLocaleDateString("fr-FR", { timeZone: "Europe/Paris", month: "long", year: "numeric" })}`
+    return `${first.toLocaleDateString("fr-FR", { timeZone: "Europe/Paris", day: "numeric", month: "short" })} – ${last.toLocaleDateString("fr-FR", { timeZone: "Europe/Paris", day: "numeric", month: "short", year: "numeric" })}`
   }
 
   // Vérifie l'état réel de la connexion dès l'ouverture de la page (sans
@@ -1564,7 +1564,7 @@ export function CalendarView({
               {/* pr-8 : réserve la place du bouton ✕ (absolu, en haut à droite de DialogContent)
                   pour que le compteur ne passe pas dessous. */}
               <DialogTitle className="capitalize flex items-center justify-between gap-2 pr-8">
-                <span className="min-w-0 truncate">{selectedDay?.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" }) ?? ""}</span>
+                <span className="min-w-0 truncate">{selectedDay?.toLocaleDateString("fr-FR", { timeZone: "Europe/Paris", weekday: "long", day: "numeric", month: "long" }) ?? ""}</span>
                 {selectedDay && (
                   <span className="shrink-0 whitespace-nowrap text-xs font-normal text-muted-foreground">
                     {eventsForDay(filteredEvents, selectedDay).length} événement{eventsForDay(filteredEvents, selectedDay).length > 1 ? "s" : ""}
@@ -1941,7 +1941,7 @@ function TimeGridView({
               title="Voir le détail de la journée"
               className={cn("flex-1 py-2.5 text-center border-l border-border/30 transition-colors hover:bg-muted/40 cursor-pointer", isWeekend && "bg-muted/10", isToday && "bg-primary/5")}>
               <p className="text-xs text-muted-foreground capitalize">
-                {date.toLocaleDateString("fr-FR", { weekday: cols <= 3 ? "long" : "short" })}
+                {date.toLocaleDateString("fr-FR", { timeZone: "Europe/Paris", weekday: cols <= 3 ? "long" : "short" })}
               </p>
               <span className={cn("inline-flex h-7 w-7 items-center justify-center rounded-full text-sm font-semibold mt-0.5",
                 isToday ? "bg-primary text-primary-foreground" : "text-foreground")}>
@@ -1949,7 +1949,7 @@ function TimeGridView({
               </span>
               {cols <= 3 && (
                 <p className="text-[10px] text-muted-foreground capitalize mt-0.5">
-                  {date.toLocaleDateString("fr-FR", { month: "long" })}
+                  {date.toLocaleDateString("fr-FR", { timeZone: "Europe/Paris", month: "long" })}
                 </p>
               )}
             </button>
@@ -2070,7 +2070,7 @@ function TimeGridView({
 
               {/* Zone d'ajout rapide : suit le curseur et crée à l'heure pointée */}
               <button type="button"
-                aria-label={`Ajouter un événement le ${date.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" })}`}
+                aria-label={`Ajouter un événement le ${date.toLocaleDateString("fr-FR", { timeZone: "Europe/Paris", weekday: "long", day: "numeric", month: "long" })}`}
                 className="absolute inset-0 w-full z-0 cursor-pointer"
                 onMouseMove={e => { if (!draggingId) setHoverSlot({ colIdx: di, ...calcSlotAt(e, false) }) }}
                 onMouseLeave={() => setHoverSlot(s => (s?.colIdx === di ? null : s))}
@@ -2143,7 +2143,7 @@ function TimedEventContent({ ev, height, color, cfg }: {
   ev: CalendarEvent; height: number; color: string
   cfg: typeof typeConfig[keyof typeof typeConfig]
 }) {
-  const timeStr = new Date(ev.date).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })
+  const timeStr = new Date(ev.date).toLocaleTimeString("fr-FR", { timeZone: "Europe/Paris", hour: "2-digit", minute: "2-digit" })
   const compact = height < 40
   return (
     <div className="h-full flex flex-col min-w-0 pointer-events-none">
@@ -2232,7 +2232,7 @@ function EventList({
         const color = evColor(ev)
         const dotEl = <span className="h-1.5 w-1.5 rounded-full shrink-0" style={{ backgroundColor: color }} />
         const timeStr = isTimedEvent(ev)
-          ? new Date(ev.date).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })
+          ? new Date(ev.date).toLocaleTimeString("fr-FR", { timeZone: "Europe/Paris", hour: "2-digit", minute: "2-digit" })
           : null
         const editable = isEditable(ev)
 

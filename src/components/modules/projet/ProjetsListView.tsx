@@ -506,12 +506,12 @@ export function ProjetsListView({
                       {p.endDate ? (
                         <span className="flex items-center gap-1">
                           <Calendar className="h-3 w-3" />
-                          {new Date(p.endDate).toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" })}
+                          {new Date(p.endDate).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris", day: "numeric", month: "short", year: "numeric" })}
                         </span>
                       ) : "—"}
                     </td>
                     <td className="px-4 py-3 text-xs text-muted-foreground hidden lg:table-cell whitespace-nowrap">
-                      {new Date(p.lastActivityAt).toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" })}
+                      {new Date(p.lastActivityAt).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris", day: "numeric", month: "short", year: "numeric" })}
                     </td>
                   </tr>
                 )

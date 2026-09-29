@@ -104,7 +104,7 @@ export function ProjectTasksCard({ tasks, projectId }: { tasks: TaskRow[]; proje
                   "shrink-0 text-xs whitespace-nowrap",
                   new Date(t.dueDate) < new Date() ? "text-red-500 font-medium" : "text-muted-foreground"
                 )}>
-                  {new Date(t.dueDate).toLocaleDateString("fr-FR", { day: "numeric", month: "short" })}
+                  {new Date(t.dueDate).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris", day: "numeric", month: "short" })}
                 </span>
               )}
             </div>

@@ -216,7 +216,7 @@ export default async function GraphPage() {
           { label: "Statut",   value: PROJECT_STATUS_LABELS[p.status] ?? p.status },
           { label: "Factures", value: String(invCount) },
           { label: "Devis",    value: String(qCount)   },
-          ...(p.startDate ? [{ label: "Début", value: new Date(p.startDate).toLocaleDateString("fr-FR") }] : []),
+          ...(p.startDate ? [{ label: "Début", value: new Date(p.startDate).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris" }) }] : []),
         ],
       },
     })
@@ -256,7 +256,7 @@ export default async function GraphPage() {
         details: [
           { label: "Statut",  value: INVOICE_STATUS_LABELS[inv.status] ?? inv.status },
           { label: "Montant", value: `${inv.totalHT.toLocaleString("fr-FR")} € HT` },
-          ...(inv.paidAt ? [{ label: "Payée le", value: new Date(inv.paidAt).toLocaleDateString("fr-FR") }] : []),
+          ...(inv.paidAt ? [{ label: "Payée le", value: new Date(inv.paidAt).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris" }) }] : []),
         ],
       },
     })
@@ -313,7 +313,7 @@ export default async function GraphPage() {
     const parentId = rawParent && revenueNodeIds.has(rawParent) ? rawParent : null
 
     const date    = rev.receivedAt ?? rev.expectedAt
-    const dateStr = date ? new Date(date).toLocaleDateString("fr-FR") : "—"
+    const dateStr = date ? new Date(date).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris" }) : "—"
 
     nodes.push({
       id:         revNodeId,
@@ -507,7 +507,7 @@ export default async function GraphPage() {
         links.push({ source: srcNodeId, target: platId })
       }
       const date    = rev.receivedAt ?? rev.expectedAt
-      const dateStr = date ? new Date(date).toLocaleDateString("fr-FR") : "—"
+      const dateStr = date ? new Date(date).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris" }) : "—"
       // Le préfixe plateforme est déjà porté par le nœud parent → on l'enlève du label
       const shortLabel = rev.label.includes("—") ? rev.label.split("—").slice(1).join("—").trim() : rev.label
       nodes.push({

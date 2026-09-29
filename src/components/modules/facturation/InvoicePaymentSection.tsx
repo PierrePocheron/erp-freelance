@@ -1,5 +1,6 @@
 "use client"
 
+import { zonedDateKey } from "@/lib/dates"
 import { useState, useTransition } from "react"
 import { Plus, Trash2, CheckCircle2 } from "lucide-react"
 import { recordPayment, deletePayment } from "@/actions/facturation"
@@ -18,7 +19,7 @@ function fmtEur(n: number) {
 }
 
 function fmtDate(d: Date) {
-  return new Date(d).toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" })
+  return new Date(d).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris", day: "numeric", month: "short", year: "numeric" })
 }
 
 export function InvoicePaymentSection({
@@ -36,7 +37,7 @@ export function InvoicePaymentSection({
 }) {
   const [showForm, setShowForm] = useState(false)
   const [amount, setAmount] = useState("")
-  const [paidAt, setPaidAt] = useState(new Date().toISOString().split("T")[0])
+  const [paidAt, setPaidAt] = useState(zonedDateKey(new Date()))
   const [note, setNote] = useState("")
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
@@ -47,7 +48,7 @@ export function InvoicePaymentSection({
 
   function openForm() {
     setAmount(remaining > 0 ? remaining.toFixed(2) : "")
-    setPaidAt(new Date().toISOString().split("T")[0])
+    setPaidAt(zonedDateKey(new Date()))
     setNote("")
     setShowForm(true)
   }

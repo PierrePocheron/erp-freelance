@@ -32,7 +32,7 @@ const KIND_CONFIG: Record<EventKind, { label: string; dot: string; icon: React.E
 }
 const KIND_OPTIONS: EventKind[] = ["NOTE", "MEETING", "EMAIL", "CALL", "PAYMENT", "DELIVERY", "LEGAL", "OTHER"]
 
-const fmt = (d: Date | string) => new Date(d).toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" })
+const fmt = (d: Date | string) => new Date(d).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris", day: "numeric", month: "short", year: "numeric" })
 const toDateInput = (d: Date | string) => {
   const x = new Date(d)
   return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, "0")}-${String(x.getDate()).padStart(2, "0")}`

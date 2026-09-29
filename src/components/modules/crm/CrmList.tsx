@@ -39,10 +39,10 @@ const fmtEur = (n: number) =>
   n.toLocaleString("fr-FR", { maximumFractionDigits: 0 }) + " €"
 
 const fmtShort = (d: Date | string) =>
-  new Date(d).toLocaleDateString("fr-FR", { day: "numeric", month: "short" })
+  new Date(d).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris", day: "numeric", month: "short" })
 
 const fmtSince = (d: Date | string) =>
-  new Date(d).toLocaleDateString("fr-FR", { month: "short", year: "numeric" })
+  new Date(d).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris", month: "short", year: "numeric" })
 
 export function CrmList({ groups }: { groups: Group[] }) {
   const [view, setView] = useState<View>("cards")

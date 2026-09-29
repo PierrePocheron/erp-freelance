@@ -16,9 +16,9 @@ export type ConfirmEventItem = { id: string; title: string; startDate: string; a
 // Date courte + heure si elle est renseignée (minuit pile = date seule).
 function fmtDateTime(d: string, allDay = false): string {
   const dt = new Date(d)
-  const date = dt.toLocaleDateString("fr-FR", { day: "numeric", month: "short" })
+  const date = dt.toLocaleDateString("fr-FR", { timeZone: "Europe/Paris", day: "numeric", month: "short" })
   if (allDay || (dt.getHours() === 0 && dt.getMinutes() === 0)) return date
-  return `${date} · ${dt.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}`
+  return `${date} · ${dt.toLocaleTimeString("fr-FR", { timeZone: "Europe/Paris", hour: "2-digit", minute: "2-digit" })}`
 }
 
 /**

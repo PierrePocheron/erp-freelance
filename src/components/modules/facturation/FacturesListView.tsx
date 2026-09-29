@@ -40,7 +40,7 @@ const fmtEur = (n: number) =>
     minimumFractionDigits: Number.isInteger(n) ? 0 : 2,
     maximumFractionDigits: 2,
   }) + " €"
-const fmtDay = (d: Date | string) => new Date(d).toLocaleDateString("fr-FR")
+const fmtDay = (d: Date | string) => new Date(d).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris" })
 
 /** Récapitulatif des encaissements d'une facture : montant réglé sur le montant
  *  total, + date(s) des versements. Affiche TOUJOURS « payé / total » (vert =
@@ -140,7 +140,7 @@ function invoiceRefDate(inv: Invoice): Date {
 
 function monthKeyLabel(key: string): string {
   const [y, m] = key.split("-").map(Number)
-  return new Date(y, m - 1, 1).toLocaleDateString("fr-FR", { month: "long", year: "numeric" })
+  return new Date(y, m - 1, 1).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris", month: "long", year: "numeric" })
 }
 
 export function FacturesListView({
@@ -597,7 +597,7 @@ export function FacturesListView({
                   </div>
                   {inv.dueDate && (
                     <p className={`text-xs text-right ${isLate ? "text-red-500 font-medium" : "text-muted-foreground"}`}>
-                      échéance {new Date(inv.dueDate).toLocaleDateString("fr-FR")}
+                      échéance {new Date(inv.dueDate).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris" })}
                     </p>
                   )}
                   <div className="flex items-center justify-between pt-1">

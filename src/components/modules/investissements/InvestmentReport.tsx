@@ -89,7 +89,7 @@ export function InvestmentReport({ platforms, userName }: { platforms: PlatformD
   }, [perPlatform])
 
   const periodLabel = fromStr && toStr
-    ? `${new Date(`${fromStr}T00:00:00`).toLocaleDateString("fr-FR")} → ${new Date(`${toStr}T00:00:00`).toLocaleDateString("fr-FR")}`
+    ? `${new Date(`${fromStr}T00:00:00`).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris" })} → ${new Date(`${toStr}T00:00:00`).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris" })}`
     : "—"
 
   // Nom de fichier CSV/PDF : Rapport-investissements-Nom-Prenom-periode

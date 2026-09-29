@@ -12,8 +12,7 @@ type Entry = {
 }
 
 function formatDate(date: Date) {
-  return new Date(date).toLocaleDateString("fr-FR", {
-    day: "numeric", month: "short", hour: "2-digit", minute: "2-digit",
+  return new Date(date).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit",
   })
 }
 

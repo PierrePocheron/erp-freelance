@@ -1,3 +1,4 @@
+import { isZonedAllDay } from "@/lib/dates"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { notFound, redirect } from "next/navigation"
@@ -32,11 +33,11 @@ const milestoneColors = {
 const milestoneLabels = { UPCOMING: "À venir", IN_PROGRESS: "En cours", DONE: "Terminé", CANCELLED: "Annulé" }
 
 function fmtTime(d: Date | string) {
-  return new Date(d).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })
+  return new Date(d).toLocaleTimeString("fr-FR", { timeZone: "Europe/Paris", hour: "2-digit", minute: "2-digit" })
 }
 function hasTime(d: Date | string) {
   const dt = new Date(d)
-  return dt.getHours() !== 0 || dt.getMinutes() !== 0
+  return !isZonedAllDay(dt)
 }
 
 export default async function ProjectDevPage({
@@ -145,7 +146,7 @@ export default async function ProjectDevPage({
                     {MILESTONE_TYPE_LABELS[m.type] ?? m.type}
                   </Badge>
                   <span className="text-xs text-muted-foreground shrink-0 whitespace-nowrap">
-                    {new Date(m.date).toLocaleDateString("fr-FR", { day: "numeric", month: "short" })}
+                    {new Date(m.date).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris", day: "numeric", month: "short" })}
                     {hasTime(m.date) && ` · ${fmtTime(m.date)}`}
                     {m.endDate && ` – ${fmtTime(m.endDate)}`}
                   </span>
@@ -244,7 +245,7 @@ export default async function ProjectDevPage({
               {project.journalEntries.map((e) => (
                 <div key={e.id} className="border-l-2 border-border pl-3">
                   <p className="text-xs text-muted-foreground mb-0.5">
-                    {new Date(e.createdAt).toLocaleDateString("fr-FR", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
+                    {new Date(e.createdAt).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
                   </p>
                   <p className="text-sm whitespace-pre-line">{e.content}</p>
                 </div>

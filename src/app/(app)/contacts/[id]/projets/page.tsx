@@ -114,7 +114,7 @@ export default async function ClientProjetsPage({
                     </td>
                     <td className="px-4 py-2.5 text-right font-medium amount-sensitive">{q.totalHT.toLocaleString("fr-FR")} €</td>
                     <td className="px-4 py-2.5 text-muted-foreground text-xs">
-                      {new Date(q.createdAt).toLocaleDateString("fr-FR")}
+                      {new Date(q.createdAt).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris" })}
                     </td>
                   </tr>
                 ))}
@@ -149,7 +149,7 @@ export default async function ClientProjetsPage({
                     </td>
                     <td className="px-4 py-2.5 text-right font-medium amount-sensitive">{inv.totalHT.toLocaleString("fr-FR")} €</td>
                     <td className="px-4 py-2.5 text-muted-foreground text-xs">
-                      {new Date(inv.createdAt).toLocaleDateString("fr-FR")}
+                      {new Date(inv.createdAt).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris" })}
                     </td>
                   </tr>
                 ))}

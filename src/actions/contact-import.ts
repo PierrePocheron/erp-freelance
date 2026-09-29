@@ -113,7 +113,7 @@ export async function applyContactImport(decisions: ImportDecision[]): Promise<{
         data: {
           userId, type: "TO_COMPLETE", firstName, lastName, label, name,
           company: d.create.company?.trim() || null, email, phone,
-          notes: `Importé depuis ${d.create.source === "google" ? "Google Contacts" : d.create.source === "picker" ? "le carnet du téléphone" : "un fichier .vcf"} le ${new Date().toLocaleDateString("fr-FR")}.`,
+          notes: `Importé depuis ${d.create.source === "google" ? "Google Contacts" : d.create.source === "picker" ? "le carnet du téléphone" : "un fichier .vcf"} le ${new Date().toLocaleDateString("fr-FR", { timeZone: "Europe/Paris" })}.`,
         },
       })
       created++

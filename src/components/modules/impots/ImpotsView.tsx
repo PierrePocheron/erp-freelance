@@ -1,5 +1,6 @@
 "use client"
 
+import { zonedDateKey } from "@/lib/dates"
 import { useState, useMemo, useEffect, useTransition } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
@@ -72,7 +73,7 @@ const fmt = (n: number) =>
   n.toLocaleString("fr-FR", { maximumFractionDigits: 2 })
 
 const fmtDate = (iso: string | null) =>
-  iso ? new Date(iso).toLocaleDateString("fr-FR") : "—"
+  iso ? new Date(iso).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris" }) : "—"
 
 // ── Composant principal ────────────────────────────────────────────────────────
 
@@ -688,7 +689,7 @@ function PayDialog({ declaration: d, rates, vlEnabled, onClose, onSaved }: {
   const [cotisations, setCotisations] = useState(String(estimate.totalCotisations))
   const [cfp, setCfp]                 = useState(String(estimate.totalCFP))
   const [vl, setVl]                   = useState(String(estimate.totalVL))
-  const [paidAt, setPaidAt]           = useState(new Date().toISOString().slice(0, 10))
+  const [paidAt, setPaidAt]           = useState(zonedDateKey(new Date()))
   const [error, setError]             = useState<string | null>(null)
 
   const parse = (s: string) => {

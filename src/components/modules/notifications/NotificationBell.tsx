@@ -28,7 +28,7 @@ function fmtDate(d: Date | string) {
   if (hrs < 24) return `Il y a ${hrs}h`
   const days = Math.floor(hrs / 24)
   if (days < 7) return `Il y a ${days}j`
-  return date.toLocaleDateString("fr-FR", { day: "numeric", month: "short" })
+  return date.toLocaleDateString("fr-FR", { timeZone: "Europe/Paris", day: "numeric", month: "short" })
 }
 
 export function NotificationBell({

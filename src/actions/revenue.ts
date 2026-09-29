@@ -344,7 +344,7 @@ export async function generateRevenueFromRecurring(
     data: {
       userId,
       type:              rec.type,
-      label:             `${rec.label} — ${new Date(year, month - 1).toLocaleDateString("fr-FR", { month: "long", year: "numeric" })}`,
+      label:             `${rec.label} — ${new Date(year, month - 1).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris", month: "long", year: "numeric" })}`,
       amount:            rec.amount,
       currency:          rec.currency,
       status:            "PENDING",
@@ -400,7 +400,7 @@ export async function generatePendingRecurringRevenues(): Promise<{ generated: n
           data: {
             userId,
             type:              rec.type,
-            label:             `${rec.label} — ${cursor.toLocaleDateString("fr-FR", { month: "long", year: "numeric" })}`,
+            label:             `${rec.label} — ${cursor.toLocaleDateString("fr-FR", { timeZone: "Europe/Paris", month: "long", year: "numeric" })}`,
             amount:            rec.amount,
             currency:          rec.currency,
             status:            "PENDING",

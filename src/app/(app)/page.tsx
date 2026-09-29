@@ -506,7 +506,7 @@ export default async function DashboardPage() {
     depenses: has("depenses") ? incompleteExpensesCount : 0,
   }
 
-  const hour = new Date().getHours()
+  const hour = zonedParts(new Date()).hour
   const greeting = hour < 18 ? "Bonjour" : "Bonsoir"
 
   // Module Investissements — résumé (fetch séparé, seulement si le module est actif)
@@ -541,7 +541,7 @@ export default async function DashboardPage() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight">{greeting}, {firstName} 👋</h1>
           <p className="text-muted-foreground text-sm">
-            {new Date().toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
+            {new Date().toLocaleDateString("fr-FR", { timeZone: "Europe/Paris", weekday: "long", day: "numeric", month: "long", year: "numeric" })}
           </p>
         </div>
       </div>
@@ -680,7 +680,7 @@ export default async function DashboardPage() {
                             {ev.category?.name && <p className="text-xs text-muted-foreground">{ev.category.name}</p>}
                           </div>
                           <span className="text-xs text-muted-foreground shrink-0">
-                            {ev.allDay ? "Toute la journée" : new Date(ev.startDate).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}
+                            {ev.allDay ? "Toute la journée" : new Date(ev.startDate).toLocaleTimeString("fr-FR", { timeZone: "Europe/Paris", hour: "2-digit", minute: "2-digit" })}
                           </span>
                         </Link>
                       ))}
@@ -734,7 +734,7 @@ export default async function DashboardPage() {
                                 {sub && <p className="text-xs text-muted-foreground">{sub}</p>}
                               </div>
                               <span className="text-xs text-red-500 font-medium shrink-0">
-                                {new Date(task.dueDate!).toLocaleDateString("fr-FR", { day: "numeric", month: "short" })}
+                                {new Date(task.dueDate!).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris", day: "numeric", month: "short" })}
                               </span>
                             </Link>
                           </div>
@@ -774,7 +774,7 @@ export default async function DashboardPage() {
                               </div>
                               {task.dueDate && (
                                 <span className={`text-xs shrink-0 ${isToday ? "text-primary font-medium" : "text-muted-foreground"}`}>
-                                  {isToday ? "Aujourd'hui" : new Date(task.dueDate).toLocaleDateString("fr-FR", { weekday: "short", day: "numeric", month: "short" })}
+                                  {isToday ? "Aujourd'hui" : new Date(task.dueDate).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris", weekday: "short", day: "numeric", month: "short" })}
                                 </span>
                               )}
                             </Link>
@@ -812,7 +812,7 @@ export default async function DashboardPage() {
                               </div>
                               {task.dueDate && (
                                 <span className="text-xs text-muted-foreground shrink-0">
-                                  {new Date(task.dueDate).toLocaleDateString("fr-FR", { day: "numeric", month: "short" })}
+                                  {new Date(task.dueDate).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris", day: "numeric", month: "short" })}
                                 </span>
                               )}
                             </Link>
@@ -847,7 +847,7 @@ export default async function DashboardPage() {
                       <p className="text-xs text-muted-foreground">{m.project.name}</p>
                     </div>
                     <span className="text-xs text-muted-foreground shrink-0">
-                      {new Date(m.date).toLocaleDateString("fr-FR", { day: "numeric", month: "short" })}
+                      {new Date(m.date).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris", day: "numeric", month: "short" })}
                     </span>
                   </Link>
                 ))}
@@ -870,7 +870,7 @@ export default async function DashboardPage() {
                       </div>
                       <span className={`text-xs shrink-0 ${isExpired ? "text-red-500 font-medium" : "text-amber-600"}`}>
                         {isExpired ? "Expiré · " : ""}
-                        {new Date(r.expiresAt).toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" })}
+                        {new Date(r.expiresAt).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris", day: "numeric", month: "short", year: "numeric" })}
                       </span>
                     </Link>
                   )
@@ -943,7 +943,7 @@ export default async function DashboardPage() {
                         <p className="text-xs font-medium truncate flex-1">{p.company ?? p.name}</p>
                         <span className="text-[10px] text-muted-foreground shrink-0">
                           {p.interactions[0]?.date
-                            ? new Date(p.interactions[0].date).toLocaleDateString("fr-FR", { day: "numeric", month: "short" })
+                            ? new Date(p.interactions[0].date).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris", day: "numeric", month: "short" })
                             : "Jamais contacté"}
                         </span>
                       </Link>
@@ -975,7 +975,7 @@ export default async function DashboardPage() {
                         <p className="text-sm font-medium">{r.client.name}</p>
                         {r.note && <p className="text-xs text-muted-foreground truncate">{r.note}</p>}
                         <p className={`text-xs ${isLate ? "text-red-500 font-medium" : "text-muted-foreground"}`}>
-                          {new Date(r.dueDate).toLocaleDateString("fr-FR", { day: "numeric", month: "short" })}
+                          {new Date(r.dueDate).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris", day: "numeric", month: "short" })}
                           {isLate && " · En retard"}
                         </p>
                       </Link>
@@ -997,7 +997,7 @@ export default async function DashboardPage() {
                       <p className="text-sm font-medium">{i.client.name}</p>
                       <p className="text-xs text-muted-foreground truncate">{i.summary}</p>
                       <p className="text-xs text-muted-foreground">
-                        {new Date(i.date).toLocaleDateString("fr-FR", { day: "numeric", month: "short" })}
+                        {new Date(i.date).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris", day: "numeric", month: "short" })}
                       </p>
                     </div>
                   </Link>

@@ -27,6 +27,7 @@ import {
 } from "@/actions/facturation"
 import { redirect } from "next/navigation"
 import { Input } from "@/components/ui/input"
+import { SubmitButton } from "@/components/ui/submit-button"
 
 // ── Status metadata ───────────────────────────────────────────────────────────
 
@@ -178,18 +179,18 @@ export default async function DevisDetailPage({
           </a>
           {(quote.status === "DRAFT" || quote.status === "VALIDATED") && quote.client.email && (
             <form action={async () => { "use server"; await sendQuoteEmail(id, userId) }}>
-              <Button type="submit" size="sm">
+              <SubmitButton pendingLabel="Envoi…" size="sm">
                 <Send className="h-3.5 w-3.5" />
                 Envoyer par email
-              </Button>
+              </SubmitButton>
             </form>
           )}
           {quote.status === "SENT" && quote.client.email && (
             <form action={async () => { "use server"; await resendQuoteEmail(id, userId) }}>
-              <Button type="submit" size="sm" variant="outline">
+              <SubmitButton pendingLabel="Envoi…" size="sm" variant="outline">
                 <Send className="h-3.5 w-3.5" />
                 Relancer
-              </Button>
+              </SubmitButton>
             </form>
           )}
         </div>
@@ -307,10 +308,10 @@ export default async function DevisDetailPage({
                     const inv = await createInvoiceFromQuote(id, userId, "DEPOSIT")
                     redirect(`/facturation/factures/${inv.id}`)
                   }}>
-                    <Button type="submit" size="sm" variant="outline">
+                    <SubmitButton pendingLabel="Création…" size="sm" variant="outline">
                       <FileText className="h-3.5 w-3.5" />
                       Générer facture acompte ({quote.depositPercent}%)
-                    </Button>
+                    </SubmitButton>
                   </form>
                 )}
                 <form action={async () => {
@@ -333,10 +334,10 @@ export default async function DevisDetailPage({
                     const inv = await createInvoiceFromQuote(id, userId, "DEPOSIT")
                     redirect(`/facturation/factures/${inv.id}`)
                   }}>
-                    <Button type="submit" size="sm" variant="outline">
+                    <SubmitButton pendingLabel="Création…" size="sm" variant="outline">
                       <FileText className="h-3.5 w-3.5" />
                       Facture acompte ({quote.depositPercent}%)
-                    </Button>
+                    </SubmitButton>
                   </form>
                 )}
                 <form action={async () => {
@@ -371,10 +372,10 @@ export default async function DevisDetailPage({
                     const inv = await createInvoiceFromQuote(id, userId, "DEPOSIT")
                     redirect(`/facturation/factures/${inv.id}`)
                   }}>
-                    <Button type="submit" size="sm" variant="outline">
+                    <SubmitButton pendingLabel="Création…" size="sm" variant="outline">
                       <FileText className="h-3.5 w-3.5" />
                       Facture acompte ({quote.depositPercent}%)
-                    </Button>
+                    </SubmitButton>
                   </form>
                 )}
                 <form action={async () => {
@@ -382,10 +383,10 @@ export default async function DevisDetailPage({
                   const inv = await createInvoiceFromQuote(id, userId, "RECURRING")
                   redirect(`/facturation/factures/${inv.id}`)
                 }}>
-                  <Button type="submit" size="sm" variant="outline">
+                  <SubmitButton pendingLabel="Création…" size="sm" variant="outline">
                     <FileText className="h-3.5 w-3.5" />
                     Facture intermédiaire
-                  </Button>
+                  </SubmitButton>
                 </form>
                 {!hasFinalInvoice && (
                   <form action={async () => {
@@ -393,10 +394,10 @@ export default async function DevisDetailPage({
                     const inv = await createInvoiceFromQuote(id, userId, "FINAL")
                     redirect(`/facturation/factures/${inv.id}`)
                   }}>
-                    <Button type="submit" size="sm" variant="outline">
+                    <SubmitButton pendingLabel="Création…" size="sm" variant="outline">
                       <FileText className="h-3.5 w-3.5" />
                       Facture solde
-                    </Button>
+                    </SubmitButton>
                   </form>
                 )}
               </div>

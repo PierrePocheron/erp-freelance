@@ -16,6 +16,7 @@ import { setInvoiceUrssafExcluded } from "@/actions/urssaf"
 import { periodLabel } from "@/lib/urssaf"
 import { redirect } from "next/navigation"
 import { Input } from "@/components/ui/input"
+import { SubmitButton } from "@/components/ui/submit-button"
 
 const statusConfig = {
   DRAFT: { label: "Brouillon", cls: "bg-muted text-muted-foreground border-border" },
@@ -124,10 +125,10 @@ export default async function FactureDetailPage({
 
           {invoice.status === "DRAFT" && (
             <form action={async () => { "use server"; await issueInvoice(id, userId) }}>
-              <Button type="submit" size="sm">
+              <SubmitButton pendingLabel="Émission…" size="sm">
                 <FileCheck2 className="h-3.5 w-3.5" />
                 Émettre la facture
-              </Button>
+              </SubmitButton>
             </form>
           )}
 
@@ -142,19 +143,19 @@ export default async function FactureDetailPage({
 
           {invoice.status === "ISSUED" && invoice.client.email && (
             <form action={async () => { "use server"; await sendInvoiceEmail(id, userId) }}>
-              <Button type="submit" size="sm">
+              <SubmitButton pendingLabel="Envoi…" size="sm">
                 <Send className="h-3.5 w-3.5" />
                 Envoyer par email
-              </Button>
+              </SubmitButton>
             </form>
           )}
 
           {(invoice.status === "SENT" || invoice.status === "LATE") && invoice.client.email && (
             <form action={async () => { "use server"; await sendInvoiceReminder(id, userId) }}>
-              <Button type="submit" size="sm" variant="outline">
+              <SubmitButton pendingLabel="Envoi…" size="sm" variant="outline">
                 <Send className="h-3.5 w-3.5" />
                 {invoice.status === "LATE" ? "Relancer" : "Rappel email"}
-              </Button>
+              </SubmitButton>
             </form>
           )}
 
@@ -183,10 +184,10 @@ export default async function FactureDetailPage({
 
           {invoice.status === "CANCELLED" && (
             <form action={async () => { "use server"; const d = await duplicateInvoiceAsDraft(id, userId); redirect(`/facturation/factures/${d.id}`) }}>
-              <Button type="submit" size="sm" variant="outline">
+              <SubmitButton pendingLabel="Duplication…" size="sm" variant="outline">
                 <Copy className="h-3.5 w-3.5" />
                 Dupliquer en brouillon
-              </Button>
+              </SubmitButton>
             </form>
           )}
         </div>

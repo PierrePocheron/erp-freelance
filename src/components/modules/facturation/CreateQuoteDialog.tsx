@@ -158,7 +158,17 @@ function LineForm({
   }
 
   return (
-    <div className="space-y-2.5 p-3 bg-muted/20 rounded-lg border border-border/60">
+    // Entrée dans un champ de la ligne valide la ligne : sans ça, elle soumettait
+    // le formulaire parent et créait le devis sans la ligne en cours de saisie.
+    <div
+      onKeyDown={(e) => {
+        if (e.key === "Enter" && e.target instanceof HTMLInputElement) {
+          e.preventDefault()
+          handleConfirm()
+        }
+      }}
+      className="space-y-2.5 p-3 bg-muted/20 rounded-lg border border-border/60"
+    >
 
       {/* Sélecteur catalogue */}
       {activeProducts.length > 0 && (

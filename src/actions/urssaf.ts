@@ -313,15 +313,18 @@ export async function ensureUrssafReminderTask(_userId: string, frequency: Decla
   }
   if (existingTask || existingDeclaration) return
 
-  await prisma.task.create({
-    data: {
+  // @@unique([userId, urssafPeriod]) + skipDuplicates : deux rendus parallèles du layout ne
+  // créent plus deux rappels pour la même période (#32).
+  await prisma.task.createMany({
+    data: [{
       userId,
       title:       `Déclarer l'URSSAF — ${periodLabel(period)}`,
       description: `Rappel : chiffre d'affaires à déclarer sur autoentrepreneur.urssaf.fr pour la période ${periodLabel(period)}. Ouvrez la page Impôts de l'app pour préparer et enregistrer la déclaration.`,
       dueDate:     declarationAvailableFrom(period),
       priority:    "MEDIUM",
       urssafPeriod: period,
-    },
+    }],
+    skipDuplicates: true,
   })
 }
 

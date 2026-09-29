@@ -10,6 +10,7 @@ import { generateEmailDrafts } from "@/actions/email-drafts"
 import { renderTemplate } from "@/lib/email-template"
 import type { EmailTemplateOption, SendTarget } from "./SendEmailDialog"
 import { toast } from "sonner"
+import { errorMessage } from "@/lib/error-message"
 
 /**
  * Génération de brouillons pour les prospects sélectionnés : choix du modèle,
@@ -72,7 +73,7 @@ export function PrepareDraftsDialog({
         onDone()
         router.refresh()
       } catch (e) {
-        toast.error(e instanceof Error ? e.message : "Erreur lors de la génération")
+        toast.error(errorMessage(e, "Erreur lors de la génération"))
       }
     })
   }

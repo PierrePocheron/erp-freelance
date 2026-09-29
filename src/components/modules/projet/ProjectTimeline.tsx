@@ -13,6 +13,7 @@ import { toast } from "sonner"
 import { Timeline, TimelineItem } from "@/components/ui/timeline"
 import { DatePartsField } from "@/components/ui/date-parts-field"
 import { createProjectEvent, updateProjectEvent, deleteProjectEvent } from "@/actions/projet"
+import { errorMessage } from "@/lib/error-message"
 
 type EventKind = "NOTE" | "MEETING" | "EMAIL" | "CALL" | "PAYMENT" | "DELIVERY" | "LEGAL" | "OTHER"
 
@@ -101,7 +102,7 @@ export function ProjectTimeline({
         cancel()
         router.refresh()
       } catch (e) {
-        toast.error(e instanceof Error ? e.message : "Erreur")
+        toast.error(errorMessage(e, "Erreur"))
       }
     })
   }

@@ -16,6 +16,7 @@ import { periodLabel } from "@/lib/urssaf"
 import { redirect } from "next/navigation"
 import { Input } from "@/components/ui/input"
 import { SubmitButton } from "@/components/ui/submit-button"
+import { runWithFlash } from "@/lib/flash"
 
 const statusConfig = {
   DRAFT: { label: "Brouillon", cls: "bg-muted text-muted-foreground border-border" },
@@ -123,7 +124,7 @@ export default async function FactureDetailPage({
           </a>
 
           {invoice.status === "DRAFT" && (
-            <form action={async () => { "use server"; await issueInvoice(id, userId) }}>
+            <form action={async () => { "use server"; await runWithFlash(async () => { await issueInvoice(id, userId) }, "Facture émise") }}>
               <SubmitButton pendingLabel="Émission…" size="sm">
                 <FileCheck2 className="h-3.5 w-3.5" />
                 Émettre la facture
@@ -132,7 +133,7 @@ export default async function FactureDetailPage({
           )}
 
           {invoice.status === "ISSUED" && (
-            <form action={async () => { "use server"; await updateInvoiceStatus(id, userId, "SENT") }}>
+            <form action={async () => { "use server"; await runWithFlash(async () => { await updateInvoiceStatus(id, userId, "SENT") }, "Statut de la facture mis à jour") }}>
               <SubmitButton size="sm" variant="outline">
                 <Send className="h-3.5 w-3.5" />
                 Marquer envoyée
@@ -141,7 +142,7 @@ export default async function FactureDetailPage({
           )}
 
           {invoice.status === "ISSUED" && invoice.client.email && (
-            <form action={async () => { "use server"; await sendInvoiceEmail(id, userId) }}>
+            <form action={async () => { "use server"; await runWithFlash(async () => { await sendInvoiceEmail(id, userId) }, "Facture envoyée au client") }}>
               <SubmitButton pendingLabel="Envoi…" size="sm">
                 <Send className="h-3.5 w-3.5" />
                 Envoyer par email
@@ -150,7 +151,7 @@ export default async function FactureDetailPage({
           )}
 
           {(invoice.status === "SENT" || invoice.status === "LATE") && invoice.client.email && (
-            <form action={async () => { "use server"; await sendInvoiceReminder(id, userId) }}>
+            <form action={async () => { "use server"; await runWithFlash(async () => { await sendInvoiceReminder(id, userId) }, "Relance envoyée") }}>
               <SubmitButton pendingLabel="Envoi…" size="sm" variant="outline">
                 <Send className="h-3.5 w-3.5" />
                 {invoice.status === "LATE" ? "Relancer" : "Rappel email"}
@@ -162,7 +163,7 @@ export default async function FactureDetailPage({
               La date = date d'encaissement réelle (elle fixe la période URSSAF). */}
           {(invoice.status === "ISSUED" || invoice.status === "SENT" || invoice.status === "LATE") && (
             <form
-              action={async (fd: FormData) => { "use server"; await markInvoicePaid(id, userId, (fd.get("paidAt") as string) || undefined) }}
+              action={async (fd: FormData) => { "use server"; await runWithFlash(async () => { await markInvoicePaid(id, userId, (fd.get("paidAt") as string) || undefined) }, "Paiement enregistré") }}
               className="flex items-center gap-1.5"
             >
               <input
@@ -189,12 +190,12 @@ export default async function FactureDetailPage({
               confirmMessage="Une facture émise ne se supprime pas : elle reste dans la séquence, marquée annulée. Pour la corriger, tu pourras ensuite la dupliquer en un nouveau brouillon."
               confirmLabel="Annuler la facture"
               pendingLabel="Annulation…"
-              action={async () => { "use server"; await cancelInvoice(id, userId) }}
+              action={async () => { "use server"; await runWithFlash(async () => { await cancelInvoice(id, userId) }) }}
             />
           )}
 
           {invoice.status === "CANCELLED" && (
-            <form action={async () => { "use server"; const d = await duplicateInvoiceAsDraft(id, userId); redirect(`/facturation/factures/${d.id}`) }}>
+            <form action={async () => { "use server"; await runWithFlash(async () => { const d = await duplicateInvoiceAsDraft(id, userId); redirect(`/facturation/factures/${d.id}`) }) }}>
               <SubmitButton pendingLabel="Duplication…" size="sm" variant="outline">
                 <Copy className="h-3.5 w-3.5" />
                 Dupliquer en brouillon
@@ -279,10 +280,9 @@ export default async function FactureDetailPage({
           emitters={emitters}
           currentId={invoice.emitterProfileId}
           editable={isEditable}
-          action={async (emitterProfileId: string | null) => {
-            "use server"
+          action={async (emitterProfileId: string | null) => { "use server"; await runWithFlash(async () => {
             await updateInvoiceEmitter(id, emitterProfileId)
-          }}
+          }) }}
         />
       </div>
 
@@ -291,11 +291,10 @@ export default async function FactureDetailPage({
         <h2 className="font-semibold text-sm">Paramètres</h2>
         {isEditable ? (
           <form
-            action={async (fd: FormData) => {
-              "use server"
+            action={async (fd: FormData) => { "use server"; await runWithFlash(async () => {
               await updateInvoiceDueDate(id, userId, (fd.get("dueDate") as string) || null)
               await updateInvoiceNotes(id, userId, (fd.get("notes") as string) || null)
-            }}
+            }, "Enregistré") }}
             className="space-y-3"
           >
             <div className="space-y-1">
@@ -371,7 +370,7 @@ export default async function FactureDetailPage({
               <p className="text-sm text-muted-foreground">
                 Exclue des déclarations URSSAF (hors auto-entreprise) — terminée dès le paiement reçu.
               </p>
-              <form action={async () => { "use server"; await setInvoiceUrssafExcluded(id, false) }}>
+              <form action={async () => { "use server"; await runWithFlash(async () => { await setInvoiceUrssafExcluded(id, false) }, "Préférence URSSAF enregistrée") }}>
                 <SubmitButton size="sm" variant="outline">Réintégrer à l&apos;URSSAF</SubmitButton>
               </form>
             </div>
@@ -382,7 +381,7 @@ export default async function FactureDetailPage({
                   ? "Payée — sera proposée dans la prochaine déclaration URSSAF."
                   : "Sera à déclarer à l'URSSAF une fois payée, selon la date d'encaissement."}
               </p>
-              <form action={async () => { "use server"; await setInvoiceUrssafExcluded(id, true) }}>
+              <form action={async () => { "use server"; await runWithFlash(async () => { await setInvoiceUrssafExcluded(id, true) }, "Préférence URSSAF enregistrée") }}>
                 <SubmitButton size="sm" variant="outline">Exclure de l&apos;URSSAF</SubmitButton>
               </form>
             </div>
@@ -424,11 +423,10 @@ export default async function FactureDetailPage({
             label="Supprimer cette facture"
             confirmTitle="Supprimer la facture ?"
             confirmMessage={`La facture ${invoice.number} sera supprimée définitivement. Cette action est irréversible.`}
-            action={async () => {
-              "use server"
+            action={async () => { "use server"; await runWithFlash(async () => {
               await deleteInvoice(id, userId)
               redirect("/facturation/factures")
-            }}
+            }) }}
           />
         </div>
       )}

@@ -23,6 +23,7 @@ import {
 } from "lucide-react"
 import { LINK_CATEGORY_CONFIG, normalizeUrl } from "@/lib/link-categories"
 import { type TaskShape } from "@/components/modules/projet/TaskItem"
+import { runWithFlash } from "@/lib/flash"
 
 const milestoneColors = {
   UPCOMING: "bg-muted text-muted-foreground border-border",
@@ -171,11 +172,10 @@ export default async function ProjectDevPage({
             <div className="space-y-2">
               {project.deliverables.map((d) => (
                 <div key={d.id} className="flex items-center gap-3 py-1">
-                  <form action={async () => {
-                    "use server"
+                  <form action={async () => { "use server"; await runWithFlash(async () => {
                     const next = d.status === "TO_DELIVER" ? "DELIVERED" : d.status === "DELIVERED" ? "VALIDATED" : "TO_DELIVER"
                     await updateDeliverableStatus(d.id, id, next)
-                  }}>
+                  }) }}>
                     <button type="submit" aria-label={`Changer le statut du livrable ${d.name}`} className="text-muted-foreground hover:text-primary">
                       {d.status === "VALIDATED" ? <CheckCircle2 className="h-4 w-4 text-emerald-500" /> : d.status === "DELIVERED" ? <Clock className="h-4 w-4 text-amber-500" /> : <Circle className="h-4 w-4" />}
                     </button>
@@ -189,7 +189,7 @@ export default async function ProjectDevPage({
             </div>
           )}
 
-          <form action={async (fd: FormData) => { "use server"; await createDeliverable(id, fd) }} className="flex gap-2">
+          <form action={async (fd: FormData) => { "use server"; await runWithFlash(async () => { await createDeliverable(id, fd) }) }} className="flex gap-2">
             <Input name="name" placeholder="Nom du livrable" className="h-8 text-sm" required />
             <Button type="submit" size="sm" variant="outline">Ajouter</Button>
           </form>
@@ -235,7 +235,7 @@ export default async function ProjectDevPage({
             <h2 className="font-semibold">Journal de bord</h2>
           </div>
 
-          <form action={async (fd: FormData) => { "use server"; await createJournalEntry(id, fd) }} className="space-y-2">
+          <form action={async (fd: FormData) => { "use server"; await runWithFlash(async () => { await createJournalEntry(id, fd) }) }} className="space-y-2">
             <textarea name="content" rows={3} placeholder="Note, décision technique, retour client..." required className="flex w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring resize-none" />
             <Button type="submit" size="sm" variant="outline" className="w-full">Ajouter une note</Button>
           </form>

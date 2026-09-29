@@ -13,6 +13,7 @@ import { ClientTasksSection } from "@/components/modules/crm/ClientTasksSection"
 import { ClientProjectsCard } from "@/components/modules/crm/ClientProjectsCard"
 import { FiscalCategoryCard } from "@/components/modules/crm/FiscalCategoryCard"
 import { DeleteConfirmButton } from "@/components/modules/facturation/DeleteConfirmButton"
+import { runWithFlash } from "@/lib/flash"
 
 export default async function ClientOverviewPage({
   params,
@@ -335,11 +336,10 @@ export default async function ClientOverviewPage({
             className="w-full"
             confirmTitle="Supprimer ce contact ?"
             confirmMessage={`${client.name} sera supprimé, avec ses interactions, rappels, notes, historique de prospection et fichiers. Cette action est irréversible.`}
-            action={async () => {
-              "use server"
+            action={async () => { "use server"; await runWithFlash(async () => {
               await deleteClient(id, userId)
               redirect("/contacts")
-            }}
+            }) }}
           />
         )}
       </div>

@@ -2,6 +2,7 @@
 
 import { useEffect } from "react"
 import { AlertTriangle, RotateCw } from "lucide-react"
+import { errorMessage } from "@/lib/error-message"
 
 /**
  * Filet d'erreur du groupe (app). Sans lui, toute server action qui `throw` (Resend
@@ -15,7 +16,9 @@ export default function AppError({ error, reset }: { error: Error & { digest?: s
       <AlertTriangle className="h-10 w-10 text-amber-500" />
       <div className="space-y-1">
         <h1 className="text-lg font-semibold">Une erreur est survenue</h1>
-        <p className="max-w-md text-sm text-muted-foreground">{error.message || "Erreur inattendue."}</p>
+        <p className="max-w-md text-sm text-muted-foreground">
+          {errorMessage(error, "L'action n'a pas pu aboutir. Réessaie ; si le problème persiste, note la référence ci-dessous.")}
+        </p>
         {error.digest && <p className="text-xs text-muted-foreground/70">Référence : {error.digest}</p>}
       </div>
       <button

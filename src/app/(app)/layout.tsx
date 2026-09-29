@@ -18,6 +18,8 @@ import { getRunningTimer } from "@/actions/timetracking"
 import { ensureUrssafReminderTask } from "@/actions/urssaf"
 import { ensureInvestmentReviewTasks } from "@/actions/investissements"
 import { prisma } from "@/lib/prisma"
+import { readFlash } from "@/lib/flash"
+import { FlashToast } from "@/components/layout/FlashToast"
 
 export default async function AppLayout({
   children,
@@ -49,11 +51,14 @@ export default async function AppLayout({
         ensureInvestmentReviewTasks(userId, profile?.investmentReviewReminder ?? false, profile?.investmentReviewDay ?? 1),
       ])),
   ])
+  const flash = await readFlash()
 
   return (
     <div className="flex h-screen overflow-hidden print:h-auto print:overflow-visible">
       {/* Scope par compte des clés modules/onboarding — doit être rendu avant le reste */}
       <ModuleScope userId={userId} />
+      {/* Message d'une action serveur (erreur métier en français / confirmation) — lib/flash.ts */}
+      <FlashToast flash={flash} />
       <Sidebar />
       <div className="relative flex flex-1 flex-col overflow-hidden print:overflow-visible">
         <TimerBanner initialTimer={runningTimer} userId={userId} />

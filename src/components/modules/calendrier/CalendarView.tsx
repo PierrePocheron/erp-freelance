@@ -20,6 +20,7 @@ import {
 import { createCalendarItem, moveCalendarItem, updateCalendarItem, deleteCalendarItem, syncGooglePull, syncGooglePush, getGoogleCalendarConnectionStatus } from "@/actions/calendar"
 import { DatePicker, TimePicker } from "./DateTimePicker"
 import { useModules } from "@/hooks/use-modules"
+import { errorMessage } from "@/lib/error-message"
 
 // Natures de création (rattachement → nature)
 type CalNature = "event" | "task" | "interaction" | "reminder" | "milestone" | "note"
@@ -1251,7 +1252,7 @@ export function CalendarView({
         setTimeout(() => setSyncStatus("idle"), 4000)
       } catch (err) {
         setSyncStatus("error")
-        setSyncError(err instanceof Error ? err.message : "Connexion interrompue")
+        setSyncError(errorMessage(err, "Connexion interrompue"))
         setConnectionStatus("error")
       } finally {
         setSyncStep(0)

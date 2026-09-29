@@ -363,8 +363,10 @@ export async function generatePendingRecurringExpenses(): Promise<{ generated: n
       // Fréquence sans pas automatique (CUSTOM…) : rien à générer. Avant, la dépense était
       // créée PUIS la boucle s'arrêtait sans avancer le curseur → un doublon à chaque ouverture.
       if (next.getTime() === cursor.getTime()) break
-      await prisma.expense.create({
-        data: {
+      // @@unique([recurringExpenseId, date]) + skipDuplicates : deux onglets ouverts sur
+      // /depenses ne génèrent plus deux fois la même échéance (#32).
+      const { count } = await prisma.expense.createMany({
+        data: [{
           userId,
           categoryId: rec.categoryId,
           scope: rec.scope,
@@ -374,9 +376,10 @@ export async function generatePendingRecurringExpenses(): Promise<{ generated: n
           date: cursor,
           notes: rec.notes,
           recurringExpenseId: rec.id,
-        },
+        }],
+        skipDuplicates: true,
       })
-      generated++
+      generated += count
       cursor = next
       if (++iterations > MAX_GENERATION_ITERATIONS) break
     }

@@ -67,7 +67,7 @@ const FREQ_BADGE: Record<string, string> = {
   CUSTOM: "bg-muted text-muted-foreground border-border",
 }
 
-const fmtEur = (v: number) => v.toLocaleString("fr-FR", { minimumFractionDigits: 2 }) + " €"
+const fmtEur = (v: number) => v.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " €"
 
 export function RecurrentesManager({
   userId,

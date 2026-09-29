@@ -235,21 +235,21 @@ export default async function FactureDetailPage({
             <div className="space-y-1.5 text-sm max-w-xs ml-auto">
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Total HT</span>
-                <span className="amount-sensitive">{invoice.totalHT.toLocaleString("fr-FR", { minimumFractionDigits: 2 })} €</span>
+                <span className="amount-sensitive">{invoice.totalHT.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Total TVA</span>
-                <span className="amount-sensitive">{totalTVA.toLocaleString("fr-FR", { minimumFractionDigits: 2 })} €</span>
+                <span className="amount-sensitive">{totalTVA.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €</span>
               </div>
               {invoice.depositDeducted > 0 && (
                 <div className="flex justify-between text-muted-foreground">
                   <span>Acompte déduit</span>
-                  <span className="amount-sensitive">- {invoice.depositDeducted.toLocaleString("fr-FR", { minimumFractionDigits: 2 })} €</span>
+                  <span className="amount-sensitive">- {invoice.depositDeducted.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €</span>
                 </div>
               )}
               <div className="flex justify-between font-bold border-t border-border pt-1.5">
                 <span>Total TTC</span>
-                <span className="text-primary text-base amount-sensitive">{(totalTTC - invoice.depositDeducted).toLocaleString("fr-FR", { minimumFractionDigits: 2 })} €</span>
+                <span className="text-primary text-base amount-sensitive">{(totalTTC - invoice.depositDeducted).toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €</span>
               </div>
             </div>
           </div>

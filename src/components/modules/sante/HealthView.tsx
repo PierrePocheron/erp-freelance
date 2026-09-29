@@ -10,6 +10,9 @@ import { HealthEventDialog }      from "./HealthEventDialog"
 import { ConsultationDialog }     from "./ConsultationDialog"
 import { ReimbursementDialog }    from "./ReimbursementDialog"
 
+// Virgule décimale française et toujours 2 décimales (toFixed donnait « 26.50 € » / « 27 € »).
+const eur = (n: number) => n.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 export type HEvent = {
@@ -212,17 +215,17 @@ export function HealthView({
             <span className="text-xs text-muted-foreground block">{fmtShort(c.date)}</span>
             {c.cost != null && (
               <>
-                <span className="text-xs font-medium block amount-sensitive">{c.cost.toFixed(0)} € payé</span>
+                <span className="text-xs font-medium block amount-sensitive">{eur(c.cost)} € payé</span>
                 {settled ? (
                   <span className="text-[10px] text-emerald-600 block">✓ Remboursé</span>
                 ) : (
                   <>
                     {pending > 0 && (
-                      <span className="text-[10px] text-amber-600 block amount-sensitive">{pending.toFixed(0)} € attendu</span>
+                      <span className="text-[10px] text-amber-600 block amount-sensitive">{eur(pending)} € attendu</span>
                     )}
                     {remaining - pending > 0.01 && (
                       <span className="text-[10px] text-muted-foreground block amount-sensitive">
-                        {(remaining - pending).toFixed(0)} € à charge
+                        {eur((remaining - pending))} € à charge
                       </span>
                     )}
                   </>
@@ -279,7 +282,7 @@ export function HealthView({
             "text-sm font-semibold transition-colors amount-sensitive",
             isPending ? "text-amber-700 group-hover:text-amber-600" : "text-emerald-700 group-hover:text-emerald-600"
           )}>
-            {isPending ? "" : "+"}{r.amount.toFixed(2)} €
+            {isPending ? "" : "+"}{eur(r.amount)} €
           </p>
           {r.consultation && (
             <p className="text-xs text-muted-foreground">{r.consultation.practitionerName} — {r.consultation.title}</p>
@@ -363,12 +366,12 @@ export function HealthView({
           <StatCard
             icon={<Wallet className="h-4 w-4" />}
             label={`Dépensé ${currentYear}`}
-            value={<span className="amount-sensitive">{stats.spentThisYear.toFixed(2)} €</span>}
+            value={<span className="amount-sensitive">{eur(stats.spentThisYear)} €</span>}
           />
           <StatCard
             icon={<Heart className="h-4 w-4" />}
             label={`Remboursé ${currentYear}`}
-            value={<span className="amount-sensitive">{stats.reimbursedThisYear.toFixed(2)} €</span>}
+            value={<span className="amount-sensitive">{eur(stats.reimbursedThisYear)} €</span>}
             positive
           />
           <StatCard
@@ -387,7 +390,7 @@ export function HealthView({
                 <Clock className="h-4 w-4 text-amber-600" />
                 <div>
                   <p className="text-sm font-semibold text-amber-700 dark:text-amber-400 amount-sensitive">
-                    {pendingTotal.toFixed(2)} € en attente de remboursement
+                    {eur(pendingTotal)} € en attente de remboursement
                   </p>
                   <p className="text-xs text-muted-foreground">
                     {pendingReimbursements.length} remboursement{pendingReimbursements.length > 1 ? "s" : ""} non reçu{pendingReimbursements.length > 1 ? "s" : ""}
@@ -398,13 +401,13 @@ export function HealthView({
                 {pendingSecu > 0 && (
                   <div className="text-right">
                     <p className="text-muted-foreground">Sécu</p>
-                    <p className="font-semibold text-amber-700 dark:text-amber-400 amount-sensitive">{pendingSecu.toFixed(2)} €</p>
+                    <p className="font-semibold text-amber-700 dark:text-amber-400 amount-sensitive">{eur(pendingSecu)} €</p>
                   </div>
                 )}
                 {pendingMutuelle > 0 && (
                   <div className="text-right">
                     <p className="text-muted-foreground">Mutuelle</p>
-                    <p className="font-semibold text-amber-700 dark:text-amber-400 amount-sensitive">{pendingMutuelle.toFixed(2)} €</p>
+                    <p className="font-semibold text-amber-700 dark:text-amber-400 amount-sensitive">{eur(pendingMutuelle)} €</p>
                   </div>
                 )}
               </div>

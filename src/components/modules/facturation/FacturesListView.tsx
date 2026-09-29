@@ -1,6 +1,7 @@
 "use client"
 
 import { INVOICE_STATUS_META } from "@/lib/invoice-state"
+import { zonedDayStart } from "@/lib/dates"
 import { useState, useMemo, useCallback } from "react"
 import Link from "next/link"
 import { useSearchParams } from "next/navigation"
@@ -490,7 +491,8 @@ export function FacturesListView({
             <tbody>
               {sorted.map((inv) => {
                 const status = statusConfig[inv.status] ?? { label: inv.status, cls: "bg-muted text-muted-foreground border-border" }
-                const isLate = inv.dueDate && inv.status === "SENT" && new Date(inv.dueDate) < new Date()
+                // LATE (posé par markLateInvoices) ou envoyée et échue AVANT aujourd'hui — une facture due aujourd'hui n'est pas en retard
+                const isLate = inv.status === "LATE" || (inv.status === "SENT" && !!inv.dueDate && new Date(inv.dueDate) < zonedDayStart(new Date()))
                 return (
                   <tr key={inv.id} className={`border-b border-border/50 last:border-0 hover:bg-muted/30 transition-colors ${isLate ? "bg-red-500/5" : ""}`}>
                     <td className="px-4 py-3">
@@ -539,7 +541,7 @@ export function FacturesListView({
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {sorted.map((inv) => {
             const status = statusConfig[inv.status] ?? { label: inv.status, cls: "bg-muted text-muted-foreground border-border" }
-            const isLate = inv.dueDate && inv.status === "SENT" && new Date(inv.dueDate) < new Date()
+            const isLate = inv.status === "LATE" || (inv.status === "SENT" && !!inv.dueDate && new Date(inv.dueDate) < zonedDayStart(new Date()))
             const amount = inv.totalHT - inv.depositDeducted
             return (
               // La carte entière est cliquable via un overlay, pour que client et

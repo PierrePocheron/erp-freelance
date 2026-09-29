@@ -27,6 +27,9 @@ import {
 import { zonedDayStart, parseCivilDate, advanceByFrequency } from "@/lib/dates"
 import { createRenewalDraftInvoice } from "@/lib/renewal-invoice"
 
+// Montants des mails clients : toujours 2 décimales (« 1 234,50 € », pas « 1 234,5 € »).
+const eurMail = (n: number) => n.toLocaleString("fr-FR", { style: "currency", currency: "EUR" })
+
 
 // ── Verrouillage d'édition ──────────────────────────────────────────────────────
 // Un devis ou une facture n'est modifiable (lignes, montants, conditions) qu'à
@@ -1155,7 +1158,7 @@ export async function resendQuoteEmail(quoteId: string, _userId: string) {
     attachments: await pdfAttachment("devis", quoteId, userId, quote.number),
     html: `
       <p>Bonjour ${escapeHtml(quote.client.name)},</p>
-      <p>Je me permets de vous relancer concernant le devis <strong>${quote.number}</strong> d'un montant de <strong>${quote.totalHT.toLocaleString("fr-FR")} €</strong> HT que je vous ai adressé.</p>
+      <p>Je me permets de vous relancer concernant le devis <strong>${quote.number}</strong> d'un montant de <strong>${eurMail(quote.totalHT)}</strong> HT que je vous ai adressé.</p>
       ${quote.expiresAt ? `<p>Ce devis est valable jusqu'au ${new Date(quote.expiresAt).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris" })}.</p>` : ""}
       <p>Le devis est joint à ce message.</p>
       <p>Cordialement,<br>${escapeHtml(quote.user.name)}</p>
@@ -1189,7 +1192,7 @@ export async function sendQuoteEmail(quoteId: string, _userId: string) {
     attachments: await pdfAttachment("devis", quoteId, userId, quote.number),
     html: `
       <p>Bonjour ${escapeHtml(quote.client.name)},</p>
-      <p>Veuillez trouver ci-joint le devis <strong>${quote.number}</strong> d'un montant de <strong>${quote.totalHT.toLocaleString("fr-FR")} €</strong> HT.</p>
+      <p>Veuillez trouver ci-joint le devis <strong>${quote.number}</strong> d'un montant de <strong>${eurMail(quote.totalHT)}</strong> HT.</p>
       ${quote.expiresAt ? `<p>Ce devis est valable jusqu'au ${new Date(quote.expiresAt).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris" })}.</p>` : ""}
 
       <p>Cordialement,<br>${escapeHtml(quote.user.name)}</p>
@@ -1224,7 +1227,7 @@ export async function sendInvoiceEmail(invoiceId: string, _userId: string) {
     attachments: await pdfAttachment("facture", invoiceId, userId, invoice.number),
     html: `
       <p>Bonjour ${escapeHtml(invoice.client.name)},</p>
-      <p>Veuillez trouver ci-joint la facture <strong>${invoice.number}</strong> d'un montant de <strong>${invoice.totalHT.toLocaleString("fr-FR")} €</strong>.</p>
+      <p>Veuillez trouver ci-joint la facture <strong>${invoice.number}</strong> d'un montant de <strong>${eurMail(invoice.totalHT)}</strong>.</p>
 
       <p>Cordialement,<br>${escapeHtml(invoice.user.name)}</p>
     `,
@@ -1278,8 +1281,8 @@ export async function sendInvoiceReminder(invoiceId: string, _userId: string) {
     html: `
       <p>Bonjour ${escapeHtml(invoice.client.name)},</p>
       ${isLate && daysLate
-        ? `<p>Sauf erreur de notre part, la facture <strong>${invoice.number}</strong> d'un montant de <strong>${(invoice.totalHT - invoice.depositDeducted).toLocaleString("fr-FR")} €</strong> est en retard de <strong>${daysLate} jour(s)</strong>.</p>`
-        : `<p>Nous vous rappelons que la facture <strong>${invoice.number}</strong> d'un montant de <strong>${(invoice.totalHT - invoice.depositDeducted).toLocaleString("fr-FR")} €</strong> est toujours en attente de règlement.</p>`
+        ? `<p>Sauf erreur de notre part, la facture <strong>${invoice.number}</strong> d'un montant de <strong>${eurMail((invoice.totalHT - invoice.depositDeducted))}</strong> est en retard de <strong>${daysLate} jour(s)</strong>.</p>`
+        : `<p>Nous vous rappelons que la facture <strong>${invoice.number}</strong> d'un montant de <strong>${eurMail((invoice.totalHT - invoice.depositDeducted))}</strong> est toujours en attente de règlement.</p>`
       }
       <p>La facture est jointe à ce message.</p>
       <p>Cordialement,<br>${escapeHtml(invoice.user.name)}</p>

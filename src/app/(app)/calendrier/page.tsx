@@ -161,10 +161,12 @@ export default async function CalendrierPage() {
       where: { userId, isActive: true, dateToConfirm: false },
       include: { category: { select: { name: true, color: true } } },
     }),
-    // Échéances passées déjà matérialisées en dépenses (l'ouverture de /depenses les génère et
-    // avance nextGenerationDate) : sans elles, le loyer du 5 disparaissait du calendrier une fois généré.
+    // Dépenses RÉELLES de la fenêtre (#19) : ponctuelles, et échéances récurrentes déjà
+    // matérialisées (l'ouverture de /depenses les génère et avance nextGenerationDate — sans
+    // elles, le loyer du 5 disparaissait une fois généré). Pas de doublon avec la projection
+    // ci-dessous, qui ne part que de nextGenerationDate.
     prisma.expense.findMany({
-      where: { userId, recurringExpenseId: { not: null }, date: { gte: from, lte: to } },
+      where: { userId, date: { gte: from, lte: to } },
       select: { id: true, label: true, amount: true, date: true, category: { select: { name: true, color: true } } },
     }),
   ])

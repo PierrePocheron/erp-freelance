@@ -1,7 +1,8 @@
 import { prisma } from "@/lib/prisma"
-import { Clock, Timer, TrendingUp, AlertTriangle, Trash2, Download } from "lucide-react"
+import { Clock, Timer, TrendingUp, AlertTriangle, Download } from "lucide-react"
 import { deleteTimeEntry } from "@/actions/timetracking"
 import { AddTimeEntryDialog } from "@/components/modules/projet/AddTimeEntryDialog"
+import { ArmedDeleteSubmit } from "@/components/ui/armed-delete-submit"
 
 function fmtSeconds(s: number): string {
   const h = Math.floor(s / 3600)
@@ -199,9 +200,7 @@ export async function ProjectTimePanel({ projectId, userId }: { projectId: strin
                     "use server"
                     await deleteTimeEntry(entry.id, userId, projectId)
                   }}>
-                    <button type="submit" aria-label="Supprimer cette entrée" className="text-muted-foreground hover:text-destructive pointer-fine:opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity">
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </button>
+                    <ArmedDeleteSubmit label="Supprimer cette entrée" />
                   </form>
                 </div>
               ))}

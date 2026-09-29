@@ -201,3 +201,14 @@
   h1, h2, h3 { break-after: avoid; }
   @page { margin: 14mm; }
 }
+
+/* iOS zoome à l'entrée dans un champ de moins de 16 px, et la page reste ensuite zoomée et
+   décalée (≈ 320 champs en text-sm/text-xs). Sur écran tactile uniquement, tous les champs
+   passent à 16 px. Hors @layer : l'emporte sur les utilitaires Tailwind (qui sont en layer). */
+@media (pointer: coarse) {
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]),
+  select,
+  textarea {
+    font-size: 16px;
+  }
+}

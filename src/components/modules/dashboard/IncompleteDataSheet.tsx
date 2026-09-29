@@ -1,4 +1,5 @@
 "use client"
+import { toast } from "sonner"
 
 import { useEffect, useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
@@ -235,11 +236,13 @@ function RevenueRow({
   function handleSave() {
     if (!hasChoice) return
     startTransition(async () => {
-      await updateRevenue(revenue.id, {
+      const res = await updateRevenue(revenue.id, {
         ...(companyId ? { companyId } : {}),
         ...(clientId ? { clientId } : {}),
         ...(projectId ? { projectId } : {}),
       })
+      // L'erreur était ignorée : le volet se fermait comme en cas de succès
+      if (res?.error) { toast.error(res.error); return }
       onDone()
       router.refresh()
     })

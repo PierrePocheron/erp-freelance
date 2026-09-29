@@ -75,6 +75,11 @@ export function CreateClientDialog({
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
     const fd = new FormData(e.currentTarget)
+    // Même règle que le serveur (message lisible sans aller-retour)
+    if (!["label", "firstName", "lastName"].some((k) => (fd.get(k) as string)?.trim()) && !company.name.trim() && !company.id) {
+      toast.error("Renseigne au moins un nom, un libellé ou une société")
+      return
+    }
     startTransition(async () => {
       try {
         const client = await createClient(userId, {

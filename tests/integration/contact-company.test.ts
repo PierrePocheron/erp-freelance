@@ -108,3 +108,31 @@ describe("séparation société / contact", () => {
     expect(results[0].name).toBe("Wayne Holding")
   })
 })
+
+describe("caches d'affichage après renommage / suppression d'une société (#45)", () => {
+  it("renommer met à jour le nom des contacts qui n'en ont pas d'autre et les candidatures", async () => {
+    const user = await makeUser()
+    setTestUser(user.id)
+    const company = await prisma.company.create({ data: { userId: user.id, name: "ACME" } })
+    const anonymous = await prisma.client.create({ data: { userId: user.id, name: "ACME", company: "ACME", companyId: company.id } })
+    const named = await prisma.client.create({ data: { userId: user.id, name: "Alice Martin", firstName: "Alice", lastName: "Martin", company: "ACME", companyId: company.id } })
+    const app = await prisma.jobApplication.create({ data: { userId: user.id, companyName: "ACME", companyId: company.id, position: "Dev" } })
+
+    await updateCompany(company.id, { name: "ACME SAS" })
+
+    expect((await prisma.client.findUniqueOrThrow({ where: { id: anonymous.id } })).name).toBe("ACME SAS")
+    expect(await prisma.client.findUniqueOrThrow({ where: { id: named.id } })).toMatchObject({ name: "Alice Martin", company: "ACME SAS" })
+    expect((await prisma.jobApplication.findUniqueOrThrow({ where: { id: app.id } })).companyName).toBe("ACME SAS")
+  })
+
+  it("supprimer garde le nom des contacts sans nom propre, en libellé explicite", async () => {
+    const user = await makeUser()
+    setTestUser(user.id)
+    const company = await prisma.company.create({ data: { userId: user.id, name: "Globex" } })
+    const anonymous = await prisma.client.create({ data: { userId: user.id, name: "Globex", company: "Globex", companyId: company.id } })
+
+    await deleteCompany(company.id)
+
+    expect(await prisma.client.findUniqueOrThrow({ where: { id: anonymous.id } })).toMatchObject({ name: "Globex", label: "Globex", company: null, companyId: null })
+  })
+})

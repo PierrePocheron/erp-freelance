@@ -139,13 +139,15 @@ export function Sidebar() {
           {...tipHandlers("Accueil")}
           className={cn(
             "flex h-10 items-center gap-3 rounded-xl transition-colors hover:bg-accent",
-            // px-0.5 déplié = même retrait (2px) que le centrage du logo 36px dans
-            // le bouton 40px replié → l'icône ne bouge pas d'un pixel au toggle.
-            expanded ? "w-full px-0.5" : "w-10 justify-center"
+            // Déplié : même retrait que les liens de navigation (px-2.5), pour que le
+            // bord gauche du logo tombe sur la colonne des icônes. Avec l'ancien
+            // px-0.5, la pastille de 36 px débordait de 8 px à gauche de cette
+            // colonne — ce qui se voyait comme un logo « hors marge ».
+            expanded ? "w-full px-2.5" : "w-10 justify-center"
           )}
         >
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary">
-            <Server className="h-5 w-5 text-primary-foreground" />
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary">
+            <Server className="h-[18px] w-[18px] text-primary-foreground" />
           </div>
           {expanded && (
             <span className="font-semibold text-sm truncate">ERP Freelance</span>

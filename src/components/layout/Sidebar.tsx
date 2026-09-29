@@ -155,7 +155,7 @@ export function Sidebar() {
         </Link>
       </div>
       {/* Trait qui isole le logo de la navigation */}
-      <div aria-hidden className="mx-3 mb-1 h-px bg-border/60" />
+      <div aria-hidden className="mx-2 mb-1 h-px bg-border/60" />
 
       {/* Nav — groupée par section ; repliée = grille 2 colonnes, dépliée = liste labellisée.
           Page active = surbrillance douce (fond léger) ; nom des icônes réduites via `title`. */}

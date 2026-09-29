@@ -356,23 +356,23 @@ export function HealthView({
         {/* Stats */}
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           <StatCard
-            icon={<Stethoscope className="h-4 w-4 text-blue-500" />}
+            icon={<Stethoscope className="h-4 w-4" />}
             label={`Consultations ${currentYear}`}
             value={stats.consultationsThisYear}
           />
           <StatCard
-            icon={<Wallet className="h-4 w-4 text-amber-500" />}
+            icon={<Wallet className="h-4 w-4" />}
             label={`Dépensé ${currentYear}`}
             value={<span className="amount-sensitive">{stats.spentThisYear.toFixed(2)} €</span>}
           />
           <StatCard
-            icon={<Heart className="h-4 w-4 text-emerald-500" />}
+            icon={<Heart className="h-4 w-4" />}
             label={`Remboursé ${currentYear}`}
             value={<span className="amount-sensitive">{stats.reimbursedThisYear.toFixed(2)} €</span>}
             positive
           />
           <StatCard
-            icon={<Syringe className="h-4 w-4 text-red-500" />}
+            icon={<Syringe className="h-4 w-4" />}
             label="Problèmes en cours"
             value={stats.activeIssues}
             highlight={stats.activeIssues > 0}
@@ -413,13 +413,13 @@ export function HealthView({
         )}
 
         {/* Tabs */}
-        <div className="flex items-center gap-1 border-b border-border/50">
+        <div className="flex items-center gap-1 border-b border-border overflow-x-auto [&>button]:shrink-0 whitespace-nowrap">
           {(["timeline", "blessures", "consultations", "remboursements"] as const).map((t) => (
             <button
               key={t}
               onClick={() => setTab(t)}
               className={cn(
-                "pb-2 px-3 text-sm font-medium border-b-2 transition-colors",
+                "px-4 py-2.5 -mb-px text-sm font-medium border-b-2 transition-colors",
                 tab === t
                   ? "border-primary text-foreground"
                   : "border-transparent text-muted-foreground hover:text-foreground"
@@ -528,10 +528,7 @@ function StatCard({
   icon: React.ReactNode; label: string; value: React.ReactNode; positive?: boolean; highlight?: boolean
 }) {
   return (
-    <div className={cn(
-      "rounded-xl border p-4 space-y-1",
-      highlight ? "border-red-500/20 bg-red-500/5" : "border-border/50 bg-card"
-    )}>
+    <div className="rounded-xl border border-border/50 bg-card p-4 space-y-1">
       <div className="flex items-center gap-2 text-xs text-muted-foreground">{icon}{label}</div>
       <p className={cn("text-xl font-bold", positive ? "text-emerald-600" : highlight ? "text-red-600" : "")}>
         {value}

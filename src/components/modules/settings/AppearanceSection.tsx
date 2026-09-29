@@ -38,9 +38,9 @@ export function AppearanceSection() {
   }
 
   return (
-    <div className="rounded-xl border border-border bg-card p-5">
-      <h2 className="text-base font-semibold">Apparence</h2>
-      <p className="mt-0.5 text-sm text-muted-foreground">
+    <div className="rounded-xl border border-border/50 bg-card p-5">
+      <h2 className="font-semibold text-sm">Apparence</h2>
+      <p className="mt-0.5 text-xs text-muted-foreground">
         Choisis le thème de l&apos;application. « Système » suit le réglage de l&apos;appareil ; le choix est mémorisé
         sur cet appareil.
       </p>

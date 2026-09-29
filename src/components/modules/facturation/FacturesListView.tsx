@@ -546,7 +546,7 @@ export function FacturesListView({
               // projet restent des liens propres (pas de <a> imbriqués).
               <div
                 key={inv.id}
-                className={`relative rounded-xl border bg-card p-4 hover:shadow-sm transition-all space-y-3 ${isLate ? "border-red-500/40 bg-red-500/5" : "border-border/50 hover:border-border"}`}
+                className={`relative rounded-xl border bg-card p-4 hover:shadow-sm transition-all space-y-3 border-border/50 hover:border-border`}
               >
                 <Link
                   href={`/facturation/factures/${inv.id}`}

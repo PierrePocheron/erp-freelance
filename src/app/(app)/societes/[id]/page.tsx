@@ -1,3 +1,4 @@
+import { invoiceStatusMeta } from "@/lib/invoice-state"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { notFound, redirect } from "next/navigation"
@@ -389,8 +390,8 @@ export default async function CompanyDetailPage({
                         ) : "—"}
                       </td>
                       <td className="px-5 py-3">
-                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${invoiceStatusColor[inv.status] ?? "text-muted-foreground bg-muted"}`}>
-                          {invoiceStatusLabel[inv.status] ?? inv.status}
+                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${invoiceStatusMeta(inv.status).cls}`}>
+                          {invoiceStatusMeta(inv.status).label}
                         </span>
                       </td>
                       <td className="px-5 py-3 text-right font-medium tabular-nums amount-sensitive">
@@ -806,28 +807,14 @@ const FISCAL_BUCKET_LABELS: Record<string, string> = {
 }
 
 const projectStatusLabel: Record<string, string> = {
-  ACTIVE: "En cours", COMPLETED: "Terminé", ON_HOLD: "En pause",
-  CANCELLED: "Annulé", DRAFT: "Brouillon", PAUSED: "En pause", ARCHIVED: "Archivé",
+  ACTIVE: "Actif", COMPLETED: "Terminé", PAUSED: "En pause", CANCELLED: "Annulé", ARCHIVED: "Archivé",
 }
 const projectStatusColor: Record<string, string> = {
   ACTIVE: "text-emerald-600 bg-emerald-500/10",
   COMPLETED: "text-blue-600 bg-blue-500/10",
   PAUSED: "text-amber-600 bg-amber-500/10",
-  ON_HOLD: "text-amber-600 bg-amber-500/10",
   CANCELLED: "text-red-600 bg-red-500/10",
   ARCHIVED: "text-muted-foreground bg-muted",
-  DRAFT: "text-muted-foreground bg-muted",
-}
-
-const invoiceStatusLabel: Record<string, string> = {
-  DRAFT: "Brouillon", ISSUED: "Émise", SENT: "Envoyée", PAID: "Payée", LATE: "En retard",
-}
-const invoiceStatusColor: Record<string, string> = {
-  DRAFT: "text-muted-foreground bg-muted",
-  ISSUED: "text-violet-600 bg-violet-500/10",
-  SENT:  "text-blue-600 bg-blue-500/10",
-  PAID:  "text-emerald-600 bg-emerald-500/10",
-  LATE:  "text-red-600 bg-red-500/10",
 }
 
 const quoteStatusLabel: Record<string, string> = {

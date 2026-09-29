@@ -49,3 +49,19 @@ describe("canRevertQuoteToDraft", () => {
     }
   })
 })
+
+import { INVOICE_STATUS_META, invoiceStatusMeta } from "@/lib/invoice-state"
+
+describe("libellés de statut de facture", () => {
+  it("chaque statut a un libellé français — aucun ne s'affiche en brut", () => {
+    for (const status of ["DRAFT", "ISSUED", "SENT", "PAID", "LATE", "CANCELLED"] as const) {
+      expect(INVOICE_STATUS_META[status].label).not.toBe(status)
+    }
+    expect(invoiceStatusMeta("ISSUED").label).toBe("Émise")
+    expect(invoiceStatusMeta("CANCELLED").label).toBe("Annulée")
+  })
+
+  it("un statut inconnu ne fait pas planter l'affichage", () => {
+    expect(invoiceStatusMeta("INCONNU")).toMatchObject({ label: "INCONNU" })
+  })
+})

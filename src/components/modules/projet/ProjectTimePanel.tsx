@@ -12,8 +12,11 @@ function fmtSeconds(s: number): string {
 }
 
 function fmtHours(h: number): string {
-  const int = Math.floor(h)
-  const min = Math.round((h - int) * 60)
+  // Arrondi sur le total de minutes : arrondir les minutes après coup donnait
+  // « 1h60 » pour 1,999 h.
+  const total = Math.round(h * 60)
+  const int = Math.floor(total / 60)
+  const min = total % 60
   if (int > 0 && min > 0) return `${int}h${String(min).padStart(2, "0")}`
   if (int > 0) return `${int}h`
   return `${min}m`
@@ -75,7 +78,7 @@ export async function ProjectTimePanel({ projectId, userId }: { projectId: strin
           <p className="text-xl font-bold">{estimatedHours ? fmtHours(estimatedHours) : "—"}</p>
           <p className="text-xs text-muted-foreground">budget initial</p>
         </div>
-        <div className={`rounded-xl border p-3.5 space-y-1 ${isOver ? "border-red-500/30 bg-red-500/5" : budgetPercent && budgetPercent > 80 ? "border-amber-500/30 bg-amber-500/5" : "border-border/50 bg-card"}`}>
+        <div className="rounded-xl border border-border/50 bg-card p-3.5 space-y-1">
           <div className="flex items-center gap-2 text-muted-foreground text-xs">
             {isOver ? <AlertTriangle className="h-3.5 w-3.5 text-red-500" /> : <TrendingUp className="h-3.5 w-3.5" />} Utilisation
           </div>

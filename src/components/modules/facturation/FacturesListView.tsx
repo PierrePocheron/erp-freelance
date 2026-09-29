@@ -1,5 +1,6 @@
 "use client"
 
+import { INVOICE_STATUS_META } from "@/lib/invoice-state"
 import { useState, useMemo, useCallback } from "react"
 import Link from "next/link"
 import { useSearchParams } from "next/navigation"
@@ -96,14 +97,7 @@ type Client = { id: string; name: string; company: string | null; type: string; 
 type Project = { id: string; name: string; clientId: string | null; companyId: string | null }
 type Quote = { id: string; number: string; clientId: string; projectId: string | null; totalHT: number; depositPercent: number; status: string; client: { name: string; company: string | null } }
 
-const statusConfig: Record<string, { label: string; cls: string }> = {
-  DRAFT: { label: "Brouillon", cls: "bg-muted text-muted-foreground border-border" },
-  ISSUED: { label: "Émise", cls: "bg-violet-500/15 text-violet-600 border-violet-500/20" },
-  SENT: { label: "Envoyée", cls: "bg-blue-500/15 text-blue-600 border-blue-500/20" },
-  PAID: { label: "Payée", cls: "bg-emerald-500/15 text-emerald-600 border-emerald-500/20" },
-  LATE: { label: "En retard", cls: "bg-red-500/15 text-red-600 border-red-500/20" },
-  CANCELLED: { label: "Annulée", cls: "bg-muted text-muted-foreground border-border line-through" },
-}
+const statusConfig = INVOICE_STATUS_META as Record<string, { label: string; cls: string }>
 
 const typeLabels: Record<string, string> = {
   DEPOSIT: "Acompte",

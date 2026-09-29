@@ -1,3 +1,4 @@
+import { invoiceStatusMeta } from "@/lib/invoice-state"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import Link from "next/link"
@@ -390,12 +391,6 @@ function QuoteStatusBadge({ status }: { status: string }) {
 }
 
 function InvoiceStatusBadge({ status }: { status: string }) {
-  const map: Record<string, { label: string; cls: string }> = {
-    DRAFT: { label: "Brouillon", cls: "bg-muted text-muted-foreground" },
-    SENT: { label: "Envoyée", cls: "bg-blue-500/15 text-blue-600" },
-    PAID: { label: "Payée", cls: "bg-emerald-500/15 text-emerald-600" },
-    LATE: { label: "En retard", cls: "bg-red-500/15 text-red-600" },
-  }
-  const { label, cls } = map[status] ?? { label: status, cls: "" }
+  const { label, cls } = invoiceStatusMeta(status)
   return <span className={`rounded-full px-2 py-0.5 text-xs font-medium whitespace-nowrap ${cls}`}>{label}</span>
 }

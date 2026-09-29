@@ -100,7 +100,6 @@ export default async function DashboardPage() {
         client:  { select: { id: true, name: true, company: true } },
       },
       orderBy: { dueDate: "asc" },
-      take: 5,
     }),
     prisma.task.findMany({
       where: {
@@ -298,7 +297,6 @@ export default async function DashboardPage() {
         client:  { select: { id: true, name: true, company: true } },
       },
       orderBy: [{ dueDate: "asc" }, { updatedAt: "desc" }],
-      take: 15,
     }),
     // Événements calendrier (manuels + synchronisés) prévus demain
     prisma.calendarEvent.findMany({
@@ -363,7 +361,7 @@ export default async function DashboardPage() {
     clientName: inv.client.company ?? inv.client.name,
     amount: inv.totalHT - inv.depositDeducted,
     dueDate: inv.dueDate ? inv.dueDate.toISOString() : null,
-    isLate: !!inv.dueDate && new Date(inv.dueDate) < new Date(),
+    isLate: !!inv.dueDate && new Date(inv.dueDate) < todayStart,
   }))
   const pendingRevenueItems = pendingRevenues.map((r) => ({
     id: r.id,
@@ -391,7 +389,9 @@ export default async function DashboardPage() {
     const j = Math.floor(h / 24)
     return j === 1 ? "depuis hier" : `depuis ${j} j`
   }
-  const inProgressItems = tasksInProgress.map((t) => ({
+  // Une tâche en cours datée jusqu'à dimanche est déjà dans « À confirmer », « Aujourd'hui & demain »
+  // ou « Tâches » : la carte « En cours » ne garde que les autres (le KPI, lui, les compte toutes).
+  const inProgressItems = tasksInProgress.filter((t) => !t.dueDate || t.dueDate > weekEnd).map((t) => ({
     id: t.id,
     title: t.title,
     href: t.project ? `/projets/${t.project.id}/dev` : "/taches",
@@ -552,10 +552,10 @@ export default async function DashboardPage() {
       {/* KPI row */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
         {has("projets")     && <KPICard href="/projets"              icon={<Code2 className="h-4 w-4" />}     label="Projets actifs"  value={activeProjects}                                        color="indigo" />}
-        {has("facturation") && <KPICard href="/facturation/factures" icon={<TrendingUp className="h-4 w-4" />} label="Factures en attente" value={<span className="amount-sensitive">{totalPending.toLocaleString("fr-FR")} €</span>} color="blue"  />}
+        {has("facturation") && <KPICard href="/facturation/factures" icon={<TrendingUp className="h-4 w-4" />} label="Factures en attente" value={<span className="amount-sensitive">{totalPending.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €</span>} color="blue"  />}
         {has("facturation") && <KPICard href="/facturation/factures" icon={<AlertCircle className="h-4 w-4" />} label="En retard"       value={lateInvoices}                                          color={lateInvoices > 0 ? "red" : "muted"} />}
         {has("facturation") && <KPICard href="/facturation/devis"    icon={<Clock className="h-4 w-4" />}      label="Devis envoyés"   value={pendingQuotes}                                         color="amber" />}
-        {has("contacts")    && <KPICard href="/contacts"             icon={<Bell className="h-4 w-4" />}       label="Rappels"         value={upcomingReminders.length}                              color={upcomingReminders.some(r => new Date(r.dueDate) < new Date()) ? "red" : "muted"} />}
+        {has("contacts")    && <KPICard href="/contacts"             icon={<Bell className="h-4 w-4" />}       label="Rappels"         value={upcomingReminders.length}                              color={upcomingReminders.some(r => new Date(r.dueDate) < todayStart) ? "red" : "muted"} />}
         {(has("taches") || has("projets")) && <KPICard href="/taches" icon={<CheckSquare className="h-4 w-4" />} label="En cours"    value={tasksInProgress.length}                                color="emerald" />}
       </div>
 
@@ -570,20 +570,20 @@ export default async function DashboardPage() {
               <Link href="/facturation/factures" className="group flex items-center gap-1.5 text-xs">
                 <Receipt className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                 <span className="text-muted-foreground group-hover:text-foreground transition-colors">AE</span>
-                <span className="font-semibold tabular-nums amount-sensitive">{encaisseAE.toLocaleString("fr-FR")} €</span>
+                <span className="font-semibold tabular-nums amount-sensitive">{encaisseAE.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €</span>
               </Link>
             )}
             {has("revenus") && (
               <Link href="/revenus" className="group flex items-center gap-1.5 text-xs">
                 <Wallet className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                 <span className="text-muted-foreground group-hover:text-foreground transition-colors">Autres</span>
-                <span className="font-semibold tabular-nums amount-sensitive">{encaisseAutres.toLocaleString("fr-FR")} €</span>
+                <span className="font-semibold tabular-nums amount-sensitive">{encaisseAutres.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €</span>
               </Link>
             )}
             <span className="ml-auto flex items-center gap-1.5 text-xs shrink-0">
               <TrendingUp className="h-3.5 w-3.5 text-muted-foreground" />
               <span className="text-muted-foreground">Total</span>
-              <span className="font-bold tabular-nums amount-sensitive">{encaisseTotal.toLocaleString("fr-FR")} €</span>
+              <span className="font-bold tabular-nums amount-sensitive">{encaisseTotal.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €</span>
             </span>
           </div>
         )}

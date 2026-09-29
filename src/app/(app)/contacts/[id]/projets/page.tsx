@@ -86,7 +86,7 @@ export default async function ClientProjetsPage({
                     <span className={`shrink-0 rounded-full border px-2 py-0.5 text-xs font-medium whitespace-nowrap ${status.className}`}>
                       {status.label}
                     </span>
-                    <ExternalLink className="h-3.5 w-3.5 text-muted-foreground md:opacity-0 md:group-hover:opacity-100 focus:opacity-100 transition-opacity" />
+                    <ExternalLink className="h-3.5 w-3.5 text-muted-foreground pointer-fine:opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity" />
                   </div>
                 </Link>
               )

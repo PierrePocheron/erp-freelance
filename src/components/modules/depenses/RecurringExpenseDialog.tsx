@@ -91,7 +91,7 @@ export function RecurringExpenseDialog({
   }
 
   function handleDelete() {
-    if (!confirmFirst()) return
+    if (!confirmFirst(recurringExpense?.id)) return
     if (!recurringExpense) return
     startDelete(async () => {
       try {
@@ -108,7 +108,7 @@ export function RecurringExpenseDialog({
     <Dialog open={open} onOpenChange={setOpen}>
       {isEdit ? (
         <DialogTrigger
-          render={<button className="text-muted-foreground hover:text-foreground transition-colors md:opacity-0 md:group-hover:opacity-100 focus:opacity-100" title="Modifier" />}
+          render={<button className="text-muted-foreground hover:text-foreground transition-colors pointer-fine:opacity-0 group-hover:opacity-100 focus:opacity-100" title="Modifier" />}
         >
           <Pencil className="h-3.5 w-3.5" />
         </DialogTrigger>
@@ -198,7 +198,7 @@ export function RecurringExpenseDialog({
                 className="flex items-center gap-1.5 text-xs text-red-600 hover:text-red-700 disabled:opacity-50 transition-colors"
               >
                 <Trash2 className="h-3.5 w-3.5" />
-                {isArmed() ? "Confirmer la suppression" : "Supprimer"}
+                {isArmed(recurringExpense?.id) ? "Confirmer la suppression" : "Supprimer"}
               </button>
             ) : <span />}
             <div className="flex gap-2">

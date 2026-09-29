@@ -104,7 +104,7 @@ export function QuestionsView({
                   </div>
                 </div>
                 <button onClick={() => openEdit(x)} title="Modifier"
-                  className="shrink-0 rounded-lg p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground md:opacity-0 md:group-hover:opacity-100">
+                  className="shrink-0 rounded-lg p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground pointer-fine:opacity-0 group-hover:opacity-100">
                   <Pencil className="h-3.5 w-3.5" />
                 </button>
               </div>

@@ -253,14 +253,14 @@ export function InterviewFaqView({ answers, applications }: { answers: Interview
                       title={a.pinned ? "Désépingler" : "Épingler"}
                       className={cn(
                         "p-1.5 rounded transition-colors",
-                        a.pinned ? "text-amber-500 hover:text-amber-600" : "text-muted-foreground/30 md:opacity-0 md:group-hover:opacity-100 focus:opacity-100 hover:text-amber-400"
+                        a.pinned ? "text-amber-500 hover:text-amber-600" : "text-muted-foreground/30 pointer-fine:opacity-0 group-hover:opacity-100 focus:opacity-100 hover:text-amber-400"
                       )}
                     >
                       {a.pinned ? <Pin className="h-3.5 w-3.5 fill-current" /> : <PinOff className="h-3.5 w-3.5" />}
                     </button>
                     <button
                       onClick={() => startEdit(a)}
-                      className="p-1.5 rounded text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors md:opacity-0 md:group-hover:opacity-100 focus:opacity-100"
+                      className="p-1.5 rounded text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors pointer-fine:opacity-0 group-hover:opacity-100 focus:opacity-100"
                       title="Modifier"
                     >
                       <Pencil className="h-3.5 w-3.5" />
@@ -273,7 +273,7 @@ export function InterviewFaqView({ answers, applications }: { answers: Interview
                     ) : (
                       <button
                         onClick={() => setConfirmDeleteId(a.id)}
-                        className="p-1.5 rounded text-muted-foreground/40 hover:text-destructive hover:bg-destructive/10 transition-colors md:opacity-0 md:group-hover:opacity-100 focus:opacity-100"
+                        className="p-1.5 rounded text-muted-foreground/40 hover:text-destructive hover:bg-destructive/10 transition-colors pointer-fine:opacity-0 group-hover:opacity-100 focus:opacity-100"
                         title="Supprimer"
                       >
                         <Trash2 className="h-3.5 w-3.5" />

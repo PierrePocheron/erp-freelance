@@ -802,7 +802,7 @@ export function ProspectionModeView({
                           {item.note.title}
                         </p>
                         <span className="flex items-center gap-1.5">
-                          <span className={cn("flex items-center gap-1 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity", !isArmed(item.note.id) && "md:opacity-0")}>
+                          <span className={cn("flex items-center gap-1 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity", !isArmed(item.note.id) && "pointer-fine:opacity-0")}>
                             <button onClick={() => openEditNote(item.note)} className="text-muted-foreground hover:text-foreground transition-colors" title="Modifier la note">
                               <Pencil className="h-3.5 w-3.5" />
                             </button>

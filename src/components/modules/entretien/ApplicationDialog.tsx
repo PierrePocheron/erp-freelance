@@ -113,7 +113,7 @@ export function ApplicationDialog({
   }
 
   return (
-    <Dialog open onOpenChange={(o) => { if (!o) onClose() }}>
+    <Dialog open onOpenChange={(o) => { if (!o) onClose() }} disablePointerDismissal>
       <DialogContent showCloseButton={false} className="sm:max-w-lg max-h-[90vh] overflow-y-auto p-0 gap-0">
         <div className="flex items-center justify-between px-5 py-4 border-b border-border/50 sticky top-0 bg-background z-10">
           <DialogTitle className="text-sm font-semibold">{item ? "Modifier" : "Nouvelle"} candidature</DialogTitle>

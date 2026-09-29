@@ -227,7 +227,7 @@ export function ProductCard({ product, userId }: { product: Product; userId: str
             <p className="font-bold amount-sensitive">{product.unitPrice.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €</p>
             <p className="text-xs text-muted-foreground">/ {unitLabels[product.unit] ?? product.unit}</p>
           </div>
-          <div className="flex items-center gap-1 md:opacity-0 md:group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
+          <div className={`flex items-center gap-1 group-hover:opacity-100 focus-within:opacity-100 transition-opacity ${isArmed() ? "" : "pointer-fine:opacity-0"}`}>
             <button
               onClick={() => setEditing(true)}
               className="p-1.5 text-muted-foreground hover:text-foreground rounded-md hover:bg-muted/50 transition-colors"

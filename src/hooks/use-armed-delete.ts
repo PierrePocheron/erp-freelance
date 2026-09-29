@@ -13,15 +13,19 @@ import { useEffect, useRef, useState } from "react"
 export function useArmedDelete(ms = 4000) {
   const [armedKey, setArmedKey] = useState<string | null>(null)
   const timer = useRef<number | undefined>(undefined)
+  const armedAt = useRef(0)
 
   useEffect(() => () => window.clearTimeout(timer.current), [])
 
   function confirmFirst(key = "_"): boolean {
+    // Un double-clic (2ᵉ clic < 400 ms) ne doit pas valoir confirmation.
+    if (armedKey === key && Date.now() - armedAt.current < 400) return false
     window.clearTimeout(timer.current)
     if (armedKey === key) {
       setArmedKey(null)
       return true
     }
+    armedAt.current = Date.now()
     setArmedKey(key)
     timer.current = window.setTimeout(() => setArmedKey(null), ms)
     return false

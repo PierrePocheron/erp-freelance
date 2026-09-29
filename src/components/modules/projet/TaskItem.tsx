@@ -184,7 +184,7 @@ export function TaskItem({
       <div className="flex items-center gap-2 px-2 py-2 group">
 
         {/* Réordonner */}
-        <div className="flex flex-col gap-0.5 md:opacity-0 md:group-hover:opacity-100 focus-within:opacity-100 transition-opacity shrink-0">
+        <div className="flex flex-col gap-0.5 pointer-fine:opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity shrink-0">
           <button aria-label="Monter la tâche" disabled={isFirst || isPending} onClick={() => startTransition(() => reorderTask(task.id, projectId, "up"))} className="text-muted-foreground hover:text-foreground disabled:opacity-20">
             <ChevronUp className="h-3 w-3" />
           </button>
@@ -260,7 +260,7 @@ export function TaskItem({
             <button
               type="button"
               onClick={() => setShowTagPicker((v) => !v)}
-              className="md:opacity-0 md:group-hover:opacity-100 focus:opacity-100 transition-opacity text-muted-foreground hover:text-foreground"
+              className="pointer-fine:opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity text-muted-foreground hover:text-foreground"
               title="Assigner un tag"
             >
               <Tag className="h-3.5 w-3.5" />
@@ -328,7 +328,7 @@ export function TaskItem({
             editingDate ? (
               <input ref={dateRef} type="date" defaultValue={task.dueDate ? zonedDateKey(new Date(task.dueDate)) : ""} autoFocus onBlur={saveDate} onKeyDown={(e) => { if (e.key === "Enter") saveDate(); if (e.key === "Escape") setEditingDate(false) }} className="h-5 text-xs bg-transparent border-b border-primary outline-none w-28" />
             ) : (
-              <button onClick={() => setEditingDate(true)} className={cn("md:opacity-0 md:group-hover:opacity-100 focus:opacity-100 transition-opacity", task.dueDate ? (new Date(task.dueDate) < new Date() ? "text-red-500 font-medium !opacity-100" : "text-muted-foreground") : "text-muted-foreground")} title="Échéance">
+              <button onClick={() => setEditingDate(true)} className={cn("pointer-fine:opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity", task.dueDate ? (new Date(task.dueDate) < new Date() ? "text-red-500 font-medium !opacity-100" : "text-muted-foreground") : "text-muted-foreground")} title="Échéance">
                 {task.dueDate ? `⏱ ${fmt(task.dueDate)}` : "⏱"}
               </button>
             )
@@ -337,13 +337,13 @@ export function TaskItem({
             editingHours ? (
               <input ref={hoursRef} type="number" min="0" step="0.5" defaultValue={task.estimatedHours ?? ""} autoFocus onBlur={saveHours} onKeyDown={(e) => { if (e.key === "Enter") saveHours(); if (e.key === "Escape") setEditingHours(false) }} className="h-5 text-xs bg-transparent border-b border-primary outline-none w-14" placeholder="0h" />
             ) : (
-              <button onClick={() => setEditingHours(true)} className={cn("transition-opacity", task.estimatedHours ? "text-muted-foreground opacity-100" : "md:opacity-0 md:group-hover:opacity-100 focus:opacity-100 text-muted-foreground")} title="Heures estimées">
+              <button onClick={() => setEditingHours(true)} className={cn("transition-opacity", task.estimatedHours ? "text-muted-foreground opacity-100" : "pointer-fine:opacity-0 group-hover:opacity-100 focus:opacity-100 text-muted-foreground")} title="Heures estimées">
                 {task.estimatedHours ? `${task.estimatedHours}h` : "~h"}
               </button>
             )
           )}
           {task.status !== "DONE" && (
-            <button onClick={() => setShowDescription((v) => !v)} className={cn("transition-opacity", task.description ? "text-muted-foreground opacity-100" : "md:opacity-0 md:group-hover:opacity-100 focus:opacity-100 text-muted-foreground hover:text-foreground")} title="Description">
+            <button onClick={() => setShowDescription((v) => !v)} className={cn("transition-opacity", task.description ? "text-muted-foreground opacity-100" : "pointer-fine:opacity-0 group-hover:opacity-100 focus:opacity-100 text-muted-foreground hover:text-foreground")} title="Description">
               <AlignLeft className={cn("h-3.5 w-3.5", showDescription && "text-primary")} />
             </button>
           )}
@@ -370,7 +370,7 @@ export function TaskItem({
           aria-label={isArmed() ? "Confirmer la suppression de la tâche" : "Supprimer la tâche"}
           title={isArmed() ? "Confirmer la suppression" : "Supprimer"}
           onClick={() => { if (confirmFirst()) startTransition(() => deleteTask(task.id, projectId)) }}
-          className={cn("focus:opacity-100 transition-opacity shrink-0", isArmed() ? "text-destructive" : "md:opacity-0 md:group-hover:opacity-100 text-muted-foreground hover:text-destructive")}
+          className={cn("focus:opacity-100 transition-opacity shrink-0", isArmed() ? "text-destructive" : "pointer-fine:opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive")}
         >
           {isArmed() ? <Check className="h-3.5 w-3.5" /> : <Trash2 className="h-3.5 w-3.5" />}
         </button>

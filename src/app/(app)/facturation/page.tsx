@@ -176,14 +176,14 @@ export default async function FacturationOverviewPage({
         <KPI
           icon={<Clock className="h-4 w-4 text-muted-foreground" />}
           label="En attente"
-          value={`${totalPending.toLocaleString("fr-FR")} €`}
+          value={`${totalPending.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`}
           sub={`${allPending.filter((i) => i.status === "SENT").length} facture(s) envoyée(s)`}
           sensitive
         />
         <KPI
           icon={<AlertCircle className="h-4 w-4 text-muted-foreground" />}
           label="En retard"
-          value={`${totalLate.toLocaleString("fr-FR")} €`}
+          value={`${totalLate.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`}
           sub={`${allPending.filter((i) => i.status === "LATE").length} facture(s)`}
           alert={totalLate > 0}
           sensitive

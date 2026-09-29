@@ -1,4 +1,5 @@
 // Utilitaires de numérotation — partagés entre server actions et composants client
+import { zonedParts } from "@/lib/dates"
 
 export type NumberFormat =
   | "PREFIX-YYYY-NNN"   // FAC-2026-001  (annuel, 3 chiffres)
@@ -13,9 +14,12 @@ export function buildNumberParts(
   prefix: string,
   now: Date
 ): { scopePrefix: string; digits: number } {
-  const yyyy = String(now.getFullYear())
+  // Année/mois en heure de Paris : en prod (UTC), une facture émise le 1er janvier à 00 h 30
+  // prenait le préfixe — et la séquence légale — de l'année précédente.
+  const { year, month } = zonedParts(now)
+  const yyyy = String(year)
   const yy = yyyy.slice(-2)
-  const mm = String(now.getMonth() + 1).padStart(2, "0")
+  const mm = String(month).padStart(2, "0")
 
   switch (format) {
     case "PREFIX-YYYY-NNN":  return { scopePrefix: `${prefix}-${yyyy}-`, digits: 3 }

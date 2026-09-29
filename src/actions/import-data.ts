@@ -61,6 +61,21 @@ export async function importData(jsonString: string): Promise<ImportResult> {
     return ownedCache[key]
   }
 
+  // Références d'un document importé, filtrées sur le compte : un devis forgé pointant le profil
+  // émetteur d'autrui affichait sa raison sociale et son IBAN dans le PDF.
+  async function documentRefs() {
+    const [clients, projects, emitters] = await Promise.all([
+      ownedIds("client", () => prisma.client.findMany({ where: { userId }, select: { id: true } })),
+      ownedIds("project", () => prisma.project.findMany({ where: { userId }, select: { id: true } })),
+      ownedIds("emitterProfile", () => prisma.emitterProfile.findMany({ where: { userId }, select: { id: true } })),
+    ])
+    return {
+      clients,
+      project: (id?: string | null) => (id && projects.has(id) ? id : null),
+      emitter: (id?: string | null) => (id && emitters.has(id) ? id : null),
+    }
+  }
+
   try {
     // ── 1. UserProfile ────────────────────────────────────────────────────────
     if (data.userProfile) {
@@ -185,11 +200,12 @@ export async function importData(jsonString: string): Promise<ImportResult> {
     if (data.clients?.length) {
       // Une zone non importée (société d'un autre compte) ne doit pas casser la FK.
       const ownedTeams = await ownedIds("companyTeam", () => prisma.companyTeam.findMany({ where: { company: { userId } }, select: { id: true } }))
+      const ownedCompanies = await ownedIds("company", () => prisma.company.findMany({ where: { userId }, select: { id: true } }))
       await prisma.client.createMany({
         data: data.clients.map((c: any) => ({ // eslint-disable-line @typescript-eslint/no-explicit-any
           id: c.id, userId, type: c.type, name: c.name,
           firstName: c.firstName ?? null, lastName: c.lastName ?? null, label: c.label ?? null,
-          companyId: c.companyId ?? null, company: c.company ?? null,
+          companyId: c.companyId && ownedCompanies.has(c.companyId) ? c.companyId : null, company: c.company ?? null,
           jobTitle: c.jobTitle ?? null, orgLevel: c.orgLevel ?? null,
           teamId: c.teamId && ownedTeams.has(c.teamId) ? c.teamId : null,
           email: c.email ?? null, phone: c.phone ?? null,
@@ -279,9 +295,10 @@ export async function importData(jsonString: string): Promise<ImportResult> {
 
     // ── 9. Projets (sans M2M tags) ────────────────────────────────────────────
     if (data.projects?.length) {
+      const ownedClients = await ownedIds("client", () => prisma.client.findMany({ where: { userId }, select: { id: true } }))
       await prisma.project.createMany({
         data: data.projects.map((p: any) => ({ // eslint-disable-line @typescript-eslint/no-explicit-any
-          id: p.id, userId, clientId: p.clientId, name: p.name,
+          id: p.id, userId, clientId: p.clientId && ownedClients.has(p.clientId) ? p.clientId : null, name: p.name,
           description: p.description ?? null, status: p.status,
           startDate: toDate(p.startDate), endDate: toDate(p.endDate),
           estimatedHours: p.estimatedHours ?? null,
@@ -295,11 +312,16 @@ export async function importData(jsonString: string): Promise<ImportResult> {
 
     // ── 10. Tags → Projets (M2M) ──────────────────────────────────────────────
     const projectsWithTags = (data.projects ?? []).filter((p: any) => p.tagIds?.length > 0) // eslint-disable-line @typescript-eslint/no-explicit-any
+    const ownedTags = projectsWithTags.length
+      ? new Set((await prisma.tag.findMany({ where: { userId }, select: { id: true } })).map((t) => t.id))
+      : new Set<string>()
     for (const project of projectsWithTags) {
+      const tagIds = (project.tagIds as string[]).filter((id) => ownedTags.has(id))
+      if (!tagIds.length) continue
       await prisma.project.update({
-        where: { id: project.id },
-        data: { tags: { connect: project.tagIds.map((id: string) => ({ id })) } },
-      }).catch(() => { /* tag manquant, on ignore */ })
+        where: { id: project.id, userId },
+        data: { tags: { connect: tagIds.map((id) => ({ id })) } },
+      }).catch(() => { /* projet d'un autre compte ou tag manquant : ignoré */ })
     }
 
     // ── 11. Jalons ────────────────────────────────────────────────────────────
@@ -371,7 +393,13 @@ export async function importData(jsonString: string): Promise<ImportResult> {
 
     // ── 14. Tâches — passe 2 (restaurer parentTaskId) ─────────────────────────
     const tasksWithParent = (data.tasks ?? []).filter((t: any) => t.parentTaskId) // eslint-disable-line @typescript-eslint/no-explicit-any
+    const taskOwner = { OR: [{ userId }, { project: { userId } }] }
+    const ownedTasks = tasksWithParent.length
+      ? new Set((await prisma.task.findMany({ where: taskOwner, select: { id: true } })).map((t) => t.id))
+      : new Set<string>()
     for (const task of tasksWithParent) {
+      // Une sauvegarde forgée pouvait rattacher la tâche d'un autre compte sous l'une des siennes
+      if (!ownedTasks.has(task.id) || !ownedTasks.has(task.parentTaskId)) continue
       await prisma.task.update({
         where: { id: task.id },
         data: { parentTaskId: task.parentTaskId },
@@ -381,10 +409,19 @@ export async function importData(jsonString: string): Promise<ImportResult> {
 
     // ── 15. TaskTags → Tâches (M2M) ───────────────────────────────────────────
     const tasksWithTags = (data.tasks ?? []).filter((t: any) => t.taskTagIds?.length > 0) // eslint-disable-line @typescript-eslint/no-explicit-any
+    const [ownedTaskIds, ownedTaskTags] = tasksWithTags.length
+      ? await Promise.all([
+          prisma.task.findMany({ where: { OR: [{ userId }, { project: { userId } }] }, select: { id: true } }),
+          prisma.taskTag.findMany({ where: { project: { userId } }, select: { id: true } }),
+        ]).then(([t, g]) => [new Set(t.map((x) => x.id)), new Set(g.map((x) => x.id))])
+      : [new Set<string>(), new Set<string>()]
     for (const task of tasksWithTags) {
+      if (!ownedTaskIds.has(task.id)) continue
+      const tagIds = (task.taskTagIds as string[]).filter((id) => ownedTaskTags.has(id))
+      if (!tagIds.length) continue
       await prisma.task.update({
         where: { id: task.id },
-        data: { taskTags: { connect: task.taskTagIds.map((id: string) => ({ id })) } },
+        data: { taskTags: { connect: tagIds.map((id) => ({ id })) } },
       }).catch(() => { /* tag manquant, on ignore */ })
     }
 
@@ -499,10 +536,11 @@ export async function importData(jsonString: string): Promise<ImportResult> {
 
     // ── 22. Devis ─────────────────────────────────────────────────────────────
     if (data.quotes?.length) {
+      const refs = await documentRefs()
       await prisma.quote.createMany({
-        data: data.quotes.map((q: any) => ({ // eslint-disable-line @typescript-eslint/no-explicit-any
-          id: q.id, userId, clientId: q.clientId, projectId: q.projectId ?? null,
-          emitterProfileId: q.emitterProfileId ?? null,
+        data: data.quotes.filter((q: any) => refs.clients.has(q.clientId)).map((q: any) => ({ // eslint-disable-line @typescript-eslint/no-explicit-any
+          id: q.id, userId, clientId: q.clientId, projectId: refs.project(q.projectId),
+          emitterProfileId: refs.emitter(q.emitterProfileId),
           number: q.number, status: q.status,
           depositPercent: q.depositPercent ?? 0, totalHT: q.totalHT ?? 0,
           notes: q.notes ?? null, generalConditions: q.generalConditions ?? null,
@@ -537,11 +575,13 @@ export async function importData(jsonString: string): Promise<ImportResult> {
 
     // ── 24. Factures ──────────────────────────────────────────────────────────
     if (data.invoices?.length) {
+      const refs = await documentRefs()
+      const ownedQuotes = new Set((await prisma.quote.findMany({ where: { userId }, select: { id: true } })).map((q) => q.id))
       await prisma.invoice.createMany({
-        data: data.invoices.map((i: any) => ({ // eslint-disable-line @typescript-eslint/no-explicit-any
+        data: data.invoices.filter((i: any) => refs.clients.has(i.clientId)).map((i: any) => ({ // eslint-disable-line @typescript-eslint/no-explicit-any
           id: i.id, userId, clientId: i.clientId,
-          projectId: i.projectId ?? null, quoteId: i.quoteId ?? null,
-          emitterProfileId: i.emitterProfileId ?? null,
+          projectId: refs.project(i.projectId), quoteId: i.quoteId && ownedQuotes.has(i.quoteId) ? i.quoteId : null,
+          emitterProfileId: refs.emitter(i.emitterProfileId),
           number: i.number, type: i.type, status: i.status,
           totalHT: i.totalHT ?? 0, depositDeducted: i.depositDeducted ?? 0,
           dueDate: toDate(i.dueDate), paidAt: toDate(i.paidAt),
@@ -591,9 +631,10 @@ export async function importData(jsonString: string): Promise<ImportResult> {
 
     // ── 27. Factures récurrentes ──────────────────────────────────────────────
     if (data.recurringInvoices?.length) {
+      const refs = await documentRefs()
       await prisma.recurringInvoice.createMany({
-        data: data.recurringInvoices.map((r: any) => ({ // eslint-disable-line @typescript-eslint/no-explicit-any
-          id: r.id, userId, clientId: r.clientId, projectId: r.projectId ?? null,
+        data: data.recurringInvoices.filter((r: any) => refs.clients.has(r.clientId)).map((r: any) => ({ // eslint-disable-line @typescript-eslint/no-explicit-any
+          id: r.id, userId, clientId: r.clientId, projectId: refs.project(r.projectId),
           name: r.name, frequency: r.frequency,
           nextGenerationDate: new Date(r.nextGenerationDate),
           isActive: r.isActive ?? true,

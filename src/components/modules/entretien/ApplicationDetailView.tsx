@@ -1,6 +1,6 @@
 "use client"
 
-import { zonedDateKey } from "@/lib/dates"
+import { zonedDateKey, zonedDateTimeKey } from "@/lib/dates"
 import { Fragment, useEffect, useId, useState, useTransition } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
@@ -473,7 +473,7 @@ export function ApplicationDetailView({
   // Add event form
   const [showAddEvent, setShowAddEvent] = useState(false)
   const [evType, setEvType] = useState<JobEventType>("CALL")
-  const [evDate, setEvDate] = useState(() => new Date().toISOString().slice(0, 16))
+  const [evDate, setEvDate] = useState(() => zonedDateTimeKey(new Date()))
   const [evTitle, setEvTitle] = useState("")
   const [evNotes, setEvNotes] = useState("")
   const [evContactId, setEvContactId] = useState(app.contactId ?? "")

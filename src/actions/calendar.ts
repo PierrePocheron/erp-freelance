@@ -3,6 +3,7 @@
 import { parseGoogleDate } from "@/lib/dates"
 import { prisma } from "@/lib/prisma"
 import { requireAuth } from "@/lib/require-auth"
+import { assertOwnedRefs } from "@/lib/owned-refs"
 import { auth } from "@/lib/auth"
 import { revalidatePath } from "next/cache"
 import {
@@ -191,6 +192,12 @@ export async function createCalendarEvent(data: {
   const userId = await requireAuth()
 
   if (!data.title.trim()) return { error: "Le titre est requis" }
+  // Anti-IDOR : /calendrier joint projet/contact/catégorie sans filtrer par utilisateur
+  try {
+    await assertOwnedRefs(userId, { projectId: data.projectId, clientId: data.clientId, calendarCategoryId: data.categoryId })
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Référence invalide" }
+  }
 
   const id          = crypto.randomUUID()
   const now         = new Date()
@@ -252,6 +259,7 @@ export async function updateCalendarEvent(
   }
 ): Promise<void> {
   const userId = await requireAuth()
+  await assertOwnedRefs(userId, { projectId: data.projectId, clientId: data.clientId, calendarCategoryId: data.categoryId })
 
   // Un seul UPDATE scopé au propriétaire (anti-IDOR) : Prisma ignore les champs
   // `undefined` (donc seuls les champs fournis sont écrits) et gère `updatedAt`

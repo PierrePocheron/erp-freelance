@@ -2,6 +2,7 @@
 
 import { prisma } from "@/lib/prisma"
 import { requireAuth } from "@/lib/require-auth"
+import { assertOwnedRefs } from "@/lib/owned-refs"
 import { revalidatePath } from "next/cache"
 import { advanceByFrequency } from "@/lib/dates"
 
@@ -72,6 +73,7 @@ export type ExpenseInput = {
 
 export async function createExpense(data: ExpenseInput) {
   const userId = await requireAuth()
+  await assertOwnedRefs(userId, { expenseCategoryId: data.categoryId })
   const expense = await prisma.expense.create({
     data: {
       userId,
@@ -91,6 +93,7 @@ export async function createExpense(data: ExpenseInput) {
 
 export async function updateExpense(expenseId: string, data: ExpenseInput) {
   const userId = await requireAuth()
+  await assertOwnedRefs(userId, { expenseCategoryId: data.categoryId })
   const existing = await prisma.expense.findFirst({ where: { id: expenseId, userId }, select: { id: true } })
   if (!existing) throw new Error("Dépense introuvable")
 
@@ -128,6 +131,7 @@ export async function convertExpenseToRecurring(
   data: ExpenseInput,
 ) {
   const userId = await requireAuth()
+  await assertOwnedRefs(userId, { expenseCategoryId: data.categoryId })
   const existing = await prisma.expense.findFirst({ where: { id: expenseId, userId }, select: { id: true, currency: true } })
   if (!existing) throw new Error("Dépense introuvable")
 
@@ -178,6 +182,7 @@ export type RecurringExpenseInput = {
 
 export async function createRecurringExpense(data: RecurringExpenseInput) {
   const userId = await requireAuth()
+  await assertOwnedRefs(userId, { expenseCategoryId: data.categoryId })
   const recurring = await prisma.recurringExpense.create({
     data: {
       userId,
@@ -198,6 +203,7 @@ export async function createRecurringExpense(data: RecurringExpenseInput) {
 
 export async function updateRecurringExpense(recurringExpenseId: string, data: RecurringExpenseInput) {
   const userId = await requireAuth()
+  await assertOwnedRefs(userId, { expenseCategoryId: data.categoryId })
   const existing = await prisma.recurringExpense.findFirst({ where: { id: recurringExpenseId, userId }, select: { id: true } })
   if (!existing) throw new Error("Dépense récurrente introuvable")
 
@@ -232,6 +238,7 @@ export async function deleteRecurringExpense(recurringExpenseId: string) {
  */
 export async function convertRecurringToExpense(recurringExpenseId: string, data: ExpenseInput) {
   const userId = await requireAuth()
+  await assertOwnedRefs(userId, { expenseCategoryId: data.categoryId })
   const existing = await prisma.recurringExpense.findFirst({ where: { id: recurringExpenseId, userId }, select: { id: true } })
   if (!existing) throw new Error("Dépense récurrente introuvable")
 
@@ -352,6 +359,10 @@ export async function generatePendingRecurringExpenses(): Promise<{ generated: n
     let iterations = 0
 
     while (cursor.getTime() <= now.getTime()) {
+      const next = advanceByFrequency(cursor, rec.frequency)
+      // Fréquence sans pas automatique (CUSTOM…) : rien à générer. Avant, la dépense était
+      // créée PUIS la boucle s'arrêtait sans avancer le curseur → un doublon à chaque ouverture.
+      if (next.getTime() === cursor.getTime()) break
       await prisma.expense.create({
         data: {
           userId,
@@ -366,9 +377,6 @@ export async function generatePendingRecurringExpenses(): Promise<{ generated: n
         },
       })
       generated++
-
-      const next = advanceByFrequency(cursor, rec.frequency)
-      if (next.getTime() === cursor.getTime()) break // fréquence inconnue → pas de progression possible
       cursor = next
       if (++iterations > MAX_GENERATION_ITERATIONS) break
     }

@@ -3,6 +3,7 @@
 import { useState, useTransition, useId } from "react"
 import { useRouter } from "next/navigation"
 import { Plus, Pencil, Trash2 } from "lucide-react"
+import { useArmedDelete } from "@/hooks/use-armed-delete"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
@@ -41,6 +42,7 @@ export function RecurringExpenseDialog({
   const [open, setOpen] = useState(false)
   const [isPending, startTransition] = useTransition()
   const [isDeleting, startDelete] = useTransition()
+  const { isArmed, confirmFirst } = useArmedDelete()
 
   const [label, setLabel]         = useState(recurringExpense?.label ?? "")
   const [amount, setAmount]       = useState(recurringExpense ? String(recurringExpense.amount) : "")
@@ -89,6 +91,7 @@ export function RecurringExpenseDialog({
   }
 
   function handleDelete() {
+    if (!confirmFirst()) return
     if (!recurringExpense) return
     startDelete(async () => {
       try {
@@ -195,7 +198,7 @@ export function RecurringExpenseDialog({
                 className="flex items-center gap-1.5 text-xs text-red-600 hover:text-red-700 disabled:opacity-50 transition-colors"
               >
                 <Trash2 className="h-3.5 w-3.5" />
-                Supprimer
+                {isArmed() ? "Confirmer la suppression" : "Supprimer"}
               </button>
             ) : <span />}
             <div className="flex gap-2">

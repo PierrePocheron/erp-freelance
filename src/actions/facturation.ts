@@ -4,7 +4,6 @@ import { prisma } from "@/lib/prisma"
 import { requireAuth } from "@/lib/require-auth"
 import { revalidatePath } from "next/cache"
 import { type NumberFormat, buildNumberParts } from "@/lib/number-format"
-import { auth } from "@/lib/auth"
 import { nextInvoiceNumber, defaultEmitterId, nextNumberFrom } from "@/lib/invoice-helpers"
 import { enforceRateLimit } from "@/lib/rate-limit"
 import { escapeHtml } from "@/lib/escape-html"
@@ -149,39 +148,6 @@ export async function createQuoteWithLines(
           productId: l.productId || null,
         })),
       },
-    },
-  })
-  revalidatePath("/facturation/devis")
-  revalidatePath("/facturation")
-  return quote
-}
-
-export async function createQuote(
-  _userId: string,
-  data: {
-    clientId: string
-    projectId?: string
-    depositPercent?: number
-    notes?: string
-    expiresAtDays?: number
-  }
-) {
-  const userId = await requireAuth()
-  await assertDocumentRefsOwned(userId, { clientId: data.clientId, projectId: data.projectId })
-  const number = await nextQuoteNumber(userId)
-  const expiresAt = data.expiresAtDays
-    ? new Date(Date.now() + data.expiresAtDays * 24 * 60 * 60 * 1000)
-    : null
-  const quote = await prisma.quote.create({
-    data: {
-      userId,
-      clientId: data.clientId,
-      projectId: data.projectId || null,
-      emitterProfileId: await defaultEmitterId(userId),
-      number,
-      depositPercent: data.depositPercent ?? 0,
-      notes: data.notes || null,
-      expiresAt,
     },
   })
   revalidatePath("/facturation/devis")

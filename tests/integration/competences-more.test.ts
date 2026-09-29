@@ -316,3 +316,17 @@ describe("scheduleSkillWork", () => {
     expect(zonedParts(task.dueDate!).hour).toBe(9)
   })
 })
+
+describe("techno ajoutée à un projet (#29)", () => {
+  it("une compétence créée comme techno utilisée est « en apprentissage » ; une existante garde son statut", async () => {
+    const user = await asNewUser()
+    const project = await makeProject(user.id, (await makeClient(user.id)).id)
+    await prisma.skill.create({ data: { userId: user.id, name: "Go", type: "HARD", status: "MASTERED" } })
+
+    await linkOrCreateProjectSkill(project.id, "Rust")
+    await linkOrCreateProjectSkill(project.id, "go")
+
+    expect((await prisma.skill.findFirstOrThrow({ where: { userId: user.id, name: "Rust" } })).status).toBe("LEARNING")
+    expect((await prisma.skill.findFirstOrThrow({ where: { userId: user.id, name: "Go" } })).status).toBe("MASTERED")
+  })
+})

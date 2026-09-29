@@ -40,6 +40,11 @@ PATH="/opt/homebrew/opt/node@22/bin:$PATH" npx prisma migrate deploy
 
 Ces fichiers de migration sont **versionnés normalement** (contrairement à `seed.real.ts`, voir ci-dessous).
 
+**Jamais de `prisma db push` sur la prod** : c'est ce qui avait créé la dérive #9 (tables/colonnes présentes en prod mais décrites par aucune migration → une base reconstruite depuis les migrations cassait). Corrigé le 29/09/2026 par 5 migrations `*_rattrapage_derive_*` idempotentes (sans effet sur la prod). Garde-fou : `scripts/check-migrations.sh` rejoue toutes les migrations sur une base locale neuve et exige un diff vide avec le schéma — il tourne en CI sur les PR de release, et se lance en local avec :
+```bash
+MIGCHECK_DATABASE_URL=postgresql://<user>@localhost:5432/erp_migcheck PATH="/opt/homebrew/opt/node@22/bin:$PATH" bash scripts/check-migrations.sh
+```
+
 ## Jeu de données réel (`prisma/seed.real.ts`)
 
 - **Gitignored — ne JAMAIS le committer.** Contient les vraies données personnelles de Pierre (clients, projets, factures, montants).

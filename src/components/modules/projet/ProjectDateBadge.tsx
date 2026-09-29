@@ -5,6 +5,7 @@ import { useState, useTransition, useRef } from "react"
 import { Calendar, Pencil, Check, X } from "lucide-react"
 import { updateProjectDates } from "@/actions/projet"
 import { cn } from "@/lib/utils"
+import { toast } from "sonner"
 
 type Props = {
   projectId: string
@@ -27,9 +28,15 @@ export function ProjectDateBadge({ projectId, field, value, label }: Props) {
 
   function handleSave() {
     const val = inputRef.current?.value
+    // Rien de changé (ou champ vidé : l'effacement n'est pas géré côté serveur) → simple fermeture
+    if (!val || val === toInputValue(value)) { setEditing(false); return }
     startTransition(async () => {
-      await updateProjectDates(projectId, { [field]: val || undefined })
-      setEditing(false)
+      try {
+        await updateProjectDates(projectId, { [field]: val })
+        setEditing(false)
+      } catch {
+        toast.error("Échec de l'enregistrement de la date")
+      }
     })
   }
 
@@ -43,12 +50,17 @@ export function ProjectDateBadge({ projectId, field, value, label }: Props) {
           defaultValue={toInputValue(value)}
           autoFocus
           onBlur={handleSave}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") { e.preventDefault(); handleSave() }
+            if (e.key === "Escape") setEditing(false)
+          }}
           className="h-6 rounded border border-input bg-background px-2 text-xs focus:outline-none focus:ring-1 focus:ring-ring"
         />
-        <button onClick={handleSave} disabled={isPending} className="text-emerald-500 hover:text-emerald-600">
+        <button onMouseDown={(e) => e.preventDefault()} onClick={handleSave} disabled={isPending} aria-label="Enregistrer la date" className="text-emerald-500 hover:text-emerald-600">
           <Check className="h-3.5 w-3.5" />
         </button>
-        <button onClick={() => setEditing(false)} className="text-muted-foreground hover:text-foreground">
+        {/* onMouseDown preventDefault : le champ garde le focus, donc son onBlur n'enregistre pas avant l'annulation */}
+        <button onMouseDown={(e) => e.preventDefault()} onClick={() => setEditing(false)} aria-label="Annuler" className="text-muted-foreground hover:text-foreground">
           <X className="h-3.5 w-3.5" />
         </button>
       </div>

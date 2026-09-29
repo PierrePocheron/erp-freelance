@@ -5,6 +5,7 @@ import { Plus } from "lucide-react"
 import { createTask } from "@/actions/projet"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { toast } from "sonner"
 
 export function AddTaskForm({
   projectId,
@@ -43,15 +44,21 @@ export function AddTaskForm({
     if (parentTaskId) formData.set("parentTaskId", parentTaskId)
     submittingRef.current = true
     startTransition(async () => {
-      await createTask(projectId, formData)
-      submittingRef.current = false
-      // Keep form open — reset title, refocus for consecutive add
-      if (inputRef.current) {
-        inputRef.current.value = ""
-        inputRef.current.focus()
+      try {
+        await createTask(projectId, formData)
+        // Keep form open — reset title, refocus for consecutive add
+        if (inputRef.current) {
+          inputRef.current.value = ""
+          inputRef.current.focus()
+        }
+        const hoursInput = formRef.current?.querySelector<HTMLInputElement>('input[name="estimatedHours"]')
+        if (hoursInput) hoursInput.value = ""
+      } catch {
+        toast.error("Échec de la création de la tâche")
+      } finally {
+        // Sans finally, un échec laissait le formulaire bloqué (plus aucun ajout possible)
+        submittingRef.current = false
       }
-      const hoursInput = formRef.current?.querySelector<HTMLInputElement>('input[name="estimatedHours"]')
-      if (hoursInput) hoursInput.value = ""
     })
   }
 

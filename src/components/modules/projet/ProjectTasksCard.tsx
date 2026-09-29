@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation"
 import { CheckSquare, CheckCircle2, Circle, Loader2, PlayCircle } from "lucide-react"
 import { completeTask, reopenTask } from "@/actions/projet"
 import { cn } from "@/lib/utils"
+import { toast } from "sonner"
 
 type TaskRow = {
   id: string
@@ -28,9 +29,13 @@ function TaskToggle({ task, projectId }: { task: TaskRow; projectId: string }) {
 
   function toggle() {
     startTransition(async () => {
-      if (task.status === "DONE") await reopenTask(task.id, projectId)
-      else await completeTask(task.id, projectId)
-      router.refresh()
+      try {
+        if (task.status === "DONE") await reopenTask(task.id, projectId)
+        else await completeTask(task.id, projectId)
+        router.refresh()
+      } catch {
+        toast.error("Échec de l'enregistrement")
+      }
     })
   }
 

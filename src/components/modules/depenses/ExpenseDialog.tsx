@@ -75,7 +75,9 @@ export function ExpenseDialog({
     e.preventDefault()
     const amountNum = parseFloat(amount.replace(",", "."))
     const dateOptional = isRecurring && dateToConfirm
-    if (!label.trim() || (!dateOptional && !date) || !amountNum || amountNum <= 0) return
+    // Montant « abc » ou négatif : le clic ne faisait rien, sans explication
+    if (!(amountNum > 0)) { toast.error("Montant invalide : saisis un nombre supérieur à 0"); return }
+    if (!label.trim() || (!dateOptional && !date)) return
 
     const shared = {
       label: label.trim(),

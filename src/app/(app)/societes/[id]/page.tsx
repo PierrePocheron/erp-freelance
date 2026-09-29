@@ -17,6 +17,7 @@ import { CompanyCategoryInline } from "@/components/modules/societes/CompanyCate
 import { CompanyOrgBoard } from "@/components/modules/societes/CompanyOrgBoard"
 import { STATUS_CONFIG, type JobAppStatus } from "@/components/modules/entretien/status-config"
 import { DeleteConfirmButton } from "@/components/modules/facturation/DeleteConfirmButton"
+import { runWithFlash } from "@/lib/flash"
 
 const fmt = (n: number) => n.toLocaleString("fr-FR", { minimumFractionDigits: 0, maximumFractionDigits: 0 })
 const fmtDate = (d: Date | string) =>
@@ -784,11 +785,10 @@ export default async function CompanyDetailPage({
               className="w-full"
               confirmTitle="Supprimer cette société ?"
               confirmMessage={`${company.name} sera supprimée. Ses contacts et projets sont conservés, mais détachés.`}
-              action={async () => {
-                "use server"
+              action={async () => { "use server"; await runWithFlash(async () => {
                 await deleteCompany(id)
                 redirect("/societes")
-              }}
+              }) }}
             />
           </div>
 

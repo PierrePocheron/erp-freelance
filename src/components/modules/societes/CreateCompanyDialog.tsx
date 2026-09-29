@@ -16,6 +16,7 @@ import { Label } from "@/components/ui/label"
 import { createCompany } from "@/actions/crm"
 import { CompanyCategoryCombobox, type CompanyCategory } from "./CompanyCategoryCombobox"
 import { toast } from "sonner"
+import { errorMessage } from "@/lib/error-message"
 
 type FiscalSourceOption = {
   id: string
@@ -79,7 +80,7 @@ export function CreateCompanyDialog({
         handleOpenChange(false)
         router.push(`/societes/${company.id}`)
       } catch (err) {
-        toast.error(err instanceof Error ? err.message : "Impossible de créer la société.")
+        toast.error(errorMessage(err, "Impossible de créer la société."))
       }
     })
   }

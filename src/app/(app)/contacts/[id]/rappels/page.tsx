@@ -7,6 +7,7 @@ import { SubmitButton } from "@/components/ui/submit-button"
 import { Input } from "@/components/ui/input"
 import { Bell, CheckCircle2, Circle, Trash2 } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { runWithFlash } from "@/lib/flash"
 
 export default async function ClientRappelsPage({
   params,
@@ -39,13 +40,12 @@ export default async function ClientRappelsPage({
         <div className="rounded-xl border border-border/50 bg-card p-5 space-y-4 sticky top-6">
           <h2 className="font-semibold">Nouveau rappel</h2>
           <form
-            action={async (fd: FormData) => {
-              "use server"
+            action={async (fd: FormData) => { "use server"; await runWithFlash(async () => {
               await addReminder(id, {
                 dueDate: fd.get("dueDate") as string,
                 note: (fd.get("note") as string) || undefined,
               })
-            }}
+            }, "Rappel ajouté") }}
             className="space-y-3"
           >
             <div className="space-y-1">
@@ -78,7 +78,7 @@ export default async function ClientRappelsPage({
                   const isLate = new Date(r.dueDate) < zonedDayStart(new Date())
                   return (
                     <div key={r.id} className={cn("group flex items-center gap-3 rounded-xl border p-4 transition-all", isLate ? "border-red-500/30 bg-red-500/5" : "border-border/50 bg-card")}>
-                      <form action={async () => { "use server"; await toggleReminder(r.id, id, true) }}>
+                      <form action={async () => { "use server"; await runWithFlash(async () => { await toggleReminder(r.id, id, true) }) }}>
                         <button type="submit" aria-label="Marquer le rappel comme effectué" title="Marquer effectué" className="text-muted-foreground hover:text-emerald-500 transition-colors shrink-0">
                           <Circle className="h-4 w-4" />
                         </button>
@@ -90,7 +90,7 @@ export default async function ClientRappelsPage({
                         </p>
                         {r.note && <p className="text-xs text-muted-foreground">{r.note}</p>}
                       </div>
-                      <form action={async () => { "use server"; await deleteReminder(r.id, id) }}>
+                      <form action={async () => { "use server"; await runWithFlash(async () => { await deleteReminder(r.id, id) }) }}>
                         <button type="submit" aria-label="Supprimer le rappel" title="Supprimer" className="pointer-fine:opacity-0 group-hover:opacity-100 focus:opacity-100 text-muted-foreground hover:text-destructive transition-opacity">
                           <Trash2 className="h-3.5 w-3.5" />
                         </button>
@@ -106,7 +106,7 @@ export default async function ClientRappelsPage({
                 <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Effectués</p>
                 {done.map((r) => (
                   <div key={r.id} className="group flex items-center gap-3 rounded-xl border border-border/50 bg-card p-4">
-                    <form action={async () => { "use server"; await toggleReminder(r.id, id, false) }}>
+                    <form action={async () => { "use server"; await runWithFlash(async () => { await toggleReminder(r.id, id, false) }) }}>
                       <button type="submit" aria-label="Remettre le rappel à faire" title="Remettre à faire" className="text-emerald-500 hover:text-muted-foreground transition-colors shrink-0">
                         <CheckCircle2 className="h-4 w-4" />
                       </button>
@@ -117,7 +117,7 @@ export default async function ClientRappelsPage({
                       </p>
                       {r.note && <p className="text-xs text-muted-foreground">{r.note}</p>}
                     </div>
-                    <form action={async () => { "use server"; await deleteReminder(r.id, id) }}>
+                    <form action={async () => { "use server"; await runWithFlash(async () => { await deleteReminder(r.id, id) }) }}>
                       <button type="submit" aria-label="Supprimer le rappel" title="Supprimer" className="pointer-fine:opacity-0 group-hover:opacity-100 focus:opacity-100 text-muted-foreground hover:text-destructive transition-opacity">
                         <Trash2 className="h-3.5 w-3.5" />
                       </button>

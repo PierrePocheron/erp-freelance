@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { createSkill, updateSkill, deleteSkill, type SkillInput } from "@/actions/competences"
 import { SKILL_LEVELS } from "./skill-config"
+import { errorMessage } from "@/lib/error-message"
 
 export type SkillForEdit = {
   id: string
@@ -132,7 +133,7 @@ export function SkillDialog({
         onOpenChange(false)
         router.refresh()
       } catch (err) {
-        toast.error(err instanceof Error ? err.message : "Enregistrement impossible")
+        toast.error(errorMessage(err, "Enregistrement impossible"))
       }
     })
   }

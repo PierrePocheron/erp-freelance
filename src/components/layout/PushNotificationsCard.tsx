@@ -4,6 +4,7 @@ import { useEffect, useState } from "react"
 import { Bell } from "lucide-react"
 import { toast } from "sonner"
 import { savePushSubscription, sendTestPush } from "@/actions/push"
+import { errorMessage } from "@/lib/error-message"
 
 // Clé publique VAPID → format attendu par pushManager.subscribe.
 // `new Uint8Array(n)` (adossé à un ArrayBuffer) plutôt que Uint8Array.from :
@@ -82,7 +83,7 @@ export function PushNotificationsCard() {
       sendTestPush().catch((e) => console.error("Test push échoué :", e))
     } catch (e) {
       console.error("Activation des notifications échouée :", e)
-      const msg = e instanceof Error ? e.message : "erreur inconnue"
+      const msg = errorMessage(e, "erreur inconnue")
       toast.error(`Impossible d'activer les notifications : ${msg}`)
     } finally {
       setBusy(false)

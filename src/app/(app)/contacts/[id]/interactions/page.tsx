@@ -7,6 +7,7 @@ import { SubmitButton } from "@/components/ui/submit-button"
 import { Input } from "@/components/ui/input"
 import { InteractionsList } from "@/components/modules/crm/InteractionsList"
 import { Mail, Phone, Users, MessageSquare, Coffee, MoreHorizontal } from "lucide-react"
+import { runWithFlash } from "@/lib/flash"
 
 const channels = [
   { value: "EMAIL", label: "Email", icon: Mail },
@@ -43,8 +44,7 @@ export default async function ClientInteractionsPage({
         <div className="rounded-xl border border-border/50 bg-card p-5 space-y-4 sticky top-6">
           <h2 className="font-semibold">Nouvelle interaction</h2>
           <form
-            action={async (fd: FormData) => {
-              "use server"
+            action={async (fd: FormData) => { "use server"; await runWithFlash(async () => {
               await addInteraction(id, {
                 date: fd.get("date") as string,
                 channel: fd.get("channel") as string,
@@ -52,7 +52,7 @@ export default async function ClientInteractionsPage({
                 response: (fd.get("response") as string) || undefined,
                 emailUrl: (fd.get("emailUrl") as string) || null,
               })
-            }}
+            }, "Interaction ajoutée") }}
             className="space-y-3"
           >
             <div className="space-y-1">

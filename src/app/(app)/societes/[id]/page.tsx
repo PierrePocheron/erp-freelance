@@ -5,10 +5,9 @@ import Link from "next/link"
 import { SetBreadcrumbLabel } from "@/components/layout/BreadcrumbContext"
 import {
   ChevronLeft, Building2, Mail, Phone, Globe, MapPin,
-  Users, FolderOpen, Trash2, ExternalLink, Receipt, FileText,
+  Users, FolderOpen, ExternalLink, Receipt, FileText,
   TrendingUp, Clock, AlertTriangle, CheckCircle2, ListTodo,
 } from "lucide-react"
-import { Button } from "@/components/ui/button"
 import { deleteCompany } from "@/actions/crm"
 import { NewContactForCompanyButton } from "@/components/modules/societes/NewContactForCompanyButton"
 import { NewProjectForCompanyButton } from "@/components/modules/societes/NewProjectForCompanyButton"
@@ -16,6 +15,7 @@ import { CompanyTypeSelect } from "@/components/modules/societes/CompanyTypeSele
 import { CompanyCategoryInline } from "@/components/modules/societes/CompanyCategoryInline"
 import { CompanyOrgBoard } from "@/components/modules/societes/CompanyOrgBoard"
 import { STATUS_CONFIG, type JobAppStatus } from "@/components/modules/entretien/status-config"
+import { DeleteConfirmButton } from "@/components/modules/facturation/DeleteConfirmButton"
 
 const fmt = (n: number) => n.toLocaleString("fr-FR", { minimumFractionDigits: 0, maximumFractionDigits: 0 })
 const fmtDate = (d: Date | string) =>
@@ -778,18 +778,17 @@ export default async function CompanyDetailPage({
             <p className="text-xs text-muted-foreground">
               La suppression détache contacts et projets, mais ne les supprime pas.
             </p>
-            <form
+            <DeleteConfirmButton
+              label="Supprimer cette société"
+              className="w-full"
+              confirmTitle="Supprimer cette société ?"
+              confirmMessage={`${company.name} sera supprimée. Ses contacts et projets sont conservés, mais détachés.`}
               action={async () => {
                 "use server"
                 await deleteCompany(id)
                 redirect("/societes")
               }}
-            >
-              <Button type="submit" variant="destructive" size="sm" className="w-full gap-1.5">
-                <Trash2 className="h-3.5 w-3.5" />
-                Supprimer cette société
-              </Button>
-            </form>
+            />
           </div>
 
         </div>

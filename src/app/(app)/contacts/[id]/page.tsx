@@ -4,15 +4,15 @@ import { prisma } from "@/lib/prisma"
 import { notFound } from "next/navigation"
 import { redirect } from "next/navigation"
 import { deleteClient } from "@/actions/crm"
-import { Bell, MessageSquare, Trash2 } from "lucide-react"
+import { Bell, MessageSquare } from "lucide-react"
 import Link from "next/link"
-import { Button } from "@/components/ui/button"
 import { STATUS_CONFIG, type JobAppStatus } from "@/components/modules/entretien/status-config"
 import { ClientInfoCard } from "@/components/modules/crm/ClientInfoCard"
 import { ContactActivity } from "@/components/modules/crm/ContactActivity"
 import { ClientTasksSection } from "@/components/modules/crm/ClientTasksSection"
 import { ClientProjectsCard } from "@/components/modules/crm/ClientProjectsCard"
 import { FiscalCategoryCard } from "@/components/modules/crm/FiscalCategoryCard"
+import { DeleteConfirmButton } from "@/components/modules/facturation/DeleteConfirmButton"
 
 export default async function ClientOverviewPage({
   params,
@@ -330,18 +330,17 @@ export default async function ClientOverviewPage({
 
         {/* Danger zone — propriétaire uniquement */}
         {isOwner && (
-          <form
+          <DeleteConfirmButton
+            label="Supprimer ce contact"
+            className="w-full"
+            confirmTitle="Supprimer ce contact ?"
+            confirmMessage={`${client.name} sera supprimé, avec ses interactions, rappels, notes, historique de prospection et fichiers. Cette action est irréversible.`}
             action={async () => {
               "use server"
               await deleteClient(id, userId)
               redirect("/contacts")
             }}
-          >
-            <Button type="submit" variant="destructive" size="sm" className="w-full">
-              <Trash2 className="h-3.5 w-3.5" />
-              Supprimer ce contact
-            </Button>
-          </form>
+          />
         )}
       </div>
     </div>

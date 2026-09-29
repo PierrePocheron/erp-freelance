@@ -283,15 +283,18 @@ export default async function DevisDetailPage({
                     </Button>
                   </form>
                 )}
-                <form action={async () => {
-                  "use server"
-                  await updateQuoteStatus(id, userId, "REJECTED")
-                }}>
-                  <Button type="submit" size="sm" variant="destructive">
-                    <XCircle className="h-3.5 w-3.5" />
-                    Refusé
-                  </Button>
-                </form>
+                <DeleteConfirmButton
+                  label="Refusé"
+                  icon={<XCircle className="h-3.5 w-3.5" />}
+                  confirmTitle={`Marquer le devis ${quote.number} comme refusé ?`}
+                  confirmMessage="Le devis sort du pipeline, et l'interface ne permet pas de revenir en arrière."
+                  confirmLabel="Marquer refusé"
+                  pendingLabel="Enregistrement…"
+                  action={async () => {
+                    "use server"
+                    await updateQuoteStatus(id, userId, "REJECTED")
+                  }}
+                />
               </>
             )}
 

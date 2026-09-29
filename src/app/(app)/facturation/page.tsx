@@ -6,11 +6,10 @@ import { TrendingUp, Clock, AlertCircle, CheckCircle2, Settings } from "lucide-r
 import { markLateInvoices } from "@/actions/facturation"
 import { MonthlyRevenueChart } from "@/components/modules/facturation/MonthlyRevenueChart"
 import { FacturationQuickActions } from "@/components/modules/facturation/FacturationQuickActions"
+import { amountAuto as fmtEur } from "@/lib/format"
 
 // Helpers d'affichage cohérents avec la liste des factures
 const faNumber = (n: string) => (/^fa/i.test(n.trim()) ? n : `FA${n}`)
-const fmtEur = (n: number) =>
-  n.toLocaleString("fr-FR", { minimumFractionDigits: Number.isInteger(n) ? 0 : 2, maximumFractionDigits: 2 })
 const fmtDay = (d: Date | string) => new Date(d).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris" })
 // Montant réglé d'une facture : somme des versements, sinon le net si soldée
 const invoicePaid = (inv: { status: string; totalHT: number; depositDeducted: number; payments: { amount: number }[] }) => {

@@ -24,6 +24,7 @@ import {
   generateInvoiceFromRecurring,
 } from "@/actions/facturation"
 import { ClientCombobox } from "./ClientCombobox"
+import { eur2 as fmtEur } from "@/lib/format"
 
 type Client = { id: string; name: string; company: string | null; type: string }
 type Project = { id: string; name: string; clientId: string | null }
@@ -67,7 +68,6 @@ const FREQ_BADGE: Record<string, string> = {
   CUSTOM: "bg-muted text-muted-foreground border-border",
 }
 
-const fmtEur = (v: number) => v.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " €"
 
 export function RecurrentesManager({
   userId,

@@ -18,8 +18,8 @@ import { CompanyOrgBoard } from "@/components/modules/societes/CompanyOrgBoard"
 import { STATUS_CONFIG, type JobAppStatus } from "@/components/modules/entretien/status-config"
 import { DeleteConfirmButton } from "@/components/modules/facturation/DeleteConfirmButton"
 import { runWithFlash } from "@/lib/flash"
+import { amount0 as fmt } from "@/lib/format"
 
-const fmt = (n: number) => n.toLocaleString("fr-FR", { minimumFractionDigits: 0, maximumFractionDigits: 0 })
 const fmtDate = (d: Date | string) =>
   new Date(d).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris", day: "numeric", month: "short", year: "numeric" })
 

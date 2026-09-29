@@ -6,6 +6,7 @@ import { useArmedDelete } from "@/hooks/use-armed-delete"
 import { addQuoteLine, updateQuoteLine, deleteQuoteLine } from "@/actions/facturation"
 import { addInvoiceLine, updateInvoiceLine, deleteInvoiceLine } from "@/actions/facturation"
 import { toast } from "sonner"
+import { eur2 as fmtEur } from "@/lib/format"
 
 const TAX_RATES = [
   { value: 0, label: "0%" },
@@ -49,9 +50,6 @@ const emptyForm: LineFormData = {
   taxRate: "0",
 }
 
-function fmtEur(n: number) {
-  return n.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " €"
-}
 
 function fmtTaxLabel(rate: number) {
   return rate === 0 ? "0%" : `${String(rate).replace(".", ",")}%`

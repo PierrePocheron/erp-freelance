@@ -3,6 +3,7 @@
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { periodLabel } from "@/lib/urssaf"
+import { eurAuto as eur, amountAuto } from "@/lib/format"
 
 export type SearchResult = {
   id: string
@@ -15,7 +16,6 @@ export type SearchResult = {
   href: string
 }
 
-const eur = (n: number) => `${n.toLocaleString("fr-FR", { maximumFractionDigits: 2 })} €`
 
 /**
  * Si la requête est un nombre (« 60 », « 60,5 », « 1 200.50 »), retourne la
@@ -290,13 +290,13 @@ export async function searchGlobal(query: string, activeModuleIds?: string[]): P
     ...expenses.map((e) => ({
       id: e.id, type: "expense" as const,
       label: e.label,
-      sublabel: `${e.amount.toLocaleString("fr-FR")} €${e.category ? ` · ${e.category.name}` : ""}`,
+      sublabel: `${amountAuto(e.amount)} €${e.category ? ` · ${e.category.name}` : ""}`,
       href: `/depenses`,
     })),
     ...recurringExpenses.map((r) => ({
       id: r.id, type: "recurring_expense" as const,
       label: r.label,
-      sublabel: `${r.amount.toLocaleString("fr-FR")} €${r.category ? ` · ${r.category.name}` : ""}`,
+      sublabel: `${amountAuto(r.amount)} €${r.category ? ` · ${r.category.name}` : ""}`,
       href: `/depenses`,
     })),
     ...revenues.map((r) => ({

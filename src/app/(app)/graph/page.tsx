@@ -4,6 +4,7 @@ import { prisma }   from "@/lib/prisma"
 import { GraphView } from "@/components/modules/graph/GraphView"
 import type { RawNode, RawLink } from "@/components/modules/graph/graph-types"
 import { isContactIncomplete } from "@/lib/contact"
+import { amountAuto } from "@/lib/format"
 
 export default async function GraphPage() {
   const session = await auth()
@@ -252,10 +253,10 @@ export default async function GraphPage() {
       amount:   inv.totalHT,
       meta: {
         href:     `/facturation/factures/${inv.id}`,
-        subtitle: `${inv.totalHT.toLocaleString("fr-FR")} € HT`,
+        subtitle: `${amountAuto(inv.totalHT)} € HT`,
         details: [
           { label: "Statut",  value: INVOICE_STATUS_LABELS[inv.status] ?? inv.status },
-          { label: "Montant", value: `${inv.totalHT.toLocaleString("fr-FR")} € HT` },
+          { label: "Montant", value: `${amountAuto(inv.totalHT)} € HT` },
           ...(inv.paidAt ? [{ label: "Payée le", value: new Date(inv.paidAt).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris" }) }] : []),
         ],
       },
@@ -278,10 +279,10 @@ export default async function GraphPage() {
       amount:   q.totalHT,
       meta: {
         href:     `/facturation/devis/${q.id}`,
-        subtitle: `${q.totalHT.toLocaleString("fr-FR")} € HT`,
+        subtitle: `${amountAuto(q.totalHT)} € HT`,
         details: [
           { label: "Statut",  value: QUOTE_STATUS_LABELS[q.status] ?? q.status },
-          { label: "Montant", value: `${q.totalHT.toLocaleString("fr-FR")} € HT` },
+          { label: "Montant", value: `${amountAuto(q.totalHT)} € HT` },
         ],
       },
     })
@@ -325,7 +326,7 @@ export default async function GraphPage() {
       amount:     rev.amount,
       meta: {
         href:     `/revenus`,
-        subtitle: `${rev.amount.toLocaleString("fr-FR")} €`,
+        subtitle: `${amountAuto(rev.amount)} €`,
         details: [
           { label: "Montant", value: `${rev.amount.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €` },
           { label: "Statut",  value: rev.status === "RECEIVED" ? "Reçu" : "En attente" },
@@ -519,7 +520,7 @@ export default async function GraphPage() {
         amount:  rev.amount,
         meta: {
           href:     "/revenus",
-          subtitle: `${rev.amount.toLocaleString("fr-FR")} €`,
+          subtitle: `${amountAuto(rev.amount)} €`,
           details: [
             { label: "Montant", value: `${rev.amount.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €` },
             { label: "Statut",  value: rev.status === "RECEIVED" ? "Reçu" : "En attente" },

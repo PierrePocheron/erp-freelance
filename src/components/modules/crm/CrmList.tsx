@@ -5,6 +5,7 @@ import Link from "next/link"
 import { LayoutGrid, List, Search, TrendingUp, AlertCircle } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { CLIENT_SOURCE_LABELS as sourceLabels } from "@/lib/client-source"
+import { eur0 as fmtEur } from "@/lib/format"
 
 const typeConfig = {
   TO_COMPLETE: { label: "À compléter", className: "bg-rose-500/15 text-rose-600 border-rose-500/20" },
@@ -35,8 +36,6 @@ type Client = {
 type Group = { key: string; label: string; items: Client[] }
 type View = "cards" | "list"
 
-const fmtEur = (n: number) =>
-  n.toLocaleString("fr-FR", { maximumFractionDigits: 0 }) + " €"
 
 const fmtShort = (d: Date | string) =>
   new Date(d).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris", day: "numeric", month: "short" })

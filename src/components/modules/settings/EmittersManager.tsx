@@ -202,7 +202,7 @@ function EmitterEditorDialog({ emitter, onClose }: { emitter: Emitter | null; on
 
   return (
     <Dialog open onOpenChange={(v) => { if (!v) onClose() }}>
-      <DialogContent className="sm:max-w-2xl max-h-[85vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-2xl max-h-[85dvh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{isEdit ? "Modifier la société" : "Nouvelle société"}</DialogTitle>
         </DialogHeader>

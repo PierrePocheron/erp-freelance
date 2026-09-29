@@ -109,7 +109,7 @@ export default async function ProjectLayout({
         </div>
 
         {/* Colonne droite : contacts du projet (en haut), puis collaborateurs + pills */}
-        <div className="flex flex-col items-end gap-3 shrink-0">
+        <div className="flex flex-col items-end gap-3 shrink-0 max-w-full">
           <ProjectContactsStack
             projectId={id}
             userId={userId}

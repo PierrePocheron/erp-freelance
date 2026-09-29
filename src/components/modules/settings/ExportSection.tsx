@@ -150,7 +150,7 @@ export function ExportSection({ stats }: Props) {
         </div>
 
         {/* Stats actuelles */}
-        <div className="grid grid-cols-3 gap-2 sm:grid-cols-9">
+        <div className="grid grid-cols-3 gap-2 sm:grid-cols-5 xl:grid-cols-9">
           {statItems.map(({ label, value }) => (
             <div key={label} className="rounded-lg bg-muted/40 p-2.5 text-center">
               <p className="text-lg font-bold">{value}</p>

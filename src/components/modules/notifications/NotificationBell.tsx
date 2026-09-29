@@ -144,7 +144,7 @@ export function NotificationBell({
                 <button
                   type="button"
                   onClick={() => setOpen(false)}
-                  className="text-muted-foreground hover:text-foreground transition-colors"
+                  className="p-2 -m-1.5 text-muted-foreground hover:text-foreground transition-colors"
                   aria-label="Fermer les notifications"
                 >
                   <X className="h-4 w-4" />
@@ -185,8 +185,9 @@ export function NotificationBell({
                           <button
                             type="button"
                             onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleMarkRead(notif.id) }}
-                            className="shrink-0 text-muted-foreground hover:text-foreground transition-colors mt-0.5"
+                            className="shrink-0 p-2 -m-1.5 text-muted-foreground hover:text-foreground transition-colors"
                             title="Marquer comme lu"
+                            aria-label="Marquer comme lu"
                           >
                             <X className="h-3.5 w-3.5" />
                           </button>

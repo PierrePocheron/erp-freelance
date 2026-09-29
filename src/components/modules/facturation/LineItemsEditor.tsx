@@ -228,6 +228,9 @@ export function LineItemsEditor({ entityId, entityType, lines, editable = true }
 
   return (
     <div>
+      {/* Grille 12 colonnes illisible sous ~576 px (montants qui se chevauchent) : défilement horizontal */}
+      <div className="overflow-x-auto">
+      <div className="min-w-[36rem]">
       {/* En-tête */}
       <div className="grid grid-cols-12 gap-2 px-4 py-2.5 text-xs font-medium text-muted-foreground bg-muted/30 border-b border-border">
         <div className="col-span-6">Prestation</div>
@@ -278,7 +281,7 @@ export function LineItemsEditor({ entityId, entityType, lines, editable = true }
                   <button
                     onClick={() => setEditingId(line.id)}
                     aria-label="Modifier la ligne"
-                    className="pointer-fine:opacity-0 group-hover:opacity-100 focus:opacity-100 text-muted-foreground hover:text-foreground transition-opacity"
+                    className="p-2 -m-1.5 pointer-fine:opacity-0 group-hover:opacity-100 focus:opacity-100 text-muted-foreground hover:text-foreground transition-opacity"
                   >
                     <Pencil className="h-3.5 w-3.5" />
                   </button>
@@ -286,7 +289,7 @@ export function LineItemsEditor({ entityId, entityType, lines, editable = true }
                     onClick={() => { if (confirmFirst(line.id)) startTransition(() => deleteLine(line.id)) }}
                     disabled={isPending}
                     aria-label={isArmed(line.id) ? "Confirmer la suppression de la ligne" : "Supprimer la ligne"}
-                    className={`group-hover:opacity-100 focus:opacity-100 hover:text-destructive transition-opacity ${isArmed(line.id) ? "text-destructive" : "pointer-fine:opacity-0 text-muted-foreground"}`}
+                    className={`p-2 -m-1.5 group-hover:opacity-100 focus:opacity-100 hover:text-destructive transition-opacity ${isArmed(line.id) ? "text-destructive" : "pointer-fine:opacity-0 text-muted-foreground"}`}
                   >
                     {isArmed(line.id) ? <Check className="h-3.5 w-3.5" /> : <Trash2 className="h-3.5 w-3.5" />}
                   </button>
@@ -296,6 +299,8 @@ export function LineItemsEditor({ entityId, entityType, lines, editable = true }
           </div>
         )
       )}
+      </div>
+      </div>
 
       {/* Formulaire d'ajout */}
       {editable && (

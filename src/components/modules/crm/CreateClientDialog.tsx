@@ -111,7 +111,7 @@ export function CreateClientDialog({
           Nouveau contact
         </DialogTrigger>
       )}
-      <DialogContent className="sm:max-w-2xl flex flex-col p-0 gap-0 max-h-[90vh]">
+      <DialogContent className="sm:max-w-2xl flex flex-col p-0 gap-0 max-h-[85dvh]">
         <div className="px-4 pt-4 pb-2 shrink-0">
           <DialogHeader>
             <DialogTitle>Nouveau contact</DialogTitle>

@@ -44,7 +44,7 @@ export function OnboardingDialog({
   // fermeture → onCancel. Le piège de focus / aria-modal viennent de base-ui.
   return (
     <Dialog open onOpenChange={(o) => { if (!o && mode === "manual") onCancel?.() }}>
-      <DialogContent showCloseButton={false} className="sm:max-w-2xl max-h-[90vh] flex flex-col overflow-hidden p-0 gap-0">
+      <DialogContent showCloseButton={false} className="sm:max-w-2xl max-h-[85dvh] flex flex-col overflow-hidden p-0 gap-0">
         {/* Header */}
         <div className="px-6 py-5 border-b border-border/50 shrink-0">
           <div className="flex items-start justify-between gap-3">

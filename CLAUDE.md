@@ -7,6 +7,8 @@ ERP personnel de Pierre (Next.js 16 App Router, Prisma 7 + PostgreSQL/Neon). Pou
 ## Règles absolues (jamais d'exception sans confirmation explicite de Pierre)
 
 - **Le repo est PUBLIC — jamais de données personnelles réelles dans les fichiers versionnés NI dans les corps de commit** : pas d'IBAN, SIRET, adresse, téléphone, montants de factures ou noms de clients réels. Scripts/tests/previews utilisent des valeurs factices. (Incident du 14/07/2026 : le vrai IBAN a fuité via scripts/preview-pdf.ts, purgé par filter-branch + force-push le 16/07.)
+  - **Aucun nom réel non plus — même dans un commentaire, un placeholder, un test ou un message de commit** : ni employeur, ni client, ni recruteur, ni praticien, ni proche. Écrire « un employeur », « un client », « Client Démo ». Un nom d'entreprise dans un repo public déclenche les alertes de veille de cette entreprise (incident du 02/10/2026 : un nom d'employeur dans un commentaire a été repéré ; la purge a aussi trouvé le vrai IBAN resté en placeholder et de vraies factures dans `scripts/preview-pdf.ts` → historique réécrit avec `git filter-repo`, branches + tags poussés en force).
+  - Avant tout commit : relire le diff ET le message en se demandant « est-ce qu'un nom, une adresse, un identifiant ou un montant ici vient de `seed.real.ts` / de la vraie vie ? ».
 
 - **Branche `dev` uniquement.** Ne jamais committer/pousser sur `main` directement — `main` ne reçoit que des merges de release explicites (voir "Release" plus bas).
 - **Sur `dev` : pousser automatiquement vers `origin` après chaque commit** (demande de Pierre, 20/07/2026 — remplace l'ancienne règle "ne jamais pousser sans instruction"). Ne jamais pousser une autre branche que `dev` sans instruction, et jamais sur `main`.

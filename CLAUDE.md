@@ -55,6 +55,7 @@ MIGCHECK_DATABASE_URL=postgresql://<user>@localhost:5432/erp_migcheck PATH="/opt
   ```bash
   PATH="/opt/homebrew/opt/node@22/bin:$PATH" npx tsx prisma/seed.real.ts
   ```
+- Règles métier personnelles (catégorisation de certains revenus/dépenses) : dans `CLAUDE.local.md`, **gitignored** — y mettre tout ce qui décrit la vie perso plutôt qu'ici.
 - `TimeEntry.duration` est stocké en **secondes**, pas en minutes (bug déjà rencontré une fois).
 - **Prospects** : le seed lit `prisma/prospects.csv` (gitignored aussi — export brut de l'app prospect-finder). Mettre la liste à jour = remplacer le fichier + relancer le seed (dédup par domaine, mapping automatique). Toute saisie faite dans l'app entre deux runs est perdue (comportement connu).
 - **Contrôle visuel des PDF factures** : `PATH="/opt/homebrew/opt/node@22/bin:$PATH" npx tsx scripts/preview-pdf.ts` rend 3 documents factices dans /tmp (facture, acompte, devis) sans toucher à la base — puis `pdftoppm` (poppler installé) pour rasteriser si besoin de comparer visuellement.

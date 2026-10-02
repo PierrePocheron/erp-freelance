@@ -51,3 +51,6 @@ prisma/seed.real.ts
 
 # Export prospect-finder (données réelles de prospection)
 prisma/prospects.csv
+
+# Règles perso de Claude (jamais publiques)
+CLAUDE.local.md

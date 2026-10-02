@@ -122,7 +122,10 @@ jobs:
       # Analyse SonarCloud (config dans sonar-project.properties) — consomme le
       # lcov produit juste au-dessus. Analyse CI uniquement : l'Automatic
       # Analysis est désactivée côté SonarCloud (conflit sinon).
+      # Ignorée quand le repo est privé : l'offre gratuite de SonarCloud ne couvre
+      # que les projets publics (l'étape échouerait et bloquerait les releases).
       - name: SonarCloud Scan
+        if: ${{ !github.event.repository.private }}
         uses: SonarSource/sonarqube-scan-action@v5
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
